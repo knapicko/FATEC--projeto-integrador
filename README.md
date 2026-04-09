@@ -1,13 +1,8 @@
 ## Projeto - Conserta Já
 
-### Equipe:
-
-- Flávio Henrique (Analista e BDA)
-- Gabriel Santos (Desenvolvedor Back-end)
-- Gustavo Almeida (Desenvolvedor Full-Stack e Designer)
-- Leandro Oliveira (Designer e Analista)
-- Lucas Eiji (Analista e BDA)
-- Luiz Knapck (Analista e Desenvolvedor Full-Stack) 
+| **Equipe** | **Tecnologias Utilizadas** |
+|------------|---------------------------|
+| • Flávio Henrique (Analista e BDA) <br> • Gabriel Santos (Desenvolvedor Back-end) <br> • Gustavo Almeida (Desenvolvedor Full-Stack e Designer) <br> • Leandro Oliveira (Designer e Analista) <br> • Lucas Eiji (Analista e BDA) <br> • Luiz Knapck (Analista e Desenvolvedor Full-Stack) | •  <br> •  <br> • <br> •  <br> • |
 
 ##
 ### Sobre o Projeto:
