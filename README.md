@@ -9,4 +9,5 @@
 - Lucas Eiji (Analista e BDA)
 - Luiz Knapck (Analista e Desenvolvedor Full-Stack) 
 
-## Sobre o Projeto:
+##
+### Sobre o Projeto:
