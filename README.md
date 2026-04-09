@@ -1,6 +1,6 @@
 ## Projeto - Conserta Já
 
-# Colaboradores:
+### Colaboradores:
 
 - Flávio Henrique (Analista e BDA)
 - Gabriel Santos (Desenvolvedor Back-end)
