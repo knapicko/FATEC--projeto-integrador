@@ -243,19 +243,19 @@ class TelaHome extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
+                const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('LOCALIZAÇÃO ATUAL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                    Text('LOCALIZAÇÃO ATUAL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
                     Row(
                       children: [
-                        const Icon(Icons.location_on, color: Color(0xFF00A3FF), size: 16),
-                        const SizedBox(width: 4),
-                        const Text(
+                        Icon(Icons.location_on, color: Color(0xFF00A3FF), size: 16),
+                        SizedBox(width: 4),
+                        Text(
                           'Adicionar Localização', 
                           style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
                         ),
-                        const Icon(Icons.keyboard_arrow_down, color: Colors.black54),
+                        Icon(Icons.keyboard_arrow_down, color: Colors.black54),
                       ],
                     )
                   ],

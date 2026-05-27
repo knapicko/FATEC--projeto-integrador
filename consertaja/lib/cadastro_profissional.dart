@@ -555,7 +555,7 @@ class _CadastroProfissionalEtapa2PageState
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
+                        color: Colors.black.withValues(alpha:0.05),
                         blurRadius: 5,
                         offset: const Offset(0, 3),
                       ),
@@ -829,7 +829,7 @@ class _CadastroProfissionalEtapa3PageState extends State<CadastroProfissionalEta
                   onPressed: (_termosDeUso && _politicaPrivacidade) ? () {} : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00A2FF),
-                    disabledBackgroundColor: const Color(0xFF00A2FF).withOpacity(0.5),
+                    disabledBackgroundColor: const Color(0xFF00A2FF).withValues(alpha:0.5),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                     ),
@@ -1035,7 +1035,7 @@ class CadastroFacialPage extends StatelessWidget {
           Container(
             height: 1,
             width: double.infinity,
-            color: Colors.grey.withOpacity(0.2),
+            color: Colors.grey.withValues(alpha:0.2),
           ),
           Expanded(
             child: SingleChildScrollView(
@@ -1302,7 +1302,7 @@ class _CadastroFacialLeituraFacialPageState extends State<CadastroFacialLeituraF
           Container(
             height: 1,
             width: double.infinity,
-            color: Colors.grey.withOpacity(0.2),
+            color: Colors.grey.withValues(alpha:0.2),
           ),
           Expanded(
             child: Padding(
@@ -1316,7 +1316,7 @@ class _CadastroFacialLeituraFacialPageState extends State<CadastroFacialLeituraF
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF00A2FF).withOpacity(0.12),
+                      color: const Color(0xFF00A2FF).withValues(alpha:0.12),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Text(
@@ -1454,7 +1454,7 @@ class _CadastroDocumentoIdentidadePageState extends State<CadastroDocumentoIdent
                 decoration: BoxDecoration(
                   color: const Color(0xFFFAFAFA),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF00A2FF).withOpacity(0.3)),
+                  border: Border.all(color: const Color(0xFF00A2FF).withValues(alpha:0.3)),
                 ),
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -1520,7 +1520,7 @@ class _CadastroDocumentoIdentidadePageState extends State<CadastroDocumentoIdent
           Container(
             height: 1,
             width: double.infinity,
-            color: Colors.grey.withOpacity(0.2),
+            color: Colors.grey.withValues(alpha:0.2),
           ),
           Expanded(
             child: SingleChildScrollView(
@@ -1799,8 +1799,8 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
           boxShadow: [
             BoxShadow(
               color: _isFocused
-                  ? const Color(0xFF00A2FF).withOpacity(0.08)
-                  : Colors.black.withOpacity(0.015),
+                  ? const Color(0xFF00A2FF).withValues(alpha:0.08)
+                  : Colors.black.withValues(alpha:0.015),
               blurRadius: _isFocused ? 8 : 4,
               offset: _isFocused ? const Offset(0, 4) : const Offset(0, 2),
             ),
@@ -1832,7 +1832,7 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                                       ? Colors.grey.shade600
                                       : const Color(
                                           0xFF00A2FF,
-                                        ).withOpacity(0.5)),
+                                        ).withValues(alpha:0.5)),
                               fontSize: shouldFloat ? 11 : 16,
                               fontWeight: shouldFloat
                                   ? FontWeight.bold
@@ -1879,7 +1879,7 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                       decoration: InputDecoration(
                         hintText: shouldFloat ? widget.hint : '',
                         hintStyle: TextStyle(
-                          color: const Color(0xFF00A2FF).withOpacity(0.4),
+                          color: const Color(0xFF00A2FF).withValues(alpha:0.4),
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
                         ),

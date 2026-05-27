@@ -268,6 +268,7 @@ class _InputFieldWithAnimation extends StatefulWidget {
     this.keyboardType,
     this.obscureText = false,
     this.controller,
+    // ignore: unused_element_parameter
     this.focusNode,
     this.readOnly = false,
     this.onTap,
@@ -352,8 +353,8 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
           boxShadow: [
             BoxShadow(
               color: _isFocused
-                  ? const Color(0xFF00A2FF).withOpacity(0.08)
-                  : Colors.black.withOpacity(0.015),
+                  ? const Color(0xFF00A2FF).withValues(alpha: 0.08)
+                  : Colors.black.withValues(alpha: 0.015),
               blurRadius: _isFocused ? 8 : 4,
               offset: _isFocused ? const Offset(0, 4) : const Offset(0, 2),
             ),
@@ -385,7 +386,7 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                                         ? Colors.grey.shade600
                                         : const Color(
                                             0xFF00A2FF,
-                                          ).withOpacity(0.5)),
+                                          ).withValues(alpha: 0.5)),
                               fontSize: shouldFloat ? 11 : 16,
                               fontWeight: shouldFloat
                                   ? FontWeight.bold
@@ -432,7 +433,7 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                       decoration: InputDecoration(
                         hintText: shouldFloat ? widget.hint : '',
                         hintStyle: TextStyle(
-                          color: const Color(0xFF00A2FF).withOpacity(0.4),
+                          color: const Color(0xFF00A2FF).withValues(alpha: 0.4),
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
                         ),
@@ -667,7 +668,7 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
                     backgroundColor: const Color(0xFF00A2FF),
                     disabledBackgroundColor: const Color(
                       0xFF00A2FF,
-                    ).withOpacity(0.35),
+                    ).withValues(alpha:0.35),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                     ),
