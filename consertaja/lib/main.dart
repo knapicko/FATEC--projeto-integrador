@@ -1,10 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'tela_home.dart';
 import 'cadastro_profissional.dart';
 import 'cadastro_cliente.dart';
 import 'login.dart'; 
 
-void main() {
+void main() async {
+
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Supabase.initialize(
+    url: 'https://woqhicdlnkoksypipyoz.supabase.co',
+    anonKey: 'sb_publishable_RFFTWcp3nJ8vEG0hACjwfA_b2thYfaw',
+  );
+
   runApp(const MyApp());
 }
 
