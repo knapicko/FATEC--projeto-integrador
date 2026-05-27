@@ -251,18 +251,18 @@ class _PerfilLojaState extends State<PerfilLoja> {
             // ==========================================
             // SEÇÃO: AVALIAÇÕES
             // ==========================================
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16.0),
               child: Row(
                 children: [
-                  const Icon(Icons.star, color: Color(0xFF00A3FF), size: 18),
-                  const SizedBox(width: 4),
-                  const Text(
+                  Icon(Icons.star, color: Color(0xFF00A3FF), size: 18),
+                  SizedBox(width: 4),
+                  Text(
                     'Avaliações da loja',
                     style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87),
                   ),
-                  const SizedBox(width: 4),
-                  const Text('(923)', style: TextStyle(fontSize: 14, color: Colors.grey)),
+                  SizedBox(width: 4),
+                  Text('(923)', style: TextStyle(fontSize: 14, color: Colors.grey)),
                 ],
               ),
             ),
