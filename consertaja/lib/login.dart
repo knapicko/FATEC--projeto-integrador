@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'tela_home.dart';
 
 // ================= TELA: LOGIN =================
 class LoginPage extends StatefulWidget {
@@ -12,12 +14,74 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _senhaController = TextEditingController();
+  bool _carregando = false;
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
     _emailController.dispose();
     _senhaController.dispose();
     super.dispose();
+  }
+
+  Future<void> _fazerLogin() async {
+    if (_emailController.text.isEmpty || _senhaController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Preencha email e senha para entrar.')),
+      );
+      return;
+    }
+
+    setState(() => _carregando = true);
+
+    try {
+      final supabase = Supabase.instance.client;
+      final response = await supabase.auth.signInWithPassword(
+        email: _emailController.text.trim(),
+        password: _senhaController.text,
+      );
+
+      if (response.user != null) {
+        if (mounted) {
+          // Buscar tipo de conta do usuario
+          final userData = await supabase
+              .from('usuarios')
+              .select('tipo_conta')
+              .eq('auth_id', response.user!.id)
+              .maybeSingle();
+
+          final bool isProfissional =
+              userData != null && userData['tipo_conta'] == 'Profissional';
+
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+                  TelaHome(isVisitante: false),
+            ),
+            (route) => false,
+          );
+        }
+      }
+    } on AuthException catch (e) {
+      if (mounted) {
+        String mensagem = 'Email ou senha incorretos.';
+        if (e.message.contains('Email not confirmed')) {
+          mensagem = 'Confirme seu email antes de fazer login.';
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(mensagem)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao fazer login: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _carregando = false);
+    }
   }
 
   @override
@@ -70,15 +134,13 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 30),
 
-              // Imagem Central
               Image.asset(
                 'assets/images/login_img.png',
-                height: 150, // Altura ajustada para o tamanho ideal em tela
+                height: 150,
                 fit: BoxFit.contain,
               ),
               const SizedBox(height: 40),
 
-              // Inputs de Email e Senha
               _InputFieldWithAnimation(
                 label: 'Email',
                 hint: 'exemplo@email.com',
@@ -89,41 +151,43 @@ class _LoginPageState extends State<LoginPage> {
                 label: 'Senha',
                 hint: 'Digite sua senha',
                 keyboardType: TextInputType.visiblePassword,
-                obscureText: true,
+                obscureText: _obscurePassword,
                 suffixIcon: Icons.visibility_outlined,
                 controller: _senhaController,
+                onSuffixIconTap: () =>
+                    setState(() => _obscurePassword = !_obscurePassword),
               ),
 
               const SizedBox(height: 15),
 
-              // Botão Entrar
               SizedBox(
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton(
-                  onPressed: () {
-                    // Lógica para realizar o Login
-                  },
+                  onPressed: _carregando ? null : _fazerLogin,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00A2FF),
+                    disabledBackgroundColor:
+                        const Color(0xFF00A2FF).withOpacity(0.5),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                     ),
                     elevation: 0,
                   ),
-                  child: const Text(
-                    'Entrar',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  child: _carregando
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text(
+                          'Entrar',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(height: 25),
 
-              // Rodapé de Cadastro
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -133,7 +197,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   GestureDetector(
                     onTap: () {
-                      Navigator.pop(context); // Retorna para escolher a conta
+                      Navigator.pop(context);
                     },
                     child: const Text(
                       'Cadastre-se.',
@@ -155,7 +219,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 }
 
-// ================= COMPONENTE DE INPUT CUSTOMIZADO E ANIMADO REUTILIZADO =================
+// ================= COMPONENTE DE INPUT CUSTOMIZADO E ANIMADO =================
 class _InputFieldWithAnimation extends StatefulWidget {
   final String label;
   final String hint;
@@ -204,23 +268,16 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
   void initState() {
     super.initState();
     _obscureActive = widget.obscureText;
-
     _effectiveFocusNode.addListener(_handleFocusChange);
     _effectiveController.addListener(_handleTextChange);
   }
 
   void _handleFocusChange() {
-    if (mounted) {
-      setState(() {
-        _isFocused = _effectiveFocusNode.hasFocus;
-      });
-    }
+    if (mounted) setState(() => _isFocused = _effectiveFocusNode.hasFocus);
   }
 
   void _handleTextChange() {
-    if (mounted) {
-      setState(() {});
-    }
+    if (mounted) setState(() {});
   }
 
   @override
@@ -232,18 +289,21 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final bool shouldFloat = _isFocused || _effectiveController.text.isNotEmpty;
-
-    IconData? dynamicIcon = widget.suffixIcon;
+  IconData? get _dynamicIcon {
     if (widget.obscureText &&
         (widget.suffixIcon == Icons.visibility_outlined ||
             widget.suffixIcon == Icons.visibility)) {
-      dynamicIcon = _obscureActive
+      return _obscureActive
           ? Icons.visibility_outlined
           : Icons.visibility_off_outlined;
     }
+    return widget.suffixIcon;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool shouldFloat =
+        _isFocused || _effectiveController.text.isNotEmpty;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
@@ -261,8 +321,8 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
           boxShadow: [
             BoxShadow(
               color: _isFocused
-                  ? const Color(0xFF00A2FF).withValues(alpha:0.08)
-                  : Colors.black.withValues(alpha:0.015),
+                  ? const Color(0xFF00A2FF).withValues(alpha: 0.08)
+                  : Colors.black.withValues(alpha: 0.015),
               blurRadius: _isFocused ? 8 : 4,
               offset: _isFocused ? const Offset(0, 4) : const Offset(0, 2),
             ),
@@ -293,7 +353,7 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                                   : (shouldFloat
                                       ? Colors.grey.shade600
                                       : const Color(0xFF00A2FF)
-                                          .withValues(alpha:0.5)),
+                                          .withValues(alpha: 0.5)),
                               fontSize: shouldFloat ? 11 : 16,
                               fontWeight: shouldFloat
                                   ? FontWeight.bold
@@ -340,7 +400,8 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                       decoration: InputDecoration(
                         hintText: shouldFloat ? widget.hint : '',
                         hintStyle: TextStyle(
-                          color: const Color(0xFF00A2FF).withValues(alpha:0.4),
+                          color: const Color(0xFF00A2FF)
+                              .withValues(alpha: 0.4),
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
                         ),
@@ -355,18 +416,19 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                 ],
               ),
             ),
-            if (dynamicIcon != null) ...[
+            if (_dynamicIcon != null) ...[
               const SizedBox(width: 12),
               GestureDetector(
                 onTap: widget.onSuffixIconTap ??
                     (widget.obscureText
-                        ? () => setState(() => _obscureActive = !_obscureActive)
+                        ? () =>
+                            setState(() => _obscureActive = !_obscureActive)
                         : widget.onTap),
                 child: AnimatedScale(
                   duration: const Duration(milliseconds: 200),
                   scale: _isFocused ? 1.05 : 1.0,
                   child: Icon(
-                    dynamicIcon,
+                    _dynamicIcon,
                     color: _isFocused
                         ? const Color(0xFF00A2FF)
                         : Colors.grey.shade400,

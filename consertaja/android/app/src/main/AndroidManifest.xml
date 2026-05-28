@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- A permissão de internet entra exatamente aqui: -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:label="ConsertaJá"
         android:name="${applicationName}"

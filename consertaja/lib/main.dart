@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'tela_home.dart';
 import 'cadastro_profissional.dart';
 import 'cadastro_cliente.dart';
-import 'login.dart'; 
+import 'login.dart';
 
 void main() async {
 
@@ -22,6 +23,9 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+
+    final session = Supabase.instance.client.auth.currentSession;
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'ConsertaJá',
@@ -29,7 +33,20 @@ class MyApp extends StatelessWidget {
         primaryColor: const Color(0xFF00A3FF),
         scaffoldBackgroundColor: const Color(0xFFF8F9FA),
       ),
-      home: const TelaEscolhaConta(),
+
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('pt', 'BR'),
+      ],
+      locale: const Locale('pt', 'BR'),
+
+      home: session != null 
+          ? TelaHome(isVisitante: false) 
+          : const TelaEscolhaConta(),          
     );
   }
 }

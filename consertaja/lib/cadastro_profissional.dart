@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/gestures.dart';
 import 'login.dart';
 
 // ================= TELA 01: CADASTRO DO PROFISSIONAL (ETAPA 1) =================
@@ -14,6 +16,25 @@ class CadastroProfissionalPage extends StatefulWidget {
 class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
   bool _isPessoaFisica = true;
   bool _cnpjDeEmpresa = true;
+
+  final TextEditingController _nomeController = TextEditingController();
+  final TextEditingController _cpfController = TextEditingController();
+  final TextEditingController _cnpjController = TextEditingController();
+  final TextEditingController _razaoSocialController = TextEditingController();
+  final TextEditingController _senhaController = TextEditingController();
+  final TextEditingController _confirmarSenhaController =
+      TextEditingController();
+
+  @override
+  void dispose() {
+    _nomeController.dispose();
+    _cpfController.dispose();
+    _cnpjController.dispose();
+    _razaoSocialController.dispose();
+    _senhaController.dispose();
+    _confirmarSenhaController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +86,6 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
               ),
               const SizedBox(height: 25),
 
-              // Indicador de Etapas
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
@@ -79,7 +99,6 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
               ),
               const SizedBox(height: 35),
 
-              // Slider de escolha entre Pessoa Física ou Jurídica
               Container(
                 width: double.infinity,
                 height: 52,
@@ -145,44 +164,48 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
               ),
               const SizedBox(height: 35),
 
-              // FORMULÁRIO DINÂMICO DA ETAPA 1
               if (_isPessoaFisica) ...[
-                const _InputFieldWithAnimation(
+                _InputFieldWithAnimation(
                   label: 'Nome',
                   hint: 'Nome completo',
                   keyboardType: TextInputType.name,
+                  controller: _nomeController,
                 ),
                 _InputFieldWithAnimation(
                   label: 'CPF',
                   hint: '___.___.___-__',
                   keyboardType: TextInputType.number,
                   inputFormatters: [MaskedInputFormatter('###.###.###-##')],
+                  controller: _cpfController,
                 ),
-                const _InputFieldWithAnimation(
+                _InputFieldWithAnimation(
                   label: 'Senha',
                   hint: 'Senha',
                   suffixIcon: Icons.visibility_outlined,
                   obscureText: true,
+                  controller: _senhaController,
                 ),
-                const _InputFieldWithAnimation(
+                _InputFieldWithAnimation(
                   label: 'Confirmar Senha',
                   hint: 'Confirmar Senha',
                   suffixIcon: Icons.visibility_outlined,
                   obscureText: true,
+                  controller: _confirmarSenhaController,
                 ),
               ] else ...[
-                const _InputFieldWithAnimation(
+                _InputFieldWithAnimation(
                   label: 'Nome',
                   hint: 'Nome completo',
                   keyboardType: TextInputType.name,
+                  controller: _nomeController,
                 ),
                 _InputFieldWithAnimation(
                   label: 'CNPJ',
                   hint: '__.___.___/____-__',
                   keyboardType: TextInputType.number,
                   inputFormatters: [MaskedInputFormatter('##.###.###/####-##')],
+                  controller: _cnpjController,
                 ),
-
                 Padding(
                   padding: const EdgeInsets.only(bottom: 25, left: 4, top: 5),
                   child: Column(
@@ -201,22 +224,24 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                     ],
                   ),
                 ),
-
-                const _InputFieldWithAnimation(
+                _InputFieldWithAnimation(
                   label: 'Razão Social',
                   hint: 'Razão Social',
+                  controller: _razaoSocialController,
                 ),
-                const _InputFieldWithAnimation(
+                _InputFieldWithAnimation(
                   label: 'Senha',
                   hint: 'Senha',
                   suffixIcon: Icons.visibility_outlined,
                   obscureText: true,
+                  controller: _senhaController,
                 ),
-                const _InputFieldWithAnimation(
+                _InputFieldWithAnimation(
                   label: 'Confirmar Senha',
                   hint: 'Confirmar Senha',
                   suffixIcon: Icons.visibility_outlined,
                   obscureText: true,
+                  controller: _confirmarSenhaController,
                 ),
               ],
 
@@ -227,11 +252,41 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                 height: 55,
                 child: ElevatedButton(
                   onPressed: () {
+                    if (_nomeController.text.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content:
+                                Text('Por favor, preencha o nome.')),
+                      );
+                      return;
+                    }
+                    if (_senhaController.text !=
+                        _confirmarSenhaController.text) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text(
+                                'As senhas digitadas não coincidem.')),
+                      );
+                      return;
+                    }
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) =>
-                            const CadastroProfissionalEtapa2Page(),
+                        builder: (context) => CadastroProfissionalEtapa2Page(
+                          nome: _nomeController.text.trim(),
+                          cpf: _isPessoaFisica
+                              ? _cpfController.text.trim()
+                              : null,
+                          cnpj: !_isPessoaFisica
+                              ? _cnpjController.text.trim()
+                              : null,
+                          razaoSocial: !_isPessoaFisica
+                              ? _razaoSocialController.text.trim()
+                              : null,
+                          senha: _senhaController.text,
+                          isPessoaFisica: _isPessoaFisica,
+                          cnpjDeEmpresa: _cnpjDeEmpresa,
+                        ),
                       ),
                     );
                   },
@@ -365,7 +420,24 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
 
 // ================= TELA 02: CADASTRO DO PROFISSIONAL (ETAPA 2) =================
 class CadastroProfissionalEtapa2Page extends StatefulWidget {
-  const CadastroProfissionalEtapa2Page({super.key});
+  final String nome;
+  final String? cpf;
+  final String? cnpj;
+  final String? razaoSocial;
+  final String senha;
+  final bool isPessoaFisica;
+  final bool cnpjDeEmpresa;
+
+  const CadastroProfissionalEtapa2Page({
+    super.key,
+    required this.nome,
+    this.cpf,
+    this.cnpj,
+    this.razaoSocial,
+    required this.senha,
+    required this.isPessoaFisica,
+    required this.cnpjDeEmpresa,
+  });
 
   @override
   State<CadastroProfissionalEtapa2Page> createState() =>
@@ -374,21 +446,16 @@ class CadastroProfissionalEtapa2Page extends StatefulWidget {
 
 class _CadastroProfissionalEtapa2PageState
     extends State<CadastroProfissionalEtapa2Page> {
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _telefoneController = TextEditingController();
   final TextEditingController _dataNascimentoController =
       TextEditingController();
   final TextEditingController _atuacaoController = TextEditingController();
   final FocusNode _atuacaoFocusNode = FocusNode();
 
   bool _showAtuacaoDropdown = false;
-  final List<String> _areasDeAtuacaoExemplo = [
-    'Assistência Técnica',
-    'Aulas e Treinamentos',
-    'Construção e Reformas',
-    'Design e Tecnologia',
-    'Eventos e Festas',
-    'Serviços Domésticos',
-    'Saúde e Beleza',
-  ];
+  bool _carregandoOficios = true;
+  List<Map<String, dynamic>> _oficios = [];
 
   @override
   void initState() {
@@ -398,10 +465,33 @@ class _CadastroProfissionalEtapa2PageState
         _showAtuacaoDropdown = _atuacaoFocusNode.hasFocus;
       });
     });
+    _carregarOficios();
+  }
+
+  Future<void> _carregarOficios() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final response = await supabase.from('oficios').select('id_oficio, funcao').order('funcao');
+      if (mounted) {
+        setState(() {
+          _oficios = List<Map<String, dynamic>>.from(response);
+          _carregandoOficios = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _carregandoOficios = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao carregar ofícios: $e')),
+        );
+      }
+    }
   }
 
   @override
   void dispose() {
+    _emailController.dispose();
+    _telefoneController.dispose();
     _dataNascimentoController.dispose();
     _atuacaoController.dispose();
     _atuacaoFocusNode.dispose();
@@ -411,9 +501,7 @@ class _CadastroProfissionalEtapa2PageState
   Future<void> _fazerUploadDataNascimento() async {
     DateTime? dataSelecionada = await showDatePicker(
       context: context,
-      initialDate: DateTime.now().subtract(
-        const Duration(days: 365 * 18),
-      ),
+      initialDate: DateTime.now().subtract(const Duration(days: 365 * 18)),
       firstDate: DateTime(1930),
       lastDate: DateTime.now(),
       builder: (context, child) {
@@ -433,9 +521,8 @@ class _CadastroProfissionalEtapa2PageState
       String dia = dataSelecionada.day.toString().padLeft(2, '0');
       String mes = dataSelecionada.month.toString().padLeft(2, '0');
       String ano = dataSelecionada.year.toString();
-
       setState(() {
-        _dataNascimentoController.text = '$dia / $mes / $ano';
+        _dataNascimentoController.text = '$ano-$mes-$dia';
       });
     }
   }
@@ -503,10 +590,11 @@ class _CadastroProfissionalEtapa2PageState
               ),
               const SizedBox(height: 40),
 
-              const _InputFieldWithAnimation(
+              _InputFieldWithAnimation(
                 label: 'Email',
                 hint: 'exemplo@email.com',
                 keyboardType: TextInputType.emailAddress,
+                controller: _emailController,
               ),
 
               _InputFieldWithAnimation(
@@ -514,11 +602,12 @@ class _CadastroProfissionalEtapa2PageState
                 hint: '(__) _____-____',
                 keyboardType: TextInputType.phone,
                 inputFormatters: [MaskedInputFormatter('(##) #####-####')],
+                controller: _telefoneController,
               ),
 
               _InputFieldWithAnimation(
                 label: 'Data de Nascimento',
-                hint: 'DD / MM / AAAA',
+                hint: 'AAAA-MM-DD',
                 suffixIcon: Icons.calendar_month,
                 controller: _dataNascimentoController,
                 readOnly: true,
@@ -530,7 +619,9 @@ class _CadastroProfissionalEtapa2PageState
                 children: [
                   _InputFieldWithAnimation(
                     label: 'Área de Atuação',
-                    hint: 'Selecione sua área principal',
+                    hint: _carregandoOficios
+                        ? 'Carregando...'
+                        : 'Selecione sua área principal',
                     suffixIcon: Icons.keyboard_arrow_down,
                     controller: _atuacaoController,
                     focusNode: _atuacaoFocusNode,
@@ -542,9 +633,7 @@ class _CadastroProfissionalEtapa2PageState
               if (_showAtuacaoDropdown) ...[
                 Container(
                   width: double.infinity,
-                  constraints: const BoxConstraints(
-                    maxHeight: 220,
-                  ),
+                  constraints: const BoxConstraints(maxHeight: 220),
                   margin: const EdgeInsets.only(bottom: 20),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFAFAFA),
@@ -555,37 +644,47 @@ class _CadastroProfissionalEtapa2PageState
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha:0.05),
+                        color: Colors.black.withValues(alpha: 0.05),
                         blurRadius: 5,
                         offset: const Offset(0, 3),
                       ),
                     ],
                   ),
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: _areasDeAtuacaoExemplo.length,
-                    separatorBuilder: (context, index) =>
-                        const Divider(height: 1, color: Color(0xFFEFEFEF)),
-                    itemBuilder: (context, index) {
-                      return ListTile(
-                        title: Text(
-                          _areasDeAtuacaoExemplo[index],
-                          style: const TextStyle(
-                            fontSize: 15,
-                            color: Colors.black87,
+                  child: _carregandoOficios
+                      ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(20),
+                            child:
+                                CircularProgressIndicator(color: Color(0xFF00A2FF)),
                           ),
+                        )
+                      : ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: _oficios.length,
+                          separatorBuilder: (context, index) =>
+                              const Divider(
+                                  height: 1, color: Color(0xFFEFEFEF)),
+                          itemBuilder: (context, index) {
+                            final oficio = _oficios[index];
+                            return ListTile(
+                              title: Text(
+                                oficio['funcao'] ?? '',
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              onTap: () {
+                                setState(() {
+                                  _atuacaoController.text =
+                                      oficio['funcao'] ?? '';
+                                  _showAtuacaoDropdown = false;
+                                  _atuacaoFocusNode.unfocus();
+                                });
+                              },
+                            );
+                          },
                         ),
-                        onTap: () {
-                          setState(() {
-                            _atuacaoController.text =
-                                _areasDeAtuacaoExemplo[index];
-                            _showAtuacaoDropdown = false;
-                            _atuacaoFocusNode.unfocus();
-                          });
-                        },
-                      );
-                    },
-                  ),
                 ),
               ],
 
@@ -596,10 +695,32 @@ class _CadastroProfissionalEtapa2PageState
                 height: 55,
                 child: ElevatedButton(
                   onPressed: () {
+                    if (_emailController.text.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content:
+                                Text('Por favor, preencha o email.')),
+                      );
+                      return;
+                    }
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const CadastroProfissionalEtapa3Page(),
+                        builder: (context) =>
+                            CadastroProfissionalEtapa3Page(
+                          nome: widget.nome,
+                          cpf: widget.cpf,
+                          cnpj: widget.cnpj,
+                          razaoSocial: widget.razaoSocial,
+                          senha: widget.senha,
+                          isPessoaFisica: widget.isPessoaFisica,
+                          cnpjDeEmpresa: widget.cnpjDeEmpresa,
+                          email: _emailController.text.trim(),
+                          telefone: _telefoneController.text.trim(),
+                          dataNascimento:
+                              _dataNascimentoController.text.trim(),
+                          areaAtuacao: _atuacaoController.text.trim(),
+                        ),
                       ),
                     );
                   },
@@ -684,16 +805,157 @@ class _CadastroProfissionalEtapa2PageState
 
 // ================= TELA 03: CADASTRO DO PROFISSIONAL (ETAPA 3) =================
 class CadastroProfissionalEtapa3Page extends StatefulWidget {
-  const CadastroProfissionalEtapa3Page({super.key});
+  final String nome;
+  final String? cpf;
+  final String? cnpj;
+  final String? razaoSocial;
+  final String senha;
+  final bool isPessoaFisica;
+  final bool cnpjDeEmpresa;
+  final String email;
+  final String telefone;
+  final String dataNascimento;
+  final String areaAtuacao;
+
+  const CadastroProfissionalEtapa3Page({
+    super.key,
+    required this.nome,
+    this.cpf,
+    this.cnpj,
+    this.razaoSocial,
+    required this.senha,
+    required this.isPessoaFisica,
+    required this.cnpjDeEmpresa,
+    required this.email,
+    required this.telefone,
+    required this.dataNascimento,
+    required this.areaAtuacao,
+  });
 
   @override
   State<CadastroProfissionalEtapa3Page> createState() =>
       _CadastroProfissionalEtapa3PageState();
 }
 
-class _CadastroProfissionalEtapa3PageState extends State<CadastroProfissionalEtapa3Page> {
+class _CadastroProfissionalEtapa3PageState
+    extends State<CadastroProfissionalEtapa3Page> {
   bool _termosDeUso = false;
   bool _politicaPrivacidade = false;
+  bool _carregando = false;
+
+  Future<void> _finalizarCadastroBanco() async {
+    setState(() => _carregando = true);
+    final supabase = Supabase.instance.client;
+
+    try {
+      // 1. Criar conta no Auth
+      final authResponse = await supabase.auth.signUp(
+        email: widget.email,
+        password: widget.senha,
+      );
+
+      final authUser = authResponse.user;
+      if (authUser == null) {
+        throw Exception('Falha ao criar conta de autenticação.');
+      }
+      final authId = authUser.id;
+
+      // 2. Inserir email
+      final emailResponse = await supabase.from('emails').insert({
+        'endereco_email': widget.email,
+        'fk_status': 1,
+      }).select().single();
+      final emailId = emailResponse['id_email'];
+
+      // 3. Inserir telefone
+      final telefoneLimpo = widget.telefone.replaceAll(RegExp(r'\D'), '');
+      final ddd =
+          telefoneLimpo.length >= 2 ? telefoneLimpo.substring(0, 2) : '';
+      final numero = telefoneLimpo.length > 2
+          ? telefoneLimpo.substring(2)
+          : telefoneLimpo;
+
+      final telefoneResponse = await supabase.from('telefones').insert({
+        'ddd': ddd,
+        'numero': numero,
+        'fk_status': 1,
+      }).select().single();
+      final telefoneId = telefoneResponse['id_telefone'];
+
+      int assTipoPessoaId;
+
+      if (widget.isPessoaFisica) {
+        final cpfLimpo = widget.cpf?.replaceAll(RegExp(r'\D'), '') ?? '';
+        final pfResponse = await supabase.from('pessoa_fisica').insert({
+          'cpf': cpfLimpo.isNotEmpty ? cpfLimpo : null,
+        }).select().single();
+        final pfId = pfResponse['id_pessoa_fisica'];
+
+        final assResponse = await supabase.from('ass_tipo_pessoa').insert({
+          'tipo': 'Pessoa Física',
+          'fk_pessoa_fisica': pfId,
+          'fk_pessoa_juridica': null,
+        }).select().single();
+        assTipoPessoaId = assResponse['id_tipo_pessoa'];
+      } else {
+        final cnpjLimpo = widget.cnpj?.replaceAll(RegExp(r'\D'), '') ?? '';
+        final pjResponse = await supabase.from('pessoa_juridica').insert({
+          'cnpj': cnpjLimpo.isNotEmpty ? cnpjLimpo : null,
+          'tem_imovel': !widget.cnpjDeEmpresa,
+        }).select().single();
+        final pjId = pjResponse['id_pessoa_juridica'];
+
+        final assResponse = await supabase.from('ass_tipo_pessoa').insert({
+          'tipo': 'Pessoa Jurídica',
+          'fk_pessoa_fisica': null,
+          'fk_pessoa_juridica': pjId,
+        }).select().single();
+        assTipoPessoaId = assResponse['id_tipo_pessoa'];
+      }
+
+      // 4. Inserir usuario com auth_id
+      final usuarioResponse = await supabase.from('usuarios').insert({
+        'nome': widget.nome,
+        'data_nascimento':
+            widget.dataNascimento.isNotEmpty ? widget.dataNascimento : null,
+        'data_criacao': DateTime.now().toUtc().toIso8601String(),
+        'tipo_conta': 'Profissional',
+        'fk_email': emailId,
+        'fk_telefone': telefoneId,
+        'fk_tipo_pessoa': assTipoPessoaId,
+        'fk_imagem': null,
+        'auth_id': authId,
+      }).select().single();
+      final usuarioId = usuarioResponse['id_usuario'];
+
+      // 5. Inserir dados_profissionais
+      await supabase.from('dados_profissionais').insert({
+        'fk_usuario': usuarioId,
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Cadastro finalizado com sucesso! 🎉')),
+        );
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginPage()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(
+                  'Falha ao registrar: ${e.toString().replaceAll('Exception: ', '')}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _carregando = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -773,30 +1035,13 @@ class _CadastroProfissionalEtapa3PageState extends State<CadastroProfissionalEta
               _buildDocumentButton(
                 label: 'Cadastro Facial',
                 icon: Icons.arrow_forward,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const CadastroFacialPage(),
-                    ),
-                  );
-                },
+                onTap: () {},
               ),
-              
-              // Modificado: Agora direciona para a tela exata de Cadastro do Documento de Identidade
               _buildDocumentButton(
                 label: 'Documento de Identidade',
                 icon: Icons.arrow_forward,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const CadastroDocumentoIdentidadePage(),
-                    ),
-                  );
-                },
+                onTap: () {},
               ),
-              
               _buildDocumentButton(
                 label: 'Outros documentos',
                 icon: Icons.keyboard_arrow_down,
@@ -806,19 +1051,20 @@ class _CadastroProfissionalEtapa3PageState extends State<CadastroProfissionalEta
 
               _buildCheckboxRow(
                 value: _termosDeUso,
-                onChanged: (val) => setState(() => _termosDeUso = val ?? false),
-                textNormal: 'Li e aceito os ',
-                textBlue: 'Termos de Uso',
-                onBlueTextTap: () {},
+                onChanged: (val) =>
+                    setState(() => _termosDeUso = val ?? false),
+                fullText: 'Li e aceito os Termos de Uso',
+                highlightText: 'Termos de Uso',
+                onTapLink: () {},
               ),
               const SizedBox(height: 10),
-
               _buildCheckboxRow(
                 value: _politicaPrivacidade,
-                onChanged: (val) => setState(() => _politicaPrivacidade = val ?? false),
-                textNormal: 'Li e aceito a ',
-                textBlue: 'Política de Privacidade',
-                onBlueTextTap: () {},
+                onChanged: (val) =>
+                    setState(() => _politicaPrivacidade = val ?? false),
+                fullText: 'Li e aceito a Política de Privacidade',
+                highlightText: 'Política de Privacidade',
+                onTapLink: () {},
               ),
               const SizedBox(height: 40),
 
@@ -826,23 +1072,28 @@ class _CadastroProfissionalEtapa3PageState extends State<CadastroProfissionalEta
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton(
-                  onPressed: (_termosDeUso && _politicaPrivacidade) ? () {} : null,
+                  onPressed: (_termosDeUso && _politicaPrivacidade && !_carregando)
+                      ? _finalizarCadastroBanco
+                      : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00A2FF),
-                    disabledBackgroundColor: const Color(0xFF00A2FF).withValues(alpha:0.5),
+                    disabledBackgroundColor:
+                        const Color(0xFF00A2FF).withValues(alpha: 0.5),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                     ),
                     elevation: 0,
                   ),
-                  child: const Text(
-                    'Finalizar Cadastro',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  child: _carregando
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text(
+                          'Finalizar Cadastro',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(height: 25),
@@ -955,46 +1206,56 @@ class _CadastroProfissionalEtapa3PageState extends State<CadastroProfissionalEta
   Widget _buildCheckboxRow({
     required bool value,
     required ValueChanged<bool?> onChanged,
-    required String textNormal,
-    required String textBlue,
-    required VoidCallback onBlueTextTap,
+    required String fullText,
+    required String highlightText,
+    required VoidCallback onTapLink,
   }) {
+    final int targetIndex = fullText.indexOf(highlightText);
+    final String prefixText = targetIndex != -1
+        ? fullText.substring(0, targetIndex)
+        : fullText;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        SizedBox(
-          width: 30,
-          height: 30,
-          child: Checkbox(
-            value: value,
-            onChanged: onChanged,
-            activeColor: const Color(0xFF00A2FF),
-            side: const BorderSide(
-              color: Color(0xFF00A2FF),
-              width: 1.5,
+        GestureDetector(
+          onTap: () => onChanged(!value),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeInOut,
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              color: value ? const Color(0xFF00A2FF) : const Color(0xFFFAFAFA),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: value ? const Color(0xFF00A2FF) : Colors.grey.shade300,
+                width: 1.5,
+              ),
             ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(4),
-            ),
+            child: value
+                ? const Icon(Icons.check, color: Colors.white, size: 15)
+                : null,
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 12),
         Expanded(
           child: RichText(
             text: TextSpan(
-              style: const TextStyle(
-                color: Color(0xFF4F4F4F),
+              style: TextStyle(
+                color: Colors.grey.shade700,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
               children: [
-                TextSpan(text: textNormal),
+                TextSpan(text: prefixText),
                 TextSpan(
-                  text: textBlue,
+                  text: highlightText,
                   style: const TextStyle(
                     color: Color(0xFF00A2FF),
                     fontWeight: FontWeight.bold,
                   ),
+                  recognizer: TapGestureRecognizer()..onTap = onTapLink,
                 ),
               ],
             ),
@@ -1005,695 +1266,7 @@ class _CadastroProfissionalEtapa3PageState extends State<CadastroProfissionalEta
   }
 }
 
-// ================= TELA: CADASTRO FACIAL =================
-class CadastroFacialPage extends StatelessWidget {
-  const CadastroFacialPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF00A2FF)),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Cadastro Facial',
-          style: TextStyle(
-            color: Color(0xFF00A2FF),
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-      body: Column(
-        children: [
-          Container(
-            height: 1,
-            width: double.infinity,
-            color: Colors.grey.withValues(alpha:0.2),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 30),
-
-                  Image.asset(
-                    'assets/images/cadastro_facial_img.png',
-                    height: 150,
-                    fit: BoxFit.contain,
-                  ),
-                  const SizedBox(height: 30),
-
-                  RichText(
-                    textAlign: TextAlign.center,
-                    text: const TextSpan(
-                      style: TextStyle(
-                        color: Color(0xFF00A2FF),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        height: 1.4,
-                      ),
-                      children: [
-                        TextSpan(
-                          text: 'O seu rosto é utilizado exclusivamente para autenticação no aplicativo. Para mais informações confira a ',
-                        ),
-                        TextSpan(
-                          text: 'Política de Privacidade.',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            decoration: TextDecoration.underline,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 35),
-
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Instruções',
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  _buildInstructionItem([
-                    const TextSpan(text: 'Deixe o celular na altura do rosto. '),
-                    const TextSpan(
-                      text: 'Se quiser mantenha os braços apoiados.',
-                      style: TextStyle(color: Color(0xFF00A2FF)),
-                    ),
-                  ]),
-                  _buildInstructionItem([
-                    const TextSpan(text: 'Mantenha o rosto dentro do círculo '),
-                    const TextSpan(
-                      text: 'durante todo o processo.',
-                      style: TextStyle(color: Color(0xFF00A2FF)),
-                    ),
-                  ]),
-                  _buildInstructionItem([
-                    const TextSpan(
-                      text: 'Retire chapéu, óculos de sol ou qualquer coisa que ',
-                      style: TextStyle(color: Color(0xFF00A2FF)),
-                    ),
-                    const TextSpan(text: 'cubra parte do seu rosto.'),
-                  ]),
-                  _buildInstructionItem([
-                    const TextSpan(text: 'Se mantenha em um '),
-                    const TextSpan(
-                      text: 'ambiente iluminado',
-                      style: TextStyle(color: Color(0xFF00A2FF)),
-                    ),
-                    const TextSpan(text: ' e de preferência com '),
-                    const TextSpan(
-                      text: 'fundo branco.',
-                      style: TextStyle(color: Color(0xFF00A2FF)),
-                    ),
-                  ]),
-
-                  const SizedBox(height: 50),
-
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const CadastroFacialLeituraFacialPage(),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF00A2FF),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        elevation: 0,
-                  ),
-                      child: const Text(
-                        'Iniciar Cadastro Facial',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 30),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInstructionItem(List<TextSpan> textSpans) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 2.0, right: 6.0),
-            child: Icon(
-              Icons.arrow_right,
-              color: Color(0xFF00A2FF),
-              size: 18,
-            ),
-          ),
-          Expanded(
-            child: RichText(
-              text: TextSpan(
-                style: const TextStyle(
-                  color: Colors.black,
-                  fontSize: 14,
-                  height: 1.3,
-                  fontWeight: FontWeight.w500,
-                ),
-                children: textSpans,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ================= TELA: CADASTRO FACIAL - LEITURA FACIAL =================
-class CadastroFacialLeituraFacialPage extends StatefulWidget {
-  const CadastroFacialLeituraFacialPage({super.key});
-
-  @override
-  State<CadastroFacialLeituraFacialPage> createState() =>
-      _CadastroFacialLeituraFacialPageState();
-}
-
-class _CadastroFacialLeituraFacialPageState extends State<CadastroFacialLeituraFacialPage> {
-  bool _temPermissao = false;
-  bool _mostrarIconeErro = false;
-  bool _cameraFrontalAtiva = true;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _solicitarPermissaoCamera();
-    });
-  }
-
-  void _solicitarPermissaoCamera() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Text(
-            'Permissão de Câmera',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          content: const Text(
-            'O aplicativo precisa de acesso à câmera do celular para realizar a verificação e captura do seu Cadastro Facial.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                setState(() {
-                  _temPermissao = false;
-                  _mostrarIconeErro = true;
-                });
-              },
-              child: const Text(
-                'Negar',
-                style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                setState(() {
-                  _temPermissao = true;
-                  _mostrarIconeErro = false;
-                });
-              },
-              child: const Text(
-                'Permitir',
-                style: TextStyle(color: Color(0xFF00A2FF), fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF00A2FF)),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Cadastro Facial',
-          style: TextStyle(
-            color: Color(0xFF00A2FF),
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        actions: [
-          if (_mostrarIconeErro)
-            IconButton(
-              icon: const Icon(Icons.error, color: Colors.red, size: 26),
-              onPressed: _solicitarPermissaoCamera,
-            ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Container(
-            height: 1,
-            width: double.infinity,
-            color: Colors.grey.withValues(alpha:0.2),
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 24),
-
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF00A2FF).withValues(alpha:0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Text(
-                      'Nenhum Rosto Detectado',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Color(0xFF00A2FF),
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 60),
-
-                  Container(
-                    width: 270,
-                    height: 270,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.red, width: 4),
-                      color: const Color(0xFFF2F2F2),
-                    ),
-                    child: ClipOval(
-                      child: _temPermissao
-                          ? Center(
-                              child: Text(
-                                _cameraFrontalAtiva 
-                                    ? '[ Câmera Frontal Ativa ]' 
-                                    : '[ Câmera Traseira Ativa ]',
-                                style: const TextStyle(
-                                  color: Colors.black54,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            )
-                          : const Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  // Corrigido de Icons.camera_alt_disabled para Icons.no_photography para compilar estavelmente
-                                  Icon(Icons.no_photography, color: Colors.grey, size: 42),
-                                  SizedBox(height: 8),
-                                  Text(
-                                    'Sem permissão',
-                                    style: TextStyle(color: Colors.grey, fontSize: 13),
-                                  ),
-                                ],
-                              ),
-                            ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 45),
-
-                  GestureDetector(
-                    onTap: () {
-                      if (_temPermissao) {
-                        setState(() {
-                          _cameraFrontalAtiva = !_cameraFrontalAtiva;
-                        });
-                      }
-                    },
-                    child: Image.asset(
-                      'assets/images/virar_camera_img.png',
-                      width: 56,
-                      height: 56,
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFF2F2F2),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.flip_camera_android,
-                            color: Color(0xFF00A2FF),
-                            size: 30,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ================= TELA: ANEXAR DOCUMENTOS DE IDENTIDADE (NOVA) =================
-class CadastroDocumentoIdentidadePage extends StatefulWidget {
-  const CadastroDocumentoIdentidadePage({super.key});
-
-  @override
-  State<CadastroDocumentoIdentidadePage> createState() =>
-      _CadastroDocumentoIdentidadePageState();
-}
-
-class _CadastroDocumentoIdentidadePageState extends State<CadastroDocumentoIdentidadePage> {
-  // Controle de estado de envio para cada documento individualmente
-  bool _rgEnexado = false;
-  bool _cinEnexado = false;
-  bool _cnhEnexado = false;
-  bool _passaporteEnexado = false;
-
-  // Lógica genérica do Pop-up Simulador de Upload
-  void _mostrarPopupAnexar(String nomeDocumento, Function() onSuccess) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Text(
-            'Anexar $nomeDocumento',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Selecione uma imagem ou documento do seu dispositivo (PNG, JPG, JPEG) correspondente.',
-                style: TextStyle(color: Colors.black54, fontSize: 14),
-              ),
-              const SizedBox(height: 20),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFAFAFA),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF00A2FF).withValues(alpha:0.3)),
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.add_photo_alternate_outlined, color: Color(0xFF00A2FF)),
-                    SizedBox(width: 8),
-                    Text(
-                      'Selecionar Arquivo...',
-                      style: TextStyle(color: Color(0xFF00A2FF), fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                onSuccess(); // Executa o callback atualizando o estado do documento para verde
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00A2FF),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              child: const Text('Enviar', style: TextStyle(color: Colors.white)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-        // Seta azul para retornar para a Etapa 3
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF00A2FF)),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Anexe os Documentos',
-          style: TextStyle(
-            color: Color(0xFF00A2FF),
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-      body: Column(
-        children: [
-          // Divisória cinza claro de pouca opacidade abaixo da AppBar
-          Container(
-            height: 1,
-            width: double.infinity,
-            color: Colors.grey.withValues(alpha:0.2),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 24),
-
-                  Image.asset(
-                    'assets/images/Documentos_img.png',
-                    height: 140,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        height: 120,
-                        alignment: Alignment.center,
-                        child: const Icon(Icons.folder_shared, size: 90, color: Color(0xFF00A2FF)),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 24),
-
-                  RichText(
-                    textAlign: TextAlign.center,
-                    text: const TextSpan(
-                      style: TextStyle(
-                        color: Color(0xFF00A2FF),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        height: 1.4,
-                      ),
-                      children: [
-                        TextSpan(
-                          text: 'O seu documento de identidade é utilizado exclusivamente para a verificação da sua conta.\nPara mais informações confira a ',
-                        ),
-                        TextSpan(
-                          text: 'Política de Privacidade.',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            decoration: TextDecoration.underline,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 35),
-
-                  // Título da seção: Escolha o tipo documento
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Escolha o tipo documento',
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Botões retangulares longos com alteração dinâmica de cor baseada no anexo
-                  _buildSelectableDocButton(
-                    title: 'Registro Geral (RG)',
-                    isAttached: _rgEnexado,
-                    onTap: () => _mostrarPopupAnexar('RG', () => setState(() => _rgEnexado = true)),
-                  ),
-                  _buildSelectableDocButton(
-                    title: 'Carteira de Identidade Nacional (CIN)',
-                    isAttached: _cinEnexado,
-                    onTap: () => _mostrarPopupAnexar('CIN', () => setState(() => _cinEnexado = true)),
-                  ),
-                  _buildSelectableDocButton(
-                    title: 'Carteira Nacional de Habilitação (CNH)',
-                    isAttached: _cnhEnexado,
-                    onTap: () => _mostrarPopupAnexar('CNH', () => setState(() => _cnhEnexado = true)),
-                  ),
-                  _buildSelectableDocButton(
-                    title: 'Passaporte',
-                    isAttached: _passaporteEnexado,
-                    onTap: () => _mostrarPopupAnexar('Passaporte', () => setState(() => _passaporteEnexado = true)),
-                  ),
-
-                  const SizedBox(height: 40),
-
-                  // Botão Enviar Documentos que retorna para a tela anterior
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF00A2FF),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: const Text(
-                        'Enviar Documentos',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 30),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Widget builder exclusivo para criar botões com estado dinâmico (Azul -> Verde ao anexar)
-  Widget _buildSelectableDocButton({
-    required String title,
-    required bool isAttached,
-    required VoidCallback onTap,
-  }) {
-    final Color currentColor = isAttached ? Colors.green : const Color(0xFF00A2FF);
-    final IconData currentIcon = isAttached ? Icons.check_circle : Icons.attach_file;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      margin: const EdgeInsets.only(bottom: 14),
-      width: double.infinity,
-      height: 56,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: currentColor,
-          width: isAttached ? 1.8 : 1.2,
-        ),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    color: currentColor,
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              Icon(
-                currentIcon,
-                color: currentColor,
-                size: 22,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ================= COMPONENTE DE INPUT CUSTOMIZADO E ANIMADO REFACTORIZADO =================
+// ================= COMPONENTE DE INPUT CUSTOMIZADO E ANIMADO =================
 class _InputFieldWithAnimation extends StatefulWidget {
   final String label;
   final String hint;
@@ -1742,23 +1315,16 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
   void initState() {
     super.initState();
     _obscureActive = widget.obscureText;
-
     _effectiveFocusNode.addListener(_handleFocusChange);
     _effectiveController.addListener(_handleTextChange);
   }
 
   void _handleFocusChange() {
-    if (mounted) {
-      setState(() {
-        _isFocused = _effectiveFocusNode.hasFocus;
-      });
-    }
+    if (mounted) setState(() => _isFocused = _effectiveFocusNode.hasFocus);
   }
 
   void _handleTextChange() {
-    if (mounted) {
-      setState(() {});
-    }
+    if (mounted) setState(() {});
   }
 
   @override
@@ -1772,7 +1338,8 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
 
   @override
   Widget build(BuildContext context) {
-    final bool shouldFloat = _isFocused || _effectiveController.text.isNotEmpty;
+    final bool shouldFloat =
+        _isFocused || _effectiveController.text.isNotEmpty;
 
     IconData? dynamicIcon = widget.suffixIcon;
     if (widget.obscureText &&
@@ -1799,8 +1366,8 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
           boxShadow: [
             BoxShadow(
               color: _isFocused
-                  ? const Color(0xFF00A2FF).withValues(alpha:0.08)
-                  : Colors.black.withValues(alpha:0.015),
+                  ? const Color(0xFF00A2FF).withValues(alpha: 0.08)
+                  : Colors.black.withValues(alpha: 0.015),
               blurRadius: _isFocused ? 8 : 4,
               offset: _isFocused ? const Offset(0, 4) : const Offset(0, 2),
             ),
@@ -1830,9 +1397,8 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                                   ? const Color(0xFF00A2FF)
                                   : (shouldFloat
                                       ? Colors.grey.shade600
-                                      : const Color(
-                                          0xFF00A2FF,
-                                        ).withValues(alpha:0.5)),
+                                      : const Color(0xFF00A2FF)
+                                          .withValues(alpha: 0.5)),
                               fontSize: shouldFloat ? 11 : 16,
                               fontWeight: shouldFloat
                                   ? FontWeight.bold
@@ -1879,7 +1445,8 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                       decoration: InputDecoration(
                         hintText: shouldFloat ? widget.hint : '',
                         hintStyle: TextStyle(
-                          color: const Color(0xFF00A2FF).withValues(alpha:0.4),
+                          color: const Color(0xFF00A2FF)
+                              .withValues(alpha: 0.4),
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
                         ),
@@ -1899,7 +1466,8 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
               GestureDetector(
                 onTap: widget.onSuffixIconTap ??
                     (widget.obscureText
-                        ? () => setState(() => _obscureActive = !_obscureActive)
+                        ? () =>
+                            setState(() => _obscureActive = !_obscureActive)
                         : widget.onTap),
                 child: AnimatedScale(
                   duration: const Duration(milliseconds: 200),
@@ -1921,20 +1489,16 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
   }
 }
 
-// Classe Utilitária de Máscara de Input
+// ================= MASK INPUT FORMATTER =================
 class MaskedInputFormatter extends TextInputFormatter {
   final String mask;
-
   MaskedInputFormatter(this.mask);
 
   @override
   TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
+      TextEditingValue oldValue, TextEditingValue newValue) {
     final text = newValue.text;
     final digits = text.replaceAll(RegExp(r'\D'), '');
-
     var formatted = '';
     var digitIndex = 0;
     for (var i = 0; i < mask.length; i++) {
@@ -1946,7 +1510,6 @@ class MaskedInputFormatter extends TextInputFormatter {
         formatted += mask[i];
       }
     }
-
     return TextEditingValue(
       text: formatted,
       selection: TextSelection.collapsed(offset: formatted.length),
