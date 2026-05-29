@@ -18,8 +18,8 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
   final TextEditingController _cpfController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _telefoneController = TextEditingController();
-  final TextEditingController _dataNascimentoController =
-      TextEditingController();
+  final TextEditingController _dataNascimentoController = TextEditingController();
+  
 
   String? _erroNome;
   String? _erroCpf;
@@ -233,6 +233,7 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
                         email: _emailController.text.trim(),
                         telefone: _telefoneController.text.trim(),
                         dataNascimento: _dataNascimentoController.text.trim(),
+                        fotoPerfilUrl: 'null'
                       ),
                     ),
                   );
@@ -578,6 +579,7 @@ class CadastroClienteEtapa2Page extends StatefulWidget {
   final String email;
   final String telefone;
   final String dataNascimento;
+  final String fotoPerfilUrl;
 
   const CadastroClienteEtapa2Page({
     super.key,
@@ -586,6 +588,7 @@ class CadastroClienteEtapa2Page extends StatefulWidget {
     required this.email,
     required this.telefone,
     required this.dataNascimento,
+    required this.fotoPerfilUrl,
   });
 
   @override
@@ -701,7 +704,7 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
       final assResponse = await supabase
           .from('ass_tipo_pessoa')
           .insert({
-            'tipo': 'Pessoa Física',
+            'tipo': 'Física',
             'fk_pessoa_fisica': pfId,
             'fk_pessoa_juridica': null,
           })
@@ -719,7 +722,7 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
         'fk_email': emailId,
         'fk_telefone': telefoneId,
         'fk_tipo_pessoa': assTipoPessoaId,
-        'fk_imagem': null,
+        'foto_perfil_url': widget.fotoPerfilUrl,
         'auth_id': authId,
       });
 
@@ -741,7 +744,7 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
           e.message.toLowerCase().contains('password should be at least') ||
           e.statusCode == '422') {
         mensagemAmigavel =
-            'Senha muito fraca! Garanta que ela possua 6 caracteres, 1 maiúscula, 1 minúscula e 1 símbolo.';
+            'Senha muito fraca! Garanta que ela possua no mínimo 8 caracteres, 1 maiúscula, 1 minúscula e 1 símbolo.';
       } else if (e.message.toLowerCase().contains('already registered') ||
           e.message.toLowerCase().contains('already exists')) {
         mensagemAmigavel =
