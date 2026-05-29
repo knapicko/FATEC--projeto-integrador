@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/gestures.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'login.dart';
+import 'tela_home.dart';
 
 // ================= TELA: CADASTRO DO CLIENTE (ETAPA 1) =================
 class CadastroClientePage extends StatefulWidget {
@@ -17,7 +18,8 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
   final TextEditingController _cpfController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _telefoneController = TextEditingController();
-  final TextEditingController _dataNascimentoController = TextEditingController();
+  final TextEditingController _dataNascimentoController =
+      TextEditingController();
 
   String? _erroNome;
   String? _erroCpf;
@@ -28,7 +30,7 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
   @override
   void initState() {
     super.initState();
-    
+
     // Quando digita algo, o erro limpa e volta ao azul
     _nomeController.addListener(() {
       if (_nomeController.text.isNotEmpty && _erroNome != null) {
@@ -85,10 +87,10 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
       String dia = dataSelecionada.day.toString().padLeft(2, '0');
       String mes = dataSelecionada.month.toString().padLeft(2, '0');
       String ano = dataSelecionada.year.toString();
-      
+
       setState(() {
         _dataNascimentoController.text = '$ano-$mes-$dia';
-        _erroDataNascimento = null; 
+        _erroDataNascimento = null;
       });
     }
   }
@@ -103,10 +105,15 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
         leadingWidth: 100,
         leading: TextButton.icon(
           onPressed: () => Navigator.pop(context),
-          icon: const Icon(Icons.arrow_back_ios,
-              size: 18, color: Color(0xFF00A2FF)),
-          label: const Text('Voltar',
-              style: TextStyle(color: Color(0xFF00A2FF), fontSize: 16)),
+          icon: const Icon(
+            Icons.arrow_back_ios,
+            size: 18,
+            color: Color(0xFF00A2FF),
+          ),
+          label: const Text(
+            'Voltar',
+            style: TextStyle(color: Color(0xFF00A2FF), fontSize: 16),
+          ),
         ),
       ),
       body: SingleChildScrollView(
@@ -118,9 +125,10 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
             const Text(
               'Criar conta - Cliente',
               style: TextStyle(
-                  color: Color(0xFF00A2FF),
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold),
+                color: Color(0xFF00A2FF),
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 25),
             Row(
@@ -172,7 +180,7 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
               readOnly: true,
               onTap: _fazerUploadDataNascimento,
               onSuffixIconTap: _fazerUploadDataNascimento,
-              errorText: _erroDataNascimento, // <-- Garanta que essa propriedade está aqui
+              errorText: _erroDataNascimento,
             ),
 
             const SizedBox(height: 40),
@@ -183,17 +191,35 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
               child: ElevatedButton(
                 onPressed: () {
                   setState(() {
-                    _erroNome = _nomeController.text.trim().isEmpty ? 'O nome é obrigatório' : null;
-                    _erroCpf = _cpfController.text.trim().isEmpty ? 'O CPF é obrigatório' : null;
-                    _erroEmail = _emailController.text.trim().isEmpty ? 'O e-mail é obrigatório' : null;
-                    _erroTelefone = _telefoneController.text.trim().isEmpty ? 'O telefone é obrigatório' : null;
-                    _erroDataNascimento = _dataNascimentoController.text.trim().isEmpty ? 'A data de nascimento é obrigatória' : null;
+                    _erroNome = _nomeController.text.trim().isEmpty
+                        ? 'O nome é obrigatório'
+                        : null;
+                    _erroCpf = _cpfController.text.trim().isEmpty
+                        ? 'O CPF é obrigatório'
+                        : null;
+                    _erroEmail = _emailController.text.trim().isEmpty
+                        ? 'O e-mail é obrigatório'
+                        : null;
+                    _erroTelefone = _telefoneController.text.trim().isEmpty
+                        ? 'O telefone é obrigatório'
+                        : null;
+                    _erroDataNascimento =
+                        _dataNascimentoController.text.trim().isEmpty
+                        ? 'A data de nascimento é obrigatória'
+                        : null;
                   });
 
-                  if (_erroNome != null || _erroCpf != null || _erroEmail != null || _erroTelefone != null || _erroDataNascimento != null) {
+                  if (_erroNome != null ||
+                      _erroCpf != null ||
+                      _erroEmail != null ||
+                      _erroTelefone != null ||
+                      _erroDataNascimento != null) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                          content: Text('Por favor, preencha todos os campos obrigatórios.')),
+                        content: Text(
+                          'Por favor, preencha todos os campos obrigatórios.',
+                        ),
+                      ),
                     );
                     return;
                   }
@@ -214,15 +240,17 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF00A2FF),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20)),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                   elevation: 0,
                 ),
                 child: const Text(
                   'Continuar',
                   style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold),
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
@@ -242,11 +270,14 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
         shape: BoxShape.circle,
       ),
       child: Center(
-        child: Text(step,
-            style: TextStyle(
-                color: isActive ? Colors.white : Colors.grey.shade400,
-                fontSize: 15,
-                fontWeight: FontWeight.bold)),
+        child: Text(
+          step,
+          style: TextStyle(
+            color: isActive ? Colors.white : Colors.grey.shade400,
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
     );
   }
@@ -330,8 +361,7 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
 
   @override
   Widget build(BuildContext context) {
-    final bool shouldFloat =
-        _isFocused || _effectiveController.text.isNotEmpty;
+    final bool shouldFloat = _isFocused || _effectiveController.text.isNotEmpty;
 
     final bool hasError = widget.errorText != null;
 
@@ -349,11 +379,11 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
     Color backgroundColor = const Color(0xFFFAFAFA);
 
     if (hasError) {
-      borderColor = Colors.red; 
+      borderColor = Colors.red;
       labelColor = Colors.red;
       backgroundColor = Colors.red.withOpacity(0.02);
     } else if (_isFocused) {
-      borderColor = const Color(0xFF00A2FF); 
+      borderColor = const Color(0xFF00A2FF);
       labelColor = const Color(0xFF00A2FF);
       backgroundColor = Colors.white;
     } else if (shouldFloat) {
@@ -372,10 +402,7 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
             decoration: BoxDecoration(
               color: backgroundColor,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: borderColor,
-                width: 1.5,
-              ),
+              border: Border.all(color: borderColor, width: 1.5),
               boxShadow: [
                 BoxShadow(
                   color: _isFocused
@@ -420,7 +447,9 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                                 child: Text(
                                   '*',
                                   style: TextStyle(
-                                    color: hasError ? Colors.red : const Color(0xFF00A2FF),
+                                    color: hasError
+                                        ? Colors.red
+                                        : const Color(0xFF00A2FF),
                                     fontSize: 14,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -453,7 +482,7 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                           decoration: InputDecoration(
                             hintText: shouldFloat ? widget.hint : '',
                             hintStyle: TextStyle(
-                              color: hasError 
+                              color: hasError
                                   ? Colors.red.withOpacity(0.4)
                                   : const Color(0xFF00A2FF).withOpacity(0.4),
                               fontSize: 16,
@@ -473,16 +502,23 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                 if (dynamicIcon != null) ...[
                   const SizedBox(width: 12),
                   GestureDetector(
-                    onTap: widget.onSuffixIconTap ??
+                    onTap:
+                        widget.onSuffixIconTap ??
                         (widget.obscureText
-                            ? () => setState(() => _obscureActive = !_obscureActive)
+                            ? () => setState(
+                                () => _obscureActive = !_obscureActive,
+                              )
                             : widget.onTap),
                     child: AnimatedScale(
                       duration: const Duration(milliseconds: 200),
                       scale: _isFocused ? 1.05 : 1.0,
                       child: Icon(
                         dynamicIcon,
-                        color: hasError ? Colors.red : (_isFocused ? const Color(0xFF00A2FF) : Colors.grey.shade400),
+                        color: hasError
+                            ? Colors.red
+                            : (_isFocused
+                                  ? const Color(0xFF00A2FF)
+                                  : Colors.grey.shade400),
                         size: 22,
                       ),
                     ),
@@ -512,7 +548,9 @@ class MaskedInputFormatter extends TextInputFormatter {
 
   @override
   TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, TextEditingValue newValue) {
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
     final text = newValue.text;
     final digits = text.replaceAll(RegExp(r'\D'), '');
     var formatted = '';
@@ -555,8 +593,7 @@ class CadastroClienteEtapa2Page extends StatefulWidget {
       _CadastroClienteEtapa2PageState();
 }
 
-class _CadastroClienteEtapa2PageState
-    extends State<CadastroClienteEtapa2Page> {
+class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
   final TextEditingController _senhaController = TextEditingController();
   final TextEditingController _confirmarSenhaController =
       TextEditingController();
@@ -565,14 +602,49 @@ class _CadastroClienteEtapa2PageState
   bool _aceitouPrivacidade = false;
   bool _carregando = false;
 
+  // Getters para verificar os requisitos em tempo real
+  bool get _temOitoCaracteres => _senhaController.text.length >= 8;
+  bool get _temMaiuscula => _senhaController.text.contains(RegExp(r'[A-Z]'));
+  bool get _temMinuscula => _senhaController.text.contains(RegExp(r'[a-z]'));
+  bool get _temSimbolo => _senhaController.text.contains(
+    RegExp(r'[^A-Za-z0-9\s]'),
+  ); // Qualquer caractere que não seja letra, número ou espaço vazio
+
+  @override
+  void initState() {
+    super.initState();
+    // Adiciona o ouvinte para reconstruir a lista de requisitos conforme digita
+    _senhaController.addListener(_atualizarInterface);
+  }
+
+  void _atualizarInterface() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    _senhaController.removeListener(_atualizarInterface);
     _senhaController.dispose();
     _confirmarSenhaController.dispose();
     super.dispose();
   }
 
   Future<void> _finalizarCadastroBanco() async {
+    // Validação local prévia dos requisitos da senha antes de mandar para o banco
+    if (!_temOitoCaracteres ||
+        !_temMaiuscula ||
+        !_temMinuscula ||
+        !_temSimbolo) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Por favor, preencha todos os requisitos de segurança da senha.',
+          ),
+        ),
+      );
+      return;
+    }
+
     if (_senhaController.text != _confirmarSenhaController.text) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('As senhas digitadas não coincidem.')),
@@ -596,10 +668,11 @@ class _CadastroClienteEtapa2PageState
 
       final authId = authUser.id;
 
-      final emailResponse = await supabase.from('emails').insert({
-        'endereco_email': widget.email,
-        'fk_status': 1,
-      }).select().single();
+      final emailResponse = await supabase
+          .from('emails')
+          .insert({'endereco_email': widget.email, 'fk_status': 1})
+          .select()
+          .single();
       final emailId = emailResponse['id_email'];
 
       final telefoneLimpo = widget.telefone.replaceAll(RegExp(r'\D'), '');
@@ -610,24 +683,30 @@ class _CadastroClienteEtapa2PageState
           ? telefoneLimpo.substring(2)
           : telefoneLimpo;
 
-      final telefoneResponse = await supabase.from('telefones').insert({
-        'ddd': ddd,
-        'numero': numero,
-        'fk_status': 1,
-      }).select().single();
+      final telefoneResponse = await supabase
+          .from('telefones')
+          .insert({'ddd': ddd, 'numero': numero, 'fk_status': 1})
+          .select()
+          .single();
       final telefoneId = telefoneResponse['id_telefone'];
 
       final cpfLimpo = widget.cpf.replaceAll(RegExp(r'\D'), '');
-      final pfResponse = await supabase.from('pessoa_fisica').insert({
-        'cpf': cpfLimpo.isNotEmpty ? cpfLimpo : null,
-      }).select().single();
+      final pfResponse = await supabase
+          .from('pessoa_fisica')
+          .insert({'cpf': cpfLimpo.isNotEmpty ? cpfLimpo : null})
+          .select()
+          .single();
       final pfId = pfResponse['id_pessoa_fisica'];
 
-      final assResponse = await supabase.from('ass_tipo_pessoa').insert({
-        'tipo': 'Pessoa Física',
-        'fk_pessoa_fisica': pfId,
-        'fk_pessoa_juridica': null,
-      }).select().single();
+      final assResponse = await supabase
+          .from('ass_tipo_pessoa')
+          .insert({
+            'tipo': 'Pessoa Física',
+            'fk_pessoa_fisica': pfId,
+            'fk_pessoa_juridica': null,
+          })
+          .select()
+          .single();
       final assTipoPessoaId = assResponse['id_tipo_pessoa'];
 
       await supabase.from('usuarios').insert({
@@ -646,21 +725,44 @@ class _CadastroClienteEtapa2PageState
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Cadastro finalizado com sucesso! 🎉')),
+          const SnackBar(content: Text('Cadastro finalizado com sucesso!')),
         );
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => const LoginPage()),
+          MaterialPageRoute(builder: (context) => TelaHome(isVisitante: false)),
           (route) => false,
         );
+      }
+    } on AuthException catch (e) {
+      // Captura o erro específico de Autenticação do Supabase
+      String mensagemAmigavel = 'Ocorreu um erro ao registrar.';
+
+      if (e.toString().contains('AuthWeakPasswordException') ||
+          e.message.toLowerCase().contains('password should be at least') ||
+          e.statusCode == '422') {
+        mensagemAmigavel =
+            'Senha muito fraca! Garanta que ela possua 6 caracteres, 1 maiúscula, 1 minúscula e 1 símbolo.';
+      } else if (e.message.toLowerCase().contains('already registered') ||
+          e.message.toLowerCase().contains('already exists')) {
+        mensagemAmigavel =
+            'Este e-mail já está cadastrado em nossa plataforma.';
+      } else {
+        mensagemAmigavel = e.message;
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(mensagemAmigavel)));
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text(
-                  'Falha ao registrar: ${e.toString().replaceAll('Exception: ', '')}')),
+            content: Text(
+              'Falha ao registrar: ${e.toString().replaceAll('Exception: ', '')}',
+            ),
+          ),
         );
       }
     } finally {
@@ -678,10 +780,15 @@ class _CadastroClienteEtapa2PageState
         leadingWidth: 100,
         leading: TextButton.icon(
           onPressed: () => Navigator.pop(context),
-          icon: const Icon(Icons.arrow_back_ios,
-              size: 18, color: Color(0xFF00A2FF)),
-          label: const Text('Voltar',
-              style: TextStyle(color: Color(0xFF00A2FF), fontSize: 16)),
+          icon: const Icon(
+            Icons.arrow_back_ios,
+            size: 18,
+            color: Color(0xFF00A2FF),
+          ),
+          label: const Text(
+            'Voltar',
+            style: TextStyle(color: Color(0xFF00A2FF), fontSize: 16),
+          ),
         ),
       ),
       body: SingleChildScrollView(
@@ -693,9 +800,10 @@ class _CadastroClienteEtapa2PageState
             const Text(
               'Criar conta - Cliente',
               style: TextStyle(
-                  color: Color(0xFF00A2FF),
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold),
+                color: Color(0xFF00A2FF),
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 25),
             Row(
@@ -717,6 +825,33 @@ class _CadastroClienteEtapa2PageState
               suffixIcon: Icons.visibility_outlined,
               controller: _senhaController,
             ),
+
+            // LISTA DE REQUISITOS ABAIXO DO INPUT DE CRIAR SENHA
+            Padding(
+              padding: const EdgeInsets.only(bottom: 20, left: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildRequisitoItem(
+                    'No mínimo 8 caracteres',
+                    _temOitoCaracteres,
+                  ),
+                  _buildRequisitoItem(
+                    'Pelo menos 1 letra maiúscula',
+                    _temMaiuscula,
+                  ),
+                  _buildRequisitoItem(
+                    'Pelo menos 1 letra minúscula',
+                    _temMinuscula,
+                  ),
+                  _buildRequisitoItem(
+                    'Pelo menos 1 símbolo (ex: @, #, \$, %)',
+                    _temSimbolo,
+                  ),
+                ],
+              ),
+            ),
+
             _InputFieldWithAnimation(
               label: 'Confirmar senha',
               hint: 'Confirme sua senha',
@@ -751,17 +886,18 @@ class _CadastroClienteEtapa2PageState
               width: double.infinity,
               height: 55,
               child: ElevatedButton(
-                onPressed: (_aceitouTermos &&
-                        _aceitouPrivacidade &&
-                        !_carregando)
+                onPressed:
+                    (_aceitouTermos && _aceitouPrivacidade && !_carregando)
                     ? _finalizarCadastroBanco
                     : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF00A2FF),
-                  disabledBackgroundColor:
-                      const Color(0xFF00A2FF).withOpacity(0.35),
+                  disabledBackgroundColor: const Color(
+                    0xFF00A2FF,
+                  ).withOpacity(0.35),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20)),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                   elevation: 0,
                 ),
                 child: _carregando
@@ -769,15 +905,38 @@ class _CadastroClienteEtapa2PageState
                     : const Text(
                         'Finalizar Cadastro',
                         style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold),
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
               ),
             ),
             const SizedBox(height: 20),
           ],
         ),
+      ),
+    );
+  }
+
+  // Widget auxiliar para renderizar cada linha de requisito da senha
+  Widget _buildRequisitoItem(String texto, bool valido) {
+    final cor = valido ? const Color(0xFF00A2FF) : Colors.grey.shade400;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Icon(Icons.check, size: 16, color: cor),
+          const SizedBox(width: 8),
+          Text(
+            texto,
+            style: TextStyle(
+              color: cor,
+              fontSize: 13,
+              fontWeight: valido ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -853,11 +1012,14 @@ class _CadastroClienteEtapa2PageState
         shape: BoxShape.circle,
       ),
       child: Center(
-        child: Text(step,
-            style: TextStyle(
-                color: isActive ? Colors.white : Colors.grey.shade400,
-                fontSize: 15,
-                fontWeight: FontWeight.bold)),
+        child: Text(
+          step,
+          style: TextStyle(
+            color: isActive ? Colors.white : Colors.grey.shade400,
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
     );
   }
