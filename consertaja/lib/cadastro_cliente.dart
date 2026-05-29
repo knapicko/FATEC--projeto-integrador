@@ -609,10 +609,8 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
   bool get _temOitoCaracteres => _senhaController.text.length >= 8;
   bool get _temMaiuscula => _senhaController.text.contains(RegExp(r'[A-Z]'));
   bool get _temMinuscula => _senhaController.text.contains(RegExp(r'[a-z]'));
-  bool get _temSimbolo => _senhaController.text.contains(
-    RegExp(r'[^A-Za-z0-9\s]'),
-  ); // Qualquer caractere que não seja letra, número ou espaço vazio
-
+  bool get _temSimbolo => _senhaController.text.contains(RegExp(r'[^A-Za-z0-9\s]'),); // Qualquer caractere que não seja letra, número ou espaço vazio
+  bool get _temNumero => _senhaController.text.contains(RegExp(r'[0-9]'));
   @override
   void initState() {
     super.initState();
@@ -637,7 +635,8 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
     if (!_temOitoCaracteres ||
         !_temMaiuscula ||
         !_temMinuscula ||
-        !_temSimbolo) {
+        !_temSimbolo ||
+        !_temNumero) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -850,6 +849,10 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
                   _buildRequisitoItem(
                     'Pelo menos 1 símbolo (ex: @, #, \$, %)',
                     _temSimbolo,
+                  ),
+                  _buildRequisitoItem(
+                    'Pelo menos 1 número',
+                    _temNumero,
                   ),
                 ],
               ),
