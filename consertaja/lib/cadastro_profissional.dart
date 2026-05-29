@@ -23,8 +23,9 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
   final TextEditingController _cnpjController = TextEditingController();
   final TextEditingController _razaoSocialController = TextEditingController();
   final TextEditingController _senhaController = TextEditingController();
-  final TextEditingController _confirmarSenhaController =
-      TextEditingController();
+  final TextEditingController _confirmarSenhaController =TextEditingController();
+
+  String? _fotoPerfilUrl;
 
   // Estados de erro para os inputs
   String? _erroNome;
@@ -35,11 +36,12 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
   String? _erroConfirmarSenha;
 
   // Getters para os requisitos da senha
-  bool get _temSeisCaracteres => _senhaController.text.length >= 6;
+  bool get _temOitoCaracteres => _senhaController.text.length >= 8;
   bool get _temMaiuscula => _senhaController.text.contains(RegExp(r'[A-Z]'));
   bool get _temMinuscula => _senhaController.text.contains(RegExp(r'[a-z]'));
   bool get _temSimbolo =>
       _senhaController.text.contains(RegExp(r'[^A-Za-z0-9\s]'));
+  bool get _temNumero => _senhaController.text.contains(RegExp(r'[0-9]'));
 
   @override
   void initState() {
@@ -252,8 +254,8 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildRequisitoItem(
-                        'No mínimo 6 caracteres',
-                        _temSeisCaracteres,
+                        'No mínimo 8 caracteres',
+                        _temOitoCaracteres,
                       ),
                       _buildRequisitoItem(
                         'Pelo menos 1 letra maiúscula',
@@ -266,6 +268,10 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                       _buildRequisitoItem(
                         'Pelo menos 1 símbolo (ex: @, #, \$, %)',
                         _temSimbolo,
+                      ),
+                      _buildRequisitoItem(
+                        'Pelo menos 1 número',
+                        _temNumero,
                       ),
                     ],
                   ),
@@ -334,8 +340,8 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildRequisitoItem(
-                        'No mínimo 6 caracteres',
-                        _temSeisCaracteres,
+                        'No mínimo 8 caracteres',
+                        _temOitoCaracteres,
                       ),
                       _buildRequisitoItem(
                         'Pelo menos 1 letra maiúscula',
@@ -348,6 +354,10 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                       _buildRequisitoItem(
                         'Pelo menos 1 símbolo (ex: @, #, \$, %)',
                         _temSimbolo,
+                      ),
+                      _buildRequisitoItem(
+                        'Pelo menos 1 número',
+                        _temNumero,
                       ),
                     ],
                   ),
@@ -389,10 +399,11 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                             : null;
                       }
 
-                      if (!_temSeisCaracteres ||
+                      if (!_temOitoCaracteres ||
                           !_temMaiuscula ||
                           !_temMinuscula ||
-                          !_temSimbolo) {
+                          !_temSimbolo ||
+                          !_temNumero) {
                         _erroSenha = 'A senha não atende aos requisitos';
                       } else {
                         _erroSenha = null;
@@ -439,6 +450,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                           senha: _senhaController.text,
                           isPessoaFisica: _isPessoaFisica,
                           cnpjDeEmpresa: _cnpjDeEmpresa,
+                          fotoPerfilUrl: _fotoPerfilUrl,
                         ),
                       ),
                     );
@@ -601,6 +613,7 @@ class CadastroProfissionalEtapa2Page extends StatefulWidget {
   final String senha;
   final bool isPessoaFisica;
   final bool cnpjDeEmpresa;
+  final String? fotoPerfilUrl;
 
   const CadastroProfissionalEtapa2Page({
     super.key,
@@ -611,6 +624,7 @@ class CadastroProfissionalEtapa2Page extends StatefulWidget {
     required this.senha,
     required this.isPessoaFisica,
     required this.cnpjDeEmpresa,
+    this.fotoPerfilUrl,
   });
 
   @override
@@ -1047,6 +1061,7 @@ class _CadastroProfissionalEtapa2PageState
                           telefone: _telefoneController.text.trim(),
                           dataNascimento: _dataNascimentoController.text.trim(),
                           areaAtuacao: _atuacaoController.text.trim(),
+                          fotoPerfilUrl: widget.fotoPerfilUrl,
                         ),
                       ),
                     );
@@ -1143,6 +1158,7 @@ class CadastroProfissionalEtapa3Page extends StatefulWidget {
   final String telefone;
   final String dataNascimento;
   final String areaAtuacao;
+  final String? fotoPerfilUrl;
 
   const CadastroProfissionalEtapa3Page({
     super.key,
@@ -1157,6 +1173,7 @@ class CadastroProfissionalEtapa3Page extends StatefulWidget {
     required this.telefone,
     required this.dataNascimento,
     required this.areaAtuacao,
+    this.fotoPerfilUrl,
   });
 
   @override
@@ -1265,7 +1282,7 @@ class _CadastroProfissionalEtapa3PageState
             'fk_email': emailId,
             'fk_telefone': telefoneId,
             'fk_tipo_pessoa': assTipoPessoaId,
-            'fk_imagem': null,
+            'foto_perfil_url': widget.fotoPerfilUrl,
             'auth_id': authId,
           })
           .select()
