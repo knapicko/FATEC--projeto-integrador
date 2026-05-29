@@ -178,7 +178,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                           ),
                           alignment: Alignment.center,
                           child: Text(
-                            'Pessoa Física',
+                            'Física',
                             style: TextStyle(
                               color: _isPessoaFisica
                                   ? Colors.white
@@ -1239,7 +1239,7 @@ class _CadastroProfissionalEtapa3PageState
         final assResponse = await supabase
             .from('ass_tipo_pessoa')
             .insert({
-              'tipo': 'Pessoa Física',
+              'tipo': 'Física',
               'fk_pessoa_fisica': pfId,
               'fk_pessoa_juridica': null,
             })
