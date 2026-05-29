@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'perfil_loja.dart'; // IMPORTADO: Conecta a tela de perfil da loja
+import 'package:supabase_flutter/supabase_flutter.dart'; // IMPORTADO: Para realizar o logout do Supabase
+import 'main.dart'; // IMPORTADO: Para redirecionar para a TelaEscolhaConta
+import 'perfil_loja.dart'; // Conecta a tela de perfil da loja
 
 class ServicoPopular {
   final String titulo;
@@ -19,7 +21,6 @@ class ServicoPopular {
   });
 }
 
-// Novo Modelo de Dados para as Lojas Populares
 class LojaPopular {
   final String titulo;
   final double avaliacao;
@@ -45,12 +46,11 @@ class LojaPopular {
     required this.tag1TextColor,
     required this.tag2BgColor,
     required this.tag2TextColor,
-    required this.caminhoImagem, 
+    required this.caminhoImagem,
     this.isVerified = false,
   });
 }
 
-// Modelo de Dados para os Perfis Populares
 class PerfilPopular {
   final String nome;
   final double avaliacao;
@@ -72,7 +72,7 @@ class PerfilPopular {
 }
 
 class TelaHome extends StatelessWidget {
-  final bool isVisitante; // se true = visita, se false = cliente 
+  final bool isVisitante;
 
   TelaHome({super.key, required this.isVisitante});
 
@@ -111,7 +111,6 @@ class TelaHome extends StatelessWidget {
     ),
   ];
 
-  // Lista de Lojas Populares
   final List<LojaPopular> listaLojas = [
     LojaPopular(
       titulo: 'Caedss - Estrada das Lágrimas',
@@ -124,7 +123,7 @@ class TelaHome extends StatelessWidget {
       tag1TextColor: const Color(0xFF0288D1),
       tag2BgColor: const Color(0xFFE8F5E9),
       tag2TextColor: const Color(0xFF2E7D32),
-      caminhoImagem: 'assets/images/loja_caedss.png', 
+      caminhoImagem: 'assets/images/loja_caedss.png',
       isVerified: true,
     ),
     LojaPopular(
@@ -138,7 +137,7 @@ class TelaHome extends StatelessWidget {
       tag1TextColor: const Color(0xFF0288D1),
       tag2BgColor: const Color(0xFFEEEEEE),
       tag2TextColor: const Color(0xFF616161),
-      caminhoImagem: 'assets/images/loja_mundo_loucas.png', 
+      caminhoImagem: 'assets/images/loja_mundo_loucas.png',
     ),
     LojaPopular(
       titulo: 'Chaveiro - Ipiranga',
@@ -151,7 +150,7 @@ class TelaHome extends StatelessWidget {
       tag1TextColor: const Color(0xFFE65100),
       tag2BgColor: const Color(0xFFE1F5FE),
       tag2TextColor: const Color(0xFF0288D1),
-      caminhoImagem: 'assets/images/loja_chaveiro.png', 
+      caminhoImagem: 'assets/images/loja_chaveiro.png',
     ),
     LojaPopular(
       titulo: 'Caedss - Estrada das Lágrimas',
@@ -164,11 +163,10 @@ class TelaHome extends StatelessWidget {
       tag1TextColor: const Color(0xFF0288D1),
       tag2BgColor: const Color(0xFFEEEEEE),
       tag2TextColor: const Color(0xFF616161),
-      caminhoImagem: 'assets/images/loja_caedss.png', 
+      caminhoImagem: 'assets/images/loja_caedss.png',
     ),
   ];
 
-  // Lista de Perfis Populares
   final List<PerfilPopular> listaPerfis = [
     PerfilPopular(
       nome: 'Caneta Azul',
@@ -226,6 +224,75 @@ class TelaHome extends StatelessWidget {
     ),
   ];
 
+  Future<String?> _buscarNomeUsuario() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user == null) return null;
+
+      // Busca apenas o nome do usuário logado relacionando o auth_id
+      final response = await supabase
+          .from('usuarios')
+          .select('nome')
+          .eq('auth_id', user.id)
+          .maybeSingle();
+
+      return response?['nome'] as String?;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  void _exibirDialogSair(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(
+            isVisitante ? 'Sair do Modo Visitante' : 'Confirmar Saída',
+          ),
+          content: Text(
+            isVisitante
+                ? 'Deseja realmente voltar para a tela de escolha de conta?'
+                : 'Deseja realmente sair da sua conta?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(context); // Fecha o pop-up primeiro
+
+                if (!isVisitante) {
+                  await Supabase.instance.client.auth.signOut();
+                }
+
+                if (context.mounted) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const TelaEscolhaConta(),
+                    ),
+                    (route) => false,
+                  );
+                }
+              },
+              child: const Text(
+                'Sair',
+                style: TextStyle(
+                  color: Color(0xFF00A3FF),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     double larguraDaTela = MediaQuery.of(context).size.width;
@@ -234,55 +301,121 @@ class TelaHome extends StatelessWidget {
     double larguraDoQuadrado = (larguraDaTela - 32) / 4.2;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFFFF), 
+      backgroundColor: const Color(0xFFFFFFFF),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16.0),
           children: [
-            // Localização e Perfil
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('LOCALIZAÇÃO ATUAL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                    Text(
+                      'LOCALIZAÇÃO ATUAL',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey,
+                      ),
+                    ),
                     Row(
                       children: [
-                        Icon(Icons.location_on, color: Color(0xFF00A3FF), size: 16),
+                        Icon(
+                          Icons.location_on,
+                          color: Color(0xFF00A3FF),
+                          size: 16,
+                        ),
                         SizedBox(width: 4),
                         Text(
-                          'Adicionar Localização', 
-                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+                          'Adicionar Localização',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
                         ),
                         Icon(Icons.keyboard_arrow_down, color: Colors.black54),
                       ],
-                    )
+                    ),
                   ],
                 ),
-                
-                isVisitante
-                    ? const CircleAvatar(
-                        radius: 20,
-                        backgroundColor: Color(0xFFE3F2FD),
-                        child: Icon(Icons.person, color: Color(0xFF00A3FF)),
-                      )
-                    : const CircleAvatar(
-                        radius: 20,
-                        backgroundColor: Color(0xFFE3F2FD),
-                        child: Icon(Icons.person, color: Color(0xFF00A3FF)),
+
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircleAvatar(
+                      radius: 20,
+                      backgroundColor: Color(0xFFE3F2FD),
+                      child: Icon(Icons.person, color: Color(0xFF00A3FF)),
+                    ),
+                    const SizedBox(width: 8),
+
+                    // Novo bloco: Mostra o nome do usuário logado
+                    if (!isVisitante)
+                      FutureBuilder<String?>(
+                        future: _buscarNomeUsuario(),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Padding(
+                              padding: EdgeInsets.only(right: 8.0),
+                              child: SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Color(0xFF00A3FF),
+                                ),
+                              ),
+                            );
+                          }
+                          final nomeCompleto = snapshot.data;
+                          if (nomeCompleto != null && nomeCompleto.isNotEmpty) {
+                            // Pega apenas o primeiro nome para não quebrar o layout da barra
+                            final primeiroNome = nomeCompleto.split(' ')[0];
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 4.0),
+                              child: Text(
+                                primeiroNome,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        },
                       ),
+
+                    // Botão de Logout mantido e ajustado
+                    if (!isVisitante)
+                      IconButton(
+                        icon: const Icon(
+                          Icons.logout,
+                          color: Color(0xFF00A3FF),
+                          size: 22,
+                        ),
+                        onPressed: () => _exibirDialogSair(context),
+                        tooltip: 'Sair da Conta',
+                      ),
+                  ],
+                ),
               ],
             ),
             SizedBox(height: alturaDaTela * 0.02),
 
-            // barra de pesquisa
             Container(
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4)),
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
                 ],
               ),
               child: const TextField(
@@ -296,25 +429,75 @@ class TelaHome extends StatelessWidget {
             ),
             SizedBox(height: alturaDaTela * 0.03),
 
-            // SEÇÃO: Serviços Iniciais
-            const Text('Serviços Iniciais', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
+            const Text(
+              'Serviços Iniciais',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
             const SizedBox(height: 12),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               physics: const BouncingScrollPhysics(),
               child: Row(
                 children: [
-                  SizedBox(width: larguraDoQuadrado, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: _buildQuadradoServico('Panelas', Icons.soup_kitchen_outlined, true))),
-                  SizedBox(width: larguraDoQuadrado, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: _buildQuadradoServico('Chaveiro', Icons.vpn_key_outlined, true))),
-                  SizedBox(width: larguraDoQuadrado, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: _buildQuadradoServico('Mais', Icons.add, true))),
-                  SizedBox(width: larguraDoQuadrado, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: _buildQuadradoServico('Mais', Icons.add, true))),
-                  SizedBox(width: larguraDoQuadrado, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: _buildQuadradoServico('Mais', Icons.add, true))),
-                  SizedBox(width: larguraDoQuadrado, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: _buildQuadradoServico('Mais', Icons.add, true))),
+                  SizedBox(
+                    width: larguraDoQuadrado,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: _buildQuadradoServico(
+                        'Panelas',
+                        Icons.soup_kitchen_outlined,
+                        true,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: larguraDoQuadrado,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: _buildQuadradoServico(
+                        'Chaveiro',
+                        Icons.vpn_key_outlined,
+                        true,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: larguraDoQuadrado,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: _buildQuadradoServico('Mais', Icons.add, true),
+                    ),
+                  ),
+                  SizedBox(
+                    width: larguraDoQuadrado,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: _buildQuadradoServico('Mais', Icons.add, true),
+                    ),
+                  ),
+                  SizedBox(
+                    width: larguraDoQuadrado,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: _buildQuadradoServico('Mais', Icons.add, true),
+                    ),
+                  ),
+                  SizedBox(
+                    width: larguraDoQuadrado,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: _buildQuadradoServico('Mais', Icons.add, true),
+                    ),
+                  ),
                 ],
               ),
             ),
             SizedBox(height: alturaDaTela * 0.03),
-            
+
             if (isVisitante) ...[
               GestureDetector(
                 onTap: () {
@@ -337,17 +520,37 @@ class TelaHome extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Acesse agora', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                            Text(
+                              'Acesse agora',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                             SizedBox(height: 6),
-                            Text('Entre ou cadastre-se para ter acesso completo ao ConsertaJá', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                            Text(
+                              'Entre ou cadastre-se para ter acesso completo ao ConsertaJá',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                              ),
+                            ),
                           ],
                         ),
                       ),
                       Container(
                         padding: const EdgeInsets.all(8),
-                        decoration: const BoxDecoration(color: Colors.white24, shape: BoxShape.circle),
-                        child: const Icon(Icons.arrow_forward, color: Colors.white, size: 28),
-                      )
+                        decoration: const BoxDecoration(
+                          color: Colors.white24,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.arrow_forward,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -355,13 +558,19 @@ class TelaHome extends StatelessWidget {
               SizedBox(height: alturaDaTela * 0.03),
             ],
 
-            // serviços populares
-            const Text('Serviços Populares', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
+            const Text(
+              'Serviços Populares',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
             const SizedBox(height: 12),
 
             GridView.builder(
-              shrinkWrap: true, 
-              physics: const NeverScrollableScrollPhysics(), 
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
                 crossAxisSpacing: 12,
@@ -376,10 +585,14 @@ class TelaHome extends StatelessWidget {
             ),
             SizedBox(height: alturaDaTela * 0.04),
 
-            // ==========================================
-            // SEÇÃO: Lojas populares
-            // ==========================================
-            const Text('Lojas populares', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+            const Text(
+              'Lojas populares',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
             const SizedBox(height: 12),
 
             SingleChildScrollView(
@@ -403,19 +616,23 @@ class TelaHome extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Primeira Linha (Índices pares) com Detector de Clique integrado
                   Row(
-                    children: List.generate((listaLojas.length / 2).ceil(), (index) {
+                    children: List.generate((listaLojas.length / 2).ceil(), (
+                      index,
+                    ) {
                       int actualIndex = index * 2;
                       final loja = listaLojas[actualIndex];
                       return Padding(
                         padding: const EdgeInsets.only(right: 12),
                         child: GestureDetector(
                           onTap: () {
-                            if (loja.titulo == 'Caedss - Estrada das Lágrimas') {
+                            if (loja.titulo ==
+                                'Caedss - Estrada das Lágrimas') {
                               Navigator.push(
                                 context,
-                                MaterialPageRoute(builder: (context) => const PerfilLoja()),
+                                MaterialPageRoute(
+                                  builder: (context) => const PerfilLoja(),
+                                ),
                               );
                             }
                           },
@@ -425,7 +642,6 @@ class TelaHome extends StatelessWidget {
                     }),
                   ),
                   const SizedBox(height: 12),
-                  // Segunda Linha (Índices ímpares) com Detector de Clique integrado
                   Row(
                     children: List.generate(listaLojas.length ~/ 2, (index) {
                       int actualIndex = (index * 2) + 1;
@@ -434,10 +650,13 @@ class TelaHome extends StatelessWidget {
                         padding: const EdgeInsets.only(right: 12),
                         child: GestureDetector(
                           onTap: () {
-                            if (loja.titulo == 'Caedss - Estrada das Lágrimas') {
+                            if (loja.titulo ==
+                                'Caedss - Estrada das Lágrimas') {
                               Navigator.push(
                                 context,
-                                MaterialPageRoute(builder: (context) => const PerfilLoja()),
+                                MaterialPageRoute(
+                                  builder: (context) => const PerfilLoja(),
+                                ),
                               );
                             }
                           },
@@ -449,12 +668,16 @@ class TelaHome extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 24), 
+            const SizedBox(height: 24),
 
-            // ==========================================
-            // SEÇÃO: Perfis populares
-            // ==========================================
-            const Text('Perfis populares', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+            const Text(
+              'Perfis populares',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
             const SizedBox(height: 12),
 
             SingleChildScrollView(
@@ -479,7 +702,9 @@ class TelaHome extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
-                    children: List.generate((listaPerfis.length / 2).ceil(), (index) {
+                    children: List.generate((listaPerfis.length / 2).ceil(), (
+                      index,
+                    ) {
                       int actualIndex = index * 2;
                       return Padding(
                         padding: const EdgeInsets.only(right: 12),
@@ -504,25 +729,40 @@ class TelaHome extends StatelessWidget {
           ],
         ),
       ),
-      
-      // Barra de baixo modificada para conter o item "Seguindo" entre Home e Mensagens
+
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         selectedItemColor: const Color(0xFF00A3FF),
         unselectedItemColor: Colors.grey,
-        currentIndex: 0, 
+        currentIndex: 0,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.favorite_border), label: 'Seguindo'), // ADICIONADO AQUI
-          BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline), label: 'Mensagens'),
-          BottomNavigationBarItem(icon: Icon(Icons.inventory_2_outlined), label: 'Pedidos'),
-          BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Perfil'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.favorite_border),
+            label: 'Seguindo',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.chat_bubble_outline),
+            label: 'Mensagens',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.inventory_2_outlined),
+            label: 'Pedidos',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_outline),
+            label: 'Perfil',
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildQuadradoServico(String texto, IconData icone, bool mostrarConteudo) {
+  Widget _buildQuadradoServico(
+    String texto,
+    IconData icone,
+    bool mostrarConteudo,
+  ) {
     return Container(
       height: 75,
       decoration: BoxDecoration(
@@ -530,22 +770,26 @@ class TelaHome extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey.shade200),
       ),
-      child: mostrarConteudo 
+      child: mostrarConteudo
           ? Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icone, color: const Color(0xFF00A3FF), size: 26), 
+                Icon(icone, color: const Color(0xFF00A3FF), size: 26),
                 const SizedBox(height: 4),
                 if (texto.isNotEmpty)
                   Text(
-                    texto, 
-                    style: const TextStyle(fontSize: 10, color: Colors.black87, fontWeight: FontWeight.w600),
+                    texto,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: Colors.black87,
+                      fontWeight: FontWeight.w600,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
               ],
             )
-          : null, 
+          : null,
     );
   }
 
@@ -563,9 +807,12 @@ class TelaHome extends StatelessWidget {
             child: Container(
               decoration: BoxDecoration(
                 color: Colors.grey.shade300,
-                borderRadius: const BorderRadius.only(topLeft: Radius.circular(12), topRight: Radius.circular(12)),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(12),
+                  topRight: Radius.circular(12),
+                ),
                 image: DecorationImage(
-                  image: AssetImage(servico.caminhoImagem), 
+                  image: AssetImage(servico.caminhoImagem),
                   fit: BoxFit.cover,
                 ),
               ),
@@ -573,8 +820,18 @@ class TelaHome extends StatelessWidget {
               padding: const EdgeInsets.all(6),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4)),
-                child: Text(servico.categoria, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.black54)),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  servico.categoria,
+                  style: const TextStyle(
+                    fontSize: 8,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black54,
+                  ),
+                ),
               ),
             ),
           ),
@@ -583,28 +840,56 @@ class TelaHome extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(servico.titulo, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(
+                  servico.titulo,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 const SizedBox(height: 2),
                 Row(
                   children: [
-                    Text('${servico.avaliacao}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87)),
+                    Text(
+                      '${servico.avaliacao}',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
                     const SizedBox(width: 2),
                     const Icon(Icons.star, color: Color(0xFF00A3FF), size: 10),
                     const SizedBox(width: 2),
-                    Text('(${servico.totalAvaliacoes})', style: const TextStyle(fontSize: 9, color: Colors.grey)),
+                    Text(
+                      '(${servico.totalAvaliacoes})',
+                      style: const TextStyle(fontSize: 9, color: Colors.grey),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 6),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Preço Médio', style: TextStyle(fontSize: 9, color: Colors.grey)),
-                    Text('R\$ ${servico.precoMedio.toStringAsFixed(2)}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange)),
+                    const Text(
+                      'Preço Médio',
+                      style: TextStyle(fontSize: 9, color: Colors.grey),
+                    ),
+                    Text(
+                      'R\$ ${servico.precoMedio.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange,
+                      ),
+                    ),
                   ],
                 ),
               ],
             ),
-          )
+          ),
         ],
       ),
     );
@@ -635,7 +920,7 @@ class TelaHome extends StatelessWidget {
 
   Widget _buildCardLoja(LojaPopular loja) {
     return Container(
-      width: 260, 
+      width: 260,
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -654,7 +939,7 @@ class TelaHome extends StatelessWidget {
                   color: Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(10),
                   image: DecorationImage(
-                    image: AssetImage(loja.caminhoImagem), 
+                    image: AssetImage(loja.caminhoImagem),
                     fit: BoxFit.cover,
                   ),
                 ),
@@ -679,7 +964,11 @@ class TelaHome extends StatelessWidget {
               children: [
                 Text(
                   loja.titulo,
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -690,17 +979,29 @@ class TelaHome extends StatelessWidget {
                     const SizedBox(width: 1),
                     Text(
                       '${loja.avaliacao}',
-                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87),
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
                     ),
                     Text(
                       '(${loja.totalAvaliacoes})',
                       style: const TextStyle(fontSize: 9, color: Colors.grey),
                     ),
                     const SizedBox(width: 6),
-                    const Icon(Icons.location_on_outlined, color: Color(0xFF00A3FF), size: 11),
+                    const Icon(
+                      Icons.location_on_outlined,
+                      color: Color(0xFF00A3FF),
+                      size: 11,
+                    ),
                     Text(
                       loja.distancia,
-                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.black87),
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
                     ),
                   ],
                 ),
@@ -708,26 +1009,40 @@ class TelaHome extends StatelessWidget {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), 
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: loja.tag1BgColor,
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         loja.tag1,
-                        style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: loja.tag1TextColor), 
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.bold,
+                          color: loja.tag1TextColor,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 4),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), 
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: loja.tag2BgColor,
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         loja.tag2,
-                        style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: loja.tag2TextColor), 
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.bold,
+                          color: loja.tag2TextColor,
+                        ),
                       ),
                     ),
                   ],
@@ -742,7 +1057,7 @@ class TelaHome extends StatelessWidget {
 
   Widget _buildCardPerfil(PerfilPopular perfil) {
     return Container(
-      width: 145, 
+      width: 145,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -763,7 +1078,11 @@ class TelaHome extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             perfil.nome,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87),
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -774,7 +1093,11 @@ class TelaHome extends StatelessWidget {
               const SizedBox(width: 2),
               Text(
                 '${perfil.avaliacao}',
-                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87),
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
               ),
               const SizedBox(width: 2),
               Text(
@@ -788,11 +1111,15 @@ class TelaHome extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
               color: perfil.tagBgColor,
-              borderRadius: BorderRadius.circular(20), 
+              borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
               perfil.tag,
-              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: perfil.tagTextColor),
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: perfil.tagTextColor,
+              ),
             ),
           ),
         ],

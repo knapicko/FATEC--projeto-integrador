@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/gestures.dart';
 import 'login.dart';
+import 'tela_home.dart';
 
 // ================= TELA 01: CADASTRO DO PROFISSIONAL (ETAPA 1) =================
 class CadastroProfissionalPage extends StatefulWidget {
@@ -24,6 +25,55 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
   final TextEditingController _senhaController = TextEditingController();
   final TextEditingController _confirmarSenhaController =
       TextEditingController();
+
+  // Estados de erro para os inputs
+  String? _erroNome;
+  String? _erroCpf;
+  String? _erroCnpj;
+  String? _erroRazaoSocial;
+  String? _erroSenha;
+  String? _erroConfirmarSenha;
+
+  // Getters para os requisitos da senha
+  bool get _temSeisCaracteres => _senhaController.text.length >= 6;
+  bool get _temMaiuscula => _senhaController.text.contains(RegExp(r'[A-Z]'));
+  bool get _temMinuscula => _senhaController.text.contains(RegExp(r'[a-z]'));
+  bool get _temSimbolo =>
+      _senhaController.text.contains(RegExp(r'[^A-Za-z0-9\s]'));
+
+  @override
+  void initState() {
+    super.initState();
+
+    _senhaController.addListener(() {
+      if (_senhaController.text.isNotEmpty && _erroSenha != null) {
+        _erroSenha = null;
+      }
+      if (mounted) setState(() {});
+    });
+
+    _nomeController.addListener(() {
+      if (_nomeController.text.isNotEmpty && _erroNome != null)
+        setState(() => _erroNome = null);
+    });
+    _cpfController.addListener(() {
+      if (_cpfController.text.isNotEmpty && _erroCpf != null)
+        setState(() => _erroCpf = null);
+    });
+    _cnpjController.addListener(() {
+      if (_cnpjController.text.isNotEmpty && _erroCnpj != null)
+        setState(() => _erroCnpj = null);
+    });
+    _razaoSocialController.addListener(() {
+      if (_razaoSocialController.text.isNotEmpty && _erroRazaoSocial != null)
+        setState(() => _erroRazaoSocial = null);
+    });
+    _confirmarSenhaController.addListener(() {
+      if (_confirmarSenhaController.text.isNotEmpty &&
+          _erroConfirmarSenha != null)
+        setState(() => _erroConfirmarSenha = null);
+    });
+  }
 
   @override
   void dispose() {
@@ -111,7 +161,11 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                   children: [
                     Expanded(
                       child: GestureDetector(
-                        onTap: () => setState(() => _isPessoaFisica = true),
+                        onTap: () => setState(() {
+                          _isPessoaFisica = true;
+                          _erroCnpj = null;
+                          _erroRazaoSocial = null;
+                        }),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
                           decoration: BoxDecoration(
@@ -136,7 +190,10 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                     ),
                     Expanded(
                       child: GestureDetector(
-                        onTap: () => setState(() => _isPessoaFisica = false),
+                        onTap: () => setState(() {
+                          _isPessoaFisica = false;
+                          _erroCpf = null;
+                        }),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
                           decoration: BoxDecoration(
@@ -166,45 +223,70 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
 
               if (_isPessoaFisica) ...[
                 _InputFieldWithAnimation(
-                  label: 'Nome',
-                  hint: 'Nome completo',
-                  keyboardType: TextInputType.name,
-                  controller: _nomeController,
-                ),
-                _InputFieldWithAnimation(
                   label: 'CPF',
                   hint: '___.___.___-__',
                   keyboardType: TextInputType.number,
                   inputFormatters: [MaskedInputFormatter('###.###.###-##')],
                   controller: _cpfController,
+                  errorText: _erroCpf,
                 ),
-                _InputFieldWithAnimation(
-                  label: 'Senha',
-                  hint: 'Senha',
-                  suffixIcon: Icons.visibility_outlined,
-                  obscureText: true,
-                  controller: _senhaController,
-                ),
-                _InputFieldWithAnimation(
-                  label: 'Confirmar Senha',
-                  hint: 'Confirmar Senha',
-                  suffixIcon: Icons.visibility_outlined,
-                  obscureText: true,
-                  controller: _confirmarSenhaController,
-                ),
-              ] else ...[
                 _InputFieldWithAnimation(
                   label: 'Nome',
                   hint: 'Nome completo',
                   keyboardType: TextInputType.name,
                   controller: _nomeController,
+                  errorText: _erroNome,
                 ),
+                _InputFieldWithAnimation(
+                  label: 'Senha',
+                  hint: 'Digite sua senha',
+                  suffixIcon: Icons.visibility_outlined,
+                  obscureText: true,
+                  controller: _senhaController,
+                  errorText: _erroSenha,
+                ),
+
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 20, left: 6),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildRequisitoItem(
+                        'No mínimo 6 caracteres',
+                        _temSeisCaracteres,
+                      ),
+                      _buildRequisitoItem(
+                        'Pelo menos 1 letra maiúscula',
+                        _temMaiuscula,
+                      ),
+                      _buildRequisitoItem(
+                        'Pelo menos 1 letra minúscula',
+                        _temMinuscula,
+                      ),
+                      _buildRequisitoItem(
+                        'Pelo menos 1 símbolo (ex: @, #, \$, %)',
+                        _temSimbolo,
+                      ),
+                    ],
+                  ),
+                ),
+
+                _InputFieldWithAnimation(
+                  label: 'Confirmar Senha',
+                  hint: 'Confirme sua senha',
+                  suffixIcon: Icons.visibility_outlined,
+                  obscureText: true,
+                  controller: _confirmarSenhaController,
+                  errorText: _erroConfirmarSenha,
+                ),
+              ] else ...[
                 _InputFieldWithAnimation(
                   label: 'CNPJ',
                   hint: '__.___.___/____-__',
                   keyboardType: TextInputType.number,
                   inputFormatters: [MaskedInputFormatter('##.###.###/####-##')],
                   controller: _cnpjController,
+                  errorText: _erroCnpj,
                 ),
                 Padding(
                   padding: const EdgeInsets.only(bottom: 25, left: 4, top: 5),
@@ -225,50 +307,121 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                   ),
                 ),
                 _InputFieldWithAnimation(
+                  label: 'Nome',
+                  hint: 'Nome completo',
+                  keyboardType: TextInputType.name,
+                  controller: _nomeController,
+                  errorText: _erroNome,
+                ),
+                _InputFieldWithAnimation(
                   label: 'Razão Social',
                   hint: 'Razão Social',
                   controller: _razaoSocialController,
+                  errorText: _erroRazaoSocial,
                 ),
                 _InputFieldWithAnimation(
                   label: 'Senha',
-                  hint: 'Senha',
+                  hint: 'Digite sua senha',
                   suffixIcon: Icons.visibility_outlined,
                   obscureText: true,
                   controller: _senhaController,
+                  errorText: _erroSenha,
                 ),
+
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 20, left: 6),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildRequisitoItem(
+                        'No mínimo 6 caracteres',
+                        _temSeisCaracteres,
+                      ),
+                      _buildRequisitoItem(
+                        'Pelo menos 1 letra maiúscula',
+                        _temMaiuscula,
+                      ),
+                      _buildRequisitoItem(
+                        'Pelo menos 1 letra minúscula',
+                        _temMinuscula,
+                      ),
+                      _buildRequisitoItem(
+                        'Pelo menos 1 símbolo (ex: @, #, \$, %)',
+                        _temSimbolo,
+                      ),
+                    ],
+                  ),
+                ),
+
                 _InputFieldWithAnimation(
                   label: 'Confirmar Senha',
-                  hint: 'Confirmar Senha',
+                  hint: 'Confirme sua senha',
                   suffixIcon: Icons.visibility_outlined,
                   obscureText: true,
                   controller: _confirmarSenhaController,
+                  errorText: _erroConfirmarSenha,
                 ),
               ],
 
-              const SizedBox(height: 30),
+              const SizedBox(height: 10),
 
               SizedBox(
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton(
                   onPressed: () {
-                    if (_nomeController.text.isEmpty) {
+                    setState(() {
+                      _erroNome = _nomeController.text.trim().isEmpty
+                          ? 'O nome é obrigatório'
+                          : null;
+
+                      if (_isPessoaFisica) {
+                        _erroCpf = _cpfController.text.trim().isEmpty
+                            ? 'O CPF é obrigatório'
+                            : null;
+                      } else {
+                        _erroCnpj = _cnpjController.text.trim().isEmpty
+                            ? 'O CNPJ é obrigatório'
+                            : null;
+                        _erroRazaoSocial =
+                            _razaoSocialController.text.trim().isEmpty
+                            ? 'A Razão Social é obrigatória'
+                            : null;
+                      }
+
+                      if (!_temSeisCaracteres ||
+                          !_temMaiuscula ||
+                          !_temMinuscula ||
+                          !_temSimbolo) {
+                        _erroSenha = 'A senha não atende aos requisitos';
+                      } else {
+                        _erroSenha = null;
+                      }
+
+                      if (_senhaController.text !=
+                          _confirmarSenhaController.text) {
+                        _erroConfirmarSenha = 'As senhas não coincidem';
+                      } else {
+                        _erroConfirmarSenha = null;
+                      }
+                    });
+
+                    if (_erroNome != null ||
+                        _erroCpf != null ||
+                        _erroCnpj != null ||
+                        _erroRazaoSocial != null ||
+                        _erroSenha != null ||
+                        _erroConfirmarSenha != null) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                            content:
-                                Text('Por favor, preencha o nome.')),
+                          content: Text(
+                            'Por favor, preencha todos os campos obrigatórios corretamente.',
+                          ),
+                        ),
                       );
                       return;
                     }
-                    if (_senhaController.text !=
-                        _confirmarSenhaController.text) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text(
-                                'As senhas digitadas não coincidem.')),
-                      );
-                      return;
-                    }
+
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -340,6 +493,27 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildRequisitoItem(String texto, bool valido) {
+    final cor = valido ? const Color(0xFF00A2FF) : Colors.grey.shade400;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Icon(Icons.check, size: 16, color: cor),
+          const SizedBox(width: 8),
+          Text(
+            texto,
+            style: TextStyle(
+              color: cor,
+              fontSize: 13,
+              fontWeight: valido ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -451,27 +625,48 @@ class _CadastroProfissionalEtapa2PageState
   final TextEditingController _dataNascimentoController =
       TextEditingController();
   final TextEditingController _atuacaoController = TextEditingController();
-  final FocusNode _atuacaoFocusNode = FocusNode();
 
   bool _showAtuacaoDropdown = false;
   bool _carregandoOficios = true;
   List<Map<String, dynamic>> _oficios = [];
 
+  // Lista para salvar os itens múltiplos selecionados
+  final List<Map<String, dynamic>> _oficiosSelecionados = [];
+
+  // Estados de erro para os inputs
+  String? _erroEmail;
+  String? _erroTelefone;
+  String? _erroDataNascimento;
+  String? _erroAtuacao;
+
   @override
   void initState() {
     super.initState();
-    _atuacaoFocusNode.addListener(() {
-      setState(() {
-        _showAtuacaoDropdown = _atuacaoFocusNode.hasFocus;
-      });
+
+    _emailController.addListener(() {
+      if (_emailController.text.isNotEmpty && _erroEmail != null)
+        setState(() => _erroEmail = null);
     });
+    _telefoneController.addListener(() {
+      if (_telefoneController.text.isNotEmpty && _erroTelefone != null)
+        setState(() => _erroTelefone = null);
+    });
+    _dataNascimentoController.addListener(() {
+      if (_dataNascimentoController.text.isNotEmpty &&
+          _erroDataNascimento != null)
+        setState(() => _erroDataNascimento = null);
+    });
+
     _carregarOficios();
   }
 
   Future<void> _carregarOficios() async {
     try {
       final supabase = Supabase.instance.client;
-      final response = await supabase.from('oficios').select('id_oficio, funcao').order('funcao');
+      final response = await supabase
+          .from('oficios')
+          .select('id_oficio, funcao')
+          .order('funcao');
       if (mounted) {
         setState(() {
           _oficios = List<Map<String, dynamic>>.from(response);
@@ -481,9 +676,9 @@ class _CadastroProfissionalEtapa2PageState
     } catch (e) {
       if (mounted) {
         setState(() => _carregandoOficios = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao carregar ofícios: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erro ao carregar ofícios: $e')));
       }
     }
   }
@@ -494,7 +689,6 @@ class _CadastroProfissionalEtapa2PageState
     _telefoneController.dispose();
     _dataNascimentoController.dispose();
     _atuacaoController.dispose();
-    _atuacaoFocusNode.dispose();
     super.dispose();
   }
 
@@ -517,13 +711,29 @@ class _CadastroProfissionalEtapa2PageState
         );
       },
     );
+
     if (dataSelecionada != null) {
       String dia = dataSelecionada.day.toString().padLeft(2, '0');
       String mes = dataSelecionada.month.toString().padLeft(2, '0');
       String ano = dataSelecionada.year.toString();
       setState(() {
         _dataNascimentoController.text = '$ano-$mes-$dia';
+        _erroDataNascimento = null;
       });
+    }
+  }
+
+  // Atualiza dinamicamente o texto exibido no input principal
+  void _atualizarTextoAtuacao() {
+    if (_oficiosSelecionados.isEmpty) {
+      _atuacaoController.text = '';
+    } else {
+      _atuacaoController.text = _oficiosSelecionados
+          .map((e) => e['funcao'])
+          .join(', ');
+    }
+    if (_oficiosSelecionados.isNotEmpty && _erroAtuacao != null) {
+      _erroAtuacao = null;
     }
   }
 
@@ -595,6 +805,7 @@ class _CadastroProfissionalEtapa2PageState
                 hint: 'exemplo@email.com',
                 keyboardType: TextInputType.emailAddress,
                 controller: _emailController,
+                errorText: _erroEmail,
               ),
 
               _InputFieldWithAnimation(
@@ -603,6 +814,7 @@ class _CadastroProfissionalEtapa2PageState
                 keyboardType: TextInputType.phone,
                 inputFormatters: [MaskedInputFormatter('(##) #####-####')],
                 controller: _telefoneController,
+                errorText: _erroTelefone,
               ),
 
               _InputFieldWithAnimation(
@@ -613,28 +825,32 @@ class _CadastroProfissionalEtapa2PageState
                 readOnly: true,
                 onTap: _fazerUploadDataNascimento,
                 onSuffixIconTap: _fazerUploadDataNascimento,
+                errorText: _erroDataNascimento,
               ),
 
-              Stack(
-                children: [
-                  _InputFieldWithAnimation(
-                    label: 'Área de Atuação',
-                    hint: _carregandoOficios
-                        ? 'Carregando...'
-                        : 'Selecione sua área principal',
-                    suffixIcon: Icons.keyboard_arrow_down,
-                    controller: _atuacaoController,
-                    focusNode: _atuacaoFocusNode,
-                    readOnly: true,
-                  ),
-                ],
+              _InputFieldWithAnimation(
+                label: 'Áreas de Atuação (Selecione até 3)',
+                hint: _carregandoOficios
+                    ? 'Carregando...'
+                    : 'Selecione de 1 a 3 áreas principais',
+                suffixIcon: _showAtuacaoDropdown
+                    ? Icons.keyboard_arrow_up
+                    : Icons.keyboard_arrow_down,
+                controller: _atuacaoController,
+                readOnly: true,
+                errorText: _erroAtuacao,
+                onTap: () {
+                  setState(() {
+                    _showAtuacaoDropdown = !_showAtuacaoDropdown;
+                  });
+                },
               ),
 
               if (_showAtuacaoDropdown) ...[
                 Container(
                   width: double.infinity,
-                  constraints: const BoxConstraints(maxHeight: 220),
-                  margin: const EdgeInsets.only(bottom: 20),
+                  constraints: const BoxConstraints(maxHeight: 250),
+                  margin: const EdgeInsets.only(bottom: 20, top: 2),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFAFAFA),
                     borderRadius: BorderRadius.circular(12),
@@ -644,8 +860,8 @@ class _CadastroProfissionalEtapa2PageState
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
-                        blurRadius: 5,
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 6,
                         offset: const Offset(0, 3),
                       ),
                     ],
@@ -654,34 +870,122 @@ class _CadastroProfissionalEtapa2PageState
                       ? const Center(
                           child: Padding(
                             padding: EdgeInsets.all(20),
-                            child:
-                                CircularProgressIndicator(color: Color(0xFF00A2FF)),
+                            child: CircularProgressIndicator(
+                              color: Color(0xFF00A2FF),
+                            ),
                           ),
                         )
                       : ListView.separated(
                           shrinkWrap: true,
+                          padding: EdgeInsets.zero,
                           itemCount: _oficios.length,
-                          separatorBuilder: (context, index) =>
-                              const Divider(
-                                  height: 1, color: Color(0xFFEFEFEF)),
+                          separatorBuilder: (context, index) => const Divider(
+                            height: 1,
+                            color: Color(0xFFEFEFEF),
+                          ),
                           itemBuilder: (context, index) {
                             final oficio = _oficios[index];
-                            return ListTile(
-                              title: Text(
-                                oficio['funcao'] ?? '',
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  color: Colors.black87,
-                                ),
-                              ),
+                            final isSelected = _oficiosSelecionados.any(
+                              (element) =>
+                                  element['id_oficio'] == oficio['id_oficio'],
+                            );
+
+                            return InkWell(
                               onTap: () {
                                 setState(() {
-                                  _atuacaoController.text =
-                                      oficio['funcao'] ?? '';
-                                  _showAtuacaoDropdown = false;
-                                  _atuacaoFocusNode.unfocus();
+                                  if (isSelected) {
+                                    _oficiosSelecionados.removeWhere(
+                                      (element) =>
+                                          element['id_oficio'] ==
+                                          oficio['id_oficio'],
+                                    );
+                                  } else {
+                                    if (_oficiosSelecionados.length >= 3) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Você só pode selecionar no máximo 3 áreas.',
+                                          ),
+                                          duration: Duration(seconds: 2),
+                                        ),
+                                      );
+                                      return;
+                                    }
+                                    _oficiosSelecionados.add(oficio);
+                                  }
+                                  _atualizarTextoAtuacao();
                                 });
                               },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                child: Row(
+                                  children: [
+                                    SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: Checkbox(
+                                        value: isSelected,
+                                        activeColor: const Color(0xFF00A2FF),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        onChanged: (bool? checked) {
+                                          setState(() {
+                                            if (checked == true) {
+                                              if (_oficiosSelecionados.length >=
+                                                  3) {
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  const SnackBar(
+                                                    content: Text(
+                                                      'Você só pode selecionar no máximo 3 áreas.',
+                                                    ),
+                                                    duration: Duration(
+                                                      seconds: 2,
+                                                    ),
+                                                  ),
+                                                );
+                                                return;
+                                              }
+                                              _oficiosSelecionados.add(oficio);
+                                            } else {
+                                              _oficiosSelecionados.removeWhere(
+                                                (element) =>
+                                                    element['id_oficio'] ==
+                                                    oficio['id_oficio'],
+                                              );
+                                            }
+                                            _atualizarTextoAtuacao();
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        oficio['funcao'] ?? '',
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          color: isSelected
+                                              ? const Color(0xFF00A2FF)
+                                              : Colors.black87,
+                                          fontWeight: isSelected
+                                              ? FontWeight.bold
+                                              : FontWeight.normal,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             );
                           },
                         ),
@@ -695,19 +999,43 @@ class _CadastroProfissionalEtapa2PageState
                 height: 55,
                 child: ElevatedButton(
                   onPressed: () {
-                    if (_emailController.text.isEmpty) {
+                    setState(() {
+                      _erroEmail = _emailController.text.trim().isEmpty
+                          ? 'O E-mail é obrigatório'
+                          : null;
+                      _erroTelefone = _telefoneController.text.trim().isEmpty
+                          ? 'O Telefone é obrigatório'
+                          : null;
+                      _erroDataNascimento =
+                          _dataNascimentoController.text.trim().isEmpty
+                          ? 'A Data de Nascimento é obrigatória'
+                          : null;
+
+                      if (_oficiosSelecionados.isEmpty) {
+                        _erroAtuacao = 'Selecione pelo menos 1 área de atuação';
+                      } else {
+                        _erroAtuacao = null;
+                      }
+                    });
+
+                    if (_erroEmail != null ||
+                        _erroTelefone != null ||
+                        _erroDataNascimento != null ||
+                        _erroAtuacao != null) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                            content:
-                                Text('Por favor, preencha o email.')),
+                          content: Text(
+                            'Por favor, preencha todos os campos obrigatórios.',
+                          ),
+                        ),
                       );
                       return;
                     }
+
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) =>
-                            CadastroProfissionalEtapa3Page(
+                        builder: (context) => CadastroProfissionalEtapa3Page(
                           nome: widget.nome,
                           cpf: widget.cpf,
                           cnpj: widget.cnpj,
@@ -717,8 +1045,7 @@ class _CadastroProfissionalEtapa2PageState
                           cnpjDeEmpresa: widget.cnpjDeEmpresa,
                           email: _emailController.text.trim(),
                           telefone: _telefoneController.text.trim(),
-                          dataNascimento:
-                              _dataNascimentoController.text.trim(),
+                          dataNascimento: _dataNascimentoController.text.trim(),
                           areaAtuacao: _atuacaoController.text.trim(),
                         ),
                       ),
@@ -848,7 +1175,6 @@ class _CadastroProfissionalEtapa3PageState
     final supabase = Supabase.instance.client;
 
     try {
-      // 1. Criar conta no Auth
       final authResponse = await supabase.auth.signUp(
         email: widget.email,
         password: widget.senha,
@@ -860,96 +1186,135 @@ class _CadastroProfissionalEtapa3PageState
       }
       final authId = authUser.id;
 
-      // 2. Inserir email
-      final emailResponse = await supabase.from('emails').insert({
-        'endereco_email': widget.email,
-        'fk_status': 1,
-      }).select().single();
+      final emailResponse = await supabase
+          .from('emails')
+          .insert({'endereco_email': widget.email, 'fk_status': 1})
+          .select()
+          .single();
       final emailId = emailResponse['id_email'];
 
-      // 3. Inserir telefone
       final telefoneLimpo = widget.telefone.replaceAll(RegExp(r'\D'), '');
-      final ddd =
-          telefoneLimpo.length >= 2 ? telefoneLimpo.substring(0, 2) : '';
+      final ddd = telefoneLimpo.length >= 2
+          ? telefoneLimpo.substring(0, 2)
+          : '';
       final numero = telefoneLimpo.length > 2
           ? telefoneLimpo.substring(2)
           : telefoneLimpo;
 
-      final telefoneResponse = await supabase.from('telefones').insert({
-        'ddd': ddd,
-        'numero': numero,
-        'fk_status': 1,
-      }).select().single();
+      final telefoneResponse = await supabase
+          .from('telefones')
+          .insert({'ddd': ddd, 'numero': numero, 'fk_status': 1})
+          .select()
+          .single();
       final telefoneId = telefoneResponse['id_telefone'];
 
       int assTipoPessoaId;
 
       if (widget.isPessoaFisica) {
         final cpfLimpo = widget.cpf?.replaceAll(RegExp(r'\D'), '') ?? '';
-        final pfResponse = await supabase.from('pessoa_fisica').insert({
-          'cpf': cpfLimpo.isNotEmpty ? cpfLimpo : null,
-        }).select().single();
+        final pfResponse = await supabase
+            .from('pessoa_fisica')
+            .insert({'cpf': cpfLimpo.isNotEmpty ? cpfLimpo : null})
+            .select()
+            .single();
         final pfId = pfResponse['id_pessoa_fisica'];
 
-        final assResponse = await supabase.from('ass_tipo_pessoa').insert({
-          'tipo': 'Pessoa Física',
-          'fk_pessoa_fisica': pfId,
-          'fk_pessoa_juridica': null,
-        }).select().single();
+        final assResponse = await supabase
+            .from('ass_tipo_pessoa')
+            .insert({
+              'tipo': 'Pessoa Física',
+              'fk_pessoa_fisica': pfId,
+              'fk_pessoa_juridica': null,
+            })
+            .select()
+            .single();
         assTipoPessoaId = assResponse['id_tipo_pessoa'];
       } else {
         final cnpjLimpo = widget.cnpj?.replaceAll(RegExp(r'\D'), '') ?? '';
-        final pjResponse = await supabase.from('pessoa_juridica').insert({
-          'cnpj': cnpjLimpo.isNotEmpty ? cnpjLimpo : null,
-          'tem_imovel': !widget.cnpjDeEmpresa,
-        }).select().single();
+        final pjResponse = await supabase
+            .from('pessoa_juridica')
+            .insert({
+              'cnpj': cnpjLimpo.isNotEmpty ? cnpjLimpo : null,
+              'tem_imovel': !widget.cnpjDeEmpresa,
+            })
+            .select()
+            .single();
         final pjId = pjResponse['id_pessoa_juridica'];
 
-        final assResponse = await supabase.from('ass_tipo_pessoa').insert({
-          'tipo': 'Pessoa Jurídica',
-          'fk_pessoa_fisica': null,
-          'fk_pessoa_juridica': pjId,
-        }).select().single();
+        final assResponse = await supabase
+            .from('ass_tipo_pessoa')
+            .insert({
+              'tipo': 'Pessoa Jurídica',
+              'fk_pessoa_fisica': null,
+              'fk_pessoa_juridica': pjId,
+            })
+            .select()
+            .single();
         assTipoPessoaId = assResponse['id_tipo_pessoa'];
       }
 
-      // 4. Inserir usuario com auth_id
-      final usuarioResponse = await supabase.from('usuarios').insert({
-        'nome': widget.nome,
-        'data_nascimento':
-            widget.dataNascimento.isNotEmpty ? widget.dataNascimento : null,
-        'data_criacao': DateTime.now().toUtc().toIso8601String(),
-        'tipo_conta': 'Profissional',
-        'fk_email': emailId,
-        'fk_telefone': telefoneId,
-        'fk_tipo_pessoa': assTipoPessoaId,
-        'fk_imagem': null,
-        'auth_id': authId,
-      }).select().single();
+      final usuarioResponse = await supabase
+          .from('usuarios')
+          .insert({
+            'nome': widget.nome,
+            'data_nascimento': widget.dataNascimento.isNotEmpty
+                ? widget.dataNascimento
+                : null,
+            'data_criacao': DateTime.now().toUtc().toIso8601String(),
+            'tipo_conta': 'Profissional',
+            'fk_email': emailId,
+            'fk_telefone': telefoneId,
+            'fk_tipo_pessoa': assTipoPessoaId,
+            'fk_imagem': null,
+            'auth_id': authId,
+          })
+          .select()
+          .single();
       final usuarioId = usuarioResponse['id_usuario'];
 
-      // 5. Inserir dados_profissionais
       await supabase.from('dados_profissionais').insert({
         'fk_usuario': usuarioId,
       });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Cadastro finalizado com sucesso! 🎉')),
+          const SnackBar(content: Text('Cadastro finalizado com sucesso!')),
         );
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => const LoginPage()),
+          MaterialPageRoute(builder: (context) => TelaHome(isVisitante: false)),
           (route) => false,
         );
+      }
+    } on AuthException catch (e) {
+      String mensagemAmigavel = 'Ocorreu um erro ao registrar.';
+
+      if (e.toString().contains('AuthWeakPasswordException') ||
+          e.message.toLowerCase().contains('password should be at least') ||
+          e.statusCode == '422') {
+        mensagemAmigavel =
+            'Senha muito fraca! Garanta que ela possua 6 caracteres, 1 maiúscula, 1 minúscula e 1 símbolo.';
+      } else if (e.message.toLowerCase().contains('already registered') ||
+          e.message.toLowerCase().contains('already exists')) {
+        mensagemAmigavel =
+            'Este e-mail já está cadastrado em nossa plataforma.';
+      } else {
+        mensagemAmigavel = e.message;
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(mensagemAmigavel)));
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text(
-                  'Falha ao registrar: ${e.toString().replaceAll('Exception: ', '')}')),
+            content: Text(
+              'Falha ao registrar: ${e.toString().replaceAll('Exception: ', '')}',
+            ),
+          ),
         );
       }
     } finally {
@@ -1051,13 +1416,12 @@ class _CadastroProfissionalEtapa3PageState
 
               _buildCheckboxRow(
                 value: _termosDeUso,
-                onChanged: (val) =>
-                    setState(() => _termosDeUso = val ?? false),
+                onChanged: (val) => setState(() => _termosDeUso = val ?? false),
                 fullText: 'Li e aceito os Termos de Uso',
                 highlightText: 'Termos de Uso',
                 onTapLink: () {},
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 14),
               _buildCheckboxRow(
                 value: _politicaPrivacidade,
                 onChanged: (val) =>
@@ -1072,13 +1436,15 @@ class _CadastroProfissionalEtapa3PageState
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton(
-                  onPressed: (_termosDeUso && _politicaPrivacidade && !_carregando)
+                  onPressed:
+                      (_termosDeUso && _politicaPrivacidade && !_carregando)
                       ? _finalizarCadastroBanco
                       : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00A2FF),
-                    disabledBackgroundColor:
-                        const Color(0xFF00A2FF).withValues(alpha: 0.5),
+                    disabledBackgroundColor: const Color(
+                      0xFF00A2FF,
+                    ).withOpacity(0.35),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                     ),
@@ -1170,10 +1536,7 @@ class _CadastroProfissionalEtapa3PageState
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: const Color(0xFF00A2FF),
-          width: 1.2,
-        ),
+        border: Border.all(color: const Color(0xFF00A2FF), width: 1.2),
       ),
       child: InkWell(
         onTap: onTap,
@@ -1191,11 +1554,7 @@ class _CadastroProfissionalEtapa3PageState
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              Icon(
-                icon,
-                color: const Color(0xFF00A2FF),
-                size: 22,
-              ),
+              Icon(icon, color: const Color(0xFF00A2FF), size: 22),
             ],
           ),
         ),
@@ -1279,6 +1638,7 @@ class _InputFieldWithAnimation extends StatefulWidget {
   final bool readOnly;
   final VoidCallback? onTap;
   final VoidCallback? onSuffixIconTap;
+  final String? errorText;
 
   const _InputFieldWithAnimation({
     required this.label,
@@ -1292,6 +1652,7 @@ class _InputFieldWithAnimation extends StatefulWidget {
     this.readOnly = false,
     this.onTap,
     this.onSuffixIconTap,
+    this.errorText,
   });
 
   @override
@@ -1338,8 +1699,9 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
 
   @override
   Widget build(BuildContext context) {
-    final bool shouldFloat =
-        _isFocused || _effectiveController.text.isNotEmpty;
+    final bool shouldFloat = _isFocused || _effectiveController.text.isNotEmpty;
+
+    final bool hasError = widget.errorText != null;
 
     IconData? dynamicIcon = widget.suffixIcon;
     if (widget.obscureText &&
@@ -1350,140 +1712,173 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
           : Icons.visibility_off_outlined;
     }
 
+    Color borderColor = Colors.transparent;
+    Color labelColor = const Color(0xFF00A2FF).withOpacity(0.5);
+    Color backgroundColor = const Color(0xFFFAFAFA);
+
+    if (hasError) {
+      borderColor = Colors.red;
+      labelColor = Colors.red;
+      backgroundColor = Colors.red.withOpacity(0.02);
+    } else if (_isFocused) {
+      borderColor = const Color(0xFF00A2FF);
+      labelColor = const Color(0xFF00A2FF);
+      backgroundColor = Colors.white;
+    } else if (shouldFloat) {
+      labelColor = Colors.grey.shade600;
+    }
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeInOut,
-        height: 56,
-        decoration: BoxDecoration(
-          color: _isFocused ? Colors.white : const Color(0xFFFAFAFA),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: _isFocused ? const Color(0xFF00A2FF) : Colors.transparent,
-            width: 1.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: _isFocused
-                  ? const Color(0xFF00A2FF).withValues(alpha: 0.08)
-                  : Colors.black.withValues(alpha: 0.015),
-              blurRadius: _isFocused ? 8 : 4,
-              offset: _isFocused ? const Offset(0, 4) : const Offset(0, 2),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(
-          children: [
-            Expanded(
-              child: Stack(
-                alignment: Alignment.centerLeft,
-                children: [
-                  AnimatedPositioned(
-                    duration: const Duration(milliseconds: 200),
-                    curve: Curves.easeInOut,
-                    left: 0,
-                    right: 0,
-                    top: shouldFloat ? 6 : 17,
-                    child: IgnorePointer(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          AnimatedDefaultTextStyle(
-                            duration: const Duration(milliseconds: 200),
-                            style: TextStyle(
-                              color: _isFocused
-                                  ? const Color(0xFF00A2FF)
-                                  : (shouldFloat
-                                      ? Colors.grey.shade600
-                                      : const Color(0xFF00A2FF)
-                                          .withValues(alpha: 0.5)),
-                              fontSize: shouldFloat ? 11 : 16,
-                              fontWeight: shouldFloat
-                                  ? FontWeight.bold
-                                  : FontWeight.w500,
-                            ),
-                            child: Text(widget.label),
-                          ),
-                          AnimatedOpacity(
-                            duration: const Duration(milliseconds: 200),
-                            opacity: shouldFloat ? 1.0 : 0.0,
-                            child: const Text(
-                              '*',
-                              style: TextStyle(
-                                color: Color(0xFF00A2FF),
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  AnimatedPositioned(
-                    duration: const Duration(milliseconds: 200),
-                    curve: Curves.easeInOut,
-                    left: 0,
-                    right: 0,
-                    bottom: shouldFloat ? 4 : 0,
-                    top: shouldFloat ? 22 : 0,
-                    child: TextField(
-                      controller: _effectiveController,
-                      focusNode: _effectiveFocusNode,
-                      inputFormatters: widget.inputFormatters,
-                      keyboardType: widget.keyboardType,
-                      obscureText: _obscureActive,
-                      readOnly: widget.readOnly,
-                      onTap: widget.onTap,
-                      style: const TextStyle(
-                        color: Colors.black,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: shouldFloat ? widget.hint : '',
-                        hintStyle: TextStyle(
-                          color: const Color(0xFF00A2FF)
-                              .withValues(alpha: 0.4),
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: shouldFloat
-                            ? EdgeInsets.zero
-                            : const EdgeInsets.only(top: 16),
-                      ),
-                    ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onTap: widget.onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+              height: 56,
+              decoration: BoxDecoration(
+                color: backgroundColor,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: borderColor, width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: _isFocused
+                        ? const Color(0xFF00A2FF).withOpacity(0.08)
+                        : Colors.black.withOpacity(0.015),
+                    blurRadius: _isFocused ? 8 : 4,
+                    offset: _isFocused
+                        ? const Offset(0, 4)
+                        : const Offset(0, 2),
                   ),
                 ],
               ),
-            ),
-            if (dynamicIcon != null) ...[
-              const SizedBox(width: 12),
-              GestureDetector(
-                onTap: widget.onSuffixIconTap ??
-                    (widget.obscureText
-                        ? () =>
-                            setState(() => _obscureActive = !_obscureActive)
-                        : widget.onTap),
-                child: AnimatedScale(
-                  duration: const Duration(milliseconds: 200),
-                  scale: _isFocused ? 1.05 : 1.0,
-                  child: Icon(
-                    dynamicIcon,
-                    color: _isFocused
-                        ? const Color(0xFF00A2FF)
-                        : Colors.grey.shade400,
-                    size: 22,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Stack(
+                      alignment: Alignment.centerLeft,
+                      children: [
+                        AnimatedPositioned(
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeInOut,
+                          left: 0,
+                          right: 0,
+                          top: shouldFloat ? 6 : 17,
+                          child: IgnorePointer(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                AnimatedDefaultTextStyle(
+                                  duration: const Duration(milliseconds: 200),
+                                  style: TextStyle(
+                                    color: labelColor,
+                                    fontSize: shouldFloat ? 11 : 16,
+                                    fontWeight: shouldFloat
+                                        ? FontWeight.bold
+                                        : FontWeight.w500,
+                                  ),
+                                  child: Text(widget.label),
+                                ),
+                                AnimatedOpacity(
+                                  duration: const Duration(milliseconds: 200),
+                                  opacity: shouldFloat ? 1.0 : 0.0,
+                                  child: Text(
+                                    '*',
+                                    style: TextStyle(
+                                      color: hasError
+                                          ? Colors.red
+                                          : const Color(0xFF00A2FF),
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        AnimatedPositioned(
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeInOut,
+                          left: 0,
+                          right: 0,
+                          bottom: shouldFloat ? 4 : 0,
+                          top: shouldFloat ? 22 : 0,
+                          child: TextField(
+                            controller: _effectiveController,
+                            focusNode: _effectiveFocusNode,
+                            inputFormatters: widget.inputFormatters,
+                            keyboardType: widget.keyboardType,
+                            obscureText: _obscureActive,
+                            readOnly: widget.readOnly,
+                            onTap: widget.onTap,
+                            style: const TextStyle(
+                              color: Colors.black,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: shouldFloat ? widget.hint : '',
+                              hintStyle: TextStyle(
+                                color: hasError
+                                    ? Colors.red.withOpacity(0.4)
+                                    : const Color(0xFF00A2FF).withOpacity(0.4),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: shouldFloat
+                                  ? EdgeInsets.zero
+                                  : const EdgeInsets.only(top: 16),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                  if (dynamicIcon != null) ...[
+                    const SizedBox(width: 12),
+                    GestureDetector(
+                      onTap:
+                          widget.onSuffixIconTap ??
+                          (widget.obscureText
+                              ? () => setState(
+                                  () => _obscureActive = !_obscureActive,
+                                )
+                              : widget.onTap),
+                      child: AnimatedScale(
+                        duration: const Duration(milliseconds: 200),
+                        scale: _isFocused ? 1.05 : 1.0,
+                        child: Icon(
+                          dynamicIcon,
+                          color: hasError
+                              ? Colors.red
+                              : (_isFocused
+                                    ? const Color(0xFF00A2FF)
+                                    : Colors.grey.shade400),
+                          size: 22,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
-            ],
-          ],
-        ),
+            ),
+          ),
+          if (hasError)
+            Padding(
+              padding: const EdgeInsets.only(left: 8, top: 4),
+              child: Text(
+                widget.errorText!,
+                style: const TextStyle(color: Colors.red, fontSize: 12),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -1496,7 +1891,9 @@ class MaskedInputFormatter extends TextInputFormatter {
 
   @override
   TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, TextEditingValue newValue) {
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
     final text = newValue.text;
     final digits = text.replaceAll(RegExp(r'\D'), '');
     var formatted = '';

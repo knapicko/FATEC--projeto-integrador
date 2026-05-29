@@ -15,7 +15,6 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _senhaController = TextEditingController();
   bool _carregando = false;
-  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -147,16 +146,20 @@ class _LoginPageState extends State<LoginPage> {
                 keyboardType: TextInputType.emailAddress,
                 controller: _emailController,
               ),
+              
+              // ================= MODIFICADO AQUI =================
+              // Removido o controle manual do estado da senha.
+              // Agora passamos 'obscureText: true' de forma fixa e o 
+              // próprio input gerencia a mudança do ícone e visibilidade!
               _InputFieldWithAnimation(
                 label: 'Senha',
                 hint: 'Digite sua senha',
                 keyboardType: TextInputType.visiblePassword,
-                obscureText: _obscurePassword,
+                obscureText: true, 
                 suffixIcon: Icons.visibility_outlined,
                 controller: _senhaController,
-                onSuffixIconTap: () =>
-                    setState(() => _obscurePassword = !_obscurePassword),
               ),
+              // ===================================================
 
               const SizedBox(height: 15),
 
