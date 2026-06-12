@@ -55,25 +55,30 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
     });
 
     _nomeController.addListener(() {
-      if (_nomeController.text.isNotEmpty && _erroNome != null)
+      if (_nomeController.text.isNotEmpty && _erroNome != null) {
         setState(() => _erroNome = null);
+      }
     });
     _cpfController.addListener(() {
-      if (_cpfController.text.isNotEmpty && _erroCpf != null)
+      if (_cpfController.text.isNotEmpty && _erroCpf != null) {
         setState(() => _erroCpf = null);
+      }
     });
     _cnpjController.addListener(() {
-      if (_cnpjController.text.isNotEmpty && _erroCnpj != null)
+      if (_cnpjController.text.isNotEmpty && _erroCnpj != null) {
         setState(() => _erroCnpj = null);
+      }
     });
     _razaoSocialController.addListener(() {
-      if (_razaoSocialController.text.isNotEmpty && _erroRazaoSocial != null)
+      if (_razaoSocialController.text.isNotEmpty && _erroRazaoSocial != null) {
         setState(() => _erroRazaoSocial = null);
+      }
     });
     _confirmarSenhaController.addListener(() {
       if (_confirmarSenhaController.text.isNotEmpty &&
-          _erroConfirmarSenha != null)
+          _erroConfirmarSenha != null) {
         setState(() => _erroConfirmarSenha = null);
+      }
     });
   }
 
@@ -658,17 +663,20 @@ class _CadastroProfissionalEtapa2PageState
     super.initState();
 
     _emailController.addListener(() {
-      if (_emailController.text.isNotEmpty && _erroEmail != null)
+      if (_emailController.text.isNotEmpty && _erroEmail != null) {
         setState(() => _erroEmail = null);
+      }
     });
     _telefoneController.addListener(() {
-      if (_telefoneController.text.isNotEmpty && _erroTelefone != null)
+      if (_telefoneController.text.isNotEmpty && _erroTelefone != null) {
         setState(() => _erroTelefone = null);
+      }
     });
     _dataNascimentoController.addListener(() {
       if (_dataNascimentoController.text.isNotEmpty &&
-          _erroDataNascimento != null)
+          _erroDataNascimento != null) {
         setState(() => _erroDataNascimento = null);
+      }
     });
 
     _carregarOficios();
@@ -874,7 +882,7 @@ class _CadastroProfissionalEtapa2PageState
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
+                        color: Colors.black.withValues(alpha: 0.04),
                         blurRadius: 6,
                         offset: const Offset(0, 3),
                       ),
@@ -1461,7 +1469,7 @@ class _CadastroProfissionalEtapa3PageState
                     backgroundColor: const Color(0xFF00A2FF),
                     disabledBackgroundColor: const Color(
                       0xFF00A2FF,
-                    ).withOpacity(0.35),
+                    ).withValues(alpha: 0.35),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                     ),
@@ -1730,13 +1738,13 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
     }
 
     Color borderColor = Colors.transparent;
-    Color labelColor = const Color(0xFF00A2FF).withOpacity(0.5);
+    Color labelColor = const Color(0xFF00A2FF).withValues(alpha: 0.5);
     Color backgroundColor = const Color(0xFFFAFAFA);
 
     if (hasError) {
       borderColor = Colors.red;
       labelColor = Colors.red;
-      backgroundColor = Colors.red.withOpacity(0.02);
+      backgroundColor = Colors.red.withValues(alpha: 0.02);
     } else if (_isFocused) {
       borderColor = const Color(0xFF00A2FF);
       labelColor = const Color(0xFF00A2FF);
@@ -1763,8 +1771,8 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                 boxShadow: [
                   BoxShadow(
                     color: _isFocused
-                        ? const Color(0xFF00A2FF).withOpacity(0.08)
-                        : Colors.black.withOpacity(0.015),
+                        ? const Color(0xFF00A2FF).withValues(alpha: 0.08)
+                        : Colors.black.withValues(alpha: 0.015),
                     blurRadius: _isFocused ? 8 : 4,
                     offset: _isFocused
                         ? const Offset(0, 4)
@@ -1842,8 +1850,8 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                               hintText: shouldFloat ? widget.hint : '',
                               hintStyle: TextStyle(
                                 color: hasError
-                                    ? Colors.red.withOpacity(0.4)
-                                    : const Color(0xFF00A2FF).withOpacity(0.4),
+                                    ? Colors.red.withValues(alpha: 0.4)
+                                    : const Color(0xFF00A2FF).withValues(alpha: 0.4),
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
                               ),
