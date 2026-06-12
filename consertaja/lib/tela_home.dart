@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // IMPORTADO: Para realizar o logout do Supabase
 import 'main.dart'; // IMPORTADO: Para redirecionar para a TelaEscolhaConta
 import 'perfil_loja.dart'; // Conecta a tela de perfil da loja
+import 'tela_meu_perfil_cliente.dart';
 
 class ServicoPopular {
   final String titulo;
@@ -344,13 +345,6 @@ class TelaHome extends StatelessWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const CircleAvatar(
-                      radius: 20,
-                      backgroundColor: Color(0xFFE3F2FD),
-                      child: Icon(Icons.person, color: Color(0xFF00A3FF)),
-                    ),
-                    const SizedBox(width: 8),
-
                     // Novo bloco: Mostra o nome do usuário logado
                     if (!isVisitante)
                       FutureBuilder<String?>(
@@ -735,6 +729,16 @@ class TelaHome extends StatelessWidget {
         selectedItemColor: const Color(0xFF00A3FF),
         unselectedItemColor: Colors.grey,
         currentIndex: 0,
+        onTap: (index) {
+          if (index == 4) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const TelaMeuPerfilClientePage(),
+              ),
+            );
+          }
+        },
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(
@@ -1069,10 +1073,32 @@ class TelaHome extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Center(
-            child: CircleAvatar(
-              radius: 28,
-              backgroundColor: Colors.grey.shade100,
-              backgroundImage: AssetImage(perfil.caminhoImagem),
+            child: FutureBuilder<String?>(
+              future: _buscarNomeUsuario(),
+              builder: (context, snapshot) {
+                final nomeCompleto = snapshot.data ?? '';
+                final primeiroNome = nomeCompleto.trim().isNotEmpty
+                    ? nomeCompleto.trim().split(' ').first
+                    : 'Perfil';
+
+                return SizedBox(
+                  width: 56,
+                  height: 56,
+                  child: Center(
+                    child: Text(
+                      primeiroNome,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF00A3FF),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                );
+              },
             ),
           ),
           const SizedBox(height: 10),

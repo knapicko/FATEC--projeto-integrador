@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_sign_in/google_sign_in.dart'; // Importação do Google adicionada
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'tela_home.dart';
+import 'esqueci_senha.dart';
+import 'atualizar_senha.dart';
 
 // ================= TELA: LOGIN =================
 class LoginPage extends StatefulWidget {
@@ -42,21 +45,10 @@ class _LoginPageState extends State<LoginPage> {
 
       if (response.user != null) {
         if (mounted) {
-          // Buscar tipo de conta do usuario
-          final userData = await supabase
-              .from('usuarios')
-              .select('tipo_conta')
-              .eq('auth_id', response.user!.id)
-              .maybeSingle();
-
-          final bool isProfissional =
-              userData != null && userData['tipo_conta'] == 'Profissional';
-
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(
-              builder: (context) =>
-                  TelaHome(isVisitante: false),
+              builder: (context) => TelaHome(isVisitante: false),
             ),
             (route) => false,
           );
@@ -76,6 +68,58 @@ class _LoginPageState extends State<LoginPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao fazer login: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _carregando = false);
+    }
+  }
+
+  // ================= FLUXO DE LOGIN COM O GOOGLE =================
+  Future<void> _fazerLoginComGoogle() async {
+    setState(() => _carregando = true);
+
+    try {
+      final supabase = Supabase.instance.client;
+
+      // LEMBRETE: Cole o seu Client ID da Web aqui dentro
+      const webClientId = '558968043989-rmv282bv5r41ntrkk4bumu4v0m7hdbs7.apps.googleusercontent.com';
+
+      final googleSignIn = GoogleSignIn(clientId: webClientId);
+      final googleUser = await googleSignIn.signIn();
+      
+      if (googleUser == null) {
+        setState(() => _carregando = false);
+        return; // Usuário cancelou o login
+      }
+
+      final googleAuth = await googleUser.authentication;
+      final idToken = googleAuth.idToken;
+      final accessToken = googleAuth.accessToken;
+
+      if (idToken == null) {
+        throw 'Não foi possível obter o ID Token do Google.';
+      }
+
+      await supabase.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: accessToken,
+      );
+
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (context) => TelaHome(isVisitante: false),
+          ),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao entrar com Google: $e')),
         );
       }
     } finally {
@@ -147,22 +191,46 @@ class _LoginPageState extends State<LoginPage> {
                 controller: _emailController,
               ),
               
-              // ================= MODIFICADO AQUI =================
-              // Removido o controle manual do estado da senha.
-              // Agora passamos 'obscureText: true' de forma fixa e o 
-              // próprio input gerencia a mudança do ícone e visibilidade!
               _InputFieldWithAnimation(
                 label: 'Senha',
                 hint: 'Digite sua senha',
                 keyboardType: TextInputType.visiblePassword,
-                obscureText: true, 
+                obscureText: true,
                 suffixIcon: Icons.visibility_outlined,
                 controller: _senhaController,
               ),
-              // ===================================================
+
+              Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 8.0, bottom: 16.0),
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const EsqueciSenhaPage()),
+                      );
+                    },
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFF00A2FF),
+                      minimumSize: Size.zero,
+                      padding: EdgeInsets.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text(
+                      'Esqueceu a senha?',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
 
               const SizedBox(height: 15),
 
+              // BOTÃO ENTRAR ORIGINAL
               SizedBox(
                 width: double.infinity,
                 height: 55,
@@ -171,7 +239,7 @@ class _LoginPageState extends State<LoginPage> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00A2FF),
                     disabledBackgroundColor:
-                        const Color(0xFF00A2FF).withOpacity(0.5),
+                        const Color(0xFF00A2FF).withValues(alpha: 0.5),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                     ),
@@ -189,6 +257,52 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                 ),
               ),
+
+              const SizedBox(height: 20),
+
+              // SEPARADOR VISUAL "ou"
+              Row(
+                children: [
+                  Expanded(child: Divider(color: Colors.grey.shade300, thickness: 1)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text('ou', style: TextStyle(color: Colors.grey.shade400)),
+                  ),
+                  Expanded(child: Divider(color: Colors.grey.shade300, thickness: 1)),
+                ],
+              ),
+
+              const SizedBox(height: 20),
+
+              // BOTÃO DO GOOGLE PERSONALIZADO ADICIONADO
+              SizedBox(
+                width: double.infinity,
+                height: 55,
+                child: OutlinedButton.icon(
+                  onPressed: _carregando ? null : _fazerLoginComGoogle,
+                  icon: Image.network(
+                    'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/24px-Google_%22G%22_logo.svg.png',
+                    height: 22,
+                  ),
+                  label: const Text(
+                    'Entrar com o Google',
+                    style: TextStyle(
+                      color: Colors.black87,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: Colors.grey.shade300, width: 1.5),
+                    elevation: 0,
+                    backgroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                ),
+              ),
+
               const SizedBox(height: 25),
 
               Row(
@@ -222,7 +336,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 }
 
-// ================= COMPONENTE DE INPUT CUSTOMIZADO E ANIMADO =================
+// ================= COMPONENTE DE INPUT ORIGINAL INTACTO =================
 class _InputFieldWithAnimation extends StatefulWidget {
   final String label;
   final String hint;

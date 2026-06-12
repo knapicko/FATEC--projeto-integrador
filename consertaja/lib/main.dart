@@ -5,7 +5,9 @@ import 'tela_home.dart';
 import 'cadastro_profissional.dart';
 import 'cadastro_cliente.dart';
 import 'login.dart';
+import 'atualizar_senha.dart';
 
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
 
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,6 +16,20 @@ void main() async {
     url: 'https://woqhicdlnkoksypipyoz.supabase.co',
     anonKey: 'sb_publishable_RFFTWcp3nJ8vEG0hACjwfA_b2thYfaw',
   );
+  // 3. CONFIGURAR O LISTENER DIRETAMENTE NO MAIN
+  Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+    final AuthChangeEvent event = data.event;
+    
+    if (event == AuthChangeEvent.passwordRecovery) {
+      // O Future.microtask espera o Flutter terminar de carregar o MaterialApp
+      // antes de chamar o navegador, garantindo que a tela apareça
+      Future.microtask(() {
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(builder: (_) => const AtualizarSenhaPage()),
+        );
+      });
+    }
+  });
 
   runApp(const MyApp());
 }
@@ -23,10 +39,10 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
     final session = Supabase.instance.client.auth.currentSession;
 
     return MaterialApp(
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'ConsertaJá',
       theme: ThemeData(
