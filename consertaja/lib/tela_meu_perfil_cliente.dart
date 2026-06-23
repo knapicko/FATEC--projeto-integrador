@@ -120,7 +120,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
 
   PageRouteBuilder _rotaSemAnimacao(Widget page) {
     return PageRouteBuilder(
-      pageBuilder: (_, __, ___) => page,
+      pageBuilder: (_, _, _) => page,
       transitionDuration: Duration.zero,
       reverseTransitionDuration: Duration.zero,
     );
