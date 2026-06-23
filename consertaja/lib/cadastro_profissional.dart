@@ -20,7 +20,28 @@ import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 // ================= TELA 01: CADASTRO DO PROFISSIONAL (ETAPA 1) =================
 class CadastroProfissionalPage extends StatefulWidget {
-  const CadastroProfissionalPage({super.key});
+  final String? nome;
+  final String? cpf;
+  final String? cnpj;
+  final String? razaoSocial;
+  final String? senha;
+  final bool? isPessoaFisica;
+  final bool? cnpjDeEmpresa;
+  final String? fotoPerfilUrl;
+  final String? idFacial;
+
+  const CadastroProfissionalPage({
+    super.key,
+    this.nome,
+    this.cpf,
+    this.cnpj,
+    this.razaoSocial,
+    this.senha,
+    this.isPessoaFisica,
+    this.cnpjDeEmpresa,
+    this.fotoPerfilUrl,
+    this.idFacial,
+  });
 
   @override
   State<CadastroProfissionalPage> createState() =>
@@ -28,18 +49,19 @@ class CadastroProfissionalPage extends StatefulWidget {
 }
 
 class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
-  bool _isPessoaFisica = true;
-  bool _cnpjDeEmpresa = true;
+  late bool _isPessoaFisica;
+  late bool _cnpjDeEmpresa;
 
-  final TextEditingController _nomeController = TextEditingController();
-  final TextEditingController _cpfController = TextEditingController();
-  final TextEditingController _cnpjController = TextEditingController();
-  final TextEditingController _razaoSocialController = TextEditingController();
-  final TextEditingController _senhaController = TextEditingController();
-  final TextEditingController _confirmarSenhaController =
-      TextEditingController();
+  late TextEditingController _nomeController;
+  late TextEditingController _cpfController;
+  late TextEditingController _cnpjController;
+  late TextEditingController _razaoSocialController;
+  late TextEditingController _senhaController;
+  late TextEditingController _confirmarSenhaController;
 
   String? _fotoPerfilUrl;
+
+  String? _idFacial;
 
   // Estados de erro para os inputs
   String? _erroNome;
@@ -63,6 +85,18 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
   @override
   void initState() {
     super.initState();
+
+    _isPessoaFisica = widget.isPessoaFisica ?? true;
+    _cnpjDeEmpresa = widget.cnpjDeEmpresa ?? true;
+    _fotoPerfilUrl = widget.fotoPerfilUrl;
+    _idFacial = widget.idFacial;
+
+    _nomeController = TextEditingController(text: widget.nome ?? '');
+    _cpfController = TextEditingController(text: widget.cpf ?? '');
+    _cnpjController = TextEditingController(text: widget.cnpj ?? '');
+    _razaoSocialController = TextEditingController(text: widget.razaoSocial ?? '');
+    _senhaController = TextEditingController(text: widget.senha ?? '');
+    _confirmarSenhaController = TextEditingController(text: widget.senha ?? '');
 
     _senhaController.addListener(() {
       if (_senhaController.text.isNotEmpty && _erroSenha != null) {
@@ -166,7 +200,6 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
     for (int i = 0; i < 13; i++) {
       soma += numeros[i] * pesos2[i];
     }
-    resto = soma % 11;
     int digito2 = resto < 2 ? 0 : 11 - resto;
 
     return numeros[13] == digito2;
@@ -266,6 +299,117 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
     }
   }
 
+  Future<void> _irParaEtapa2() async {
+    setState(() {
+      _erroNome = _nomeController.text.trim().isEmpty
+          ? 'O nome é obrigatório'
+          : null;
+
+      if (!_isPessoaFisica) {
+        _erroRazaoSocial =
+            _razaoSocialController.text.trim().isEmpty
+            ? 'A Razão Social é obrigatória'
+            : null;
+      }
+
+      if (!_temOitoCaracteres ||
+          !_temMaiuscula ||
+          !_temMinuscula ||
+          !_temSimbolo ||
+          !_temNumero) {
+        _erroSenha = 'A senha não atende aos requisitos';
+      } else {
+        _erroSenha = null;
+      }
+
+      if (_senhaController.text !=
+          _confirmarSenhaController.text) {
+        _erroConfirmarSenha = 'As senhas não coincidem';
+      } else {
+        _erroConfirmarSenha = null;
+      }
+    });
+
+    final documentoOk = await _validarDocumentoDigitado(
+      obrigatorio: true,
+    );
+
+    if (_erroNome != null ||
+        _erroRazaoSocial != null ||
+        _erroSenha != null ||
+        _erroConfirmarSenha != null ||
+        !documentoOk) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Por favor, preencha todos os campos obrigatórios corretamente.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Verificar se CPF/CNPJ já existe no sistema
+    if (_isPessoaFisica) {
+      final doc = _somenteDigitos(_cpfController.text);
+      try {
+        final supabase = Supabase.instance.client;
+        final result = await supabase
+            .from('pessoa_fisica')
+            .select('id_pessoa_fisica')
+            .eq('cpf', doc)
+            .maybeSingle();
+        if (result != null && mounted) {
+          setState(() => _erroCpf = 'O CPF já está cadastrado no sistema');
+          return;
+        }
+      } catch (_) {
+        // Silencia erro de verificação
+      }
+    } else {
+      final doc = _somenteDigitos(_cnpjController.text);
+      try {
+        final supabase = Supabase.instance.client;
+        final result = await supabase
+            .from('pessoa_juridica')
+            .select('id_pessoa_juridica')
+            .eq('cnpj', doc)
+            .maybeSingle();
+        if (result != null && mounted) {
+          setState(() => _erroCnpj = 'O CNPJ já está cadastrado no sistema');
+          return;
+        }
+      } catch (_) {
+        // Silencia erro de verificação
+      }
+    }
+
+    if (!mounted) return;
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CadastroProfissionalEtapa2Page(
+          nome: _nomeController.text.trim(),
+          cpf: _isPessoaFisica
+              ? _cpfController.text.trim()
+              : null,
+          cnpj: !_isPessoaFisica
+              ? _cnpjController.text.trim()
+              : null,
+          razaoSocial: !_isPessoaFisica
+              ? _razaoSocialController.text.trim()
+              : null,
+          senha: _senhaController.text,
+          isPessoaFisica: _isPessoaFisica,
+          cnpjDeEmpresa: _cnpjDeEmpresa,
+          fotoPerfilUrl: _fotoPerfilUrl,
+          idFacial: _idFacial,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -320,11 +464,42 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _buildStepCircle('1', isActive: true),
+                  GestureDetector(
+                    onTap: () {},
+                    child: _buildStepCircle('1', isActive: true),
+                  ),
                   _buildStepLine(),
-                  _buildStepCircle('2', isActive: false),
+                  GestureDetector(
+                    onTap: () => _irParaEtapa2(),
+                    child: _buildStepCircle('2', isActive: false),
+                  ),
                   _buildStepLine(),
-                  _buildStepCircle('3', isActive: false),
+                  GestureDetector(
+                    onTap: () {
+                      // Vai para etapa 3 com dados disponíveis (passa pela 2 vazia)
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => CadastroProfissionalEtapa3Page(
+                            nome: _nomeController.text.trim(),
+                            cpf: _isPessoaFisica ? _cpfController.text.trim() : null,
+                            cnpj: !_isPessoaFisica ? _cnpjController.text.trim() : null,
+                            razaoSocial: !_isPessoaFisica ? _razaoSocialController.text.trim() : null,
+                            senha: _senhaController.text,
+                            isPessoaFisica: _isPessoaFisica,
+                            cnpjDeEmpresa: _cnpjDeEmpresa,
+                            email: '',
+                            telefone: '',
+                            dataNascimento: '',
+                            areaAtuacao: '',
+                            fotoPerfilUrl: _fotoPerfilUrl,
+                            idFacial: _idFacial,
+                          ),
+                        ),
+                      );
+                    },
+                    child: _buildStepCircle('3', isActive: false),
+                  ),
                 ],
               ),
               const SizedBox(height: 35),
@@ -560,78 +735,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton(
-                  onPressed: () async {
-                    setState(() {
-                      _erroNome = _nomeController.text.trim().isEmpty
-                          ? 'O nome é obrigatório'
-                          : null;
-
-                      if (!_isPessoaFisica) {
-                        _erroRazaoSocial =
-                            _razaoSocialController.text.trim().isEmpty
-                            ? 'A Razão Social é obrigatória'
-                            : null;
-                      }
-
-                      if (!_temOitoCaracteres ||
-                          !_temMaiuscula ||
-                          !_temMinuscula ||
-                          !_temSimbolo ||
-                          !_temNumero) {
-                        _erroSenha = 'A senha não atende aos requisitos';
-                      } else {
-                        _erroSenha = null;
-                      }
-
-                      if (_senhaController.text !=
-                          _confirmarSenhaController.text) {
-                        _erroConfirmarSenha = 'As senhas não coincidem';
-                      } else {
-                        _erroConfirmarSenha = null;
-                      }
-                    });
-
-                    final documentoOk = await _validarDocumentoDigitado(
-                      obrigatorio: true,
-                    );
-
-                    if (_erroNome != null ||
-                        _erroRazaoSocial != null ||
-                        _erroSenha != null ||
-                        _erroConfirmarSenha != null ||
-                        !documentoOk) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Por favor, preencha todos os campos obrigatórios corretamente.',
-                          ),
-                        ),
-                      );
-                      return;
-                    }
-
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => CadastroProfissionalEtapa2Page(
-                          nome: _nomeController.text.trim(),
-                          cpf: _isPessoaFisica
-                              ? _cpfController.text.trim()
-                              : null,
-                          cnpj: !_isPessoaFisica
-                              ? _cnpjController.text.trim()
-                              : null,
-                          razaoSocial: !_isPessoaFisica
-                              ? _razaoSocialController.text.trim()
-                              : null,
-                          senha: _senhaController.text,
-                          isPessoaFisica: _isPessoaFisica,
-                          cnpjDeEmpresa: _cnpjDeEmpresa,
-                          fotoPerfilUrl: _fotoPerfilUrl,
-                        ),
-                      ),
-                    );
-                  },
+                  onPressed: _irParaEtapa2,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00A2FF),
                     shape: RoundedRectangleBorder(
@@ -791,6 +895,7 @@ class CadastroProfissionalEtapa2Page extends StatefulWidget {
   final bool isPessoaFisica;
   final bool cnpjDeEmpresa;
   final String? fotoPerfilUrl;
+  final String? idFacial;
 
   const CadastroProfissionalEtapa2Page({
     super.key,
@@ -802,6 +907,7 @@ class CadastroProfissionalEtapa2Page extends StatefulWidget {
     required this.isPessoaFisica,
     required this.cnpjDeEmpresa,
     this.fotoPerfilUrl,
+    this.idFacial,
   });
 
   @override
@@ -830,9 +936,13 @@ class _CadastroProfissionalEtapa2PageState
   String? _erroDataNascimento;
   String? _erroAtuacao;
 
+  String? _idFacial;
+
   @override
   void initState() {
     super.initState();
+
+    _idFacial = widget.idFacial;
 
     _emailController.addListener(() {
       if (_emailController.text.isNotEmpty && _erroEmail != null) {
@@ -931,6 +1041,80 @@ class _CadastroProfissionalEtapa2PageState
     }
   }
 
+  void _irParaEtapa3() async {
+    setState(() {
+      _erroEmail = _emailController.text.trim().isEmpty
+          ? 'O E-mail é obrigatório'
+          : null;
+      _erroTelefone = _telefoneController.text.trim().isEmpty
+          ? 'O Telefone é obrigatório'
+          : null;
+      _erroDataNascimento =
+          _dataNascimentoController.text.trim().isEmpty
+          ? 'A Data de Nascimento é obrigatória'
+          : null;
+
+      if (_oficiosSelecionados.isEmpty) {
+        _erroAtuacao = 'Selecione pelo menos 1 área de atuação';
+      } else {
+        _erroAtuacao = null;
+      }
+    });
+
+    if (_erroEmail != null ||
+        _erroTelefone != null ||
+        _erroDataNascimento != null ||
+        _erroAtuacao != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Por favor, preencha todos os campos obrigatórios.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Verificar se email já existe no sistema
+    try {
+      final supabase = Supabase.instance.client;
+      final result = await supabase
+          .from('emails')
+          .select('id_email')
+          .eq('endereco_email', _emailController.text.trim())
+          .maybeSingle();
+      if (result != null && mounted) {
+        setState(() => _erroEmail = 'O E-mail já está cadastrado no sistema');
+        return;
+      }
+    } catch (_) {
+      // Silencia erro de verificação
+    }
+
+    if (!mounted) return;
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CadastroProfissionalEtapa3Page(
+          nome: widget.nome,
+          cpf: widget.cpf,
+          cnpj: widget.cnpj,
+          razaoSocial: widget.razaoSocial,
+          senha: widget.senha,
+          isPessoaFisica: widget.isPessoaFisica,
+          cnpjDeEmpresa: widget.cnpjDeEmpresa,
+          email: _emailController.text.trim(),
+          telefone: _telefoneController.text.trim(),
+          dataNascimento: _dataNascimentoController.text.trim(),
+          areaAtuacao: _atuacaoController.text.trim(),
+          fotoPerfilUrl: widget.fotoPerfilUrl,
+          idFacial: _idFacial,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -985,11 +1169,37 @@ class _CadastroProfissionalEtapa2PageState
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _buildStepCircle('1', isActive: false),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => CadastroProfissionalPage(
+                            nome: widget.nome,
+                            cpf: widget.cpf,
+                            cnpj: widget.cnpj,
+                            razaoSocial: widget.razaoSocial,
+                            senha: widget.senha,
+                            isPessoaFisica: widget.isPessoaFisica,
+                            cnpjDeEmpresa: widget.cnpjDeEmpresa,
+                            fotoPerfilUrl: widget.fotoPerfilUrl,
+                            idFacial: _idFacial,
+                          ),
+                        ),
+                      );
+                    },
+                    child: _buildStepCircle('1', isActive: false),
+                  ),
                   _buildStepLine(),
-                  _buildStepCircle('2', isActive: true),
+                  GestureDetector(
+                    onTap: () {},
+                    child: _buildStepCircle('2', isActive: true),
+                  ),
                   _buildStepLine(),
-                  _buildStepCircle('3', isActive: false),
+                  GestureDetector(
+                    onTap: () => _irParaEtapa3(),
+                    child: _buildStepCircle('3', isActive: false),
+                  ),
                 ],
               ),
               const SizedBox(height: 40),
@@ -1192,60 +1402,7 @@ class _CadastroProfissionalEtapa2PageState
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      _erroEmail = _emailController.text.trim().isEmpty
-                          ? 'O E-mail é obrigatório'
-                          : null;
-                      _erroTelefone = _telefoneController.text.trim().isEmpty
-                          ? 'O Telefone é obrigatório'
-                          : null;
-                      _erroDataNascimento =
-                          _dataNascimentoController.text.trim().isEmpty
-                          ? 'A Data de Nascimento é obrigatória'
-                          : null;
-
-                      if (_oficiosSelecionados.isEmpty) {
-                        _erroAtuacao = 'Selecione pelo menos 1 área de atuação';
-                      } else {
-                        _erroAtuacao = null;
-                      }
-                    });
-
-                    if (_erroEmail != null ||
-                        _erroTelefone != null ||
-                        _erroDataNascimento != null ||
-                        _erroAtuacao != null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Por favor, preencha todos os campos obrigatórios.',
-                          ),
-                        ),
-                      );
-                      return;
-                    }
-
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => CadastroProfissionalEtapa3Page(
-                          nome: widget.nome,
-                          cpf: widget.cpf,
-                          cnpj: widget.cnpj,
-                          razaoSocial: widget.razaoSocial,
-                          senha: widget.senha,
-                          isPessoaFisica: widget.isPessoaFisica,
-                          cnpjDeEmpresa: widget.cnpjDeEmpresa,
-                          email: _emailController.text.trim(),
-                          telefone: _telefoneController.text.trim(),
-                          dataNascimento: _dataNascimentoController.text.trim(),
-                          areaAtuacao: _atuacaoController.text.trim(),
-                          fotoPerfilUrl: widget.fotoPerfilUrl,
-                        ),
-                      ),
-                    );
-                  },
+                  onPressed: _irParaEtapa3,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00A2FF),
                     shape: RoundedRectangleBorder(
@@ -1339,6 +1496,7 @@ class CadastroProfissionalEtapa3Page extends StatefulWidget {
   final String dataNascimento;
   final String areaAtuacao;
   final String? fotoPerfilUrl;
+  final String? idFacial;
 
   const CadastroProfissionalEtapa3Page({
     super.key,
@@ -1354,6 +1512,7 @@ class CadastroProfissionalEtapa3Page extends StatefulWidget {
     required this.dataNascimento,
     required this.areaAtuacao,
     this.fotoPerfilUrl,
+    this.idFacial,
   });
 
   @override
@@ -1370,6 +1529,12 @@ class _CadastroProfissionalEtapa3PageState
 
   bool get _cadastroFacialConcluido =>
       _idFacial != null && _idFacial!.isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    _idFacial = widget.idFacial;
+  }
 
   Future<void> _mostrarCadastroFacialJaFeito() async {
     await showDialog<void>(
@@ -1517,15 +1682,20 @@ class _CadastroProfissionalEtapa3PageState
     } on AuthException catch (e) {
       String mensagemAmigavel = 'Ocorreu um erro ao registrar.';
 
-      if (e.toString().contains('AuthWeakPasswordException') ||
-          e.message.toLowerCase().contains('password should be at least') ||
-          e.statusCode == '422') {
+      final errorMsg = e.message.toLowerCase();
+
+      if (errorMsg.contains('already registered') ||
+          errorMsg.contains('already exists') ||
+          errorMsg.contains('duplicate') ||
+          errorMsg.contains('email already')) {
+        mensagemAmigavel = 'Este e-mail já está cadastrado em nossa plataforma.';
+      } else if (errorMsg.contains('password should be at least') ||
+          errorMsg.contains('weak password')) {
         mensagemAmigavel =
             'Senha muito fraca! Garanta que ela possua 6 caracteres, 1 maiúscula, 1 minúscula e 1 símbolo.';
-      } else if (e.message.toLowerCase().contains('already registered') ||
-          e.message.toLowerCase().contains('already exists')) {
-        mensagemAmigavel =
-            'Este e-mail já está cadastrado em nossa plataforma.';
+      } else if (errorMsg.contains('invalid email') ||
+          errorMsg.contains('email format')) {
+        mensagemAmigavel = 'O e-mail informado não é válido.';
       } else {
         mensagemAmigavel = e.message;
       }
@@ -1536,18 +1706,62 @@ class _CadastroProfissionalEtapa3PageState
         ).showSnackBar(SnackBar(content: Text(mensagemAmigavel)));
       }
     } catch (e) {
+      String mensagemErro = e.toString().replaceAll('Exception: ', '');
+
+      // Verificar se é erro de CPF/CNPJ duplicado
+      final erroLower = mensagemErro.toLowerCase();
+      if (erroLower.contains('cpf') && (erroLower.contains('duplicate') || erroLower.contains('already exists') || erroLower.contains('unique'))) {
+        mensagemErro = 'O CPF já está cadastrado no sistema.';
+      } else if (erroLower.contains('cnpj') && (erroLower.contains('duplicate') || erroLower.contains('already exists') || erroLower.contains('unique'))) {
+        mensagemErro = 'O CNPJ já está cadastrado no sistema.';
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Falha ao registrar: ${e.toString().replaceAll('Exception: ', '')}',
-            ),
-          ),
+          SnackBar(content: Text('Falha ao registrar: $mensagemErro')),
         );
       }
     } finally {
       if (mounted) setState(() => _carregando = false);
     }
+  }
+
+  void _voltarParaEtapa2() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CadastroProfissionalEtapa2Page(
+          nome: widget.nome,
+          cpf: widget.cpf,
+          cnpj: widget.cnpj,
+          razaoSocial: widget.razaoSocial,
+          senha: widget.senha,
+          isPessoaFisica: widget.isPessoaFisica,
+          cnpjDeEmpresa: widget.cnpjDeEmpresa,
+          fotoPerfilUrl: widget.fotoPerfilUrl,
+          idFacial: _idFacial,
+        ),
+      ),
+    );
+  }
+
+  void _voltarParaEtapa1() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CadastroProfissionalPage(
+          nome: widget.nome,
+          cpf: widget.cpf,
+          cnpj: widget.cnpj,
+          razaoSocial: widget.razaoSocial,
+          senha: widget.senha,
+          isPessoaFisica: widget.isPessoaFisica,
+          cnpjDeEmpresa: widget.cnpjDeEmpresa,
+          fotoPerfilUrl: widget.fotoPerfilUrl,
+          idFacial: _idFacial,
+        ),
+      ),
+    );
   }
 
   @override
@@ -1604,11 +1818,20 @@ class _CadastroProfissionalEtapa3PageState
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _buildStepCircle('1', isActive: false),
+                  GestureDetector(
+                    onTap: _voltarParaEtapa1,
+                    child: _buildStepCircle('1', isActive: false),
+                  ),
                   _buildStepLine(),
-                  _buildStepCircle('2', isActive: false),
+                  GestureDetector(
+                    onTap: _voltarParaEtapa2,
+                    child: _buildStepCircle('2', isActive: false),
+                  ),
                   _buildStepLine(),
-                  _buildStepCircle('3', isActive: true),
+                  GestureDetector(
+                    onTap: () {},
+                    child: _buildStepCircle('3', isActive: true),
+                  ),
                 ],
               ),
               const SizedBox(height: 35),
