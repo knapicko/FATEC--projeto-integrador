@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart'; // Importação do Google adicionada
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'tela_home.dart';
+import 'tela_home_profissional.dart';
 import 'esqueci_senha.dart';
 
 // ================= TELA: LOGIN =================
@@ -44,13 +45,27 @@ class _LoginPageState extends State<LoginPage> {
 
       if (response.user != null) {
         if (mounted) {
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(
-              builder: (context) => TelaHome(isVisitante: false),
-            ),
-            (route) => false,
-          );
+          // Verificar se o usuário é um profissional
+          final supabase = Supabase.instance.client;
+          final usuarioResponse = await supabase
+              .from('usuarios')
+              .select('tipo_conta')
+              .eq('auth_id', response.user!.id)
+              .maybeSingle();
+
+          final isProfissional = usuarioResponse?['tipo_conta'] == 'Profissional';
+
+          if (mounted) {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(
+                builder: (context) => isProfissional
+                    ? TelaHomeProfissional(isVisitante: false)
+                    : TelaHome(isVisitante: false),
+              ),
+              (route) => false,
+            );
+          }
         }
       }
     } on AuthException catch (e) {
@@ -108,11 +123,36 @@ class _LoginPageState extends State<LoginPage> {
       );
 
       if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => TelaHome(isVisitante: false)),
-          (route) => false,
-        );
+        // Verificar se o usuário é um profissional
+        final supabase = Supabase.instance.client;
+        final currentUser = supabase.auth.currentUser;
+        if (currentUser != null) {
+          final usuarioResponse = await supabase
+              .from('usuarios')
+              .select('tipo_conta')
+              .eq('auth_id', currentUser.id)
+              .maybeSingle();
+
+          final isProfissional = usuarioResponse?['tipo_conta'] == 'Profissional';
+
+          if (mounted) {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => isProfissional
+                  ? TelaHomeProfissional(isVisitante: false)
+                  : TelaHome(isVisitante: false)),
+              (route) => false,
+            );
+          }
+        } else {
+          if (mounted) {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => TelaHome(isVisitante: false)),
+              (route) => false,
+            );
+          }
+        }
       }
     } catch (e) {
       if (mounted) {

@@ -13,6 +13,7 @@ import 'package:http/http.dart' as http;
 
 import 'login.dart';
 import 'tela_home.dart';
+import 'tela_home_profissional.dart';
 
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -1675,7 +1676,7 @@ class _CadastroProfissionalEtapa3PageState
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => TelaHome(isVisitante: false)),
+          MaterialPageRoute(builder: (context) => TelaHomeProfissional(isVisitante: false)),
           (route) => false,
         );
       }
