@@ -6,7 +6,6 @@ import 'tela_home.dart';
 
 class TelaHomeProfissional extends StatefulWidget {
   final bool isVisitante;
-
   const TelaHomeProfissional({super.key, required this.isVisitante});
 
   @override
@@ -21,13 +20,11 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
       final supabase = Supabase.instance.client;
       final user = supabase.auth.currentUser;
       if (user == null) return null;
-
       final response = await supabase
           .from('usuarios')
           .select('nome, foto_perfil_url')
           .eq('auth_id', user.id)
           .maybeSingle();
-
       return response;
     } catch (e) {
       return null;
@@ -39,15 +36,12 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
       final supabase = Supabase.instance.client;
       final user = supabase.auth.currentUser;
       if (user == null) return null;
-
       final usuarioResponse = await supabase
           .from('usuarios')
           .select('id_usuario')
           .eq('auth_id', user.id)
           .maybeSingle();
-
       if (usuarioResponse == null) return "Rua Capitão Pacheco e Chaves, 313 - Mooca, São Paulo - SP";
-
       final usuarioId = usuarioResponse['id_usuario'];
 
       final enderecoResponse = await supabase
@@ -55,7 +49,6 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           .select('logradouro, numero, bairro, cidade, estado')
           .eq('fk_usuario', usuarioId)
           .maybeSingle();
-
       if (enderecoResponse == null) return null;
 
       final logradouro = enderecoResponse['logradouro'] ?? '';
@@ -63,7 +56,6 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
       final bairro = enderecoResponse['bairro'] ?? '';
       final cidade = enderecoResponse['cidade'] ?? '';
       final estado = enderecoResponse['estado'] ?? '';
-
       if (logradouro.toString().isEmpty) return null;
 
       return '$logradouro, $numero - $bairro, $cidade - $estado';
@@ -109,10 +101,8 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
 
   @override
   Widget build(BuildContext context) {
-    double larguraDaTela = MediaQuery.of(context).size.width;
-
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -124,286 +114,272 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                 final nomeCompleto = snapshot.data?['nome'] as String? ?? 'Caneta Azul';
                 final fotoUrl = snapshot.data?['foto_perfil_url'] as String?;
 
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Foto de perfil
-                    CircleAvatar(
-                      radius: 30,
-                      backgroundColor: const Color(0xFFE1F5FE),
-                      backgroundImage: fotoUrl != null ? NetworkImage(fotoUrl) : null,
-                      child: fotoUrl == null
-                          ? Text(
-                              nomeCompleto.isNotEmpty ? nomeCompleto[0].toUpperCase() : 'P',
-                              style: const TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF0FB3FF),
-                              ),
-                            )
-                          : null,
-                    ),
-                    const SizedBox(width: 12),
-                    // Informações
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Text(
-                                nomeCompleto,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                return FutureBuilder<String?>(
+                  future: _buscarEndereco(),
+                  builder: (context, enderecoSnapshot) {
+                    String enderecoTexto = enderecoSnapshot.data ??
+                        "Rua Capitão Pacheco e Chaves, 313 - Mooca, São Paulo - SP";
+
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Foto de perfil com Selo Verificado Sobreposto abaixo
+                        Stack(
+                          alignment: Alignment.bottomCenter,
+                          clipBehavior: Clip.none,
+                          children: [
+                            CircleAvatar(
+                              radius: 34,
+                              backgroundColor: const Color(0xFFE1F5FE),
+                              backgroundImage: fotoUrl != null ? NetworkImage(fotoUrl) : null,
+                              child: fotoUrl == null
+                                  ? Text(
+                                      nomeCompleto.isNotEmpty ? nomeCompleto[0].toUpperCase() : 'P',
+                                      style: const TextStyle(
+                                        fontSize: 26,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF0FB3FF),
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                            Positioned(
+                              bottom: -6,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF0FB3FF).withValues(alpha: 0.1),
+                                  color: const Color(0xFF0FB3FF),
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: const Color(0xFF0FB3FF).withValues(alpha: 0.3),
-                                  ),
+                                  border: Border.all(color: Colors.white, width: 1.5),
                                 ),
                                 child: const Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(Icons.check_circle, size: 14, color: Color(0xFF0FB3FF)),
-                                    SizedBox(width: 3),
+                                    Icon(Icons.check_circle, size: 10, color: Colors.white),
+                                    SizedBox(width: 2),
                                     Text(
                                       'Perfil Verificado',
                                       style: TextStyle(
-                                        fontSize: 10,
+                                        fontSize: 8,
                                         fontWeight: FontWeight.bold,
-                                        color: Color(0xFF0FB3FF),
+                                        color: Colors.white,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          FutureBuilder<String?>(
-                            future: _buscarEndereco(),
-                            builder: (context, enderecoSnapshot) {
-                              String enderecoTexto = enderecoSnapshot.data ?? "Rua Capitão Pacheco e Chaves, 313 - Mooca, São Paulo - SP";
-                              return Row(
-                                children: [
-                                  const Icon(Icons.location_on, size: 14, color: Colors.grey),
-                                  const SizedBox(width: 4),
-                                  Expanded(
-                                    child: Text(
-                                      enderecoTexto,
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        color: Colors.grey,
-                                      ),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 14),
+                        // Informações Textuais (Nome, Endereço, Tags)
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _buildTag('Chaveiro', const Color(0xFF023BF6), 0.26),
-                              const SizedBox(width: 8),
-                              _buildTag('#CAEDS', const Color(0xFF40BAEC), 0.40),
+                              Text(
+                                nomeCompleto,
+                                style: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                enderecoTexto,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  _buildTag('Chaveiro', const Color(0xFF023BF6)),
+                                  const SizedBox(width: 6),
+                                  _buildTag('#CAEDS', const Color(0xFF40BAEC)),
+                                ],
+                              ),
                             ],
                           ),
-                        ],
-                      ),
-                    ),
-                    // Ícone de notificação
-                    Stack(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.notifications_outlined, color: Colors.black54, size: 26),
-                          onPressed: () {},
                         ),
-                        Positioned(
-                          right: 6,
-                          top: 6,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF0FB3FF),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Text(
-                              '2',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 20),
-
-            // ================= RADAR GEOGRÁFICO =================
-            const Text(
-              'Radar Geográfico',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              height: 180,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF5F9FF),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFE1F5FE)),
-              ),
-              child: Stack(
-                children: [
-                  // Simulação de mapa
-                  Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Raio de cobertura circular
-                        Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: const Color(0xFF0FB3FF).withValues(alpha: 0.3),
-                              width: 2,
-                            ),
-                          ),
-                          child: Center(
-                            child: Container(
-                              width: 20,
-                              height: 20,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Color(0xFF0FB3FF),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        // Ícone de notificação com Badge
+                        Stack(
                           children: [
-                            Icon(
-                              Icons.wifi_tethering,
-                              color: const Color(0xFF0FB3FF),
-                              size: 18,
+                            IconButton(
+                              icon: const Icon(Icons.notifications_none_outlined, color: Color(0xFF0FB3FF), size: 28),
+                              onPressed: () {},
                             ),
-                            const SizedBox(width: 6),
-                            const Text(
-                              'Radar Geográfico',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Color(0xFF0FB3FF),
-                                fontWeight: FontWeight.w600,
+                            Positioned(
+                              right: 6,
+                              top: 6,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF0FB3FF),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Text(
+                                  '2',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
                             ),
                           ],
                         ),
                       ],
-                    ),
+                    );
+                  },
+                );
+              },
+            ),
+            const SizedBox(height: 24),
+
+            // ================= RADAR GEOGRÁFICO =================
+            const Row(
+              children: [
+                Text(
+                  'Radar Geográfico',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0FB3FF),
                   ),
-                ],
+                ),
+                SizedBox(width: 4),
+                Icon(Icons.sensors, color: Color(0xFF0FB3FF), size: 18),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Container(
+              height: 110,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE3F2FD),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: const Color(0xFFB3E5FC).withOpacity(0.5)),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: Stack(
+                  children: [
+                    // Círculo translúcido simulando o raio do radar
+                    Positioned(
+                      left: 100,
+                      top: -25,
+                      child: Container(
+                        width: 160,
+                        height: 160,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: const Color(0xFF0FB3FF).withOpacity(0.15),
+                          border: Border.all(
+                            color: const Color(0xFF0FB3FF).withOpacity(0.3),
+                            width: 1.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Ponto indicador azul do radar
+                    Positioned(
+                      left: 210,
+                      top: 65,
+                      child: Container(
+                        width: 14,
+                        height: 14,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Color(0xFF0FB3FF),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 8),
-            const Row(
-              children: [
-                Icon(Icons.info_outline, size: 16, color: Color(0xFF0FB3FF)),
-                SizedBox(width: 6),
-                Text(
-                  'Há 1 solicitação de pedido na sua área',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF0FB3FF),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+            const Text(
+              'Há 1 solicitação de pedido na sua área',
+              style: TextStyle(
+                fontSize: 13,
+                color: Color(0xFF0FB3FF),
+                fontWeight: FontWeight.w600,
+              ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
 
             // ================= ESTATÍSTICAS DOS SERVIÇOS =================
+            const Text(
+              'Estatísticas dos Serviços',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 10),
             Row(
               children: [
-                Expanded(child: _buildStatCard('Pendentes', '1', const Color(0xFFFFA726))),
-                const SizedBox(width: 10),
-                Expanded(child: _buildStatCard('Ativos', '1', const Color(0xFF0FB3FF))),
-                const SizedBox(width: 10),
-                Expanded(child: _buildStatCard('Concluídos', '1', const Color(0xFF66BB6A))),
-                const SizedBox(width: 10),
-                Expanded(child: _buildStatCard('Cancelados', '0', const Color(0xFFEF5350))),
+                Expanded(child: _buildStatCard('Pendentes', '1')),
+                const SizedBox(width: 8),
+                Expanded(child: _buildStatCard('Ativos', '1')),
+                const SizedBox(width: 8),
+                Expanded(child: _buildStatCard('Concluídos', '1')),
+                const SizedBox(width: 8),
+                Expanded(child: _buildStatCard('Cancelados', '0')),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
 
             // ================= AGENDA DA SEMANA =================
             const Text(
               'Agenda da Semana',
               style: TextStyle(
-                fontSize: 16,
+                fontSize: 15,
                 fontWeight: FontWeight.bold,
                 color: Colors.black87,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             _buildWeekCalendar(),
             const SizedBox(height: 24),
 
             // ================= GRADE DE RECURSOS / OPÇÕES RÁPIDAS =================
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
+                    color: Colors.black.withOpacity(0.04),
                     blurRadius: 10,
-                    offset: const Offset(0, 2),
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
               child: Column(
                 children: [
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(child: _buildQuickOption(Icons.bar_chart, 'Estatísticas\nFinanceiras')),
-                      const SizedBox(width: 12),
                       Expanded(child: _buildQuickOption(Icons.description_outlined, 'Histórico de\nServiços')),
-                      const SizedBox(width: 12),
                       Expanded(child: _buildQuickOption(Icons.folder_outlined, 'Meus\nServiços')),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(child: _buildQuickOption(Icons.shopping_cart_outlined, 'Método de\nEntrega')),
-                      const SizedBox(width: 12),
                       Expanded(child: _buildQuickOption(Icons.verified_outlined, 'Plano de\nVerificado')),
-                      const SizedBox(width: 12),
                       Expanded(child: _buildQuickOption(Icons.add, 'Mais\nOpções')),
                     ],
                   ),
@@ -419,8 +395,8 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
         decoration: BoxDecoration(
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
               offset: const Offset(0, -2),
             ),
           ],
@@ -431,6 +407,8 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           selectedItemColor: const Color(0xFF0FB3FF),
           unselectedItemColor: Colors.grey,
           currentIndex: _currentIndex,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
+          unselectedLabelStyle: const TextStyle(fontSize: 11),
           onTap: (index) {
             setState(() => _currentIndex = index);
             if (index == 4) {
@@ -439,9 +417,9 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           },
           items: const [
             BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-            BottomNavigationBarItem(icon: Icon(Icons.radar), label: 'Radar'),
+            BottomNavigationBarItem(icon: Icon(Icons.sensors), label: 'Radar'),
             BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline), label: 'Mensagens'),
-            BottomNavigationBarItem(icon: Icon(Icons.inventory_2_outlined), label: 'Pedidos'),
+            BottomNavigationBarItem(icon: Icon(Icons.archive_outlined), label: 'Pedidos'),
             BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Perfil'),
           ],
         ),
@@ -449,50 +427,57 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     );
   }
 
-  Widget _buildTag(String text, Color color, double opacity) {
+  Widget _buildTag(String text, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: opacity),
-        borderRadius: BorderRadius.circular(14),
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         text,
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.bold,
-          color: color.withValues(alpha: 1.0),
+          color: color,
         ),
       ),
     );
   }
 
-  Widget _buildStatCard(String label, String value, Color color) {
+  Widget _buildStatCard(String label, String value) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
       ),
       child: Column(
         children: [
           Text(
             value,
-            style: TextStyle(
-              fontSize: 22,
+            style: const TextStyle(
+              fontSize: 26,
               fontWeight: FontWeight.bold,
-              color: color,
+              color: Colors.black87,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             label,
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 10,
-              color: color,
-              fontWeight: FontWeight.w600,
+              color: Colors.black54,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -502,77 +487,78 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
 
   Widget _buildWeekCalendar() {
     final semana = [
-      {'dia': 'Dom', 'numero': '2', 'evento': false, 'hoje': false, 'agendado': false},
-      {'dia': 'Seg', 'numero': '3', 'evento': false, 'hoje': true, 'agendado': false},
-      {'dia': 'Ter', 'numero': '5', 'evento': false, 'hoje': false, 'agendado': true},
-      {'dia': 'Qua', 'numero': '6', 'evento': false, 'hoje': false, 'agendado': false},
-      {'dia': 'Qui', 'numero': '7', 'evento': false, 'hoje': false, 'agendado': false},
-      {'dia': 'Sex', 'numero': '8', 'evento': false, 'hoje': false, 'agendado': false},
-      {'dia': 'Sáb', 'numero': '9', 'evento': false, 'hoje': false, 'agendado': false},
+      {'dia': 'DOMINGO', 'numero': '3', 'hoje': true, 'agendado': false, 'evento': 'Hoje'},
+      {'dia': 'SEGUNDA', 'numero': '4', 'hoje': false, 'agendado': false, 'evento': ''},
+      {'dia': 'TERÇA', 'numero': '5', 'hoje': false, 'agendado': true, 'evento': 'Cons.\ncabo Panela'},
+      {'dia': 'QUARTA', 'numero': '6', 'hoje': false, 'agendado': false, 'evento': ''},
+      {'dia': 'QUINTA', 'numero': '7', 'hoje': false, 'agendado': false, 'evento': ''},
+      {'dia': 'SEXTA', 'numero': '8', 'hoje': false, 'agendado': false, 'evento': ''},
+      {'dia': 'SÁBADO', 'numero': '9', 'hoje': false, 'agendado': false, 'evento': ''},
     ];
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      child: Row(
-        children: semana.map((item) {
-          final isHoje = item['hoje'] as bool;
-          final isAgendado = item['agendado'] as bool;
-          final diaNumero = item['numero'] as String;
-          final diaNome = item['dia'] as String;
+    return Row(
+      children: semana.map((item) {
+        final isHoje = item['hoje'] as bool;
+        final isAgendado = item['agendado'] as bool;
+        final diaNumero = item['numero'] as String;
+        final diaNome = item['dia'] as String;
+        final eventoTexto = item['evento'] as String;
 
-          return Container(
-            width: 70,
-            margin: const EdgeInsets.only(right: 8),
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+        Color backgroundColor = Colors.white;
+        Color borderColor = Colors.grey.shade200;
+        Color labelColor = const Color(0xFF0FB3FF);
+        Color numeroColor = Colors.grey.shade700;
+
+        if (isHoje) {
+          borderColor = const Color(0xFF0FB3FF);
+          numeroColor = const Color(0xFF0FB3FF);
+        } else if (isAgendado) {
+          backgroundColor = const Color(0xFF0FB3FF);
+          borderColor = const Color(0xFF0FB3FF);
+          labelColor = Colors.white;
+          numeroColor = Colors.white;
+        }
+
+        return Expanded(
+          child: Container(
+            height: 76,
+            margin: const EdgeInsets.symmetric(horizontal: 1.5),
             decoration: BoxDecoration(
-              color: isAgendado ? const Color(0xFF0FB3FF) : Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isHoje
-                    ? const Color(0xFF0FB3FF)
-                    : (isAgendado ? Colors.transparent : Colors.grey.shade200),
-                width: isHoje ? 2 : 1,
-              ),
+              color: backgroundColor,
+              borderRadius: BorderRadius.circular(2),
+              border: Border.all(color: borderColor, width: isHoje ? 1.5 : 1),
             ),
             child: Column(
+              mainAxisAlignment: MainAxisAlignment.start,
               children: [
+                const SizedBox(height: 4),
                 Text(
                   diaNome,
                   style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: isAgendado ? Colors.white70 : Colors.grey,
+                    fontSize: 7,
+                    fontWeight: FontWeight.bold,
+                    color: labelColor,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   diaNumero,
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 15,
                     fontWeight: FontWeight.bold,
-                    color: isAgendado ? Colors.white : Colors.black87,
+                    color: numeroColor,
                   ),
                 ),
-                if (isHoje)
-                  Text(
-                    'Hoje',
-                    style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w600,
-                      color: isAgendado ? Colors.white : const Color(0xFF0FB3FF),
-                    ),
-                  ),
-                if (isAgendado)
+                if (eventoTexto.isNotEmpty)
                   Padding(
-                    padding: const EdgeInsets.only(top: 4),
+                    padding: const EdgeInsets.only(top: 2, left: 1, right: 1),
                     child: Text(
-                      'Cons. cabo\nPanela',
+                      eventoTexto,
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 7,
-                        fontWeight: FontWeight.w500,
-                        color: isAgendado ? Colors.white : Colors.black87,
+                        fontSize: 6.5,
+                        fontWeight: FontWeight.w600,
+                        color: isAgendado ? Colors.white : const Color(0xFF0FB3FF),
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -580,42 +566,41 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                   ),
               ],
             ),
-          );
-        }).toList(),
-      ),
+          ),
+        );
+      }).toList(),
     );
   }
 
   Widget _buildQuickOption(IconData icon, String label) {
-    return GestureDetector(
-      onTap: () {},
-      child: Column(
-        children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: const Color(0xFF0FB3FF).withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Icon(
-              icon,
-              color: const Color(0xFF0FB3FF),
-              size: 28,
-            ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 52,
+          height: 52,
+          decoration: const BoxDecoration(
+            color: Color(0xFF0FB3FF),
+            shape: BoxShape.circle,
           ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 11,
-              color: Colors.grey,
-              fontWeight: FontWeight.w500,
-            ),
+          child: Icon(
+            icon,
+            color: Colors.white,
+            size: 26,
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 11,
+            color: Colors.black87,
+            fontWeight: FontWeight.w500,
+            height: 1.2,
+          ),
+        ),
+      ],
     );
   }
 }
