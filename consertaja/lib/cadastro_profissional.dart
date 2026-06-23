@@ -14,9 +14,6 @@ import 'package:http/http.dart' as http;
 import 'login.dart';
 import 'tela_home.dart';
 
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
@@ -1371,6 +1368,27 @@ class _CadastroProfissionalEtapa3PageState
   bool _carregando = false;
   String? _idFacial;
 
+  bool get _cadastroFacialConcluido =>
+      _idFacial != null && _idFacial!.isNotEmpty;
+
+  Future<void> _mostrarCadastroFacialJaFeito() async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Cadastro facial'),
+          content: const Text('Você já realizou o cadastro facial.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _finalizarCadastroBanco() async {
     setState(() => _carregando = true);
     final supabase = Supabase.instance.client;
@@ -1610,7 +1628,21 @@ class _CadastroProfissionalEtapa3PageState
               _buildDocumentButton(
                 label: 'Cadastro Facial',
                 icon: Icons.arrow_forward,
+                borderColor: _cadastroFacialConcluido
+                    ? const Color(0xFF2EAD5B)
+                    : const Color(0xFF00A2FF),
+                textColor: _cadastroFacialConcluido
+                    ? const Color(0xFF2EAD5B)
+                    : const Color(0xFF00A2FF),
+                iconColor: _cadastroFacialConcluido
+                    ? const Color(0xFF2EAD5B)
+                    : const Color(0xFF00A2FF),
                 onTap: () async {
+                  if (_cadastroFacialConcluido) {
+                    await _mostrarCadastroFacialJaFeito();
+                    return;
+                  }
+
                   final resultado = await Navigator.push<String>(
                     context,
                     MaterialPageRoute(
@@ -1658,9 +1690,12 @@ class _CadastroProfissionalEtapa3PageState
                 height: 55,
                 child: ElevatedButton(
                   onPressed:
-                      (_termosDeUso && _politicaPrivacidade && !_carregando)
-                      ? _finalizarCadastroBanco
-                      : null,
+                      (_termosDeUso &&
+                              _politicaPrivacidade &&
+                              _cadastroFacialConcluido &&
+                              !_carregando)
+                          ? _finalizarCadastroBanco
+                          : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00A2FF),
                     disabledBackgroundColor: const Color(
@@ -1749,6 +1784,9 @@ class _CadastroProfissionalEtapa3PageState
     required String label,
     required IconData icon,
     required VoidCallback onTap,
+    Color borderColor = const Color(0xFF00A2FF),
+    Color textColor = const Color(0xFF00A2FF),
+    Color iconColor = const Color(0xFF00A2FF),
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -1757,7 +1795,7 @@ class _CadastroProfissionalEtapa3PageState
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF00A2FF), width: 1.2),
+        border: Border.all(color: borderColor, width: 1.2),
       ),
       child: InkWell(
         onTap: onTap,
@@ -1769,13 +1807,13 @@ class _CadastroProfissionalEtapa3PageState
             children: [
               Text(
                 label,
-                style: const TextStyle(
-                  color: Color(0xFF00A2FF),
+                style: TextStyle(
+                  color: textColor,
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              Icon(icon, color: const Color(0xFF00A2FF), size: 22),
+              Icon(icon, color: iconColor, size: 22),
             ],
           ),
         ),
@@ -2042,6 +2080,7 @@ class _CadastroFacialPageState extends State<CadastroFacialPage> {
   bool _usandoFrontal = true;
   bool _carregandoCamera = true;
   bool _processando = false;
+  bool _finalizado = false;
 
   String _status = 'Nenhum rosto detectado';
   double _progresso = 0.0;
@@ -2129,7 +2168,7 @@ class _CadastroFacialPageState extends State<CadastroFacialPage> {
       });
 
       if (!kIsWeb) {
-        _timer = Timer.periodic(const Duration(milliseconds: 1500), (_) {
+        _timer = Timer.periodic(const Duration(milliseconds: 2500), (_) {
           _avaliarRosto();
         });
       }
@@ -2168,8 +2207,6 @@ class _CadastroFacialPageState extends State<CadastroFacialPage> {
     _processando = true;
 
     try {
-      await _controller!.pausePreview();
-
       final picture = await _controller!.takePicture();
       final inputImage = InputImage.fromFilePath(picture.path);
       final faces = await _faceDetector!.processImage(inputImage);
@@ -2259,14 +2296,24 @@ class _CadastroFacialPageState extends State<CadastroFacialPage> {
 
       await Future.delayed(const Duration(milliseconds: 400));
 
+      _finalizado = true;
       _timer?.cancel();
 
-      Navigator.pushReplacement(
+      await _controller?.dispose();
+      _controller = null;
+
+      if (!mounted) return;
+
+      final resultado = await Navigator.push<String>(
         context,
         MaterialPageRoute(
           builder: (_) => CadastroFacialSucessoPage(idFacial: idFacial),
         ),
       );
+
+      if (resultado != null && mounted) {
+        Navigator.pop(context, resultado);
+      }
     } catch (e, stackTrace) {
       debugPrint('====================');
       debugPrint('ERRO FACIAL: $e');
@@ -2281,11 +2328,6 @@ class _CadastroFacialPageState extends State<CadastroFacialPage> {
       }
     } finally {
       _processando = false;
-      if (mounted && _controller != null && _controller!.value.isInitialized) {
-        try {
-          await _controller!.resumePreview();
-        } catch (_) {}
-      }
     }
   }
 
