@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'tela_home.dart';
+import 'editar_informacoes.dart';
 
 class TelaMeuPerfilClientePage extends StatefulWidget {
   final bool isVisitante;
@@ -487,7 +488,14 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                 ),
                 const SizedBox(height: 4),
                 InkWell(
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const EditarInformacoesPage(),
+                      ),
+                    );
+                  },
                   child: const Text(
                     'Editar Informações >',
                     style: TextStyle(
