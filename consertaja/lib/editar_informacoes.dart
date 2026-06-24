@@ -263,14 +263,25 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
 
       final file = File(pickedFile.path);
       final fileName = '${user.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final bucketName = 'fotos_perfil';
+      final bucketName = 'Foto Perfil';
 
       // Fazer upload para o Supabase Storage
-      await _supabase.storage.from(bucketName).upload(
-        fileName,
-        file,
-        fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
-      );
+      try {
+        await _supabase.storage.from(bucketName).upload(
+          fileName,
+          file,
+          fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
+        );
+      } catch (bucketError) {
+        // Se o bucket não existir, apenas ignora o erro de upload
+        if (mounted) {
+          setState(() => _isUploading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Bucket de armazenamento não configurado. Configure o bucket "Fotos Perfil" no Supabase.')),
+          );
+        }
+        return;
+      }
 
       // Obter URL pública
       final publicUrl = _supabase.storage.from(bucketName).getPublicUrl(fileName);
@@ -333,105 +344,118 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
     final resultado = await showDialog<String>(
       context: context,
       builder: (context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Editar $campo',
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  TextFormField(
-                    controller: controller,
-                    decoration: InputDecoration(
-                      labelText: campo,
-                      labelStyle: const TextStyle(color: _blue),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: _blue, width: 2),
-                      ),
-                      filled: true,
-                      fillColor: const Color(0xFFF5F9FF),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Este campo não pode ficar vazio';
-                      }
-                      return null;
-                    },
-                    autofocus: true,
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        if (formKey.currentState!.validate()) {
-                          Navigator.pop(context, controller.text.trim());
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _blue,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: const Text(
-                        'Confirmar',
-                        style: TextStyle(
+        return TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeInOutBack,
+          builder: (context, value, child) {
+            return Transform.scale(
+              scale: value,
+              child: child,
+            );
+          },
+          child: Dialog(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
                           color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                          borderRadius: BorderRadius.circular(2),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 44,
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text(
-                        'Cancelar',
-                        style: TextStyle(
-                          color: _textGray,
-                          fontSize: 15,
+                    const SizedBox(height: 20),
+                    Text(
+                      'Editar $campo',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    TextFormField(
+                      controller: controller,
+                      decoration: InputDecoration(
+                        labelText: campo,
+                        labelStyle: const TextStyle(color: _blue),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.white),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: _blue, width: 2),
+                        ),
+                        filled: true,
+                        fillColor: const Color(0xFFF5F9FF),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Este campo não pode ficar vazio';
+                        }
+                        return null;
+                      },
+                      autofocus: true,
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          if (formKey.currentState!.validate()) {
+                            Navigator.pop(context, controller.text.trim());
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _blue,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Text(
+                          'Confirmar',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 44,
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text(
+                          'Cancelar',
+                          style: TextStyle(
+                            color: _textGray,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -646,155 +670,168 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
     await showDialog<void>(
       context: context,
       builder: (context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(2),
+        return TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeInOutBack,
+          builder: (context, value, child) {
+            return Transform.scale(
+              scale: value,
+              child: child,
+            );
+          },
+          child: Dialog(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Alterar Senha',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Alterar Senha',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  TextFormField(
-                    controller: novaSenhaController,
-                    obscureText: true,
-                    decoration: InputDecoration(
-                      labelText: 'Nova Senha',
-                      labelStyle: const TextStyle(color: _blue),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
+                    const SizedBox(height: 20),
+                    TextFormField(
+                      controller: novaSenhaController,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        labelText: 'Nova Senha',
+                        labelStyle: const TextStyle(color: _blue),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.white),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: _blue, width: 2),
+                        ),
+                        filled: true,
+                        fillColor: const Color(0xFFF5F9FF),
                       ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: _blue, width: 2),
-                      ),
-                      filled: true,
-                      fillColor: const Color(0xFFF5F9FF),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Digite a nova senha';
+                        }
+                        if (value.length < 6) {
+                          return 'A senha deve ter no mínimo 6 caracteres';
+                        }
+                        return null;
+                      },
+                      autofocus: true,
                     ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Digite a nova senha';
-                      }
-                      if (value.length < 6) {
-                        return 'A senha deve ter no mínimo 6 caracteres';
-                      }
-                      return null;
-                    },
-                    autofocus: true,
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: confirmarSenhaController,
-                    obscureText: true,
-                    decoration: InputDecoration(
-                      labelText: 'Confirmar Senha',
-                      labelStyle: const TextStyle(color: _blue),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: confirmarSenhaController,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        labelText: 'Confirmar Senha',
+                        labelStyle: const TextStyle(color: _blue),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.white),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: _blue, width: 2),
+                        ),
+                        filled: true,
+                        fillColor: const Color(0xFFF5F9FF),
                       ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: _blue, width: 2),
-                      ),
-                      filled: true,
-                      fillColor: const Color(0xFFF5F9FF),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Confirme a nova senha';
+                        }
+                        if (value != novaSenhaController.text) {
+                          return 'As senhas não coincidem';
+                        }
+                        return null;
+                      },
                     ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Confirme a nova senha';
-                      }
-                      if (value != novaSenhaController.text) {
-                        return 'As senhas não coincidem';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        if (formKey.currentState!.validate()) {
-                          try {
-                            final user = _supabase.auth.currentUser;
-                            if (user != null) {
-                              await _supabase.auth.updateUser(
-                                UserAttributes(password: novaSenhaController.text),
-                              );
-                            }
-                            if (context.mounted) {
-                              Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Senha alterada com sucesso!'),
-                                ),
-                              );
-                            }
-                          } catch (e) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Erro ao alterar senha: $e')),
-                              );
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          if (formKey.currentState!.validate()) {
+                            try {
+                              final user = _supabase.auth.currentUser;
+                              if (user != null) {
+                                await _supabase.auth.updateUser(
+                                  UserAttributes(password: novaSenhaController.text),
+                                );
+                              }
+                              if (context.mounted) {
+                                Navigator.pop(context);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Senha alterada com sucesso!'),
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Erro ao alterar senha: $e')),
+                                );
+                              }
                             }
                           }
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _blue,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _blue,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          elevation: 0,
                         ),
-                        elevation: 0,
-                      ),
-                      child: const Text(
-                        'Confirmar',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                        child: const Text(
+                          'Confirmar',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 44,
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text(
-                        'Cancelar',
-                        style: TextStyle(color: _textGray, fontSize: 15),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 44,
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text(
+                          'Cancelar',
+                          style: TextStyle(color: _textGray, fontSize: 15),
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -966,7 +1003,11 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                   editable: true,
                   isEmail: true,
                   showEditButton: true,
-                  onTap: () => _definirCampo('Email'),
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('A função de alterar email ainda não foi implementada')),
+                    );
+                  },
                 ),
                 const SizedBox(height: 16),
 
@@ -1002,7 +1043,11 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                   editable: true,
                   showArrow: _genero.isEmpty,
                   showEditButton: _genero.isNotEmpty,
-                  onTap: () => _definirCampo('Gênero'),
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('A função de definir gênero ainda não foi implementada')),
+                    );
+                  },
                 ),
                 const SizedBox(height: 28),
 
@@ -1044,7 +1089,11 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                         ),
                       ),
                       InkWell(
-                        onTap: () => _definirCampo('Senha'),
+                        onTap: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('A função de alterar senha ainda não foi implementada')),
+                          );
+                        },
                         child: const Text(
                           'Alterar >',
                           style: TextStyle(

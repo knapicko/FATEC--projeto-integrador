@@ -729,6 +729,7 @@ class TelaHome extends StatelessWidget {
 
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
+        backgroundColor: Colors.white,
         selectedItemColor: const Color(0xFF00A3FF),
         unselectedItemColor: Colors.grey,
         currentIndex: 0,
@@ -812,7 +813,7 @@ class TelaHome extends StatelessWidget {
           Expanded(
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: Colors.white,
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(12),
                   topRight: Radius.circular(12),
@@ -909,7 +910,7 @@ class TelaHome extends StatelessWidget {
         color: isSelected ? const Color(0xFFE3F2FD) : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isSelected ? const Color(0xFF00A3FF) : Colors.grey.shade300,
+          color: isSelected ? const Color(0xFF00A3FF) : Colors.white,
           width: 1.2,
         ),
       ),
