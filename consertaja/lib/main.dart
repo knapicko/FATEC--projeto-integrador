@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'tela_home.dart';
+import 'tela_home_profissional.dart';
 import 'cadastro_profissional.dart';
 import 'cadastro_cliente.dart';
 import 'login.dart';
@@ -34,15 +35,68 @@ void main() async {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  final GlobalKey<NavigatorState> _navigatorKey = navigatorKey;
+  Widget _homeWidget = const TelaEscolhaConta();
+  bool _carregando = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _determinarHome();
+  }
+
+  Future<void> _determinarHome() async {
     final session = Supabase.instance.client.auth.currentSession;
 
+    if (session != null && session.user != null) {
+      try {
+        final supabase = Supabase.instance.client;
+        final response = await supabase
+            .from('usuarios')
+            .select('tipo_conta')
+            .eq('auth_id', session.user!.id)
+            .maybeSingle();
+
+        final isProfissional = response?['tipo_conta'] == 'Profissional';
+
+        if (mounted) {
+          setState(() {
+            _homeWidget = isProfissional
+                ? TelaHomeProfissional(isVisitante: false)
+                : TelaHome(isVisitante: false);
+            _carregando = false;
+          });
+        }
+      } catch (_) {
+        if (mounted) {
+          setState(() {
+            _homeWidget = TelaHome(isVisitante: false);
+            _carregando = false;
+          });
+        }
+      }
+    } else {
+      if (mounted) {
+        setState(() {
+          _homeWidget = const TelaEscolhaConta();
+          _carregando = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return MaterialApp(
-      navigatorKey: navigatorKey,
+      navigatorKey: _navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'ConsertaJá',
       theme: ThemeData(
@@ -60,9 +114,16 @@ class MyApp extends StatelessWidget {
       ],
       locale: const Locale('pt', 'BR'),
 
-      home: session != null 
-          ? TelaHome(isVisitante: false) 
-          : const TelaEscolhaConta(),          
+      home: _carregando
+          ? const Scaffold(
+              backgroundColor: Colors.white,
+              body: Center(
+                child: CircularProgressIndicator(
+                  color: Color(0xFF00A3FF),
+                ),
+              ),
+            )
+          : _homeWidget,
     );
   }
 }
