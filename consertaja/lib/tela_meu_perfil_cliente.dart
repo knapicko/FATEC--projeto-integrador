@@ -533,6 +533,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
   Widget _buildBottomNav() {
     return BottomNavigationBar(
       type: BottomNavigationBarType.fixed,
+      backgroundColor: Colors.white,
       selectedItemColor: _blue,
       unselectedItemColor: const Color(0xFF8F8F8F),
       currentIndex: 4, // Perfil selecionado
