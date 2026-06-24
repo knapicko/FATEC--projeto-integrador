@@ -277,7 +277,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
         if (mounted) {
           setState(() => _isUploading = false);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Bucket de armazenamento não configurado. Configure o bucket "Fotos Perfil" no Supabase.')),
+            const SnackBar(content: Text('Ocorreu um erro ao fazer upload da foto. Contate o suporte.')),
           );
         }
         return;
