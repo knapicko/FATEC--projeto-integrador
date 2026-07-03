@@ -19,6 +19,8 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
   final TextEditingController _telefoneController = TextEditingController();
   final TextEditingController _dataNascimentoController = TextEditingController();
   
+  final FocusNode _emailFocusNode = FocusNode();
+  final FocusNode _telefoneFocusNode = FocusNode();
 
   String? _erroNome;
   String? _erroCpf;
@@ -51,16 +53,85 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
         setState(() => _erroTelefone = null);
       }
     });
+
+  _emailFocusNode.addListener(() {
+      // Quando o usuário SAIR do campo de e-mail (perder o foco)
+      if (!_emailFocusNode.hasFocus && _emailController.text.isNotEmpty) {
+        _verificarEmailDuplicado();
+      }
+    });
+
+    _telefoneFocusNode.addListener(() {
+      // Quando o usuário SAIR do campo de telefone (perder o foco)
+      if (!_telefoneFocusNode.hasFocus && _telefoneController.text.isNotEmpty) {
+        _verificarTelefoneDuplicado();
+      }
+    });
   }
 
   @override
   void dispose() {
+    _emailFocusNode.dispose();
+    _telefoneFocusNode.dispose();
     _nomeController.dispose();
     _cpfController.dispose();
     _emailController.dispose();
     _telefoneController.dispose();
     _dataNascimentoController.dispose();
     super.dispose();
+  }
+
+  // Função para verificar se o email já existe
+  Future<void> _verificarEmailDuplicado() async {
+    final email = _emailController.text.trim();
+  
+    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
+      return; 
+    }
+
+    try {
+      final supabase = Supabase.instance.client;
+      
+      // Busca na sua tabela de clientes se já existe esse e-mail
+      // NOTA: Ajuste 'clientes' para o nome exato da sua tabela no Supabase se for diferente
+      final list = await supabase
+          .from('emails') 
+          .select('endereco_email')
+          .eq('endereco_email', email);
+
+      if (list.isNotEmpty) {
+        setState(() {
+          _erroEmail = 'Este e-mail já está em uso.';
+        });
+      }
+    } catch (e) {
+      debugPrint('Erro ao verificar email: $e');
+    }
+  }
+
+Future<void> _verificarTelefoneDuplicado() async {
+    final apenasNumeros = _telefoneController.text.replaceAll(RegExp(r'\D'), '');
+    if (apenasNumeros.length < 10) return;
+
+    final dddDigitado = apenasNumeros.substring(0, 2);
+    final numeroDigitado = apenasNumeros.substring(2);
+
+    try {
+      final supabase = Supabase.instance.client;
+      
+      final list = await supabase
+          .from('telefones') 
+          .select('numero')
+          .eq('ddd', dddDigitado)       
+          .eq('numero', numeroDigitado);
+      if (list.isNotEmpty) {
+        setState(() {
+          _erroTelefone = 'Este telefone já está cadastrado.';
+        });
+      }
+    } catch (e) {
+      debugPrint('Erro ao verificar telefone: $e');
+    }
   }
 
   Future<void> _fazerUploadDataNascimento() async {
@@ -162,6 +233,7 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
               keyboardType: TextInputType.emailAddress,
               controller: _emailController,
               errorText: _erroEmail,
+              focusNode: _emailFocusNode,
             ),
             _InputFieldWithAnimation(
               label: 'Telefone',
@@ -170,6 +242,7 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
               inputFormatters: [MaskedInputFormatter('(##) #####-####')],
               controller: _telefoneController,
               errorText: _erroTelefone,
+              focusNode: _telefoneFocusNode,
             ),
             _InputFieldWithAnimation(
               label: 'Data de Nascimento',

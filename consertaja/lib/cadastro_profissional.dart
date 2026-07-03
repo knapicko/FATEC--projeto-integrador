@@ -19,6 +19,8 @@ import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
+import 'package:image_picker/image_picker.dart';
+
 // ================= TELA 01: CADASTRO DO PROFISSIONAL (ETAPA 1) =================
 class CadastroProfissionalPage extends StatefulWidget {
   final String? nome;
@@ -936,8 +938,9 @@ class _CadastroProfissionalEtapa2PageState
   String? _erroTelefone;
   String? _erroDataNascimento;
   String? _erroAtuacao;
-
   String? _idFacial;
+  final FocusNode _emailFocusNode = FocusNode();
+  final FocusNode _telefoneFocusNode = FocusNode();
 
   @override
   void initState() {
@@ -959,6 +962,18 @@ class _CadastroProfissionalEtapa2PageState
       if (_dataNascimentoController.text.isNotEmpty &&
           _erroDataNascimento != null) {
         setState(() => _erroDataNascimento = null);
+      }
+    });
+
+    _emailFocusNode.addListener(() {
+      if (!_emailFocusNode.hasFocus && _emailController.text.isNotEmpty) {
+        _verificarEmailDuplicado();
+      }
+    });
+
+    _telefoneFocusNode.addListener(() {
+      if (!_telefoneFocusNode.hasFocus && _telefoneController.text.isNotEmpty) {
+        _verificarTelefoneDuplicado();
       }
     });
 
@@ -994,6 +1009,8 @@ class _CadastroProfissionalEtapa2PageState
     _telefoneController.dispose();
     _dataNascimentoController.dispose();
     _atuacaoController.dispose();
+    _emailFocusNode.dispose();
+    _telefoneFocusNode.dispose();
     super.dispose();
   }
 
@@ -1028,7 +1045,6 @@ class _CadastroProfissionalEtapa2PageState
     }
   }
 
-  // Atualiza dinamicamente o texto exibido no input principal
   void _atualizarTextoAtuacao() {
     if (_oficiosSelecionados.isEmpty) {
       _atuacaoController.text = '';
@@ -1039,6 +1055,48 @@ class _CadastroProfissionalEtapa2PageState
     }
     if (_oficiosSelecionados.isNotEmpty && _erroAtuacao != null) {
       _erroAtuacao = null;
+    }
+  }
+
+  Future<void> _verificarEmailDuplicado() async {
+    final email = _emailController.text.trim();
+    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) return;
+
+    try {
+      final supabase = Supabase.instance.client;
+      final list = await supabase
+          .from('emails')
+          .select('endereco_email')
+          .eq('endereco_email', email);
+
+      if (list.isNotEmpty && mounted) {
+        setState(() => _erroEmail = 'Este e-mail já está em uso.');
+      }
+    } catch (e) {
+      debugPrint('Erro ao verificar email: $e');
+    }
+  }
+
+  Future<void> _verificarTelefoneDuplicado() async {
+    final apenasNumeros = _telefoneController.text.replaceAll(RegExp(r'\D'), '');
+    if (apenasNumeros.length < 10) return;
+
+    final dddDigitado = apenasNumeros.substring(0, 2);
+    final numeroDigitado = apenasNumeros.substring(2);
+
+    try {
+      final supabase = Supabase.instance.client;
+      final list = await supabase
+          .from('telefones')
+          .select('numero')
+          .eq('ddd', dddDigitado)
+          .eq('numero', numeroDigitado);
+
+      if (list.isNotEmpty && mounted) {
+        setState(() => _erroTelefone = 'Este telefone já está cadastrado.');
+      }
+    } catch (e) {
+      debugPrint('Erro ao verificar telefone: $e');
     }
   }
 
@@ -1211,6 +1269,7 @@ class _CadastroProfissionalEtapa2PageState
                 keyboardType: TextInputType.emailAddress,
                 controller: _emailController,
                 errorText: _erroEmail,
+                focusNode: _emailFocusNode,
               ),
 
               _InputFieldWithAnimation(
@@ -1220,6 +1279,7 @@ class _CadastroProfissionalEtapa2PageState
                 inputFormatters: [MaskedInputFormatter('(##) #####-####')],
                 controller: _telefoneController,
                 errorText: _erroTelefone,
+                focusNode: _telefoneFocusNode,
               ),
 
               _InputFieldWithAnimation(
@@ -1527,6 +1587,7 @@ class _CadastroProfissionalEtapa3PageState
   bool _politicaPrivacidade = false;
   bool _carregando = false;
   String? _idFacial;
+  File? _fotoIdentidade;
 
   bool get _cadastroFacialConcluido =>
       _idFacial != null && _idFacial!.isNotEmpty;
@@ -1555,11 +1616,59 @@ class _CadastroProfissionalEtapa3PageState
     );
   }
 
+  Future<void> _tirarFotoIdentidade() async {
+    final picker = ImagePicker();
+    try {
+      final XFile? fotoCapturada = await picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 80, // Reduz o tamanho da imagem para o upload ser mais rápido
+      );
+
+      if (fotoCapturada != null) {
+        setState(() {
+          _fotoIdentidade = File(fotoCapturada.path);
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Foto do documento capturada com sucesso!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao abrir a câmera: $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _finalizarCadastroBanco() async {
+    if (_fotoIdentidade == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('A foto do documento de identidade é obrigatória!'),
+        backgroundColor: Colors.red,
+      ),
+    );
+    return; // Para a função aqui
+  }
     setState(() => _carregando = true);
     final supabase = Supabase.instance.client;
 
     try {
+      final String nomeFicheiro = '${DateTime.now().millisecondsSinceEpoch}_identidade.jpg';
+    
+    // Faz o upload para o bucket chamado 'identidades' (Certifica-te que este bucket existe no teu painel do Supabase!)
+    await supabase.storage.from('identidades').upload(nomeFicheiro, _fotoIdentidade!);
+    
+    // Obtém a URL pública gerada para guardar na base de dados
+    final String urlIdentidade = supabase.storage.from('identidades').getPublicUrl(nomeFicheiro);
+    
       final authResponse = await supabase.auth.signUp(
         email: widget.email,
         password: widget.senha,
@@ -1665,13 +1774,27 @@ class _CadastroProfissionalEtapa3PageState
             ),
           );
         }
+        setState(() => _carregando = false);
         return;
       }
 
-      await supabase.from('dados_profissionais').insert({
-        'fk_usuario': usuarioId,
-        'id_facial': _idFacial,
-      });
+          final dadosProfResponse = await supabase
+          .from('dados_profissionais')
+          .insert({
+            'fk_usuario': usuarioId,
+            'id_facial': _idFacial,
+          })
+          .select()
+          .single();
+
+           final profissionalIdCorreto = dadosProfResponse['id_profissional'];
+
+      await supabase.from('documentos_profissionais').insert({
+      'tipo_documento': 'RG',
+      'documento_url': urlIdentidade,
+      'fk_profissional': profissionalIdCorreto,
+      'validacao_documento': false,
+    });
 
       if (mounted) {
         Navigator.pushAndRemoveUntil(
@@ -1881,8 +2004,9 @@ class _CadastroProfissionalEtapa3PageState
               ),
               _buildDocumentButton(
                 label: 'Documento de Identidade',
-                icon: Icons.arrow_forward,
-                onTap: () {},
+                icon: _fotoIdentidade != null ? Icons.check_circle : Icons.arrow_forward,
+                iconColor: _fotoIdentidade != null ? Colors.green : const Color(0xFF00A2FF),
+                onTap: _tirarFotoIdentidade,
               ),
               _buildDocumentButton(
                 label: 'Outros documentos',
