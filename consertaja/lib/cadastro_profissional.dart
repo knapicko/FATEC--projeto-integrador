@@ -1791,9 +1791,8 @@ class _CadastroProfissionalEtapa3PageState
 
       await supabase.from('documentos_profissionais').insert({
       'tipo_documento': 'RG',
-      'documento_url': urlIdentidade,
       'fk_profissional': profissionalIdCorreto,
-      'validacao_documento': false,
+      'validacao_documento': true,
     });
 
       if (mounted) {
