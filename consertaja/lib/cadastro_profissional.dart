@@ -21,6 +21,8 @@ import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 import 'package:image_picker/image_picker.dart';
 
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+
 // ================= TELA 01: CADASTRO DO PROFISSIONAL (ETAPA 1) =================
 class CadastroProfissionalPage extends StatefulWidget {
   final String? nome;
@@ -97,7 +99,9 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
     _nomeController = TextEditingController(text: widget.nome ?? '');
     _cpfController = TextEditingController(text: widget.cpf ?? '');
     _cnpjController = TextEditingController(text: widget.cnpj ?? '');
-    _razaoSocialController = TextEditingController(text: widget.razaoSocial ?? '');
+    _razaoSocialController = TextEditingController(
+      text: widget.razaoSocial ?? '',
+    );
     _senhaController = TextEditingController(text: widget.senha ?? '');
     _confirmarSenhaController = TextEditingController(text: widget.senha ?? '');
 
@@ -309,8 +313,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
           : null;
 
       if (!_isPessoaFisica) {
-        _erroRazaoSocial =
-            _razaoSocialController.text.trim().isEmpty
+        _erroRazaoSocial = _razaoSocialController.text.trim().isEmpty
             ? 'A Razão Social é obrigatória'
             : null;
       }
@@ -325,17 +328,14 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
         _erroSenha = null;
       }
 
-      if (_senhaController.text !=
-          _confirmarSenhaController.text) {
+      if (_senhaController.text != _confirmarSenhaController.text) {
         _erroConfirmarSenha = 'As senhas não coincidem';
       } else {
         _erroConfirmarSenha = null;
       }
     });
 
-    final documentoOk = await _validarDocumentoDigitado(
-      obrigatorio: true,
-    );
+    final documentoOk = await _validarDocumentoDigitado(obrigatorio: true);
 
     if (_erroNome != null ||
         _erroRazaoSocial != null ||
@@ -394,12 +394,8 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
       MaterialPageRoute(
         builder: (context) => CadastroProfissionalEtapa2Page(
           nome: _nomeController.text.trim(),
-          cpf: _isPessoaFisica
-              ? _cpfController.text.trim()
-              : null,
-          cnpj: !_isPessoaFisica
-              ? _cnpjController.text.trim()
-              : null,
+          cpf: _isPessoaFisica ? _cpfController.text.trim() : null,
+          cnpj: !_isPessoaFisica ? _cnpjController.text.trim() : null,
           razaoSocial: !_isPessoaFisica
               ? _razaoSocialController.text.trim()
               : null,
@@ -485,9 +481,15 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                         MaterialPageRoute(
                           builder: (context) => CadastroProfissionalEtapa3Page(
                             nome: _nomeController.text.trim(),
-                            cpf: _isPessoaFisica ? _cpfController.text.trim() : null,
-                            cnpj: !_isPessoaFisica ? _cnpjController.text.trim() : null,
-                            razaoSocial: !_isPessoaFisica ? _razaoSocialController.text.trim() : null,
+                            cpf: _isPessoaFisica
+                                ? _cpfController.text.trim()
+                                : null,
+                            cnpj: !_isPessoaFisica
+                                ? _cnpjController.text.trim()
+                                : null,
+                            razaoSocial: !_isPessoaFisica
+                                ? _razaoSocialController.text.trim()
+                                : null,
                             senha: _senhaController.text,
                             isPessoaFisica: _isPessoaFisica,
                             cnpjDeEmpresa: _cnpjDeEmpresa,
@@ -592,7 +594,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                   inputFormatters: [MaskedInputFormatter('###.###.###-##')],
                   controller: _cpfController,
                   suffixIcon: _documentoValido ? Icons.check_circle : null,
-                  suffixIconColor: const Color(0xFF8FD3FF),
+                  suffixIconColor: const Color(0xFF00A2FF),
                   errorText: _erroCpf,
                 ),
                 _InputFieldWithAnimation(
@@ -653,7 +655,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                   inputFormatters: [MaskedInputFormatter('##.###.###/####-##')],
                   controller: _cnpjController,
                   suffixIcon: _documentoValido ? Icons.check_circle : null,
-                  suffixIconColor: const Color(0xFF8FD3FF),
+                  suffixIconColor: const Color(0xFF00A2FF),
                   errorText: _erroCnpj,
                 ),
                 Padding(
@@ -1078,7 +1080,10 @@ class _CadastroProfissionalEtapa2PageState
   }
 
   Future<void> _verificarTelefoneDuplicado() async {
-    final apenasNumeros = _telefoneController.text.replaceAll(RegExp(r'\D'), '');
+    final apenasNumeros = _telefoneController.text.replaceAll(
+      RegExp(r'\D'),
+      '',
+    );
     if (apenasNumeros.length < 10) return;
 
     final dddDigitado = apenasNumeros.substring(0, 2);
@@ -1108,8 +1113,7 @@ class _CadastroProfissionalEtapa2PageState
       _erroTelefone = _telefoneController.text.trim().isEmpty
           ? 'O Telefone é obrigatório'
           : null;
-      _erroDataNascimento =
-          _dataNascimentoController.text.trim().isEmpty
+      _erroDataNascimento = _dataNascimentoController.text.trim().isEmpty
           ? 'A Data de Nascimento é obrigatória'
           : null;
 
@@ -1126,9 +1130,7 @@ class _CadastroProfissionalEtapa2PageState
         _erroAtuacao != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Por favor, preencha todos os campos obrigatórios.',
-          ),
+          content: Text('Por favor, preencha todos os campos obrigatórios.'),
         ),
       );
       return;
@@ -1583,11 +1585,14 @@ class CadastroProfissionalEtapa3Page extends StatefulWidget {
 
 class _CadastroProfissionalEtapa3PageState
     extends State<CadastroProfissionalEtapa3Page> {
+  bool _documentoIdentidadeConcluido = false;
   bool _termosDeUso = false;
   bool _politicaPrivacidade = false;
   bool _carregando = false;
   String? _idFacial;
   File? _fotoIdentidade;
+  // Dados dos documentos validados para salvar no banco
+  List<Map<String, dynamic>> _documentosValidados = [];
 
   bool get _cadastroFacialConcluido =>
       _idFacial != null && _idFacial!.isNotEmpty;
@@ -1621,14 +1626,15 @@ class _CadastroProfissionalEtapa3PageState
     try {
       final XFile? fotoCapturada = await picker.pickImage(
         source: ImageSource.camera,
-        imageQuality: 80, // Reduz o tamanho da imagem para o upload ser mais rápido
+        imageQuality:
+            80, // Reduz o tamanho da imagem para o upload ser mais rápido
       );
 
       if (fotoCapturada != null) {
         setState(() {
           _fotoIdentidade = File(fotoCapturada.path);
         });
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -1640,35 +1646,27 @@ class _CadastroProfissionalEtapa3PageState
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao abrir a câmera: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erro ao abrir a câmera: $e')));
       }
     }
   }
 
   Future<void> _finalizarCadastroBanco() async {
-    if (_fotoIdentidade == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('A foto do documento de identidade é obrigatória!'),
-        backgroundColor: Colors.red,
-      ),
-    );
-    return; // Para a função aqui
-  }
+    if (_documentosValidados.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Anexe e valide pelo menos 1 documento de identidade!'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     setState(() => _carregando = true);
     final supabase = Supabase.instance.client;
 
     try {
-      final String nomeFicheiro = '${DateTime.now().millisecondsSinceEpoch}_identidade.jpg';
-    
-    // Faz o upload para o bucket chamado 'identidades' (Certifica-te que este bucket existe no teu painel do Supabase!)
-    await supabase.storage.from('identidades').upload(nomeFicheiro, _fotoIdentidade!);
-    
-    // Obtém a URL pública gerada para guardar na base de dados
-    final String urlIdentidade = supabase.storage.from('identidades').getPublicUrl(nomeFicheiro);
-    
       final authResponse = await supabase.auth.signUp(
         email: widget.email,
         password: widget.senha,
@@ -1778,27 +1776,30 @@ class _CadastroProfissionalEtapa3PageState
         return;
       }
 
-          final dadosProfResponse = await supabase
+      final dadosProfResponse = await supabase
           .from('dados_profissionais')
-          .insert({
-            'fk_usuario': usuarioId,
-            'id_facial': _idFacial,
-          })
+          .insert({'fk_usuario': usuarioId, 'id_facial': _idFacial})
           .select()
           .single();
 
-           final profissionalIdCorreto = dadosProfResponse['id_profissional'];
+      final profissionalIdCorreto = dadosProfResponse['id_profissional'];
 
-      await supabase.from('documentos_profissionais').insert({
-      'tipo_documento': 'RG',
-      'fk_profissional': profissionalIdCorreto,
-      'validacao_documento': true,
-    });
+      // Salvar TODOS os documentos validados no banco
+      for (final doc in _documentosValidados) {
+        final insertData = <String, dynamic>{
+          'tipo_documento': doc['tipo'],
+          'fk_profissional': profissionalIdCorreto,
+          'validacao_documento': true,
+        };
+        await supabase.from('documentos_profissionais').insert(insertData);
+      }
 
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => TelaHomeProfissional(isVisitante: false)),
+          MaterialPageRoute(
+            builder: (context) => TelaHomeProfissional(isVisitante: false),
+          ),
           (route) => false,
         );
       }
@@ -1811,7 +1812,8 @@ class _CadastroProfissionalEtapa3PageState
           errorMsg.contains('already exists') ||
           errorMsg.contains('duplicate') ||
           errorMsg.contains('email already')) {
-        mensagemAmigavel = 'Este e-mail já está cadastrado em nossa plataforma.';
+        mensagemAmigavel =
+            'Este e-mail já está cadastrado em nossa plataforma.';
       } else if (errorMsg.contains('password should be at least') ||
           errorMsg.contains('weak password')) {
         mensagemAmigavel =
@@ -1833,9 +1835,15 @@ class _CadastroProfissionalEtapa3PageState
 
       // Verificar se é erro de CPF/CNPJ duplicado
       final erroLower = mensagemErro.toLowerCase();
-      if (erroLower.contains('cpf') && (erroLower.contains('duplicate') || erroLower.contains('already exists') || erroLower.contains('unique'))) {
+      if (erroLower.contains('cpf') &&
+          (erroLower.contains('duplicate') ||
+              erroLower.contains('already exists') ||
+              erroLower.contains('unique'))) {
         mensagemErro = 'O CPF já está cadastrado no sistema.';
-      } else if (erroLower.contains('cnpj') && (erroLower.contains('duplicate') || erroLower.contains('already exists') || erroLower.contains('unique'))) {
+      } else if (erroLower.contains('cnpj') &&
+          (erroLower.contains('duplicate') ||
+              erroLower.contains('already exists') ||
+              erroLower.contains('unique'))) {
         mensagemErro = 'O CNPJ já está cadastrado no sistema.';
       }
 
@@ -2003,9 +2011,38 @@ class _CadastroProfissionalEtapa3PageState
               ),
               _buildDocumentButton(
                 label: 'Documento de Identidade',
-                icon: _fotoIdentidade != null ? Icons.check_circle : Icons.arrow_forward,
-                iconColor: _fotoIdentidade != null ? Colors.green : const Color(0xFF00A2FF),
-                onTap: _tirarFotoIdentidade,
+                icon: _documentoIdentidadeConcluido
+                    ? Icons.check_circle
+                    : Icons.arrow_forward,
+                borderColor: _documentoIdentidadeConcluido
+                    ? const Color(0xFF2EAD5B)
+                    : const Color(0xFF00A2FF),
+                textColor: _documentoIdentidadeConcluido
+                    ? const Color(0xFF2EAD5B)
+                    : const Color(0xFF00A2FF),
+                iconColor: _documentoIdentidadeConcluido
+                    ? const Color(0xFF2EAD5B)
+                    : const Color(0xFF00A2FF),
+                onTap: () async {
+                  final resultado = await Navigator.push<Map<String, dynamic>>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ValidacaoDocsPage(
+                        cpf: widget.cpf,
+                        dataNascimento: widget.dataNascimento,
+                      ),
+                    ),
+                  );
+
+                  if (resultado != null && resultado['validado'] == true && mounted) {
+                    setState(() {
+                      _documentoIdentidadeConcluido = true;
+                      _documentosValidados = List<Map<String, dynamic>>.from(
+                        resultado['docsData'] ?? [],
+                      );
+                    });
+                  }
+                },
               ),
               _buildDocumentButton(
                 label: 'Outros documentos',
@@ -2038,11 +2075,12 @@ class _CadastroProfissionalEtapa3PageState
                 child: ElevatedButton(
                   onPressed:
                       (_termosDeUso &&
-                              _politicaPrivacidade &&
-                              _cadastroFacialConcluido &&
-                              !_carregando)
-                          ? _finalizarCadastroBanco
-                          : null,
+                          _politicaPrivacidade &&
+                          _cadastroFacialConcluido &&
+                          _documentoIdentidadeConcluido &&
+                          !_carregando)
+                      ? _finalizarCadastroBanco
+                      : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00A2FF),
                     disabledBackgroundColor: const Color(
@@ -3200,6 +3238,830 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
       ),
     );
   }
+}
+
+// ================= VALIDAÇÃO DE DOCUMENTOS (TELA NOVA) =================
+/// Retorna um Map com: 'validado' (bool), 'tiposValidados' (List<String>),
+/// 'docsData' (List<Map<String,dynamic>> com tipo, caminho_arquivo)
+class ValidacaoDocsPage extends StatefulWidget {
+  final String? cpf;
+  final String? dataNascimento;
+
+  const ValidacaoDocsPage({super.key, this.cpf, this.dataNascimento});
+
+  @override
+  State<ValidacaoDocsPage> createState() => _ValidacaoDocsPageState();
+}
+
+class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
+  final List<_DocType> _docTypes = [
+    _DocType(label: 'Registro Geral (RG)', type: 'RG'),
+    _DocType(label: 'Carteira de Identidade Nacional (CIN)', type: 'CIN'),
+    _DocType(label: 'Carteira Nacional de Habilitação (CNH)', type: 'CNH'),
+    _DocType(label: 'Passaporte', type: 'PASSAPORTE'),
+  ];
+
+  bool _carregando = false;
+  final ImagePicker _picker = ImagePicker();
+
+  // UFs e Órgãos Emissores válidos do Brasil
+  static const List<String> _ufsValidas = [
+    'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO',
+    'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI',
+    'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
+  ];
+
+  static const List<String> _orgaosValidos = [
+    'SSP', 'SESP', 'SDS', 'DETRAN', 'POLÍCIA CIVIL', 'PC', 'SECRETARIA DE SEGURANÇA PÚBLICA',
+    'INSTITUTO DE IDENTIFICAÇÃO', 'IFP', 'II', 'DIC', 'DPC', 'MTB', 'CREA', 'CRC',
+    'OAB', 'CRM', 'SSP-SP', 'SSP-RJ', 'SSP-MG', 'SSP-BA', 'SSP-RS', 'SSP-PR',
+    'SSP-PE', 'SSP-CE', 'SSP-PA', 'SSP-MA', 'SSP-SC', 'SSP-GO', 'SSP-DF',
+    'SESP-PI', 'SDS-PE'
+  ];
+
+  String _somenteDigitos(String valor) {
+    return valor.replaceAll(RegExp(r'\D'), '');
+  }
+
+  /// Extrai CPF do texto (formato com ou sem pontuação)
+  String? _extrairCpf(String texto) {
+    final regex = RegExp(r'\d{3}\.?\d{3}\.?\d{3}-?\d{2}');
+    final match = regex.firstMatch(texto);
+    if (match != null) {
+      return _somenteDigitos(match.group(0)!);
+    }
+    return null;
+  }
+
+  /// Extrai datas no formato DD/MM/AAAA ou AAAA-MM-DD
+  List<DateTime> _extrairDatas(String texto) {
+    final datas = <DateTime>[];
+    final regex1 = RegExp(r'\d{2}/\d{2}/\d{4}');
+    final regex2 = RegExp(r'\d{4}-\d{2}-\d{2}');
+
+    for (final match in regex1.allMatches(texto)) {
+      final partes = match.group(0)!.split('/');
+      final dia = int.tryParse(partes[0]) ?? 0;
+      final mes = int.tryParse(partes[1]) ?? 0;
+      final ano = int.tryParse(partes[2]) ?? 0;
+      if (ano >= 1920 && ano <= 2050 && mes >= 1 && mes <= 12 && dia >= 1 && dia <= 31) {
+        datas.add(DateTime(ano, mes, dia));
+      }
+    }
+
+    for (final match in regex2.allMatches(texto)) {
+      final partes = match.group(0)!.split('-');
+      final ano = int.tryParse(partes[0]) ?? 0;
+      final mes = int.tryParse(partes[1]) ?? 0;
+      final dia = int.tryParse(partes[2]) ?? 0;
+      if (ano >= 1920 && ano <= 2050 && mes >= 1 && mes <= 12 && dia >= 1 && dia <= 31) {
+        datas.add(DateTime(ano, mes, dia));
+      }
+    }
+
+    return datas;
+  }
+
+  /// Extrai número de RG tentando encontrar padrões
+  String? _extrairRg(String texto) {
+    // Padrões comuns: XX.XXX.XXX-X, X.XXX.XXX, XXXXXXXX-X
+    final regex = RegExp(r'\d{1,2}\.?\d{3}\.?\d{3}-?[\dxX]');
+    final match = regex.firstMatch(texto);
+    return match?.group(0);
+  }
+
+  /// Extrai a UF do texto (sigla de 2 letras maiúsculas comum em docs)
+  String? _extrairUf(String texto) {
+    for (final uf in _ufsValidas) {
+      if (texto.contains(uf)) return uf;
+    }
+    return null;
+  }
+
+  /// Extrai órgão emissor do texto
+  String? _extrairOrgaoEmissor(String texto) {
+    for (final orgao in _orgaosValidos) {
+      if (texto.toUpperCase().contains(orgao)) return orgao;
+    }
+    return null;
+  }
+
+  /// Verifica se formato de RG é válido para a UF
+  bool _validarFormatoRg(String? rg, String? uf) {
+    if (rg == null) return false;
+    final digitos = _somenteDigitos(rg);
+    // RG geralmente tem entre 7 e 11 dígitos
+    return digitos.length >= 7 && digitos.length <= 11;
+  }
+
+  /// Extrai nacionalidade do texto
+  bool _verificarNacionalidadeBrasileira(String texto) {
+    final textoUp = texto.toUpperCase();
+    return textoUp.contains('BRASILEIRO') || 
+           textoUp.contains('BRASILEIRA') || 
+           textoUp.contains('BRAZIL') ||
+           textoUp.contains('NACIONALIDADE') ||
+           textoUp.contains('REPÚBLICA FEDERATIVA DO BRASIL') ||
+           textoUp.contains('REPUBLICA FEDERATIVA DO BRASIL');
+  }
+
+  /// Processa OCR da imagem usando Google ML Kit
+  Future<String> _processarOcr(File file) async {
+    try {
+      final inputImage = InputImage.fromFile(file);
+      final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
+      final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
+      await textRecognizer.close();
+      return recognizedText.text;
+    } catch (e) {
+      debugPrint('Erro no OCR: $e');
+      return '';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF0FB3FF)),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'Anexe os Documentos',
+          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+        ),
+        centerTitle: true,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Column(
+                children: [
+                  Stack(
+                    alignment: Alignment.bottomRight,
+                    children: [
+                      Container(
+                        width: 100,
+                        height: 70,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0FB3FF).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.credit_card, size: 50, color: Color(0xFF0FB3FF)),
+                      ),
+                      const CircleAvatar(
+                        radius: 14,
+                        backgroundColor: Colors.white,
+                        child: Icon(Icons.check_circle, color: Color(0xFF0FB3FF), size: 26),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'O seu documento de identidade é utilizado exclusivamente para a verificação da sua conta.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 15, height: 1.4),
+                  ),
+                  GestureDetector(
+                    onTap: () {},
+                    child: const Text(
+                      'Para mais informações confira a Política de Privacidade.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Color(0xFF0FB3FF),
+                        fontWeight: FontWeight.bold,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+
+            const Text(
+              'Escolha o tipo documento',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+
+            ..._docTypes.map((doc) => _buildDocButton(doc)),
+
+            const SizedBox(height: 40),
+
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton(
+                onPressed: _podeEnviar() ? _enviarDocumentos : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0FB3FF),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                ),
+                child: _carregando
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text(
+                        'Enviar Documentos',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDocButton(_DocType doc) {
+    final isValid = doc.isValid;
+    final isInvalid = doc.isInvalid;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        GestureDetector(
+          onTap: () => _selecionarDocumento(doc),
+          child: Container(
+            margin: EdgeInsets.only(bottom: doc.errorMessage != null ? 2 : 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: isValid ? Colors.green : isInvalid ? Colors.red : const Color(0xFF0FB3FF),
+                width: 1.5,
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    doc.label,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: isValid ? Colors.green : isInvalid ? Colors.red : const Color(0xFF0FB3FF),
+                    ),
+                  ),
+                ),
+                if (isValid)
+                  const Icon(Icons.check_circle, color: Colors.green, size: 28)
+                else if (isInvalid)
+                  const Icon(Icons.error_outline, color: Colors.red, size: 28)
+                else
+                  const Icon(Icons.arrow_forward_ios, color: Color(0xFF0FB3FF), size: 20),
+              ],
+            ),
+          ),
+        ),
+        if (doc.errorMessage != null)
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 12),
+            child: Text(
+              doc.errorMessage!,
+              style: const TextStyle(color: Colors.red, fontSize: 12),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _selecionarDocumento(_DocType doc) async {
+    if (doc.isValid) {
+      _mostrarOpcoesDocumentoValido(doc);
+      return;
+    }
+
+    // Se estiver invalidado, permite anexar novamente sem mensagem extra
+    if (doc.isInvalid) {
+      setState(() {
+        doc.isInvalid = false;
+        doc.errorMessage = null;
+      });
+    }
+
+    // Inicia o fluxo de captura: frente -> verso
+    await _capturarFrente(doc);
+  }
+
+  Future<void> _capturarFrente(_DocType doc) async {
+    final source = await _mostrarOpcoesOrigem('Frente do Documento');
+    if (source == null) return;
+
+    final XFile? file = await _picker.pickImage(
+      source: source,
+      imageQuality: 85,
+    );
+
+    if (file == null) return;
+
+    setState(() {
+      _carregando = true;
+      doc.errorMessage = null;
+      doc.isInvalid = false;
+      doc.isValid = false;
+    });
+
+    // Armazena a frente
+    doc.filePathFrente = file.path;
+
+    // Agora pede o verso
+    await _capturarVerso(doc);
+  }
+
+  Future<void> _capturarVerso(_DocType doc) async {
+    final source = await _mostrarOpcoesOrigem('Verso do Documento');
+    if (source == null) {
+      // Se cancelou o verso, limpa a frente já capturada
+      setState(() {
+        _carregando = false;
+        doc.filePathFrente = null;
+      });
+      return;
+    }
+
+    final XFile? file = await _picker.pickImage(
+      source: source,
+      imageQuality: 85,
+    );
+
+    if (file == null) {
+      setState(() {
+        _carregando = false;
+        doc.filePathFrente = null;
+      });
+      return;
+    }
+
+    // Armazena o verso
+    doc.filePathVerso = file.path;
+
+    // Processa OCR da frente (onde estão os dados principais)
+    String fullText;
+    try {
+      fullText = await _processarOcr(File(doc.filePathFrente!));
+    } catch (e) {
+      fullText = '';
+    }
+
+    // Se OCR falhou completamente, tentar ler como texto simples
+    if (fullText.isEmpty) {
+      fullText = 'OCR_EMPTY';
+    }
+
+    debugPrint('=== TEXTO EXTRAÍDO DO DOCUMENTO ${doc.type} ===');
+    debugPrint(fullText);
+    debugPrint('==============================================');
+
+    // Combina os textos da frente e verso
+    String fullTextVerso = '';
+    try {
+      fullTextVerso = await _processarOcr(File(doc.filePathVerso!));
+    } catch (e) {
+      fullTextVerso = '';
+    }
+    fullText = '$fullText\n$fullTextVerso';
+
+    await _validarDocumento(doc, fullText);
+
+    setState(() => _carregando = false);
+  }
+
+  Future<ImageSource?> _mostrarOpcoesOrigem(String titulo) async {
+    return await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(titulo, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.camera_alt, color: Color(0xFF0FB3FF)),
+                title: const Text('Tirar Foto'),
+                onTap: () => Navigator.pop(ctx, ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library, color: Color(0xFF0FB3FF)),
+                title: const Text('Galeria'),
+                onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, null),
+                child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _validarDocumento(_DocType doc, String texto) async {
+    final cpfDigitado = widget.cpf != null ? _somenteDigitos(widget.cpf!) : null;
+    final cpfEncontrado = _extrairCpf(texto);
+    final datas = _extrairDatas(texto);
+    final dataNascimentoStr = widget.dataNascimento;
+    final erros = <String>[];
+    bool valido = true;
+
+    switch (doc.type) {
+      case 'RG':
+        // 1. Validar CPF
+        if (cpfDigitado == null) {
+          erros.add('CPF não preenchido na etapa 1.');
+          valido = false;
+        } else if (cpfEncontrado == null) {
+          erros.add('Não foi possível identificar o CPF no documento.');
+          valido = false;
+        } else if (cpfEncontrado != cpfDigitado) {
+          erros.add('CPF do documento não corresponde ao CPF cadastrado.');
+          valido = false;
+        }
+
+        // 2. Validar número do RG
+        final rg = _extrairRg(texto);
+        final uf = _extrairUf(texto);
+        if (!_validarFormatoRg(rg, uf)) {
+          erros.add('Número do RG não identificado ou formato inválido para a UF.');
+          valido = false;
+        }
+
+        // 3. Validar data de validade (RG não pode estar vencido - maior de idade)
+        final dataNascimentoDoc = _encontrarDataNascimento(datas, dataNascimentoStr);
+        if (dataNascimentoDoc != null && dataNascimentoStr != null && dataNascimentoStr.isNotEmpty) {
+          // Tem data de nascimento, verificar se é maior de idade
+          final hoje = DateTime.now();
+          final idade = hoje.year - dataNascimentoDoc.year;
+          if (dataNascimentoDoc.isAfter(hoje)) {
+            erros.add('Data de nascimento inválida (futura).');
+            valido = false;
+          }
+        }
+
+        // 4. Bater data de nascimento
+        if (dataNascimentoStr != null && dataNascimentoStr.isNotEmpty) {
+          final dataNascEsperada = _parseData(dataNascimentoStr);
+          if (dataNascEsperada != null) {
+            final dataEncontrada = _encontrarDataNascimento(datas, dataNascimentoStr);
+            if (dataEncontrada == null) {
+              erros.add('Data de nascimento não encontrada no documento.');
+              valido = false;
+            } else if (dataEncontrada.year != dataNascEsperada.year ||
+                       dataEncontrada.month != dataNascEsperada.month ||
+                       dataEncontrada.day != dataNascEsperada.day) {
+              erros.add('Data de nascimento do documento não confere com a cadastrada.');
+              valido = false;
+            }
+          }
+        }
+
+        // 5. Verificar órgão emissor / UF
+        final orgao = _extrairOrgaoEmissor(texto);
+        if (orgao == null) {
+          erros.add('Órgão emissor não identificado.');
+          valido = false;
+        }
+        if (uf == null) {
+          erros.add('UF do documento não identificada.');
+          valido = false;
+        } else if (!_ufsValidas.contains(uf)) {
+          erros.add('UF "$uf" não é válida.');
+          valido = false;
+        }
+
+        break;
+
+      case 'CIN':
+        // 1. Validar CPF
+        if (cpfDigitado == null) {
+          erros.add('CPF não preenchido na etapa 1.');
+          valido = false;
+        } else if (cpfEncontrado == null) {
+          erros.add('Não foi possível identificar o CPF no documento.');
+          valido = false;
+        } else if (cpfEncontrado != cpfDigitado) {
+          erros.add('CPF do documento não corresponde ao CPF cadastrado.');
+          valido = false;
+        }
+
+        // 2. Validar data (CIN não vencido)
+        if (dataNascimentoStr != null && dataNascimentoStr.isNotEmpty) {
+          final dataNascEsperada = _parseData(dataNascimentoStr);
+          if (dataNascEsperada != null) {
+            final dataEncontrada = _encontrarDataNascimento(datas, dataNascimentoStr);
+            if (dataEncontrada == null) {
+              erros.add('Data de nascimento não encontrada no documento.');
+              valido = false;
+            } else if (dataEncontrada.year != dataNascEsperada.year ||
+                       dataEncontrada.month != dataNascEsperada.month ||
+                       dataEncontrada.day != dataNascEsperada.day) {
+              erros.add('Data de nascimento do documento não confere com a cadastrada.');
+              valido = false;
+            }
+          }
+        }
+
+        // 3. Verificar órgão emissor / UF
+        final orgao = _extrairOrgaoEmissor(texto);
+        if (orgao == null) {
+          erros.add('Órgão emissor não identificado.');
+          valido = false;
+        }
+        final uf = _extrairUf(texto);
+        if (uf == null) {
+          erros.add('UF do documento não identificada.');
+          valido = false;
+        } else if (!_ufsValidas.contains(uf)) {
+          erros.add('UF "$uf" não é válida.');
+          valido = false;
+        }
+
+        break;
+
+      case 'CNH':
+        // 1. Validar CPF
+        if (cpfDigitado == null) {
+          erros.add('CPF não preenchido na etapa 1.');
+          valido = false;
+        } else if (cpfEncontrado == null) {
+          erros.add('Não foi possível identificar o CPF no documento.');
+          valido = false;
+        } else if (cpfEncontrado != cpfDigitado) {
+          erros.add('CPF do documento não corresponde ao CPF cadastrado.');
+          valido = false;
+        }
+
+        // 2. Validar data de validade (CNH não vencida)
+        // CNH tem validade, verificar se há data futura no documento
+        final hoje = DateTime.now();
+        bool temDataValida = false;
+        for (final data in datas) {
+          if (data.isAfter(hoje) || 
+              (data.year == hoje.year && data.month == hoje.month && data.day == hoje.day)) {
+            temDataValida = true;
+            break;
+          }
+        }
+        if (!temDataValida && datas.isNotEmpty) {
+          // Se tem datas mas nenhuma é futura/válida, pode estar vencido
+          erros.add('Documento parece estar vencido (data de validade expirada).');
+          valido = false;
+        }
+
+        // 3. Bater data de nascimento
+        if (dataNascimentoStr != null && dataNascimentoStr.isNotEmpty) {
+          final dataNascEsperada = _parseData(dataNascimentoStr);
+          if (dataNascEsperada != null) {
+            final dataEncontrada = _encontrarDataNascimento(datas, dataNascimentoStr);
+            if (dataEncontrada == null) {
+              erros.add('Data de nascimento não encontrada no documento.');
+              valido = false;
+            } else if (dataEncontrada.year != dataNascEsperada.year ||
+                       dataEncontrada.month != dataNascEsperada.month ||
+                       dataEncontrada.day != dataNascEsperada.day) {
+              erros.add('Data de nascimento do documento não confere com a cadastrada.');
+              valido = false;
+            }
+          }
+        }
+
+        break;
+
+      case 'PASSAPORTE':
+        // 1. Validar data de validade
+        final hoje = DateTime.now();
+        bool temDataValida = false;
+        for (final data in datas) {
+          if (data.isAfter(hoje)) {
+            temDataValida = true;
+            break;
+          }
+        }
+        if (!temDataValida) {
+          erros.add('Passaporte parece estar vencido ou data de validade não identificada.');
+          valido = false;
+        }
+
+        // 2. Bater data de nascimento
+        if (dataNascimentoStr != null && dataNascimentoStr.isNotEmpty) {
+          final dataNascEsperada = _parseData(dataNascimentoStr);
+          if (dataNascEsperada != null) {
+            final dataEncontrada = _encontrarDataNascimento(datas, dataNascimentoStr);
+            if (dataEncontrada == null) {
+              erros.add('Data de nascimento não encontrada no passaporte.');
+              valido = false;
+            } else if (dataEncontrada.year != dataNascEsperada.year ||
+                       dataEncontrada.month != dataNascEsperada.month ||
+                       dataEncontrada.day != dataNascEsperada.day) {
+              erros.add('Data de nascimento do passaporte não confere com a cadastrada.');
+              valido = false;
+            }
+          }
+        }
+
+        // 3. Verificar nacionalidade
+        if (!_verificarNacionalidadeBrasileira(texto)) {
+          erros.add('Nacionalidade brasileira não identificada no passaporte.');
+          valido = false;
+        }
+
+        // 4. Verificar datas de emissão/validade
+        // Verificar se há data de emissão no futuro (impossível)
+        for (final data in datas) {
+          final dataFuturaLimite = hoje.add(const Duration(days: 365 * 15)); // Passaporte até 15 anos
+          if (data.isAfter(dataFuturaLimite)) {
+            erros.add('Data de emissão inválida (futura demais).');
+            valido = false;
+            break;
+          }
+        }
+
+        break;
+    }
+
+    setState(() {
+      doc.isValid = valido;
+      doc.isInvalid = !valido;
+      doc.errorMessage = valido ? null : erros.isNotEmpty ? erros.join('\n') : 'Não foi possível identificar seus dados no documento anexado. Tente novamente com outro anexo.';
+    });
+  }
+
+  /// Tenta encontrar a data de nascimento no documento comparando com a esperada
+  DateTime? _encontrarDataNascimento(List<DateTime> datas, String? dataNascimentoEsperada) {
+    if (datas.isEmpty) return null;
+    
+    final dataEsperada = _parseData(dataNascimentoEsperada);
+    if (dataEsperada != null) {
+      // Tenta encontrar data igual à esperada
+      for (final data in datas) {
+        if (data.year == dataEsperada.year && 
+            data.month == dataEsperada.month && 
+            data.day == dataEsperada.day) {
+          return data;
+        }
+      }
+    }
+    
+    // Se não encontrou pela data exata, retorna a primeira data que parece de nascimento
+    // (geralmente a mais antiga)
+    if (datas.length == 1) return datas.first;
+    
+    datas.sort((a, b) => a.compareTo(b));
+    return datas.first;
+  }
+
+  DateTime? _parseData(String? dataStr) {
+    if (dataStr == null || dataStr.isEmpty) return null;
+    try {
+      // Formato AAAA-MM-DD
+      if (dataStr.contains('-')) {
+        final partes = dataStr.split('-');
+        return DateTime(int.parse(partes[0]), int.parse(partes[1]), int.parse(partes[2]));
+      }
+      // Formato DD/MM/AAAA
+      if (dataStr.contains('/')) {
+        final partes = dataStr.split('/');
+        return DateTime(int.parse(partes[2]), int.parse(partes[1]), int.parse(partes[0]));
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  void _mostrarOpcoesDocumentoValido(_DocType doc) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(doc.label, style: const TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (doc.filePathFrente != null) ...[
+              const Text(
+                'Frente:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: doc.filePathFrente!.toLowerCase().endsWith('.pdf')
+                    ? const Icon(Icons.picture_as_pdf, size: 100, color: Colors.red)
+                    : Image.file(File(doc.filePathFrente!), height: 150, fit: BoxFit.contain),
+              ),
+            ],
+            if (doc.filePathVerso != null) ...[
+              const SizedBox(height: 12),
+              const Text(
+                'Verso:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: doc.filePathVerso!.toLowerCase().endsWith('.pdf')
+                    ? const Icon(Icons.picture_as_pdf, size: 100, color: Colors.red)
+                    : Image.file(File(doc.filePathVerso!), height: 150, fit: BoxFit.contain),
+              ),
+            ],
+            const SizedBox(height: 16),
+            const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.check_circle, color: Colors.green, size: 20),
+                SizedBox(width: 8),
+                Text(
+                  'Documento validado com sucesso.',
+                  style: TextStyle(color: Colors.green, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Fechar'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              // Abrir seleção para trocar
+              _selecionarDocumento(doc);
+            },
+            child: const Text('Trocar'),
+          ),
+          TextButton(
+            onPressed: () {
+              setState(() {
+                doc.isValid = false;
+                doc.isInvalid = false;
+                doc.filePathFrente = null;
+                doc.filePathVerso = null;
+                doc.errorMessage = null;
+              });
+              Navigator.pop(ctx);
+            },
+            child: const Text('Remover', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool _podeEnviar() => _docTypes.any((d) => d.isValid);
+
+  Future<void> _enviarDocumentos() async {
+    if (!_podeEnviar()) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('É necessário enviar pelo menos 1 documento anexado e validado.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
+    // Coletar tipos dos documentos validados
+    final docsData = _docTypes
+        .where((d) => d.isValid)
+        .map((d) => {
+              'tipo': d.type,
+            })
+        .toList();
+
+    if (mounted) {
+      Navigator.pop(context, {
+        'validado': true,
+        'docsData': docsData,
+      });
+    }
+  }
+}
+
+class _DocType {
+  final String label;
+  final String type;
+  bool isValid = false;
+  bool isInvalid = false;
+  String? filePathFrente;
+  String? filePathVerso;
+  String? errorMessage;
+
+  _DocType({required this.label, required this.type});
 }
 
 // ================= MASK INPUT FORMATTER =================
