@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
@@ -61,6 +62,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
   late TextEditingController _cpfController;
   late TextEditingController _cnpjController;
   late TextEditingController _razaoSocialController;
+  late TextEditingController _nomeFantasiaController;
   late TextEditingController _senhaController;
   late TextEditingController _confirmarSenhaController;
 
@@ -70,6 +72,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
 
   // Estados de erro para os inputs
   String? _erroNome;
+  String? _erroNomeFantasia;
   String? _erroCpf;
   String? _erroCnpj;
   String? _erroRazaoSocial;
@@ -97,6 +100,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
     _idFacial = widget.idFacial;
 
     _nomeController = TextEditingController(text: widget.nome ?? '');
+    _nomeFantasiaController = TextEditingController(text: '');
     _cpfController = TextEditingController(text: widget.cpf ?? '');
     _cnpjController = TextEditingController(text: widget.cnpj ?? '');
     _razaoSocialController = TextEditingController(
@@ -150,6 +154,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
   @override
   void dispose() {
     _nomeController.dispose();
+    _nomeFantasiaController.dispose();
     _cpfController.dispose();
     _cnpjController.dispose();
     _razaoSocialController.dispose();
@@ -207,6 +212,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
     for (int i = 0; i < 13; i++) {
       soma += numeros[i] * pesos2[i];
     }
+    resto = soma % 11;
     int digito2 = resto < 2 ? 0 : 11 - resto;
 
     return numeros[13] == digito2;
@@ -280,6 +286,22 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
       );
 
       final encontrado = response.statusCode == 200;
+
+      if (encontrado) {
+        final data = json.decode(response.body);
+        final razaoSocial = data['razao_social'] as String?;
+        final nomeFantasia = data['nome_fantasia'] as String?;
+        final telefone = data['ddd_telefone'] as String?;
+
+        if (razaoSocial != null && razaoSocial.isNotEmpty) {
+          _razaoSocialController.text = razaoSocial;
+          _erroRazaoSocial = null;
+        }
+        if (nomeFantasia != null && nomeFantasia.isNotEmpty) {
+          _nomeController.text = nomeFantasia;
+          _erroNomeFantasia = null;
+        }
+      }
 
       if (mounted) {
         setState(() {
@@ -677,11 +699,11 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                   ),
                 ),
                 _InputFieldWithAnimation(
-                  label: 'Nome',
-                  hint: 'Nome completo',
+                  label: 'Nome Fantasia',
+                  hint: 'Nome Fantasia',
                   keyboardType: TextInputType.name,
                   controller: _nomeController,
-                  errorText: _erroNome,
+                  errorText: _erroNomeFantasia,
                 ),
                 _InputFieldWithAnimation(
                   label: 'Razão Social',
@@ -1727,6 +1749,8 @@ class _CadastroProfissionalEtapa3PageState
             .from('pessoa_juridica')
             .insert({
               'cnpj': cnpjLimpo.isNotEmpty ? cnpjLimpo : null,
+              'razao_social': widget.razaoSocial,
+              'nome_fantasia': widget.nome,
               'tem_imovel': !widget.cnpjDeEmpresa,
             })
             .select()
