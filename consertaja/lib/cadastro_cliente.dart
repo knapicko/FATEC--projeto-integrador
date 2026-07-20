@@ -1,29 +1,63 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/gestures.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:http/http.dart' as http;
 import 'tela_home.dart';
 
 // ================= TELA: CADASTRO DO CLIENTE (ETAPA 1) =================
 class CadastroClientePage extends StatefulWidget {
-  const CadastroClientePage({super.key});
+  final String? nome;
+  final String? cpf;
+  final String? cnpj;
+  final String? razaoSocial;
+  final String? nomeFantasia;
+  final bool? isPessoaFisica;
+  final bool? cnpjDeEmpresa;
+
+  const CadastroClientePage({
+    super.key,
+    this.nome,
+    this.cpf,
+    this.cnpj,
+    this.razaoSocial,
+    this.nomeFantasia,
+    this.isPessoaFisica,
+    this.cnpjDeEmpresa,
+  });
 
   @override
   State<CadastroClientePage> createState() => _CadastroClientePageState();
 }
 
 class _CadastroClientePageState extends State<CadastroClientePage> {
-  final TextEditingController _nomeController = TextEditingController();
-  final TextEditingController _cpfController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _telefoneController = TextEditingController();
-  final TextEditingController _dataNascimentoController = TextEditingController();
-  
+  late bool _isPessoaFisica;
+  late bool _cnpjDeEmpresa;
+
+  late TextEditingController _nomeController;
+  late TextEditingController _cpfController;
+  late TextEditingController _cnpjController;
+  late TextEditingController _razaoSocialController;
+  late TextEditingController _nomeFantasiaController;
+  late TextEditingController _emailController;
+  late TextEditingController _telefoneController;
+  late TextEditingController _dataNascimentoController;
+
   final FocusNode _emailFocusNode = FocusNode();
   final FocusNode _telefoneFocusNode = FocusNode();
+  final FocusNode _cnpjFocusNode = FocusNode();
+
+  bool _validandoDocumento = false;
+  bool _documentoValido = false;
 
   String? _erroNome;
+  String? _erroNomeFantasia;
   String? _erroCpf;
+  String? _erroCnpj;
+  String? _erroRazaoSocial;
   String? _erroEmail;
   String? _erroTelefone;
   String? _erroDataNascimento;
@@ -31,6 +65,18 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
   @override
   void initState() {
     super.initState();
+
+    _isPessoaFisica = widget.isPessoaFisica ?? true;
+    _cnpjDeEmpresa = widget.cnpjDeEmpresa ?? true;
+
+    _nomeController = TextEditingController(text: widget.nome ?? '');
+    _cpfController = TextEditingController(text: widget.cpf ?? '');
+    _cnpjController = TextEditingController(text: widget.cnpj ?? '');
+    _razaoSocialController = TextEditingController(text: widget.razaoSocial ?? '');
+    _nomeFantasiaController = TextEditingController(text: widget.nomeFantasia ?? '');
+    _emailController = TextEditingController();
+    _telefoneController = TextEditingController();
+    _dataNascimentoController = TextEditingController();
 
     // Quando digita algo, o erro limpa e volta ao azul
     _nomeController.addListener(() {
@@ -41,6 +87,21 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
     _cpfController.addListener(() {
       if (_cpfController.text.isNotEmpty && _erroCpf != null) {
         setState(() => _erroCpf = null);
+      }
+    });
+    _cnpjController.addListener(() {
+      if (_cnpjController.text.isNotEmpty && _erroCnpj != null) {
+        setState(() => _erroCnpj = null);
+      }
+    });
+    _razaoSocialController.addListener(() {
+      if (_razaoSocialController.text.isNotEmpty && _erroRazaoSocial != null) {
+        setState(() => _erroRazaoSocial = null);
+      }
+    });
+    _nomeFantasiaController.addListener(() {
+      if (_nomeFantasiaController.text.isNotEmpty && _erroNomeFantasia != null) {
+        setState(() => _erroNomeFantasia = null);
       }
     });
     _emailController.addListener(() {
@@ -54,17 +115,22 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
       }
     });
 
-  _emailFocusNode.addListener(() {
-      // Quando o usuário SAIR do campo de e-mail (perder o foco)
+    _emailFocusNode.addListener(() {
       if (!_emailFocusNode.hasFocus && _emailController.text.isNotEmpty) {
         _verificarEmailDuplicado();
       }
     });
 
     _telefoneFocusNode.addListener(() {
-      // Quando o usuário SAIR do campo de telefone (perder o foco)
       if (!_telefoneFocusNode.hasFocus && _telefoneController.text.isNotEmpty) {
         _verificarTelefoneDuplicado();
+      }
+    });
+
+    // Auto-preencher dados quando o CNPJ perder o foco e for válido
+    _cnpjFocusNode.addListener(() {
+      if (!_cnpjFocusNode.hasFocus && !_isPessoaFisica) {
+        _autoPreencherDadosCnpj();
       }
     });
   }
@@ -73,29 +139,180 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
   void dispose() {
     _emailFocusNode.dispose();
     _telefoneFocusNode.dispose();
+    _cnpjFocusNode.dispose();
     _nomeController.dispose();
     _cpfController.dispose();
+    _cnpjController.dispose();
+    _razaoSocialController.dispose();
+    _nomeFantasiaController.dispose();
     _emailController.dispose();
     _telefoneController.dispose();
     _dataNascimentoController.dispose();
     super.dispose();
   }
 
+  String _somenteDigitos(String valor) {
+    return valor.replaceAll(RegExp(r'\D'), '');
+  }
+
+  bool _validarCpfLocal(String cpf) {
+    if (cpf.length != 11) return false;
+    if (RegExp(r'^(\d)\1{10}$').hasMatch(cpf)) return false;
+
+    final numeros = cpf.split('').map(int.parse).toList();
+
+    int soma = 0;
+    for (int i = 0; i < 9; i++) {
+      soma += numeros[i] * (10 - i);
+    }
+    int resto = soma % 11;
+    int digito1 = resto < 2 ? 0 : 11 - resto;
+    if (numeros[9] != digito1) return false;
+
+    soma = 0;
+    for (int i = 0; i < 10; i++) {
+      soma += numeros[i] * (11 - i);
+    }
+    resto = soma % 11;
+    int digito2 = resto < 2 ? 0 : 11 - resto;
+
+    return numeros[10] == digito2;
+  }
+
+  bool _validarCnpjLocal(String cnpj) {
+    if (cnpj.length != 14) return false;
+    if (RegExp(r'^(\d)\1{13}$').hasMatch(cnpj)) return false;
+
+    final numeros = cnpj.split('').map(int.parse).toList();
+
+    const pesos1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    const pesos2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+
+    int soma = 0;
+    for (int i = 0; i < 12; i++) {
+      soma += numeros[i] * pesos1[i];
+    }
+    int resto = soma % 11;
+    int digito1 = resto < 2 ? 0 : 11 - resto;
+    if (numeros[12] != digito1) return false;
+
+    soma = 0;
+    for (int i = 0; i < 13; i++) {
+      soma += numeros[i] * pesos2[i];
+    }
+    resto = soma % 11;
+    int digito2 = resto < 2 ? 0 : 11 - resto;
+
+    return numeros[13] == digito2;
+  }
+
+  Future<bool> _validarDocumentoDigitado({bool obrigatorio = false}) async {
+    final documento = _isPessoaFisica
+        ? _cpfController.text
+        : _cnpjController.text;
+    final doc = _somenteDigitos(documento);
+
+    if (doc.isEmpty) {
+      if (obrigatorio) {
+        setState(() {
+          if (_isPessoaFisica) {
+            _erroCpf = 'O CPF é obrigatório';
+          } else {
+            _erroCnpj = 'O CNPJ é obrigatório';
+          }
+          _documentoValido = false;
+        });
+      }
+      return false;
+    }
+
+    if (_isPessoaFisica) {
+      if (doc.length < 11) {
+        setState(() => _documentoValido = false);
+        return false;
+      }
+
+      final valido = _validarCpfLocal(doc);
+
+      setState(() {
+        _erroCpf = valido ? null : 'O CPF não corresponde a um CPF real.';
+        _documentoValido = valido;
+      });
+
+      return valido;
+    }
+
+    // Para CNPJ, valida localmente e depois consulta BrasilAPI
+    if (doc.length < 14) {
+      setState(() => _documentoValido = false);
+      return false;
+    }
+
+    final validoLocal = _validarCnpjLocal(doc);
+    if (!validoLocal) {
+      setState(() {
+        _erroCnpj = 'O CNPJ não corresponde a um CNPJ real.';
+        _documentoValido = false;
+      });
+      return false;
+    }
+
+    setState(() => _validandoDocumento = true);
+
+    try {
+      final response = await http.get(
+        Uri.parse('https://brasilapi.com.br/api/cnpj/v1/$doc'),
+      );
+
+      final encontrado = response.statusCode == 200;
+
+      if (encontrado) {
+        final data = json.decode(response.body);
+        final razaoSocial = data['razao_social'] as String?;
+        final nomeFantasia = data['nome_fantasia'] as String?;
+
+        if (razaoSocial != null && razaoSocial.isNotEmpty) {
+          _razaoSocialController.text = razaoSocial;
+          _erroRazaoSocial = null;
+        }
+        if (nomeFantasia != null && nomeFantasia.isNotEmpty) {
+          _nomeFantasiaController.text = nomeFantasia;
+          _erroNomeFantasia = null;
+        }
+      }
+
+      setState(() {
+        _erroCnpj = encontrado
+            ? null
+            : 'O CNPJ não foi encontrado na BrasilAPI.';
+        _documentoValido = encontrado;
+      });
+
+      return encontrado;
+    } catch (_) {
+      setState(() {
+        _erroCnpj = 'Não foi possível validar o CNPJ agora.';
+        _documentoValido = false;
+      });
+      return false;
+    } finally {
+      setState(() => _validandoDocumento = false);
+    }
+  }
+
   // Função para verificar se o email já existe
   Future<void> _verificarEmailDuplicado() async {
     final email = _emailController.text.trim();
-  
+
     if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
-      return; 
+      return;
     }
 
     try {
       final supabase = Supabase.instance.client;
-      
-      // Busca na sua tabela de clientes se já existe esse e-mail
-      // NOTA: Ajuste 'clientes' para o nome exato da sua tabela no Supabase se for diferente
+
       final list = await supabase
-          .from('emails') 
+          .from('emails')
           .select('endereco_email')
           .eq('endereco_email', email);
 
@@ -109,7 +326,7 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
     }
   }
 
-Future<void> _verificarTelefoneDuplicado() async {
+  Future<void> _verificarTelefoneDuplicado() async {
     final apenasNumeros = _telefoneController.text.replaceAll(RegExp(r'\D'), '');
     if (apenasNumeros.length < 10) return;
 
@@ -118,11 +335,11 @@ Future<void> _verificarTelefoneDuplicado() async {
 
     try {
       final supabase = Supabase.instance.client;
-      
+
       final list = await supabase
-          .from('telefones') 
+          .from('telefones')
           .select('numero')
-          .eq('ddd', dddDigitado)       
+          .eq('ddd', dddDigitado)
           .eq('numero', numeroDigitado);
       if (list.isNotEmpty) {
         setState(() {
@@ -131,6 +348,45 @@ Future<void> _verificarTelefoneDuplicado() async {
       }
     } catch (e) {
       debugPrint('Erro ao verificar telefone: $e');
+    }
+  }
+
+  Future<void> _autoPreencherDadosCnpj() async {
+    final doc = _somenteDigitos(_cnpjController.text);
+
+    if (doc.length < 14) return;
+
+    final valido = _validarCnpjLocal(doc);
+    if (!valido) return;
+
+    try {
+      final response = await http.get(
+        Uri.parse('https://brasilapi.com.br/api/cnpj/v1/$doc'),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final razaoSocial = data['razao_social'] as String?;
+        final nomeFantasia = data['nome_fantasia'] as String?;
+        final telefone = data['ddd_telefone'] as String?;
+
+        if (razaoSocial != null && razaoSocial.isNotEmpty) {
+          _razaoSocialController.text = razaoSocial;
+        }
+        if (nomeFantasia != null && nomeFantasia.isNotEmpty) {
+          _nomeFantasiaController.text = nomeFantasia;
+        }
+        if (telefone != null && telefone.isNotEmpty) {
+          final telefoneLimpo = telefone.replaceAll(RegExp(r'\D'), '');
+          if (telefoneLimpo.length >= 10) {
+            final ddd = telefoneLimpo.substring(0, 2);
+            final numero = telefoneLimpo.substring(2);
+            _telefoneController.text = '($ddd) $numero';
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Erro ao auto-preencher dados do CNPJ: $e');
     }
   }
 
@@ -163,6 +419,91 @@ Future<void> _verificarTelefoneDuplicado() async {
         _erroDataNascimento = null;
       });
     }
+  }
+
+  Future<void> _continuarCadastro() async {
+    setState(() {
+      if (_isPessoaFisica) {
+        _erroNome = _nomeController.text.trim().isEmpty
+            ? 'O nome é obrigatório'
+            : null;
+        _erroCpf = _cpfController.text.trim().isEmpty
+            ? 'O CPF é obrigatório'
+            : null;
+        _erroCnpj = null;
+        _erroRazaoSocial = null;
+        _erroNomeFantasia = null;
+        _erroDataNascimento = _dataNascimentoController.text.trim().isEmpty
+            ? 'A data de nascimento é obrigatória'
+            : null;
+      } else {
+        _erroNomeFantasia = _nomeFantasiaController.text.trim().isEmpty
+            ? 'O Nome Fantasia é obrigatório'
+            : null;
+        _erroCnpj = _cnpjController.text.trim().isEmpty
+            ? 'O CNPJ é obrigatório'
+            : null;
+        _erroRazaoSocial = _razaoSocialController.text.trim().isEmpty
+            ? 'A Razão Social é obrigatória'
+            : null;
+        _erroCpf = null;
+        _erroNome = null;
+        _erroDataNascimento = null;
+      }
+
+      _erroEmail = _emailController.text.trim().isEmpty
+          ? 'O e-mail é obrigatório'
+          : null;
+      _erroTelefone = _telefoneController.text.trim().isEmpty
+          ? 'O telefone é obrigatório'
+          : null;
+    });
+
+    if (_erroNome != null ||
+        _erroCpf != null ||
+        _erroCnpj != null ||
+        _erroRazaoSocial != null ||
+        _erroNomeFantasia != null ||
+        _erroEmail != null ||
+        _erroTelefone != null ||
+        _erroDataNascimento != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Por favor, preencha todos os campos obrigatórios.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Valida CPF ou CNPJ antes de continuar
+    final documentoValido = await _validarDocumentoDigitado(obrigatorio: true);
+
+    if (!documentoValido) {
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CadastroClienteEtapa2Page(
+          nome: _isPessoaFisica
+              ? _nomeController.text.trim()
+              : _nomeFantasiaController.text.trim(),
+          cpf: _isPessoaFisica ? _cpfController.text.trim() : null,
+          cnpj: !_isPessoaFisica ? _cnpjController.text.trim() : null,
+          razaoSocial: !_isPessoaFisica ? _razaoSocialController.text.trim() : null,
+          nomeFantasia: !_isPessoaFisica ? _nomeFantasiaController.text.trim() : null,
+          isPessoaFisica: _isPessoaFisica,
+          cnpjDeEmpresa: _cnpjDeEmpresa,
+          email: _emailController.text.trim(),
+          telefone: _telefoneController.text.trim(),
+          dataNascimento: _dataNascimentoController.text.trim(),
+          fotoPerfilUrl: 'null',
+        ),
+      ),
+    );
   }
 
   @override
@@ -212,21 +553,151 @@ Future<void> _verificarTelefoneDuplicado() async {
             ),
             const SizedBox(height: 35),
 
-            _InputFieldWithAnimation(
-              label: 'Nome completo',
-              hint: 'Nome completo',
-              keyboardType: TextInputType.name,
-              controller: _nomeController,
-              errorText: _erroNome,
+            // Slider container for pessoa física/juridica
+            Container(
+              width: double.infinity,
+              height: 52,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF2F2F2),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              padding: const EdgeInsets.all(4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() {
+                        _isPessoaFisica = true;
+                        _erroCnpj = null;
+                        _erroRazaoSocial = null;
+                        _erroCpf = null;
+                        _erroNomeFantasia = null;
+                      }),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        decoration: BoxDecoration(
+                          color: _isPessoaFisica
+                              ? const Color(0xFF00A2FF)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          'Física',
+                          style: TextStyle(
+                            color: _isPessoaFisica
+                                ? Colors.white
+                                : const Color(0xFF828282),
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() {
+                        _isPessoaFisica = false;
+                        _erroCpf = null;
+                        _erroRazaoSocial = null;
+                        _erroNomeFantasia = null;
+                      }),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        decoration: BoxDecoration(
+                          color: !_isPessoaFisica
+                              ? const Color(0xFF00A2FF)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          'Jurídica',
+                          style: TextStyle(
+                            color: !_isPessoaFisica
+                                ? Colors.white
+                                : const Color(0xFF828282),
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            _InputFieldWithAnimation(
-              label: 'CPF',
-              hint: '___.___.___-__',
-              keyboardType: TextInputType.number,
-              inputFormatters: [MaskedInputFormatter('###.###.###-##')],
-              controller: _cpfController,
-              errorText: _erroCpf,
-            ),
+
+            const SizedBox(height: 35),
+
+            if (_isPessoaFisica) ...[
+              _InputFieldWithAnimation(
+                label: 'CPF',
+                hint: '___.___.___-__',
+                keyboardType: TextInputType.number,
+                inputFormatters: [MaskedInputFormatter('###.###.###-##')],
+                controller: _cpfController,
+                errorText: _erroCpf,
+              ),
+            ] else ...[
+              _InputFieldWithAnimation(
+                label: 'CNPJ',
+                hint: '__.___.___/____-__',
+                keyboardType: TextInputType.number,
+                inputFormatters: [MaskedInputFormatter('##.###.###/####-##')],
+                controller: _cnpjController,
+                errorText: _erroCnpj,
+                focusNode: _cnpjFocusNode,
+              ),
+              const SizedBox(height: 10),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 25, left: 4, top: 5),
+                child: Column(
+                  children: [
+                    _buildCustomRadioButton(
+                      text: 'CNPJ de uma empresa',
+                      isSelected: _cnpjDeEmpresa,
+                      onTap: () => setState(() => _cnpjDeEmpresa = true),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildCustomRadioButton(
+                      text: 'Tenho um imóvel registrado em CNPJ',
+                      isSelected: !_cnpjDeEmpresa,
+                      onTap: () => setState(() => _cnpjDeEmpresa = false),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            if (_isPessoaFisica) ...[
+              _InputFieldWithAnimation(
+                label: 'Nome completo',
+                hint: 'Nome completo',
+                keyboardType: TextInputType.name,
+                controller: _nomeController,
+                errorText: _erroNome,
+              ),
+            ] else ...[
+              _InputFieldWithAnimation(
+                label: 'Nome Fantasia',
+                hint: 'Nome Fantasia',
+                keyboardType: TextInputType.name,
+                controller: _nomeFantasiaController,
+                errorText: _erroNomeFantasia,
+              ),
+            ],
+
+            if (!_isPessoaFisica) ...[
+              _InputFieldWithAnimation(
+                label: 'Razão Social',
+                hint: 'Razão Social',
+                controller: _razaoSocialController,
+                errorText: _erroRazaoSocial,
+              ),
+            ],
+
             _InputFieldWithAnimation(
               label: 'Email',
               hint: 'exemplo@email.com',
@@ -244,16 +715,19 @@ Future<void> _verificarTelefoneDuplicado() async {
               errorText: _erroTelefone,
               focusNode: _telefoneFocusNode,
             ),
-            _InputFieldWithAnimation(
-              label: 'Data de Nascimento',
-              hint: 'DD-MM-AAAA',
-              suffixIcon: Icons.calendar_month,
-              controller: _dataNascimentoController,
-              readOnly: true,
-              onTap: _fazerUploadDataNascimento,
-              onSuffixIconTap: _fazerUploadDataNascimento,
-              errorText: _erroDataNascimento,
-            ),
+            
+            if (_isPessoaFisica) ...[
+              _InputFieldWithAnimation(
+                label: 'Data de Nascimento',
+                hint: 'DD-MM-AAAA',
+                suffixIcon: Icons.calendar_month,
+                controller: _dataNascimentoController,
+                readOnly: true,
+                onTap: _fazerUploadDataNascimento,
+                onSuffixIconTap: _fazerUploadDataNascimento,
+                errorText: _erroDataNascimento,
+              ),
+            ],
 
             const SizedBox(height: 40),
 
@@ -261,55 +735,7 @@ Future<void> _verificarTelefoneDuplicado() async {
               width: double.infinity,
               height: 55,
               child: ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    _erroNome = _nomeController.text.trim().isEmpty
-                        ? 'O nome é obrigatório'
-                        : null;
-                    _erroCpf = _cpfController.text.trim().isEmpty
-                        ? 'O CPF é obrigatório'
-                        : null;
-                    _erroEmail = _emailController.text.trim().isEmpty
-                        ? 'O e-mail é obrigatório'
-                        : null;
-                    _erroTelefone = _telefoneController.text.trim().isEmpty
-                        ? 'O telefone é obrigatório'
-                        : null;
-                    _erroDataNascimento =
-                        _dataNascimentoController.text.trim().isEmpty
-                        ? 'A data de nascimento é obrigatória'
-                        : null;
-                  });
-
-                  if (_erroNome != null ||
-                      _erroCpf != null ||
-                      _erroEmail != null ||
-                      _erroTelefone != null ||
-                      _erroDataNascimento != null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Por favor, preencha todos os campos obrigatórios.',
-                        ),
-                      ),
-                    );
-                    return;
-                  }
-
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => CadastroClienteEtapa2Page(
-                        nome: _nomeController.text.trim(),
-                        cpf: _cpfController.text.trim(),
-                        email: _emailController.text.trim(),
-                        telefone: _telefoneController.text.trim(),
-                        dataNascimento: _dataNascimentoController.text.trim(),
-                        fotoPerfilUrl: 'null'
-                      ),
-                    ),
-                  );
-                },
+                onPressed: _continuarCadastro,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF00A2FF),
                   shape: RoundedRectangleBorder(
@@ -357,6 +783,54 @@ Future<void> _verificarTelefoneDuplicado() async {
 
   Widget _buildStepLine() {
     return Container(width: 40, height: 4, color: const Color(0xFFEFEFEF));
+  }
+
+  Widget _buildCustomRadioButton({
+    required String text,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Row(
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isSelected
+                    ? const Color(0xFF00A2FF)
+                    : const Color(0xFFBDBDBD),
+                width: 2,
+              ),
+              color: isSelected ? const Color(0xFF00A2FF) : Colors.transparent,
+            ),
+            child: isSelected
+                ? const Center(
+                    child: Icon(Icons.circle, size: 8, color: Colors.white),
+                  )
+                : null,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: isSelected
+                    ? const Color(0xFF00A2FF)
+                    : const Color(0xFF828282),
+                fontSize: 14,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -590,8 +1064,8 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                         color: hasError
                             ? Colors.red
                             : (_isFocused
-                                  ? const Color(0xFF00A2FF)
-                                  : Colors.grey.shade400),
+                                ? const Color(0xFF00A2FF)
+                                : Colors.grey.shade400),
                         size: 22,
                       ),
                     ),
@@ -647,7 +1121,12 @@ class MaskedInputFormatter extends TextInputFormatter {
 // ================= TELA: CADASTRO DO CLIENTE (ETAPA 2) =================
 class CadastroClienteEtapa2Page extends StatefulWidget {
   final String nome;
-  final String cpf;
+  final String? cpf;
+  final String? cnpj;
+  final String? razaoSocial;
+  final String? nomeFantasia;
+  final bool isPessoaFisica;
+  final bool cnpjDeEmpresa;
   final String email;
   final String telefone;
   final String dataNascimento;
@@ -656,7 +1135,12 @@ class CadastroClienteEtapa2Page extends StatefulWidget {
   const CadastroClienteEtapa2Page({
     super.key,
     required this.nome,
-    required this.cpf,
+    this.cpf,
+    this.cnpj,
+    this.razaoSocial,
+    this.nomeFantasia,
+    required this.isPessoaFisica,
+    required this.cnpjDeEmpresa,
     required this.email,
     required this.telefone,
     required this.dataNascimento,
@@ -681,22 +1165,19 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
   bool get _temOitoCaracteres => _senhaController.text.length >= 8;
   bool get _temMaiuscula => _senhaController.text.contains(RegExp(r'[A-Z]'));
   bool get _temMinuscula => _senhaController.text.contains(RegExp(r'[a-z]'));
-  bool get _temSimbolo => _senhaController.text.contains(RegExp(r'[^A-Za-z0-9\s]'),); // Qualquer caractere que não seja letra, número ou espaço vazio
+  bool get _temSimbolo => _senhaController.text.contains(RegExp(r'[^A-Za-z0-9\s]'));
   bool get _temNumero => _senhaController.text.contains(RegExp(r'[0-9]'));
+
   @override
   void initState() {
     super.initState();
-    // Adiciona o ouvinte para reconstruir a lista de requisitos conforme digita
-    _senhaController.addListener(_atualizarInterface);
-  }
-
-  void _atualizarInterface() {
-    if (mounted) setState(() {});
+    _senhaController.addListener(() {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void dispose() {
-    _senhaController.removeListener(_atualizarInterface);
     _senhaController.dispose();
     _confirmarSenhaController.dispose();
     super.dispose();
@@ -764,24 +1245,52 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
           .single();
       final telefoneId = telefoneResponse['id_telefone'];
 
-      final cpfLimpo = widget.cpf.replaceAll(RegExp(r'\D'), '');
-      final pfResponse = await supabase
-          .from('pessoa_fisica')
-          .insert({'cpf': cpfLimpo.isNotEmpty ? cpfLimpo : null})
-          .select()
-          .single();
-      final pfId = pfResponse['id_pessoa_fisica'];
+      int assTipoPessoaId;
 
-      final assResponse = await supabase
-          .from('ass_tipo_pessoa')
-          .insert({
-            'tipo': 'Física',
-            'fk_pessoa_fisica': pfId,
-            'fk_pessoa_juridica': null,
-          })
-          .select()
-          .single();
-      final assTipoPessoaId = assResponse['id_tipo_pessoa'];
+      if (widget.isPessoaFisica) {
+        final cpfLimpo = widget.cpf?.replaceAll(RegExp(r'\D'), '') ?? '';
+        final pfResponse = await supabase
+            .from('pessoa_fisica')
+            .insert({'cpf': cpfLimpo.isNotEmpty ? cpfLimpo : null})
+            .select()
+            .single();
+        final pfId = pfResponse['id_pessoa_fisica'];
+
+        final assResponse = await supabase
+            .from('ass_tipo_pessoa')
+            .insert({
+              'tipo': 'Física',
+              'fk_pessoa_fisica': pfId,
+              'fk_pessoa_juridica': null,
+            })
+            .select()
+            .single();
+        assTipoPessoaId = assResponse['id_tipo_pessoa'];
+      } else {
+        final cnpjLimpo = widget.cnpj?.replaceAll(RegExp(r'\D'), '') ?? '';
+        final pjResponse = await supabase
+            .from('pessoa_juridica')
+            .insert({
+              'cnpj': cnpjLimpo.isNotEmpty ? cnpjLimpo : null,
+              'razao_social': widget.razaoSocial,
+              'nome_fantasia': widget.nomeFantasia,
+              'tem_imovel': !widget.cnpjDeEmpresa,
+            })
+            .select()
+            .single();
+        final pjId = pjResponse['id_pessoa_juridica'];
+
+        final assResponse = await supabase
+            .from('ass_tipo_pessoa')
+            .insert({
+              'tipo': 'Pessoa Jurídica',
+              'fk_pessoa_fisica': null,
+              'fk_pessoa_juridica': pjId,
+            })
+            .select()
+            .single();
+        assTipoPessoaId = assResponse['id_tipo_pessoa'];
+      }
 
       await supabase.from('usuarios').insert({
         'nome': widget.nome,
@@ -808,7 +1317,6 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
         );
       }
     } on AuthException catch (e) {
-      // Captura o erro específico de Autenticação do Supabase
       String mensagemAmigavel = 'Ocorreu um erro ao registrar.';
 
       if (e.toString().contains('AuthWeakPasswordException') ||
@@ -966,8 +1474,8 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
               child: ElevatedButton(
                 onPressed:
                     (_aceitouTermos && _aceitouPrivacidade && !_carregando)
-                    ? _finalizarCadastroBanco
-                    : null,
+                        ? _finalizarCadastroBanco
+                        : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF00A2FF),
                   disabledBackgroundColor: const Color(
@@ -1060,8 +1568,6 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
             text: TextSpan(
               style: TextStyle(
                 color: Colors.grey.shade700,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
               ),
               children: [
                 TextSpan(text: prefixText),
