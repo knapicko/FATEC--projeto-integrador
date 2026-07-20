@@ -3283,13 +3283,89 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
     return valor.replaceAll(RegExp(r'\D'), '');
   }
 
+  /// Valida CPF localmente (mesmo método da classe de cadastro)
+  bool _validarCpfLocal(String cpf) {
+    if (cpf.length != 11) return false;
+    if (RegExp(r'^(\d)\1{10}$').hasMatch(cpf)) return false;
+
+    final numeros = cpf.split('').map(int.parse).toList();
+
+    int soma = 0;
+    for (int i = 0; i < 9; i++) {
+      soma += numeros[i] * (10 - i);
+    }
+    int resto = soma % 11;
+    int digito1 = resto < 2 ? 0 : 11 - resto;
+    if (numeros[9] != digito1) return false;
+
+    soma = 0;
+    for (int i = 0; i < 10; i++) {
+      soma += numeros[i] * (11 - i);
+    }
+    resto = soma % 11;
+    int digito2 = resto < 2 ? 0 : 11 - resto;
+
+    return numeros[10] == digito2;
+  }
+
   /// Extrai CPF do texto (formato com ou sem pontuação)
+  /// Reconhece: XXX.XXX.XXX-XX, XXXXXXXXXXX, XXXXXXXXX/XX, XXX.XXXXXX/XX, e variações
   String? _extrairCpf(String texto) {
-    final regex = RegExp(r'\d{3}\.?\d{3}\.?\d{3}-?\d{2}');
-    final match = regex.firstMatch(texto);
+    // Normaliza o texto para melhorar reconhecimento
+    var textoNormalizado = texto.replaceAll(RegExp(r'\s+'), ' ').toUpperCase();
+    
+    // Tentativa 1: Formato padrão XXX.XXX.XXX-XX ou sem formatação
+    final regex1 = RegExp(r'\d{3}\.?\d{3}\.?\d{3}-?\d{2}');
+    var match = regex1.firstMatch(textoNormalizado);
     if (match != null) {
       return _somenteDigitos(match.group(0)!);
     }
+
+    // Tentativa 2: Formato com barra (9-11 dígitos + barra + 2 dígitos) - CPF/DV comum em RG
+    final regex2 = RegExp(r'\d{9,11}/\d{2}');
+    match = regex2.firstMatch(textoNormalizado);
+    if (match != null) {
+      return _somenteDigitos(match.group(0)!);
+    }
+
+    // Tentativa 3: Formato XXX.XXXXXX/XX
+    final regex3 = RegExp(r'\d{3}\.\d{6}/\d{2}');
+    match = regex3.firstMatch(textoNormalizado);
+    if (match != null) {
+      return _somenteDigitos(match.group(0)!);
+    }
+
+    // Tentativa 4: Padrão com "CPF:" no texto
+    final regex4 = RegExp(r'CPF[:\s]*(\d{3}[\s\.]?\d{3}[\s\.]?\d{3}[\s\-]?\d{2})');
+    match = regex4.firstMatch(textoNormalizado);
+    if (match != null) {
+      return _somenteDigitos(match.group(1)!);
+    }
+
+    // Tentativa 5: Busca por sequências de 11 caracteres que pareçam CPF
+    // Captura dígitos e possíveis letras confundidas com números (X, I, L, O)
+    final regex5 = RegExp(r'[0-9XIL]{11,14}');
+    final matches = regex5.allMatches(textoNormalizado);
+    for (final m in matches) {
+      final candidato = _somenteDigitos(m.group(0)!);
+      if (candidato.length == 11 && _validarCpfLocal(candidato)) {
+        return candidato;
+      }
+    }
+
+    // Tentativa 6: Busca por qualquer sequência de 11 dígitos consecutivos
+    final apenasDigitos = _somenteDigitos(texto);
+    if (apenasDigitos.length >= 11) {
+      for (int i = 0; i <= apenasDigitos.length - 11; i++) {
+        final candidato = apenasDigitos.substring(i, i + 11);
+        if (!RegExp(r'^(\d)\1{10}$').hasMatch(candidato)) {
+          if (_validarCpfLocal(candidato)) {
+            return candidato;
+          }
+        }
+      }
+    }
+
     return null;
   }
 
@@ -3556,7 +3632,7 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
 
     final XFile? file = await _picker.pickImage(
       source: source,
-      imageQuality: 85,
+      imageQuality: 100, // Máxima qualidade para OCR preciso
     );
 
     if (file == null) return;
