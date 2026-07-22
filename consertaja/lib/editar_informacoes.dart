@@ -46,13 +46,15 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
     }
     final partes = nome.trim().split(' ');
     if (partes.length > 1) {
+      // Nome + Sobrenome: pega primeira letra do primeiro nome e primeira letra do sobrenome
+      final primeiroNome = partes.first.trim();
       final sobrenome = partes.last.trim();
-      if (sobrenome.length >= 2) {
-        return sobrenome.substring(0, 2).toUpperCase();
-      }
-      return sobrenome.toUpperCase();
+      final primeiraLetraNome = primeiroNome.isNotEmpty ? primeiroNome.substring(0, 1) : '';
+      final primeiraLetraSobrenome = sobrenome.isNotEmpty ? sobrenome.substring(0, 1) : '';
+      return (primeiraLetraNome + primeiraLetraSobrenome).toUpperCase();
     }
-    return nome.substring(0, 1).toUpperCase();
+    // Apenas nome: pega as primeiras 2 letras
+    return nome.length >= 2 ? nome.substring(0, 2).toUpperCase() : nome.substring(0, 1).toUpperCase();
   }
 
   Future<void> _carregarDados() async {
@@ -1023,15 +1025,12 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                 ),
                 const SizedBox(height: 16),
 
-                // Data de Nascimento
+                // Data de Nascimento (não editável)
                 _buildInfoField(
                   label: 'Data de Nascimento',
                   value: _dataNascimento.isNotEmpty ? _dataNascimento : 'Definir agora',
                   icon: Icons.cake_outlined,
-                  editable: true,
-                  showArrow: _dataNascimento.isEmpty,
-                  showEditButton: _dataNascimento.isNotEmpty,
-                  onTap: () => _definirCampo('Data de Nascimento'),
+                  editable: false,
                 ),
                 const SizedBox(height: 16),
 
