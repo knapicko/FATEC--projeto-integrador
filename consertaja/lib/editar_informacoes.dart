@@ -1,10 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
-import 'services/validacao_telefone.dart';
-import 'widgets/seletor_ddi.dart';
+import 'tela_meu_perfil_cliente.dart';
 
 class EditarInformacoesPage extends StatefulWidget {
   const EditarInformacoesPage({super.key});
@@ -34,7 +32,6 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
   int? _telefoneId;
   String? _telefoneDDD;
   String? _telefoneNumero;
-  String _ddiSelecionado = '+55';
   int? _usuarioId;
 
   @override
@@ -395,27 +392,9 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                     const SizedBox(height: 20),
                     TextFormField(
                       controller: controller,
-                      keyboardType: campo == 'Celular'
-                          ? TextInputType.phone
-                          : null,
-                      inputFormatters: campo == 'Celular'
-                          ? [FilteringTextInputFormatter.allow(RegExp(r'[\d+\-() ]'))]
-                          : null,
                       decoration: InputDecoration(
                         labelText: campo,
                         labelStyle: const TextStyle(color: _blue),
-                        prefixIcon: campo == 'Celular'
-                            ? Padding(
-                                padding: const EdgeInsets.only(left: 4),
-                                child: SeletorDDI(
-                                  ddiInicial: _ddiSelecionado,
-                                  corPrimaria: _blue,
-                                  onChanged: (ddi) {
-                                    setState(() => _ddiSelecionado = ddi);
-                                  },
-                                ),
-                              )
-                            : null,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide(color: Colors.white),
@@ -430,13 +409,6 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
                           return 'Este campo não pode ficar vazio';
-                        }
-                        // Validação específica para telefone
-                        if (campo == 'Celular') {
-                          final validacao = validarTelefoneCompleto(value);
-                          if (!validacao.valido) {
-                            return validacao.erro ?? 'Telefone inválido';
-                          }
                         }
                         return null;
                       },
@@ -562,20 +534,6 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
 
   Future<void> _salvarTelefone(String novoTelefone) async {
     try {
-      // Valida estrutura do telefone antes de salvar
-      final validacaoTelefone = validarTelefoneCompleto(novoTelefone);
-      if (!validacaoTelefone.valido) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(validacaoTelefone.erro ?? 'Telefone inválido'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-
       final user = _supabase.auth.currentUser;
       if (user == null) return;
 

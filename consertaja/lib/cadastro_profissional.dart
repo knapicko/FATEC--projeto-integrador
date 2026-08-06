@@ -13,7 +13,7 @@ import 'package:flutter/gestures.dart';
 import 'package:http/http.dart' as http;
 
 import 'login.dart';
-
+import 'tela_home.dart';
 import 'tela_home_profissional.dart';
 
 import 'package:camera/camera.dart';
@@ -23,12 +23,6 @@ import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
-
-import 'services/google_auth_service.dart';
-import 'services/validacao_telefone.dart';
-import 'widgets/seletor_ddi.dart';
-import 'completar_cadastro.dart';
-import 'tela_home.dart';
 
 // ================= TELA 01: CADASTRO DO PROFISSIONAL (ETAPA 1) =================
 class CadastroProfissionalPage extends StatefulWidget {
@@ -41,7 +35,6 @@ class CadastroProfissionalPage extends StatefulWidget {
   final bool? cnpjDeEmpresa;
   final String? fotoPerfilUrl;
   final String? idFacial;
-  final String? email;
 
   const CadastroProfissionalPage({
     super.key,
@@ -54,7 +47,6 @@ class CadastroProfissionalPage extends StatefulWidget {
     this.cnpjDeEmpresa,
     this.fotoPerfilUrl,
     this.idFacial,
-    this.email,
   });
 
   @override
@@ -73,7 +65,6 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
   late TextEditingController _nomeFantasiaController;
   late TextEditingController _senhaController;
   late TextEditingController _confirmarSenhaController;
-  late TextEditingController _dataFundacaoController;
 
   String? _fotoPerfilUrl;
 
@@ -87,60 +78,9 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
   String? _erroRazaoSocial;
   String? _erroSenha;
   String? _erroConfirmarSenha;
-  String? _erroDataFundacao;
 
   bool _validandoDocumento = false;
   bool _documentoValido = false;
-
-  bool _carregandoGoogle = false;
-
-Future<void> _continuarComGoogle() async {
-  setState(() => _carregandoGoogle = true);
-  try {
-    final user = await GoogleAuthService.signInWithGoogle();
-    if (user == null || !mounted) return;
-
-    final perfil = await GoogleAuthService.buscarPerfil(user.id);
-    if (!mounted) return;
-
-    if (perfil != null) {
-      final isProfissional = perfil['tipo_conta'] == 'Profissional';
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (_) => isProfissional
-              ? TelaHomeProfissional(isVisitante: false)
-              : TelaHome(isVisitante: false),
-        ),
-        (route) => false,
-      );
-      return;
-    }
-
-    final fotoUrl = (user.userMetadata?['avatar_url'] as String?) ??
-        GoogleAuthService.ultimaFotoUrl;
-
-    // >>> AQUI, no lugar do que ia pra CompletarCadastroClientePage <
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => CompletarCadastroProfissionalPage(
-          authId: user.id,
-          emailGoogle: user.email ?? '',
-          nomeGoogle: user.userMetadata?['full_name'] as String?,
-          fotoUrlGoogle: fotoUrl,
-        ),
-      ),
-    );
-  } catch (e) {
-    if (mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erro ao entrar com Google: $e')));
-    }
-  } finally {
-    if (mounted) setState(() => _carregandoGoogle = false);
-  }
-}
 
   // Getters para os requisitos da senha
   bool get _temOitoCaracteres => _senhaController.text.length >= 8;
@@ -168,7 +108,6 @@ Future<void> _continuarComGoogle() async {
     );
     _senhaController = TextEditingController(text: widget.senha ?? '');
     _confirmarSenhaController = TextEditingController(text: widget.senha ?? '');
-    _dataFundacaoController = TextEditingController();
 
     _senhaController.addListener(() {
       if (_senhaController.text.isNotEmpty && _erroSenha != null) {
@@ -221,7 +160,6 @@ Future<void> _continuarComGoogle() async {
     _razaoSocialController.dispose();
     _senhaController.dispose();
     _confirmarSenhaController.dispose();
-    _dataFundacaoController.dispose();
     super.dispose();
   }
 
@@ -390,36 +328,6 @@ Future<void> _continuarComGoogle() async {
     }
   }
 
-  Future<void> _fazerUploadDataFundacao() async {
-    DateTime? dataSelecionada = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now().subtract(const Duration(days: 365 * 5)),
-      firstDate: DateTime(1900),
-      lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFF00A2FF),
-              onPrimary: Colors.white,
-              onSurface: Colors.black,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-    if (dataSelecionada != null) {
-      String dia = dataSelecionada.day.toString().padLeft(2, '0');
-      String mes = dataSelecionada.month.toString().padLeft(2, '0');
-      String ano = dataSelecionada.year.toString();
-      setState(() {
-        _dataFundacaoController.text = '$ano-$mes-$dia';
-        _erroDataFundacao = null;
-      });
-    }
-  }
-
   Future<void> _irParaEtapa2() async {
     setState(() {
       _erroNome = _nomeController.text.trim().isEmpty
@@ -430,13 +338,6 @@ Future<void> _continuarComGoogle() async {
         _erroRazaoSocial = _razaoSocialController.text.trim().isEmpty
             ? 'A Razão Social é obrigatória'
             : null;
-        // Se for PJ de empresa, exige data de fundação
-        _erroDataFundacao = (_cnpjDeEmpresa &&
-                _dataFundacaoController.text.trim().isEmpty)
-            ? 'A data de fundação é obrigatória'
-            : null;
-      } else {
-        _erroDataFundacao = null;
       }
 
       if (!_temOitoCaracteres ||
@@ -462,7 +363,6 @@ Future<void> _continuarComGoogle() async {
         _erroRazaoSocial != null ||
         _erroSenha != null ||
         _erroConfirmarSenha != null ||
-        _erroDataFundacao != null ||
         !documentoOk) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -524,7 +424,6 @@ Future<void> _continuarComGoogle() async {
           senha: _senhaController.text,
           isPessoaFisica: _isPessoaFisica,
           cnpjDeEmpresa: _cnpjDeEmpresa,
-          dataFundacao: _dataFundacaoController.text.trim(),
           fotoPerfilUrl: _fotoPerfilUrl,
           idFacial: _idFacial,
         ),
@@ -812,18 +711,6 @@ Future<void> _continuarComGoogle() async {
                   controller: _razaoSocialController,
                   errorText: _erroRazaoSocial,
                 ),
-                if (_cnpjDeEmpresa) ...[
-                  _InputFieldWithAnimation(
-                    label: 'Data de Fundação',
-                    hint: 'AAAA-MM-DD',
-                    suffixIcon: Icons.calendar_month,
-                    controller: _dataFundacaoController,
-                    readOnly: true,
-                    onTap: _fazerUploadDataFundacao,
-                    onSuffixIconTap: _fazerUploadDataFundacao,
-                    errorText: _erroDataFundacao,
-                  ),
-                ],
                 _InputFieldWithAnimation(
                   label: 'Senha',
                   hint: 'Digite sua senha',
@@ -871,7 +758,7 @@ Future<void> _continuarComGoogle() async {
 
               const SizedBox(height: 10),
 
- SizedBox(
+              SizedBox(
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton(
@@ -893,36 +780,6 @@ Future<void> _continuarComGoogle() async {
                   ),
                 ),
               ),
-
-              const SizedBox(height: 20),
-              Row(children: [
-                Expanded(child: Divider(color: Colors.grey.shade300)),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Text('ou', style: TextStyle(color: Colors.grey.shade500)),
-                ),
-                Expanded(child: Divider(color: Colors.grey.shade300)),
-              ]),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: OutlinedButton.icon(
-                  onPressed: _carregandoGoogle ? null : _continuarComGoogle,
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFFDADCE0)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  ),
-                  icon: _carregandoGoogle
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.g_mobiledata, size: 28, color: Colors.black87),
-                  label: Text(
-                    _carregandoGoogle ? 'Conectando...' : 'Continuar com Google',
-                    style: const TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ),
-
               const SizedBox(height: 20),
 
               Row(
@@ -1064,7 +921,6 @@ class CadastroProfissionalEtapa2Page extends StatefulWidget {
   final String senha;
   final bool isPessoaFisica;
   final bool cnpjDeEmpresa;
-  final String dataFundacao;
   final String? fotoPerfilUrl;
   final String? idFacial;
 
@@ -1077,7 +933,6 @@ class CadastroProfissionalEtapa2Page extends StatefulWidget {
     required this.senha,
     required this.isPessoaFisica,
     required this.cnpjDeEmpresa,
-    this.dataFundacao = '',
     this.fotoPerfilUrl,
     this.idFacial,
   });
@@ -1108,7 +963,6 @@ class _CadastroProfissionalEtapa2PageState
   String? _erroDataNascimento;
   String? _erroAtuacao;
   String? _idFacial;
-  String _ddiSelecionado = '+55';
   final FocusNode _emailFocusNode = FocusNode();
   final FocusNode _telefoneFocusNode = FocusNode();
 
@@ -1254,15 +1108,6 @@ class _CadastroProfissionalEtapa2PageState
     );
     if (apenasNumeros.length < 10) return;
 
-    // Valida estrutura do telefone antes de verificar duplicidade
-    final validacao = validarTelefoneCompleto(_telefoneController.text);
-    if (!validacao.valido) {
-      if (mounted) {
-        setState(() => _erroTelefone = validacao.erro);
-      }
-      return;
-    }
-
     final dddDigitado = apenasNumeros.substring(0, 2);
     final numeroDigitado = apenasNumeros.substring(2);
 
@@ -1284,23 +1129,12 @@ class _CadastroProfissionalEtapa2PageState
 
   void _irParaEtapa3() async {
     setState(() {
-      // Email OU Telefone: pelo menos 1 é obrigatório
-      final emailVazio = _emailController.text.trim().isEmpty;
-      final telefoneVazio = _telefoneController.text.trim().isEmpty;
-
-      if (emailVazio && telefoneVazio) {
-        _erroEmail = 'Informe email ou telefone';
-        _erroTelefone = 'Informe email ou telefone';
-      } else if (!telefoneVazio) {
-        // Valida estrutura do telefone
-        final validacao = validarTelefoneCompleto(_telefoneController.text);
-        _erroTelefone = validacao.valido ? null : validacao.erro;
-        _erroEmail = null;
-      } else {
-        _erroEmail = null;
-        _erroTelefone = null;
-      }
-
+      _erroEmail = _emailController.text.trim().isEmpty
+          ? 'O E-mail é obrigatório'
+          : null;
+      _erroTelefone = _telefoneController.text.trim().isEmpty
+          ? 'O Telefone é obrigatório'
+          : null;
       _erroDataNascimento = _dataNascimentoController.text.trim().isEmpty
           ? 'A Data de Nascimento é obrigatória'
           : null;
@@ -1356,7 +1190,6 @@ class _CadastroProfissionalEtapa2PageState
           email: _emailController.text.trim(),
           telefone: _telefoneController.text.trim(),
           dataNascimento: _dataNascimentoController.text.trim(),
-          dataFundacao: widget.dataFundacao,
           areaAtuacao: _atuacaoController.text.trim(),
           fotoPerfilUrl: widget.fotoPerfilUrl,
           idFacial: _idFacial,
@@ -1471,16 +1304,6 @@ class _CadastroProfissionalEtapa2PageState
                 controller: _telefoneController,
                 errorText: _erroTelefone,
                 focusNode: _telefoneFocusNode,
-                prefixWidget: SeletorDDI(
-                  ddiInicial: _ddiSelecionado,
-                  corPrimaria: const Color(0xFF00A2FF),
-                  onChanged: (ddi) {
-                    setState(() => _ddiSelecionado = ddi);
-                    if (_erroTelefone != null) {
-                      setState(() => _erroTelefone = null);
-                    }
-                  },
-                ),
               ),
 
               _InputFieldWithAnimation(
@@ -1756,7 +1579,6 @@ class CadastroProfissionalEtapa3Page extends StatefulWidget {
   final String email;
   final String telefone;
   final String dataNascimento;
-  final String dataFundacao;
   final String areaAtuacao;
   final String? fotoPerfilUrl;
   final String? idFacial;
@@ -1773,7 +1595,6 @@ class CadastroProfissionalEtapa3Page extends StatefulWidget {
     required this.email,
     required this.telefone,
     required this.dataNascimento,
-    this.dataFundacao = '',
     required this.areaAtuacao,
     this.fotoPerfilUrl,
     this.idFacial,
@@ -1931,9 +1752,6 @@ class _CadastroProfissionalEtapa3PageState
               'razao_social': widget.razaoSocial,
               'nome_fantasia': widget.nome,
               'tem_imovel': !widget.cnpjDeEmpresa,
-              'data_fundacao': widget.dataFundacao.isNotEmpty
-                  ? widget.dataFundacao
-                  : null,
             })
             .select()
             .single();
@@ -3187,7 +3005,6 @@ class _InputFieldWithAnimation extends StatefulWidget {
   final String hint;
   final IconData? suffixIcon;
   final Color? suffixIconColor;
-  final Widget? prefixWidget;
   final List<TextInputFormatter>? inputFormatters;
   final TextInputType? keyboardType;
   final bool obscureText;
@@ -3203,7 +3020,6 @@ class _InputFieldWithAnimation extends StatefulWidget {
     required this.hint,
     this.suffixIcon,
     this.suffixIconColor,
-    this.prefixWidget,
     this.inputFormatters,
     this.keyboardType,
     this.obscureText = false,
@@ -3318,10 +3134,6 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
-                  if (widget.prefixWidget != null) ...[
-                    widget.prefixWidget!,
-                    const SizedBox(width: 8),
-                  ],
                   Expanded(
                     child: Stack(
                       alignment: Alignment.centerLeft,
@@ -3699,7 +3511,7 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
                         width: 100,
                         height: 70,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF0FB3FF).withValues(alpha: 0.1),
+                          color: const Color(0xFF0FB3FF).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Icon(Icons.credit_card, size: 50, color: Color(0xFF0FB3FF)),

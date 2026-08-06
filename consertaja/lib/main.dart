@@ -3,11 +3,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'tela_home.dart';
 import 'tela_home_profissional.dart';
-import 'atualizar_senha.dart';
-import 'cadastro_cliente.dart';
 import 'cadastro_profissional.dart';
+import 'cadastro_cliente.dart';
 import 'login.dart';
-import 'services/google_auth_service.dart';
+import 'atualizar_senha.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
@@ -16,7 +15,7 @@ void main() async {
 
   await Supabase.initialize(
     url: 'https://woqhicdlnkoksypipyoz.supabase.co',
-    publishableKey: 'sb_publishable_RFFTWcp3nJ8vEG0hACjwfA_b2thYfaw',
+    anonKey: 'sb_publishable_RFFTWcp3nJ8vEG0hACjwfA_b2thYfaw',
   );
   // 3. CONFIGURAR O LISTENER DIRETAMENTE NO MAIN
   Supabase.instance.client.auth.onAuthStateChange.listen((data) {
@@ -57,22 +56,16 @@ class _MyAppState extends State<MyApp> {
   Future<void> _determinarHome() async {
     final session = Supabase.instance.client.auth.currentSession;
 
-    if (session != null) {
+    if (session != null && session.user != null) {
       try {
-        final response = await GoogleAuthService.buscarPerfil(session.user.id);
+        final supabase = Supabase.instance.client;
+        final response = await supabase
+            .from('usuarios')
+            .select('tipo_conta')
+            .eq('auth_id', session.user!.id)
+            .maybeSingle();
 
-        if (response == null) {
-          await Supabase.instance.client.auth.signOut();
-          if (mounted) {
-            setState(() {
-              _homeWidget = const TelaEscolhaConta();
-              _carregando = false;
-            });
-          }
-          return;
-        }
-
-        final isProfissional = response['tipo_conta'] == 'Profissional';
+        final isProfissional = response?['tipo_conta'] == 'Profissional';
 
         if (mounted) {
           setState(() {
@@ -85,7 +78,7 @@ class _MyAppState extends State<MyApp> {
       } catch (_) {
         if (mounted) {
           setState(() {
-            _homeWidget = const TelaEscolhaConta();
+            _homeWidget = TelaHome(isVisitante: false);
             _carregando = false;
           });
         }
