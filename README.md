@@ -1,7 +1,7 @@
 ## Projeto - Conserta Já
 
-| **Equipe** | **Tecnologias Utilizadas** |
-|------------|---------------------------|
+| **Equipe** | **Tecnologias Utilizadas** | **APIs** |
+|------------|---------------------------|------------|
 | • Flávio Henrique (Project Owner) <br> • Gabriel Santos (Desenvolvedor Back-end) <br> • Gustavo Almeida (Desenvolvedor Full-Stack e Designer) <br> • Leandro Oliveira (Designer e Analista) <br> • Lucas Eiji (Scrum Mater e Analista) <br> • Luiz Knapick (Analista e Desenvolvedor Full-Stack) | • Dart <br> • Flutter <br> • Supabase <br> • Google Cloud |
 
 ##
