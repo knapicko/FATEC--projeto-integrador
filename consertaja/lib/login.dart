@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'tela_home.dart';
 import 'tela_home_profissional.dart';
 import 'esqueci_senha.dart';
+import 'services/auth_navigation.dart';
 
 // ================= TELA: LOGIN =================
 class LoginPage extends StatefulWidget {
@@ -98,9 +99,12 @@ class _LoginPageState extends State<LoginPage> {
 
       // LEMBRETE: Cole o seu Client ID da Web aqui dentro
       const webClientId =
-          '558968043989-rmv282bv5r41ntrkk4bumu4v0m7hdbs7.apps.googleusercontent.com';
+          '558968043989-4od8kobfna5a0art52usjpo7sjk8joao.apps.googleusercontent.com';
 
-      final googleSignIn = GoogleSignIn(clientId: webClientId);
+      // Na web, usa apenas clientId (serverClientId não é suportado na web)
+      final googleSignIn = GoogleSignIn(
+        clientId: webClientId,
+      );
       final googleUser = await googleSignIn.signIn();
 
       if (googleUser == null) {
@@ -122,7 +126,32 @@ class _LoginPageState extends State<LoginPage> {
         accessToken: accessToken,
       );
 
+      // Salva a foto nos metadados do Supabase para uso posterior
+      final currentUser = supabase.auth.currentUser;
+      if (currentUser != null) {
+        final metadataAtual = currentUser.userMetadata ?? {};
+        final nome = googleUser.displayName;
+        final foto = googleUser.photoUrl;
+
+        if ((nome != null && metadataAtual['full_name'] != nome) ||
+            (foto != null && metadataAtual['avatar_url'] != foto)) {
+          try {
+            await supabase.auth.updateUser(
+              UserAttributes(
+                data: {
+                  'full_name': nome ?? metadataAtual['full_name'],
+                  'avatar_url': foto ?? metadataAtual['avatar_url'],
+                },
+              ),
+            );
+          } catch (_) {}
+        }
+      }
+
       if (mounted) {
+        // Captura a foto do Google
+        final fotoUrlGoogle = googleUser.photoUrl;
+        
         // Verificar se o usuário é um profissional
         final supabase = Supabase.instance.client;
         final currentUser = supabase.auth.currentUser;
@@ -136,13 +165,33 @@ class _LoginPageState extends State<LoginPage> {
           final isProfissional = usuarioResponse?['tipo_conta'] == 'Profissional';
 
           if (mounted) {
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (context) => isProfissional
-                  ? TelaHomeProfissional(isVisitante: false)
-                  : TelaHome(isVisitante: false)),
-              (route) => false,
-            );
+            if (isProfissional) {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => TelaHomeProfissional(isVisitante: false)),
+                (route) => false,
+              );
+            } else if (usuarioResponse == null) {
+              // Usuário não tem perfil, redireciona para escolher tipo de conta
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => TelaEscolhaContaCompletar(
+                    authId: currentUser.id,
+                    emailGoogle: currentUser.email ?? '',
+                    nomeGoogle: googleUser.displayName,
+                    fotoUrlGoogle: fotoUrlGoogle,
+                  ),
+                ),
+                (route) => false,
+              );
+            } else {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => TelaHome(isVisitante: false)),
+                (route) => false,
+              );
+            }
           }
         } else {
           if (mounted) {
