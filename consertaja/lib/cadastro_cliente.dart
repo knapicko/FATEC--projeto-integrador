@@ -12,6 +12,7 @@ import 'services/validacao_telefone.dart';
 import 'widgets/seletor_ddi.dart';
 import 'completar_cadastro.dart';
 import 'tela_home_profissional.dart';
+import 'login.dart';
 
 // ================= TELA: CADASTRO DO CLIENTE (ETAPA 1) =================
 class CadastroClientePage extends StatefulWidget {
@@ -928,6 +929,34 @@ Future<void> _continuarComGoogle() async {
             ),
 
             const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  'Já tem uma conta? ',
+                  style: TextStyle(color: Colors.black, fontSize: 13),
+                ),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const LoginPage(),
+                      ),
+                    );
+                  },
+                  child: const Text(
+                    'Faça login.',
+                    style: TextStyle(
+                      color: Color(0xFF00A2FF),
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 30),
           ],
         ),
       ),

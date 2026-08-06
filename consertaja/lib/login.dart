@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_sign_in/google_sign_in.dart'; // Importação do Google adicionada
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'services/google_auth_service.dart';
 import 'tela_home.dart';
 import 'tela_home_profissional.dart';
 import 'esqueci_senha.dart';
@@ -96,111 +96,55 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       final supabase = Supabase.instance.client;
+      final user = await GoogleAuthService.signInWithGoogle();
 
-      // LEMBRETE: Cole o seu Client ID da Web aqui dentro
-      const webClientId =
-          '558968043989-4od8kobfna5a0art52usjpo7sjk8joao.apps.googleusercontent.com';
-
-      // Na web, usa apenas clientId (serverClientId não é suportado na web)
-      final googleSignIn = GoogleSignIn(
-        clientId: webClientId,
-      );
-      final googleUser = await googleSignIn.signIn();
-
-      if (googleUser == null) {
-        setState(() => _carregando = false);
+      if (user == null) {
         return; // Usuário cancelou o login
       }
 
-      final googleAuth = await googleUser.authentication;
-      final idToken = googleAuth.idToken;
-      final accessToken = googleAuth.accessToken;
+      if (!mounted) return;
 
-      if (idToken == null) {
-        throw 'Não foi possível obter o ID Token do Google.';
-      }
-
-      await supabase.auth.signInWithIdToken(
-        provider: OAuthProvider.google,
-        idToken: idToken,
-        accessToken: accessToken,
-      );
-
-      // Salva a foto nos metadados do Supabase para uso posterior
       final currentUser = supabase.auth.currentUser;
-      if (currentUser != null) {
-        final metadataAtual = currentUser.userMetadata ?? {};
-        final nome = googleUser.displayName;
-        final foto = googleUser.photoUrl;
-
-        if ((nome != null && metadataAtual['full_name'] != nome) ||
-            (foto != null && metadataAtual['avatar_url'] != foto)) {
-          try {
-            await supabase.auth.updateUser(
-              UserAttributes(
-                data: {
-                  'full_name': nome ?? metadataAtual['full_name'],
-                  'avatar_url': foto ?? metadataAtual['avatar_url'],
-                },
-              ),
-            );
-          } catch (_) {}
-        }
+      if (currentUser == null) {
+        throw 'Falha ao obter usuário autenticado após login com Google.';
       }
+
+      final usuarioResponse = await supabase
+          .from('usuarios')
+          .select('tipo_conta')
+          .eq('auth_id', currentUser.id)
+          .maybeSingle();
+
+      final isProfissional = usuarioResponse?['tipo_conta'] == 'Profissional';
+      final nomeGoogle = GoogleAuthService.extrairNome(currentUser);
+      final fotoUrlGoogle = currentUser.userMetadata?['avatar_url'] as String? ?? GoogleAuthService.ultimaFotoUrl;
 
       if (mounted) {
-        // Captura a foto do Google
-        final fotoUrlGoogle = googleUser.photoUrl;
-        
-        // Verificar se o usuário é um profissional
-        final supabase = Supabase.instance.client;
-        final currentUser = supabase.auth.currentUser;
-        if (currentUser != null) {
-          final usuarioResponse = await supabase
-              .from('usuarios')
-              .select('tipo_conta')
-              .eq('auth_id', currentUser.id)
-              .maybeSingle();
-
-          final isProfissional = usuarioResponse?['tipo_conta'] == 'Profissional';
-
-          if (mounted) {
-            if (isProfissional) {
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => TelaHomeProfissional(isVisitante: false)),
-                (route) => false,
-              );
-            } else if (usuarioResponse == null) {
-              // Usuário não tem perfil, redireciona para escolher tipo de conta
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => TelaEscolhaContaCompletar(
-                    authId: currentUser.id,
-                    emailGoogle: currentUser.email ?? '',
-                    nomeGoogle: googleUser.displayName,
-                    fotoUrlGoogle: fotoUrlGoogle,
-                  ),
-                ),
-                (route) => false,
-              );
-            } else {
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => TelaHome(isVisitante: false)),
-                (route) => false,
-              );
-            }
-          }
+        if (isProfissional) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => TelaHomeProfissional(isVisitante: false)),
+            (route) => false,
+          );
+        } else if (usuarioResponse == null) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(
+              builder: (_) => TelaEscolhaContaCompletar(
+                authId: currentUser.id,
+                emailGoogle: currentUser.email ?? '',
+                nomeGoogle: nomeGoogle,
+                fotoUrlGoogle: fotoUrlGoogle,
+              ),
+            ),
+            (route) => false,
+          );
         } else {
-          if (mounted) {
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (context) => TelaHome(isVisitante: false)),
-              (route) => false,
-            );
-          }
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => TelaHome(isVisitante: false)),
+            (route) => false,
+          );
         }
       }
     } catch (e) {

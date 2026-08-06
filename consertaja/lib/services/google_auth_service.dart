@@ -8,56 +8,64 @@ class GoogleAuthService {
   static const webClientId =
       '558968043989-4od8kobfna5a0art52usjpo7sjk8joao.apps.googleusercontent.com';
 
+  static bool _googleSignInInitialized = false;
+
   /// Armazena a URL da foto do último login do Google.
   /// Usado em telas que precisam da foto mas não têm acesso direto ao
   /// [GoogleSignInAccount].
   static String? ultimaFotoUrl;
 
+  static Future<void> _initializeGoogleSignIn() async {
+    if (_googleSignInInitialized) return;
+
+    await GoogleSignIn.instance.initialize(
+      clientId: kIsWeb ? webClientId : null,
+      serverClientId: webClientId,
+    );
+
+    _googleSignInInitialized = true;
+  }
+
   static Future<User?> signInWithGoogle() async {
     final supabase = Supabase.instance.client;
-    
-    if (kIsWeb) {
-      // Na web, usamos signInSilently que retorna idToken de forma confiável
-      final googleSignIn = GoogleSignIn(clientId: webClientId);
-      
-      // Tenta fazer login silencioso primeiro
-      final googleUser = await googleSignIn.signInSilently();
-      
-      // Se não houver usuário logado, faz login normal
-      if (googleUser == null) {
-        return await _signInWithGoogleWeb(googleSignIn, supabase);
-      }
-      
-      return await _processGoogleUser(googleUser, supabase);
-    } else {
-      // Em mobile/desktop, usa o método tradicional
-      final googleSignIn = GoogleSignIn();
-      final googleUser = await googleSignIn.signIn();
+    await _initializeGoogleSignIn();
 
-      if (googleUser == null) return null;
-
-      return await _processGoogleUser(googleUser, supabase);
-    }
-  }
-  
-  static Future<User?> _signInWithGoogleWeb(
-    GoogleSignIn googleSignIn,
-    SupabaseClient supabase,
-  ) async {
     try {
-      final googleUser = await googleSignIn.signIn();
+      GoogleSignInAccount? googleUser;
+
+      if (!kIsWeb) {
+        // Limpa credenciais antigas que podem causar falhas de reautenticação.
+        try {
+          await GoogleSignIn.instance.disconnect();
+        } catch (_) {}
+        try {
+          await GoogleSignIn.instance.signOut();
+        } catch (_) {}
+      }
+
+      if (kIsWeb) {
+        googleUser = await GoogleSignIn.instance.attemptLightweightAuthentication();
+        googleUser ??= await GoogleSignIn.instance.authenticate();
+      } else {
+        googleUser = await GoogleSignIn.instance.authenticate();
+      }
+
       if (googleUser == null) return null;
+
       return await _processGoogleUser(googleUser, supabase);
     } catch (e) {
       throw Exception('Erro ao fazer login com Google: $e');
     }
   }
   
+  // Nota: fluxo web está tratado em `signInWithGoogle`, este método não é mais
+  // necessário com a API 7.x.
+  
   static Future<User?> _processGoogleUser(
     GoogleSignInAccount googleUser,
     SupabaseClient supabase,
   ) async {
-    final googleAuth = await googleUser.authentication;
+    final googleAuth = googleUser.authentication;
     final idToken = googleAuth.idToken;
 
     if (idToken == null) {
@@ -67,10 +75,20 @@ class GoogleAuthService {
     // Guarda a foto para uso posterior em outras telas
     ultimaFotoUrl = googleUser.photoUrl;
 
+    // Tenta obter um accessToken para autorização (pode ser nulo)
+    String? accessToken;
+    try {
+      final authz = await googleUser.authorizationClient
+          .authorizationForScopes(['email', 'profile']);
+      accessToken = authz?.accessToken;
+    } catch (_) {
+      accessToken = null;
+    }
+
     final response = await supabase.auth.signInWithIdToken(
       provider: OAuthProvider.google,
       idToken: idToken,
-      accessToken: googleAuth.accessToken,
+      accessToken: accessToken,
     );
 
     // Persiste nome e foto nos metadados do usuário no Supabase,

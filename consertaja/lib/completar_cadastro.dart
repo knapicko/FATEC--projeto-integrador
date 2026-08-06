@@ -103,8 +103,7 @@ class _CompletarCadastroClientePageState
   final TextEditingController _cpfController = TextEditingController();
   final TextEditingController _cnpjController = TextEditingController();
   final TextEditingController _razaoSocialController = TextEditingController();
-  final TextEditingController _nomeFantasiaController =
-      TextEditingController();
+  final TextEditingController _nomeFantasiaController = TextEditingController();
   final TextEditingController _telefoneController = TextEditingController();
   final TextEditingController _dataNascimentoController =
       TextEditingController();
@@ -158,7 +157,10 @@ class _CompletarCadastroClientePageState
   }
 
   Future<void> _verificarTelefoneDuplicado() async {
-    final apenasNumeros = _telefoneController.text.replaceAll(RegExp(r'\D'), '');
+    final apenasNumeros = _telefoneController.text.replaceAll(
+      RegExp(r'\D'),
+      '',
+    );
     if (apenasNumeros.length < 10) return;
 
     // Valida estrutura do telefone antes de verificar duplicidade
@@ -188,8 +190,9 @@ class _CompletarCadastroClientePageState
     final doc = _somenteDigitos(_cnpjController.text);
     if (doc.length < 14 || !_validarCnpjLocal(doc)) return;
     try {
-      final response =
-          await http.get(Uri.parse('https://brasilapi.com.br/api/cnpj/v1/$doc'));
+      final response = await http.get(
+        Uri.parse('https://brasilapi.com.br/api/cnpj/v1/$doc'),
+      );
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final razaoSocial = data['razao_social'] as String?;
@@ -239,11 +242,14 @@ class _CompletarCadastroClientePageState
 
     setState(() => _validandoDocumento = true);
     try {
-      final response =
-          await http.get(Uri.parse('https://brasilapi.com.br/api/cnpj/v1/$doc'));
+      final response = await http.get(
+        Uri.parse('https://brasilapi.com.br/api/cnpj/v1/$doc'),
+      );
       final encontrado = response.statusCode == 200;
       setState(() {
-        _erroCnpj = encontrado ? null : 'O CNPJ não foi encontrado na BrasilAPI.';
+        _erroCnpj = encontrado
+            ? null
+            : 'O CNPJ não foi encontrado na BrasilAPI.';
         _documentoValido = encontrado;
       });
       return encontrado;
@@ -320,8 +326,10 @@ class _CompletarCadastroClientePageState
 
   Future<void> _finalizarCadastro() async {
     setState(() {
-      _erroNome = _nomeController.text.trim().isEmpty ? 'O nome é obrigatório' : null;
-      
+      _erroNome = _nomeController.text.trim().isEmpty
+          ? 'O nome é obrigatório'
+          : null;
+
       // Email OU Telefone: pelo menos 1 é obrigatório
       final emailVazio = widget.emailGoogle.trim().isEmpty;
       final telefoneVazio = _telefoneController.text.trim().isEmpty;
@@ -347,8 +355,8 @@ class _CompletarCadastroClientePageState
             : null;
         _erroDataNascimento = null;
         // Se for PJ com imóvel, exige data de fundação
-        _erroDataFundacao = (!_cnpjDeEmpresa &&
-                _dataFundacaoController.text.trim().isEmpty)
+        _erroDataFundacao =
+            (!_cnpjDeEmpresa && _dataFundacaoController.text.trim().isEmpty)
             ? 'A data de fundação é obrigatória'
             : null;
       }
@@ -388,10 +396,16 @@ class _CompletarCadastroClientePageState
           .single();
       final emailId = emailResponse['id_email'];
 
-      final telefoneLimpo = _telefoneController.text.replaceAll(RegExp(r'\D'), '');
-      final ddd = telefoneLimpo.length >= 2 ? telefoneLimpo.substring(0, 2) : '';
-      final numero =
-          telefoneLimpo.length > 2 ? telefoneLimpo.substring(2) : telefoneLimpo;
+      final telefoneLimpo = _telefoneController.text.replaceAll(
+        RegExp(r'\D'),
+        '',
+      );
+      final ddd = telefoneLimpo.length >= 2
+          ? telefoneLimpo.substring(0, 2)
+          : '';
+      final numero = telefoneLimpo.length > 2
+          ? telefoneLimpo.substring(2)
+          : telefoneLimpo;
 
       final telefoneResponse = await supabase
           .from('telefones')
@@ -605,7 +619,11 @@ class _CompletarCadastroClientePageState
                 inputFormatters: [_MaskedInputFormatter('###.###.###-##')],
                 errorText: _erroCpf,
               ),
-              _CampoTexto(label: 'Nome completo', controller: _nomeController, errorText: _erroNome),
+              _CampoTexto(
+                label: 'Nome completo',
+                controller: _nomeController,
+                errorText: _erroNome,
+              ),
               _CampoTexto(
                 label: 'Data de Nascimento',
                 controller: _dataNascimentoController,
@@ -673,7 +691,8 @@ class _CompletarCadastroClientePageState
             ),
             CheckboxListTile(
               value: _aceitouPrivacidade,
-              onChanged: (v) => setState(() => _aceitouPrivacidade = v ?? false),
+              onChanged: (v) =>
+                  setState(() => _aceitouPrivacidade = v ?? false),
               controlAffinity: ListTileControlAffinity.leading,
               contentPadding: EdgeInsets.zero,
               title: const Text('Li e aceito a Política de Privacidade'),
@@ -683,15 +702,25 @@ class _CompletarCadastroClientePageState
             SizedBox(
               height: 55,
               child: ElevatedButton(
-                onPressed: (_carregando || _validandoDocumento) ? null : _finalizarCadastro,
+                onPressed: (_carregando || _validandoDocumento)
+                    ? null
+                    : _finalizarCadastro,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF00A2FF),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                 ),
                 child: _carregando
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('Finalizar Cadastro',
-                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                    : const Text(
+                        'Finalizar Cadastro',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
             const SizedBox(height: 20),
@@ -735,7 +764,8 @@ class _CompletarCadastroProfissionalPageState
   final TextEditingController _cnpjController = TextEditingController();
   final TextEditingController _razaoSocialController = TextEditingController();
   final TextEditingController _telefoneController = TextEditingController();
-  final TextEditingController _dataNascimentoController = TextEditingController();
+  final TextEditingController _dataNascimentoController =
+      TextEditingController();
   final TextEditingController _atuacaoController = TextEditingController();
 
   bool _carregandoOficios = true;
@@ -743,8 +773,13 @@ class _CompletarCadastroProfissionalPageState
   final List<Map<String, dynamic>> _oficiosSelecionados = [];
   bool _showAtuacaoDropdown = false;
 
-  String? _erroNome, _erroCpf, _erroCnpj, _erroRazaoSocial, _erroTelefone,
-      _erroDataNascimento, _erroAtuacao;
+  String? _erroNome,
+      _erroCpf,
+      _erroCnpj,
+      _erroRazaoSocial,
+      _erroTelefone,
+      _erroDataNascimento,
+      _erroAtuacao;
   String _ddiSelecionado = '+55';
 
   @override
@@ -772,13 +807,16 @@ class _CompletarCadastroProfissionalPageState
   }
 
   void _atualizarTextoAtuacao() {
-    _atuacaoController.text =
-        _oficiosSelecionados.map((e) => e['funcao']).join(', ');
+    _atuacaoController.text = _oficiosSelecionados
+        .map((e) => e['funcao'])
+        .join(', ');
     if (_oficiosSelecionados.isNotEmpty) _erroAtuacao = null;
   }
 
   Future<bool> _validarDocumento() async {
-    final doc = _somenteDigitos(_isPessoaFisica ? _cpfController.text : _cnpjController.text);
+    final doc = _somenteDigitos(
+      _isPessoaFisica ? _cpfController.text : _cnpjController.text,
+    );
     if (doc.isEmpty) {
       setState(() {
         if (_isPessoaFisica) {
@@ -825,18 +863,29 @@ class _CompletarCadastroProfissionalPageState
 
   Future<void> _continuar() async {
     setState(() {
-      _erroNome = _nomeController.text.trim().isEmpty ? 'O nome é obrigatório' : null;
-      _erroTelefone = _telefoneController.text.trim().isEmpty
-          ? 'O telefone é obrigatório'
-          : (validarTelefoneCompleto(_telefoneController.text).valido
-                ? null
-                : validarTelefoneCompleto(_telefoneController.text).erro);
-      _erroDataNascimento =
-          _dataNascimentoController.text.trim().isEmpty ? 'A data de nascimento é obrigatória' : null;
-      _erroAtuacao = _oficiosSelecionados.isEmpty ? 'Selecione pelo menos 1 área de atuação' : null;
+      _erroNome = _nomeController.text.trim().isEmpty
+          ? 'O nome é obrigatório'
+          : null;
+      final emailVazio = widget.emailGoogle.trim().isEmpty;
+      final telefoneVazio = _telefoneController.text.trim().isEmpty;
+      if (emailVazio && telefoneVazio) {
+        _erroTelefone = 'Informe email ou telefone';
+      } else if (!telefoneVazio) {
+        final validacao = validarTelefoneCompleto(_telefoneController.text);
+        _erroTelefone = validacao.valido ? null : validacao.erro;
+      } else {
+        _erroTelefone = null;
+      }
+      _erroDataNascimento = _dataNascimentoController.text.trim().isEmpty
+          ? 'A data de nascimento é obrigatória'
+          : null;
+      _erroAtuacao = _oficiosSelecionados.isEmpty
+          ? 'Selecione pelo menos 1 área de atuação'
+          : null;
       if (!_isPessoaFisica) {
-        _erroRazaoSocial =
-            _razaoSocialController.text.trim().isEmpty ? 'A Razão Social é obrigatória' : null;
+        _erroRazaoSocial = _razaoSocialController.text.trim().isEmpty
+            ? 'A Razão Social é obrigatória'
+            : null;
       } else {
         _erroRazaoSocial = null;
       }
@@ -851,7 +900,9 @@ class _CompletarCadastroProfissionalPageState
         _erroRazaoSocial != null ||
         !documentoOk) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Preencha todos os campos obrigatórios corretamente.')),
+        const SnackBar(
+          content: Text('Preencha todos os campos obrigatórios corretamente.'),
+        ),
       );
       return;
     }
@@ -864,10 +915,14 @@ class _CompletarCadastroProfissionalPageState
           authId: widget.authId,
           emailGoogle: widget.emailGoogle,
           fotoUrlGoogle: widget.fotoUrlGoogle,
-          nome: _isPessoaFisica ? _nomeController.text.trim() : _nomeController.text.trim(),
+          nome: _isPessoaFisica
+              ? _nomeController.text.trim()
+              : _nomeController.text.trim(),
           cpf: _isPessoaFisica ? _cpfController.text.trim() : null,
           cnpj: !_isPessoaFisica ? _cnpjController.text.trim() : null,
-          razaoSocial: !_isPessoaFisica ? _razaoSocialController.text.trim() : null,
+          razaoSocial: !_isPessoaFisica
+              ? _razaoSocialController.text.trim()
+              : null,
           isPessoaFisica: _isPessoaFisica,
           cnpjDeEmpresa: _cnpjDeEmpresa,
           telefone: _telefoneController.text.trim(),
@@ -886,7 +941,11 @@ class _CompletarCadastroProfissionalPageState
         elevation: 0,
         title: const Text(
           'Complete seu cadastro',
-          style: TextStyle(color: Color(0xFF00A2FF), fontSize: 18, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Color(0xFF00A2FF),
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         centerTitle: true,
       ),
@@ -904,8 +963,10 @@ class _CompletarCadastroProfissionalPageState
               ),
             const SizedBox(height: 12),
             Center(
-              child: Text(widget.emailGoogle,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
+              child: Text(
+                widget.emailGoogle,
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+              ),
             ),
             const SizedBox(height: 24),
 
@@ -925,14 +986,21 @@ class _CompletarCadastroProfissionalPageState
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         decoration: BoxDecoration(
-                          color: _isPessoaFisica ? const Color(0xFF00A2FF) : Colors.transparent,
+                          color: _isPessoaFisica
+                              ? const Color(0xFF00A2FF)
+                              : Colors.transparent,
                           borderRadius: BorderRadius.circular(14),
                         ),
                         alignment: Alignment.center,
-                        child: Text('Física',
-                            style: TextStyle(
-                                color: _isPessoaFisica ? Colors.white : const Color(0xFF828282),
-                                fontWeight: FontWeight.bold)),
+                        child: Text(
+                          'Física',
+                          style: TextStyle(
+                            color: _isPessoaFisica
+                                ? Colors.white
+                                : const Color(0xFF828282),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -942,14 +1010,21 @@ class _CompletarCadastroProfissionalPageState
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         decoration: BoxDecoration(
-                          color: !_isPessoaFisica ? const Color(0xFF00A2FF) : Colors.transparent,
+                          color: !_isPessoaFisica
+                              ? const Color(0xFF00A2FF)
+                              : Colors.transparent,
                           borderRadius: BorderRadius.circular(14),
                         ),
                         alignment: Alignment.center,
-                        child: Text('Pessoa Jurídica',
-                            style: TextStyle(
-                                color: !_isPessoaFisica ? Colors.white : const Color(0xFF828282),
-                                fontWeight: FontWeight.bold)),
+                        child: Text(
+                          'Pessoa Jurídica',
+                          style: TextStyle(
+                            color: !_isPessoaFisica
+                                ? Colors.white
+                                : const Color(0xFF828282),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -966,7 +1041,11 @@ class _CompletarCadastroProfissionalPageState
                 inputFormatters: [_MaskedInputFormatter('###.###.###-##')],
                 errorText: _erroCpf,
               ),
-              _CampoTexto(label: 'Nome completo', controller: _nomeController, errorText: _erroNome),
+              _CampoTexto(
+                label: 'Nome completo',
+                controller: _nomeController,
+                errorText: _erroNome,
+              ),
             ] else ...[
               _CampoTexto(
                 label: 'CNPJ',
@@ -975,8 +1054,16 @@ class _CompletarCadastroProfissionalPageState
                 inputFormatters: [_MaskedInputFormatter('##.###.###/####-##')],
                 errorText: _erroCnpj,
               ),
-              _CampoTexto(label: 'Nome Fantasia', controller: _nomeController, errorText: _erroNome),
-              _CampoTexto(label: 'Razão Social', controller: _razaoSocialController, errorText: _erroRazaoSocial),
+              _CampoTexto(
+                label: 'Nome Fantasia',
+                controller: _nomeController,
+                errorText: _erroNome,
+              ),
+              _CampoTexto(
+                label: 'Razão Social',
+                controller: _razaoSocialController,
+                errorText: _erroRazaoSocial,
+              ),
             ],
 
             _CampoTexto(
@@ -1010,8 +1097,11 @@ class _CompletarCadastroProfissionalPageState
               label: 'Áreas de Atuação (até 3)',
               controller: _atuacaoController,
               readOnly: true,
-              suffixIcon: _showAtuacaoDropdown ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-              onTap: () => setState(() => _showAtuacaoDropdown = !_showAtuacaoDropdown),
+              suffixIcon: _showAtuacaoDropdown
+                  ? Icons.keyboard_arrow_up
+                  : Icons.keyboard_arrow_down,
+              onTap: () =>
+                  setState(() => _showAtuacaoDropdown = !_showAtuacaoDropdown),
               errorText: _erroAtuacao,
             ),
 
@@ -1023,13 +1113,18 @@ class _CompletarCadastroProfissionalPageState
                 decoration: BoxDecoration(
                   color: const Color(0xFFFAFAFA),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF00A2FF), width: 1.5),
+                  border: Border.all(
+                    color: const Color(0xFF00A2FF),
+                    width: 1.5,
+                  ),
                 ),
                 child: _carregandoOficios
                     ? const Center(
                         child: Padding(
                           padding: EdgeInsets.all(20),
-                          child: CircularProgressIndicator(color: Color(0xFF00A2FF)),
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF00A2FF),
+                          ),
                         ),
                       )
                     : ListView.separated(
@@ -1038,8 +1133,9 @@ class _CompletarCadastroProfissionalPageState
                         separatorBuilder: (_, _) => const Divider(height: 1),
                         itemBuilder: (context, index) {
                           final oficio = _oficios[index];
-                          final isSelected = _oficiosSelecionados
-                              .any((e) => e['id_oficio'] == oficio['id_oficio']);
+                          final isSelected = _oficiosSelecionados.any(
+                            (e) => e['id_oficio'] == oficio['id_oficio'],
+                          );
                           return CheckboxListTile(
                             value: isSelected,
                             title: Text(oficio['funcao'] ?? ''),
@@ -1049,14 +1145,18 @@ class _CompletarCadastroProfissionalPageState
                                 if (checked == true) {
                                   if (_oficiosSelecionados.length >= 3) {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Máximo de 3 áreas.')),
+                                      const SnackBar(
+                                        content: Text('Máximo de 3 áreas.'),
+                                      ),
                                     );
                                     return;
                                   }
                                   _oficiosSelecionados.add(oficio);
                                 } else {
-                                  _oficiosSelecionados
-                                      .removeWhere((e) => e['id_oficio'] == oficio['id_oficio']);
+                                  _oficiosSelecionados.removeWhere(
+                                    (e) =>
+                                        e['id_oficio'] == oficio['id_oficio'],
+                                  );
                                 }
                                 _atualizarTextoAtuacao();
                               });
@@ -1073,10 +1173,18 @@ class _CompletarCadastroProfissionalPageState
                 onPressed: _continuar,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF00A2FF),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                 ),
-                child: const Text('Continuar',
-                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                child: const Text(
+                  'Continuar',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 20),
@@ -1134,12 +1242,15 @@ class _CompletarCadastroProfissionalDocumentosPageState
   String? _idFacial;
   List<Map<String, dynamic>> _documentosValidados = [];
 
-  bool get _cadastroFacialConcluido => _idFacial != null && _idFacial!.isNotEmpty;
+  bool get _cadastroFacialConcluido =>
+      _idFacial != null && _idFacial!.isNotEmpty;
 
   Future<void> _finalizarCadastroBanco() async {
     if (_documentosValidados.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Anexe e valide pelo menos 1 documento de identidade!')),
+        const SnackBar(
+          content: Text('Anexe e valide pelo menos 1 documento de identidade!'),
+        ),
       );
       return;
     }
@@ -1156,8 +1267,12 @@ class _CompletarCadastroProfissionalDocumentosPageState
       final emailId = emailResponse['id_email'];
 
       final telefoneLimpo = widget.telefone.replaceAll(RegExp(r'\D'), '');
-      final ddd = telefoneLimpo.length >= 2 ? telefoneLimpo.substring(0, 2) : '';
-      final numero = telefoneLimpo.length > 2 ? telefoneLimpo.substring(2) : telefoneLimpo;
+      final ddd = telefoneLimpo.length >= 2
+          ? telefoneLimpo.substring(0, 2)
+          : '';
+      final numero = telefoneLimpo.length > 2
+          ? telefoneLimpo.substring(2)
+          : telefoneLimpo;
 
       final telefoneResponse = await supabase
           .from('telefones')
@@ -1212,7 +1327,9 @@ class _CompletarCadastroProfissionalDocumentosPageState
           .from('usuarios')
           .insert({
             'nome': widget.nome,
-            'data_nascimento': widget.dataNascimento.isNotEmpty ? widget.dataNascimento : null,
+            'data_nascimento': widget.dataNascimento.isNotEmpty
+                ? widget.dataNascimento
+                : null,
             'data_criacao': DateTime.now().toUtc().toIso8601String(),
             'tipo_conta': 'Profissional',
             'fk_email': emailId,
@@ -1228,7 +1345,9 @@ class _CompletarCadastroProfissionalDocumentosPageState
       if (!_cadastroFacialConcluido) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Faça o cadastro facial antes de finalizar.')),
+            const SnackBar(
+              content: Text('Faça o cadastro facial antes de finalizar.'),
+            ),
           );
         }
         setState(() => _carregando = false);
@@ -1253,7 +1372,9 @@ class _CompletarCadastroProfissionalDocumentosPageState
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (_) => TelaHomeProfissional(isVisitante: false)),
+          MaterialPageRoute(
+            builder: (_) => TelaHomeProfissional(isVisitante: false),
+          ),
           (route) => false,
         );
       }
@@ -1281,7 +1402,11 @@ class _CompletarCadastroProfissionalDocumentosPageState
         elevation: 0,
         title: const Text(
           'Documentos',
-          style: TextStyle(color: Color(0xFF00A2FF), fontSize: 18, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Color(0xFF00A2FF),
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         centerTitle: true,
       ),
@@ -1308,7 +1433,11 @@ class _CompletarCadastroProfissionalDocumentosPageState
             const Text(
               'Agora só precisamos de alguns documentos para terminarmos o seu cadastro!',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFF00A2FF), fontSize: 16, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: Color(0xFF00A2FF),
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 30),
 
@@ -1318,9 +1447,12 @@ class _CompletarCadastroProfissionalDocumentosPageState
               onTap: () async {
                 final resultado = await Navigator.push<String>(
                   context,
-                  MaterialPageRoute(builder: (_) => const CadastroFacialInstrucoesPage()),
+                  MaterialPageRoute(
+                    builder: (_) => const CadastroFacialInstrucoesPage(),
+                  ),
                 );
-                if (resultado != null && mounted) setState(() => _idFacial = resultado);
+                if (resultado != null && mounted)
+                  setState(() => _idFacial = resultado);
               },
             ),
             _botaoDocumento(
@@ -1336,11 +1468,14 @@ class _CompletarCadastroProfissionalDocumentosPageState
                     ),
                   ),
                 );
-                if (resultado != null && resultado['validado'] == true && mounted) {
+                if (resultado != null &&
+                    resultado['validado'] == true &&
+                    mounted) {
                   setState(() {
                     _documentoIdentidadeConcluido = true;
-                    _documentosValidados =
-                        List<Map<String, dynamic>>.from(resultado['docsData'] ?? []);
+                    _documentosValidados = List<Map<String, dynamic>>.from(
+                      resultado['docsData'] ?? [],
+                    );
                   });
                 }
               },
@@ -1356,7 +1491,8 @@ class _CompletarCadastroProfissionalDocumentosPageState
             ),
             CheckboxListTile(
               value: _politicaPrivacidade,
-              onChanged: (v) => setState(() => _politicaPrivacidade = v ?? false),
+              onChanged: (v) =>
+                  setState(() => _politicaPrivacidade = v ?? false),
               controlAffinity: ListTileControlAffinity.leading,
               contentPadding: EdgeInsets.zero,
               title: const Text('Li e aceito a Política de Privacidade'),
@@ -1366,7 +1502,8 @@ class _CompletarCadastroProfissionalDocumentosPageState
             SizedBox(
               height: 55,
               child: ElevatedButton(
-                onPressed: (_termosDeUso &&
+                onPressed:
+                    (_termosDeUso &&
                         _politicaPrivacidade &&
                         _cadastroFacialConcluido &&
                         _documentoIdentidadeConcluido &&
@@ -1375,13 +1512,23 @@ class _CompletarCadastroProfissionalDocumentosPageState
                     : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF00A2FF),
-                  disabledBackgroundColor: const Color(0xFF00A2FF).withValues(alpha: 0.35),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  disabledBackgroundColor: const Color(
+                    0xFF00A2FF,
+                  ).withValues(alpha: 0.35),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                 ),
                 child: _carregando
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('Finalizar Cadastro',
-                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                    : const Text(
+                        'Finalizar Cadastro',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
             const SizedBox(height: 20),
@@ -1412,8 +1559,18 @@ class _CompletarCadastroProfissionalDocumentosPageState
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(label, style: TextStyle(color: cor, fontSize: 16, fontWeight: FontWeight.bold)),
-              Icon(concluido ? Icons.check_circle : Icons.arrow_forward, color: cor),
+              Text(
+                label,
+                style: TextStyle(
+                  color: cor,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Icon(
+                concluido ? Icons.check_circle : Icons.arrow_forward,
+                color: cor,
+              ),
             ],
           ),
         ),
@@ -1466,7 +1623,9 @@ class _CampoTexto extends StatelessWidget {
           labelText: label,
           errorText: errorText,
           prefixIcon: prefixWidget,
-          suffixIcon: suffixIcon != null ? Icon(suffixIcon, color: const Color(0xFF00A2FF)) : null,
+          suffixIcon: suffixIcon != null
+              ? Icon(suffixIcon, color: const Color(0xFF00A2FF))
+              : null,
           filled: true,
           fillColor: const Color(0xFFFAFAFA),
           border: OutlineInputBorder(
@@ -1488,7 +1647,10 @@ class _MaskedInputFormatter extends TextInputFormatter {
   _MaskedInputFormatter(this.mask);
 
   @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
     final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
     var formatted = '';
     var digitIndex = 0;

@@ -3,13 +3,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'tela_home.dart';
 import 'tela_home_profissional.dart';
-import 'tela_escolha_conta.dart';
 import 'atualizar_senha.dart';
 import 'cadastro_cliente.dart';
 import 'cadastro_profissional.dart';
 import 'login.dart';
 import 'services/google_auth_service.dart';
-import 'services/auth_navigation.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
@@ -61,21 +59,13 @@ class _MyAppState extends State<MyApp> {
 
     if (session != null) {
       try {
-        final supabase = Supabase.instance.client;
         final response = await GoogleAuthService.buscarPerfil(session.user.id);
 
         if (response == null) {
+          await Supabase.instance.client.auth.signOut();
           if (mounted) {
-            final metadata = session.user.userMetadata;
-            final nome = GoogleAuthService.extrairNome(session.user);
-            final foto = metadata?['avatar_url'] as String?;
             setState(() {
-              _homeWidget = TelaEscolhaContaCompletar(
-                authId: session.user.id,
-                emailGoogle: session.user.email ?? '',
-                nomeGoogle: nome,
-                fotoUrlGoogle: foto,
-              );
+              _homeWidget = const TelaEscolhaConta();
               _carregando = false;
             });
           }
