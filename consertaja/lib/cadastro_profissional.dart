@@ -430,8 +430,8 @@ Future<void> _continuarComGoogle() async {
         _erroRazaoSocial = _razaoSocialController.text.trim().isEmpty
             ? 'A Razão Social é obrigatória'
             : null;
-        // Se for PJ com imóvel, exige data de fundação
-        _erroDataFundacao = (!_cnpjDeEmpresa &&
+        // Se for PJ de empresa, exige data de fundação
+        _erroDataFundacao = (_cnpjDeEmpresa &&
                 _dataFundacaoController.text.trim().isEmpty)
             ? 'A data de fundação é obrigatória'
             : null;
@@ -812,7 +812,7 @@ Future<void> _continuarComGoogle() async {
                   controller: _razaoSocialController,
                   errorText: _erroRazaoSocial,
                 ),
-                if (!_cnpjDeEmpresa) ...[
+                if (_cnpjDeEmpresa) ...[
                   _InputFieldWithAnimation(
                     label: 'Data de Fundação',
                     hint: 'AAAA-MM-DD',
