@@ -13,7 +13,7 @@ import 'package:flutter/gestures.dart';
 import 'package:http/http.dart' as http;
 
 import 'login.dart';
-import 'tela_home.dart';
+
 import 'tela_home_profissional.dart';
 
 import 'package:camera/camera.dart';
@@ -23,6 +23,12 @@ import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+
+import 'services/google_auth_service.dart';
+import 'services/validacao_telefone.dart';
+import 'widgets/seletor_ddi.dart';
+import 'completar_cadastro.dart';
+import 'tela_home.dart';
 
 // ================= TELA 01: CADASTRO DO PROFISSIONAL (ETAPA 1) =================
 class CadastroProfissionalPage extends StatefulWidget {
@@ -35,6 +41,7 @@ class CadastroProfissionalPage extends StatefulWidget {
   final bool? cnpjDeEmpresa;
   final String? fotoPerfilUrl;
   final String? idFacial;
+  final String? email;
 
   const CadastroProfissionalPage({
     super.key,
@@ -47,6 +54,7 @@ class CadastroProfissionalPage extends StatefulWidget {
     this.cnpjDeEmpresa,
     this.fotoPerfilUrl,
     this.idFacial,
+    this.email,
   });
 
   @override
@@ -65,6 +73,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
   late TextEditingController _nomeFantasiaController;
   late TextEditingController _senhaController;
   late TextEditingController _confirmarSenhaController;
+  late TextEditingController _dataFundacaoController;
 
   String? _fotoPerfilUrl;
 
@@ -78,9 +87,60 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
   String? _erroRazaoSocial;
   String? _erroSenha;
   String? _erroConfirmarSenha;
+  String? _erroDataFundacao;
 
   bool _validandoDocumento = false;
   bool _documentoValido = false;
+
+  bool _carregandoGoogle = false;
+
+Future<void> _continuarComGoogle() async {
+  setState(() => _carregandoGoogle = true);
+  try {
+    final user = await GoogleAuthService.signInWithGoogle();
+    if (user == null || !mounted) return;
+
+    final perfil = await GoogleAuthService.buscarPerfil(user.id);
+    if (!mounted) return;
+
+    if (perfil != null) {
+      final isProfissional = perfil['tipo_conta'] == 'Profissional';
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (_) => isProfissional
+              ? TelaHomeProfissional(isVisitante: false)
+              : TelaHome(isVisitante: false),
+        ),
+        (route) => false,
+      );
+      return;
+    }
+
+    final fotoUrl = (user.userMetadata?['avatar_url'] as String?) ??
+        GoogleAuthService.ultimaFotoUrl;
+
+    // >>> AQUI, no lugar do que ia pra CompletarCadastroClientePage <
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CompletarCadastroProfissionalPage(
+          authId: user.id,
+          emailGoogle: user.email ?? '',
+          nomeGoogle: user.userMetadata?['full_name'] as String?,
+          fotoUrlGoogle: fotoUrl,
+        ),
+      ),
+    );
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Erro ao entrar com Google: $e')));
+    }
+  } finally {
+    if (mounted) setState(() => _carregandoGoogle = false);
+  }
+}
 
   // Getters para os requisitos da senha
   bool get _temOitoCaracteres => _senhaController.text.length >= 8;
@@ -108,6 +168,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
     );
     _senhaController = TextEditingController(text: widget.senha ?? '');
     _confirmarSenhaController = TextEditingController(text: widget.senha ?? '');
+    _dataFundacaoController = TextEditingController();
 
     _senhaController.addListener(() {
       if (_senhaController.text.isNotEmpty && _erroSenha != null) {
@@ -160,6 +221,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
     _razaoSocialController.dispose();
     _senhaController.dispose();
     _confirmarSenhaController.dispose();
+    _dataFundacaoController.dispose();
     super.dispose();
   }
 
@@ -328,6 +390,36 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
     }
   }
 
+  Future<void> _fazerUploadDataFundacao() async {
+    DateTime? dataSelecionada = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now().subtract(const Duration(days: 365 * 5)),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF00A2FF),
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (dataSelecionada != null) {
+      String dia = dataSelecionada.day.toString().padLeft(2, '0');
+      String mes = dataSelecionada.month.toString().padLeft(2, '0');
+      String ano = dataSelecionada.year.toString();
+      setState(() {
+        _dataFundacaoController.text = '$ano-$mes-$dia';
+        _erroDataFundacao = null;
+      });
+    }
+  }
+
   Future<void> _irParaEtapa2() async {
     setState(() {
       _erroNome = _nomeController.text.trim().isEmpty
@@ -338,6 +430,12 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
         _erroRazaoSocial = _razaoSocialController.text.trim().isEmpty
             ? 'A Razão Social é obrigatória'
             : null;
+        // Pessoa Jurídica sempre exige data de fundação
+        _erroDataFundacao = _dataFundacaoController.text.trim().isEmpty
+            ? 'A data de fundação é obrigatória'
+            : null;
+      } else {
+        _erroDataFundacao = null;
       }
 
       if (!_temOitoCaracteres ||
@@ -363,6 +461,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
         _erroRazaoSocial != null ||
         _erroSenha != null ||
         _erroConfirmarSenha != null ||
+        _erroDataFundacao != null ||
         !documentoOk) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -424,6 +523,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
           senha: _senhaController.text,
           isPessoaFisica: _isPessoaFisica,
           cnpjDeEmpresa: _cnpjDeEmpresa,
+          dataFundacao: _dataFundacaoController.text.trim(),
           fotoPerfilUrl: _fotoPerfilUrl,
           idFacial: _idFacial,
         ),
@@ -711,6 +811,18 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                   controller: _razaoSocialController,
                   errorText: _erroRazaoSocial,
                 ),
+                if (!_isPessoaFisica) ...[
+                  _InputFieldWithAnimation(
+                    label: 'Data de Fundação',
+                    hint: 'AAAA-MM-DD',
+                    suffixIcon: Icons.calendar_month,
+                    controller: _dataFundacaoController,
+                    readOnly: true,
+                    onTap: _fazerUploadDataFundacao,
+                    onSuffixIconTap: _fazerUploadDataFundacao,
+                    errorText: _erroDataFundacao,
+                  ),
+                ],
                 _InputFieldWithAnimation(
                   label: 'Senha',
                   hint: 'Digite sua senha',
@@ -758,7 +870,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
 
               const SizedBox(height: 10),
 
-              SizedBox(
+ SizedBox(
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton(
@@ -780,6 +892,36 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                   ),
                 ),
               ),
+
+              const SizedBox(height: 20),
+              Row(children: [
+                Expanded(child: Divider(color: Colors.grey.shade300)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text('ou', style: TextStyle(color: Colors.grey.shade500)),
+                ),
+                Expanded(child: Divider(color: Colors.grey.shade300)),
+              ]),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 55,
+                child: OutlinedButton.icon(
+                  onPressed: _carregandoGoogle ? null : _continuarComGoogle,
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFDADCE0)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  ),
+                  icon: _carregandoGoogle
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.g_mobiledata, size: 28, color: Colors.black87),
+                  label: Text(
+                    _carregandoGoogle ? 'Conectando...' : 'Continuar com Google',
+                    style: const TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+
               const SizedBox(height: 20),
 
               Row(
@@ -921,6 +1063,7 @@ class CadastroProfissionalEtapa2Page extends StatefulWidget {
   final String senha;
   final bool isPessoaFisica;
   final bool cnpjDeEmpresa;
+  final String dataFundacao;
   final String? fotoPerfilUrl;
   final String? idFacial;
 
@@ -933,6 +1076,7 @@ class CadastroProfissionalEtapa2Page extends StatefulWidget {
     required this.senha,
     required this.isPessoaFisica,
     required this.cnpjDeEmpresa,
+    this.dataFundacao = '',
     this.fotoPerfilUrl,
     this.idFacial,
   });
@@ -963,6 +1107,7 @@ class _CadastroProfissionalEtapa2PageState
   String? _erroDataNascimento;
   String? _erroAtuacao;
   String? _idFacial;
+  String _ddiSelecionado = '+55';
   final FocusNode _emailFocusNode = FocusNode();
   final FocusNode _telefoneFocusNode = FocusNode();
 
@@ -1108,6 +1253,15 @@ class _CadastroProfissionalEtapa2PageState
     );
     if (apenasNumeros.length < 10) return;
 
+    // Valida estrutura do telefone antes de verificar duplicidade
+    final validacao = validarTelefoneCompleto(_telefoneController.text);
+    if (!validacao.valido) {
+      if (mounted) {
+        setState(() => _erroTelefone = validacao.erro);
+      }
+      return;
+    }
+
     final dddDigitado = apenasNumeros.substring(0, 2);
     final numeroDigitado = apenasNumeros.substring(2);
 
@@ -1129,13 +1283,25 @@ class _CadastroProfissionalEtapa2PageState
 
   void _irParaEtapa3() async {
     setState(() {
-      _erroEmail = _emailController.text.trim().isEmpty
-          ? 'O E-mail é obrigatório'
-          : null;
-      _erroTelefone = _telefoneController.text.trim().isEmpty
-          ? 'O Telefone é obrigatório'
-          : null;
-      _erroDataNascimento = _dataNascimentoController.text.trim().isEmpty
+      // Email OU Telefone: pelo menos 1 é obrigatório
+      final emailVazio = _emailController.text.trim().isEmpty;
+      final telefoneVazio = _telefoneController.text.trim().isEmpty;
+
+      if (emailVazio && telefoneVazio) {
+        _erroEmail = 'Informe email ou telefone';
+        _erroTelefone = 'Informe email ou telefone';
+      } else if (!telefoneVazio) {
+        // Valida estrutura do telefone
+        final validacao = validarTelefoneCompleto(_telefoneController.text);
+        _erroTelefone = validacao.valido ? null : validacao.erro;
+        _erroEmail = null;
+      } else {
+        _erroEmail = null;
+        _erroTelefone = null;
+      }
+
+            _erroDataNascimento = (widget.isPessoaFisica &&
+              _dataNascimentoController.text.trim().isEmpty)
           ? 'A Data de Nascimento é obrigatória'
           : null;
 
@@ -1190,7 +1356,9 @@ class _CadastroProfissionalEtapa2PageState
           email: _emailController.text.trim(),
           telefone: _telefoneController.text.trim(),
           dataNascimento: _dataNascimentoController.text.trim(),
+          dataFundacao: widget.dataFundacao,
           areaAtuacao: _atuacaoController.text.trim(),
+          oficiosSelecionados: _oficiosSelecionados.map((e) => (e['id_oficio'] as num).toInt()).toList(),
           fotoPerfilUrl: widget.fotoPerfilUrl,
           idFacial: _idFacial,
         ),
@@ -1304,18 +1472,30 @@ class _CadastroProfissionalEtapa2PageState
                 controller: _telefoneController,
                 errorText: _erroTelefone,
                 focusNode: _telefoneFocusNode,
+                prefixWidget: SeletorDDI(
+                  ddiInicial: _ddiSelecionado,
+                  corPrimaria: const Color(0xFF00A2FF),
+                  onChanged: (ddi) {
+                    setState(() => _ddiSelecionado = ddi);
+                    if (_erroTelefone != null) {
+                      setState(() => _erroTelefone = null);
+                    }
+                  },
+                ),
               ),
 
-              _InputFieldWithAnimation(
-                label: 'Data de Nascimento',
-                hint: 'AAAA-MM-DD',
-                suffixIcon: Icons.calendar_month,
-                controller: _dataNascimentoController,
-                readOnly: true,
-                onTap: _fazerUploadDataNascimento,
-                onSuffixIconTap: _fazerUploadDataNascimento,
-                errorText: _erroDataNascimento,
-              ),
+              if (widget.isPessoaFisica) ...[
+                _InputFieldWithAnimation(
+                  label: 'Data de Nascimento',
+                  hint: 'AAAA-MM-DD',
+                  suffixIcon: Icons.calendar_month,
+                  controller: _dataNascimentoController,
+                  readOnly: true,
+                  onTap: _fazerUploadDataNascimento,
+                  onSuffixIconTap: _fazerUploadDataNascimento,
+                  errorText: _erroDataNascimento,
+                ),
+              ],
 
               _InputFieldWithAnimation(
                 label: 'Áreas de Atuação (Selecione até 3)',
@@ -1579,7 +1759,9 @@ class CadastroProfissionalEtapa3Page extends StatefulWidget {
   final String email;
   final String telefone;
   final String dataNascimento;
+  final String dataFundacao;
   final String areaAtuacao;
+  final List<int> oficiosSelecionados;
   final String? fotoPerfilUrl;
   final String? idFacial;
 
@@ -1595,7 +1777,9 @@ class CadastroProfissionalEtapa3Page extends StatefulWidget {
     required this.email,
     required this.telefone,
     required this.dataNascimento,
+    this.dataFundacao = '',
     required this.areaAtuacao,
+    this.oficiosSelecionados = const [],
     this.fotoPerfilUrl,
     this.idFacial,
   });
@@ -1752,6 +1936,9 @@ class _CadastroProfissionalEtapa3PageState
               'razao_social': widget.razaoSocial,
               'nome_fantasia': widget.nome,
               'tem_imovel': !widget.cnpjDeEmpresa,
+              'data_fundacao': widget.dataFundacao.isNotEmpty
+                  ? widget.dataFundacao
+                  : null,
             })
             .select()
             .single();
@@ -1802,11 +1989,30 @@ class _CadastroProfissionalEtapa3PageState
 
       final dadosProfResponse = await supabase
           .from('dados_profissionais')
-          .insert({'fk_usuario': usuarioId, 'id_facial': _idFacial})
+          .insert({
+            'fk_usuario': usuarioId,
+            'id_facial': _idFacial,
+            'rosto_validado': true,
+          })
           .select()
           .single();
 
       final profissionalIdCorreto = dadosProfResponse['id_profissional'];
+
+      // Salvar associações de ofícios selecionados (se houver)
+      if (widget.oficiosSelecionados.isNotEmpty) {
+        for (final oficioId in widget.oficiosSelecionados) {
+          try {
+            final res = await supabase.from('ass_oficio_profissional').insert({
+              'fk_profissional': profissionalIdCorreto,
+              'fk_oficio': oficioId,
+            }).select().maybeSingle();
+            debugPrint('ass_oficio_profissional insert res: $res');
+          } catch (e) {
+            debugPrint('Falha ao inserir ass_oficio_profissional (oficio $oficioId): $e');
+          }
+        }
+      }
 
       // Salvar TODOS os documentos validados no banco
       for (final doc in _documentosValidados) {
@@ -2053,7 +2259,9 @@ class _CadastroProfissionalEtapa3PageState
                     MaterialPageRoute(
                       builder: (_) => ValidacaoDocsPage(
                         cpf: widget.cpf,
+                        cnpj: widget.cnpj,
                         dataNascimento: widget.dataNascimento,
+                        isPessoaJuridica: !widget.isPessoaFisica,
                       ),
                     ),
                   );
@@ -2068,11 +2276,7 @@ class _CadastroProfissionalEtapa3PageState
                   }
                 },
               ),
-              _buildDocumentButton(
-                label: 'Outros documentos',
-                icon: Icons.keyboard_arrow_down,
-                onTap: () {},
-              ),
+              
               const SizedBox(height: 20),
 
               _buildCheckboxRow(
@@ -2321,7 +2525,7 @@ class CadastroFacialInstrucoesPage extends StatelessWidget {
         ),
       ),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
           child: Column(
             children: [
@@ -2395,7 +2599,7 @@ class CadastroFacialInstrucoesPage extends StatelessWidget {
                     'Utilize um ambiente bem iluminado e prefira fundos neutros.',
               ),
 
-              const Spacer(),
+              const SizedBox(height: 24),
 
               SizedBox(
                 width: double.infinity,
@@ -3005,6 +3209,7 @@ class _InputFieldWithAnimation extends StatefulWidget {
   final String hint;
   final IconData? suffixIcon;
   final Color? suffixIconColor;
+  final Widget? prefixWidget;
   final List<TextInputFormatter>? inputFormatters;
   final TextInputType? keyboardType;
   final bool obscureText;
@@ -3020,6 +3225,7 @@ class _InputFieldWithAnimation extends StatefulWidget {
     required this.hint,
     this.suffixIcon,
     this.suffixIconColor,
+    this.prefixWidget,
     this.inputFormatters,
     this.keyboardType,
     this.obscureText = false,
@@ -3134,6 +3340,10 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
+                  if (widget.prefixWidget != null) ...[
+                    widget.prefixWidget!,
+                    const SizedBox(width: 8),
+                  ],
                   Expanded(
                     child: Stack(
                       alignment: Alignment.centerLeft,
@@ -3269,24 +3479,53 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
 /// 'docsData' (List<Map<String,dynamic>> com tipo, caminho_arquivo)
 class ValidacaoDocsPage extends StatefulWidget {
   final String? cpf;
+  final String? cnpj;
   final String? dataNascimento;
+  final bool isPessoaJuridica;
 
-  const ValidacaoDocsPage({super.key, this.cpf, this.dataNascimento});
+  const ValidacaoDocsPage({
+    super.key,
+    this.cpf,
+    this.cnpj,
+    this.dataNascimento,
+    this.isPessoaJuridica = false,
+  });
 
   @override
   State<ValidacaoDocsPage> createState() => _ValidacaoDocsPageState();
 }
 
 class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
-  final List<_DocType> _docTypes = [
+  late final List<_DocType> _docTypes;
+
+  // Tipos de documentos para pessoa física
+  static final List<_DocType> _docTypesPF = [
     _DocType(label: 'Registro Geral (RG)', type: 'RG'),
     _DocType(label: 'Carteira de Identidade Nacional (CIN)', type: 'CIN'),
     _DocType(label: 'Carteira Nacional de Habilitação (CNH)', type: 'CNH'),
     _DocType(label: 'Passaporte', type: 'PASSAPORTE'),
   ];
 
+  // Tipos de documentos para pessoa jurídica
+  static final List<_DocType> _docTypesPJ = [
+    _DocType(label: 'Cartão CNPJ', type: 'CARTAO_CNPJ'),
+    _DocType(label: 'Contrato Social / Estatuto Social / Requerimento Empresário', type: 'CONTRATO_SOCIAL'),
+    _DocType(label: 'Notas Fiscais (DANFE)', type: 'DANFE'),
+    _DocType(label: 'Alvará de Funcionamento', type: 'ALVARA'),
+  ];
+
   bool _carregando = false;
   final ImagePicker _picker = ImagePicker();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isPessoaJuridica) {
+      _docTypes = _docTypesPJ;
+    } else {
+      _docTypes = _docTypesPF;
+    }
+  }
 
   // UFs e Órgãos Emissores válidos do Brasil
   static const List<String> _ufsValidas = [
@@ -3511,7 +3750,7 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
                         width: 100,
                         height: 70,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF0FB3FF).withOpacity(0.1),
+                          color: const Color(0xFF0FB3FF).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Icon(Icons.credit_card, size: 50, color: Color(0xFF0FB3FF)),
@@ -3769,227 +4008,357 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
     );
   }
 
+  bool _validarCnpjLocal(String cnpj) {
+    if (cnpj.length != 14) return false;
+    if (RegExp(r'^(\d)\1{13}$').hasMatch(cnpj)) return false;
+
+    final numeros = cnpj.split('').map(int.parse).toList();
+
+    const pesos1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    const pesos2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+
+    int soma = 0;
+    for (int i = 0; i < 12; i++) {
+      soma += numeros[i] * pesos1[i];
+    }
+    int resto = soma % 11;
+    int digito1 = resto < 2 ? 0 : 11 - resto;
+    if (numeros[12] != digito1) return false;
+
+    soma = 0;
+    for (int i = 0; i < 13; i++) {
+      soma += numeros[i] * pesos2[i];
+    }
+    resto = soma % 11;
+    int digito2 = resto < 2 ? 0 : 11 - resto;
+
+    return numeros[13] == digito2;
+  }
+
+  /// Extrai CNPJ do texto
+  String? _extrairCnpj(String texto) {
+    var textoNormalizado = texto.replaceAll(RegExp(r'\s+'), ' ').toUpperCase();
+
+    // Tentativa 1: Formato padrão XX.XXX.XXX/XXXX-XX
+    final regex1 = RegExp(r'\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}');
+    var match = regex1.firstMatch(textoNormalizado);
+    if (match != null) {
+      return _somenteDigitos(match.group(0)!);
+    }
+
+    // Tentativa 2: CNPJ puro de 14 dígitos
+    final apenasDigitos = _somenteDigitos(texto);
+    if (apenasDigitos.length >= 14) {
+      for (int i = 0; i <= apenasDigitos.length - 14; i++) {
+        final candidato = apenasDigitos.substring(i, i + 14);
+        if (!RegExp(r'^(\d)\1{13}$').hasMatch(candidato)) {
+          if (_validarCnpjLocal(candidato)) {
+            return candidato;
+          }
+        }
+      }
+    }
+
+    // Tentativa 3: Padrão com "CNPJ:" no texto
+    final regex3 = RegExp(r'CNPJ[:\s]*(\d{2}[\s\.]?\d{3}[\s\.]?\d{3}[\s\/]?\d{4}[\s\-]?\d{2})');
+    match = regex3.firstMatch(textoNormalizado);
+    if (match != null) {
+      return _somenteDigitos(match.group(1)!);
+    }
+
+    return null;
+  }
+
   Future<void> _validarDocumento(_DocType doc, String texto) async {
-    final cpfDigitado = widget.cpf != null ? _somenteDigitos(widget.cpf!) : null;
-    final cpfEncontrado = _extrairCpf(texto);
-    final datas = _extrairDatas(texto);
-    final dataNascimentoStr = widget.dataNascimento;
     final erros = <String>[];
     bool valido = true;
 
-    switch (doc.type) {
-      case 'RG':
-        // 1. Validar CPF
-        if (cpfDigitado == null) {
-          erros.add('CPF não preenchido na etapa 1.');
-          valido = false;
-        } else if (cpfEncontrado == null) {
-          erros.add('Não foi possível identificar o CPF no documento.');
-          valido = false;
-        } else if (cpfEncontrado != cpfDigitado) {
-          erros.add('CPF do documento não corresponde ao CPF cadastrado.');
-          valido = false;
-        }
+    if (widget.isPessoaJuridica) {
+      // Validação para documentos de Pessoa Jurídica
+      final cnpjDigitado = widget.cnpj != null ? _somenteDigitos(widget.cnpj!) : null;
+      final cnpjEncontrado = _extrairCnpj(texto);
 
-        // 2. Validar número do RG
-        final rg = _extrairRg(texto);
-        final uf = _extrairUf(texto);
-        if (!_validarFormatoRg(rg, uf)) {
-          erros.add('Número do RG não identificado ou formato inválido para a UF.');
-          valido = false;
-        }
-
-        // 3. Validar data de validade (RG não pode estar vencido - maior de idade)
-        final dataNascimentoDoc = _encontrarDataNascimento(datas, dataNascimentoStr);
-        if (dataNascimentoDoc != null && dataNascimentoStr != null && dataNascimentoStr.isNotEmpty) {
-          // Tem data de nascimento, verificar se é maior de idade
-          final hoje = DateTime.now();
-          final idade = hoje.year - dataNascimentoDoc.year;
-          if (dataNascimentoDoc.isAfter(hoje)) {
-            erros.add('Data de nascimento inválida (futura).');
+      switch (doc.type) {
+        case 'CARTAO_CNPJ':
+          if (cnpjDigitado == null) {
+            erros.add('CNPJ não preenchido na etapa 1.');
+            valido = false;
+          } else if (cnpjEncontrado == null) {
+            erros.add('Não foi possível identificar o CNPJ no documento.');
+            valido = false;
+          } else if (cnpjEncontrado != cnpjDigitado) {
+            erros.add('CNPJ do documento não corresponde ao CNPJ cadastrado.');
             valido = false;
           }
-        }
+          break;
 
-        // 4. Bater data de nascimento
-        if (dataNascimentoStr != null && dataNascimentoStr.isNotEmpty) {
-          final dataNascEsperada = _parseData(dataNascimentoStr);
-          if (dataNascEsperada != null) {
-            final dataEncontrada = _encontrarDataNascimento(datas, dataNascimentoStr);
-            if (dataEncontrada == null) {
-              erros.add('Data de nascimento não encontrada no documento.');
-              valido = false;
-            } else if (dataEncontrada.year != dataNascEsperada.year ||
-                       dataEncontrada.month != dataNascEsperada.month ||
-                       dataEncontrada.day != dataNascEsperada.day) {
-              erros.add('Data de nascimento do documento não confere com a cadastrada.');
-              valido = false;
-            }
-          }
-        }
-
-        // 5. Verificar órgão emissor / UF
-        final orgao = _extrairOrgaoEmissor(texto);
-        if (orgao == null) {
-          erros.add('Órgão emissor não identificado.');
-          valido = false;
-        }
-        if (uf == null) {
-          erros.add('UF do documento não identificada.');
-          valido = false;
-        } else if (!_ufsValidas.contains(uf)) {
-          erros.add('UF "$uf" não é válida.');
-          valido = false;
-        }
-
-        break;
-
-      case 'CIN':
-        // 1. Validar CPF
-        if (cpfDigitado == null) {
-          erros.add('CPF não preenchido na etapa 1.');
-          valido = false;
-        } else if (cpfEncontrado == null) {
-          erros.add('Não foi possível identificar o CPF no documento.');
-          valido = false;
-        } else if (cpfEncontrado != cpfDigitado) {
-          erros.add('CPF do documento não corresponde ao CPF cadastrado.');
-          valido = false;
-        }
-
-        // 2. Validar data (CIN não vencido)
-        if (dataNascimentoStr != null && dataNascimentoStr.isNotEmpty) {
-          final dataNascEsperada = _parseData(dataNascimentoStr);
-          if (dataNascEsperada != null) {
-            final dataEncontrada = _encontrarDataNascimento(datas, dataNascimentoStr);
-            if (dataEncontrada == null) {
-              erros.add('Data de nascimento não encontrada no documento.');
-              valido = false;
-            } else if (dataEncontrada.year != dataNascEsperada.year ||
-                       dataEncontrada.month != dataNascEsperada.month ||
-                       dataEncontrada.day != dataNascEsperada.day) {
-              erros.add('Data de nascimento do documento não confere com a cadastrada.');
-              valido = false;
-            }
-          }
-        }
-
-        // 3. Verificar órgão emissor / UF
-        final orgao = _extrairOrgaoEmissor(texto);
-        if (orgao == null) {
-          erros.add('Órgão emissor não identificado.');
-          valido = false;
-        }
-        final uf = _extrairUf(texto);
-        if (uf == null) {
-          erros.add('UF do documento não identificada.');
-          valido = false;
-        } else if (!_ufsValidas.contains(uf)) {
-          erros.add('UF "$uf" não é válida.');
-          valido = false;
-        }
-
-        break;
-
-      case 'CNH':
-        // 1. Validar CPF
-        if (cpfDigitado == null) {
-          erros.add('CPF não preenchido na etapa 1.');
-          valido = false;
-        } else if (cpfEncontrado == null) {
-          erros.add('Não foi possível identificar o CPF no documento.');
-          valido = false;
-        } else if (cpfEncontrado != cpfDigitado) {
-          erros.add('CPF do documento não corresponde ao CPF cadastrado.');
-          valido = false;
-        }
-
-        // 2. Validar data de validade (CNH não vencida)
-        // CNH tem validade, verificar se há data futura no documento
-        final hoje = DateTime.now();
-        bool temDataValida = false;
-        for (final data in datas) {
-          if (data.isAfter(hoje) || 
-              (data.year == hoje.year && data.month == hoje.month && data.day == hoje.day)) {
-            temDataValida = true;
-            break;
-          }
-        }
-        if (!temDataValida && datas.isNotEmpty) {
-          // Se tem datas mas nenhuma é futura/válida, pode estar vencido
-          erros.add('Documento parece estar vencido (data de validade expirada).');
-          valido = false;
-        }
-
-        // 3. Bater data de nascimento
-        if (dataNascimentoStr != null && dataNascimentoStr.isNotEmpty) {
-          final dataNascEsperada = _parseData(dataNascimentoStr);
-          if (dataNascEsperada != null) {
-            final dataEncontrada = _encontrarDataNascimento(datas, dataNascimentoStr);
-            if (dataEncontrada == null) {
-              erros.add('Data de nascimento não encontrada no documento.');
-              valido = false;
-            } else if (dataEncontrada.year != dataNascEsperada.year ||
-                       dataEncontrada.month != dataNascEsperada.month ||
-                       dataEncontrada.day != dataNascEsperada.day) {
-              erros.add('Data de nascimento do documento não confere com a cadastrada.');
-              valido = false;
-            }
-          }
-        }
-
-        break;
-
-      case 'PASSAPORTE':
-        // 1. Validar data de validade
-        final hoje = DateTime.now();
-        bool temDataValida = false;
-        for (final data in datas) {
-          if (data.isAfter(hoje)) {
-            temDataValida = true;
-            break;
-          }
-        }
-        if (!temDataValida) {
-          erros.add('Passaporte parece estar vencido ou data de validade não identificada.');
-          valido = false;
-        }
-
-        // 2. Bater data de nascimento
-        if (dataNascimentoStr != null && dataNascimentoStr.isNotEmpty) {
-          final dataNascEsperada = _parseData(dataNascimentoStr);
-          if (dataNascEsperada != null) {
-            final dataEncontrada = _encontrarDataNascimento(datas, dataNascimentoStr);
-            if (dataEncontrada == null) {
-              erros.add('Data de nascimento não encontrada no passaporte.');
-              valido = false;
-            } else if (dataEncontrada.year != dataNascEsperada.year ||
-                       dataEncontrada.month != dataNascEsperada.month ||
-                       dataEncontrada.day != dataNascEsperada.day) {
-              erros.add('Data de nascimento do passaporte não confere com a cadastrada.');
-              valido = false;
-            }
-          }
-        }
-
-        // 3. Verificar nacionalidade
-        if (!_verificarNacionalidadeBrasileira(texto)) {
-          erros.add('Nacionalidade brasileira não identificada no passaporte.');
-          valido = false;
-        }
-
-        // 4. Verificar datas de emissão/validade
-        // Verificar se há data de emissão no futuro (impossível)
-        for (final data in datas) {
-          final dataFuturaLimite = hoje.add(const Duration(days: 365 * 15)); // Passaporte até 15 anos
-          if (data.isAfter(dataFuturaLimite)) {
-            erros.add('Data de emissão inválida (futura demais).');
+        case 'CONTRATO_SOCIAL':
+          if (cnpjDigitado == null) {
+            erros.add('CNPJ não preenchido na etapa 1.');
             valido = false;
-            break;
+          } else if (cnpjEncontrado == null) {
+            erros.add('Não foi possível identificar o CNPJ no documento.');
+            valido = false;
+          } else if (cnpjEncontrado != cnpjDigitado) {
+            erros.add('CNPJ do documento não corresponde ao CNPJ cadastrado.');
+            valido = false;
           }
-        }
 
-        break;
+          // Verificar palavras-chave de contrato social no texto
+          final textoUp = texto.toUpperCase();
+          if (!textoUp.contains('CONTRATO SOCIAL') && 
+              !textoUp.contains('ESTATUTO SOCIAL') && 
+              !textoUp.contains('REQUERIMENTO') &&
+              !textoUp.contains('EMPRESÁRIO') &&
+              !textoUp.contains('EMPRESARIO')) {
+            // Não é um erro crítico - apenas informativo
+          }
+          break;
+
+        case 'DANFE':
+          if (cnpjDigitado == null) {
+            erros.add('CNPJ não preenchido na etapa 1.');
+            valido = false;
+          } else if (cnpjEncontrado == null) {
+            erros.add('Não foi possível identificar o CNPJ na DANFE.');
+            valido = false;
+          } else if (cnpjEncontrado != cnpjDigitado) {
+            erros.add('CNPJ da DANFE não corresponde ao CNPJ cadastrado.');
+            valido = false;
+          }
+
+          // Verificar se tem "DANFE" ou "NOTA FISCAL" no texto
+          final textoUp = texto.toUpperCase();
+          if (!textoUp.contains('DANFE') && !textoUp.contains('NOTA FISCAL')) {
+            erros.add('Não foi possível identificar como uma DANFE/Nota Fiscal.');
+            valido = false;
+          }
+          break;
+
+        case 'ALVARA':
+          if (cnpjDigitado == null) {
+            erros.add('CNPJ não preenchido na etapa 1.');
+            valido = false;
+          } else if (cnpjEncontrado == null) {
+            erros.add('Não foi possível identificar o CNPJ no Alvará.');
+            valido = false;
+          } else if (cnpjEncontrado != cnpjDigitado) {
+            erros.add('CNPJ do Alvará não corresponde ao CNPJ cadastrado.');
+            valido = false;
+          }
+
+          // Verificar se tem "ALVARÁ" ou "ALVARA" no texto
+          final textoUp = texto.toUpperCase();
+          if (!textoUp.contains('ALVARÁ') && !textoUp.contains('ALVARA') && !textoUp.contains('FUNCIONAMENTO')) {
+            erros.add('Não foi possível identificar como um Alvará de Funcionamento.');
+            valido = false;
+          }
+          break;
+
+        default:
+          // Caso não reconhecido, validar pelo menos o CNPJ
+          if (cnpjDigitado != null && cnpjEncontrado != null && cnpjEncontrado == cnpjDigitado) {
+            valido = true;
+          } else {
+            erros.add('Não foi possível validar os dados da empresa no documento.');
+            valido = false;
+          }
+      }
+    } else {
+      // Validação original para documentos de Pessoa Física
+      final cpfDigitado = widget.cpf != null ? _somenteDigitos(widget.cpf!) : null;
+      final cpfEncontrado = _extrairCpf(texto);
+      final datas = _extrairDatas(texto);
+      final dataNascimentoStr = widget.dataNascimento;
+
+      switch (doc.type) {
+        case 'RG':
+          // 1. Validar CPF
+          if (cpfDigitado == null) {
+            erros.add('CPF não preenchido na etapa 1.');
+            valido = false;
+          } else if (cpfEncontrado == null) {
+            erros.add('Não foi possível identificar o CPF no documento.');
+            valido = false;
+          } else if (cpfEncontrado != cpfDigitado) {
+            erros.add('CPF do documento não corresponde ao CPF cadastrado.');
+            valido = false;
+          }
+
+          // 2. Validar número do RG
+          final rg = _extrairRg(texto);
+          final uf = _extrairUf(texto);
+          if (!_validarFormatoRg(rg, uf)) {
+            erros.add('Número do RG não identificado ou formato inválido para a UF.');
+            valido = false;
+          }
+
+          // 3. Validar data de validade (RG não pode estar vencido - maior de idade)
+          final dataNascimentoDoc = _encontrarDataNascimento(datas, dataNascimentoStr);
+          if (dataNascimentoDoc != null && dataNascimentoStr != null && dataNascimentoStr.isNotEmpty) {
+            final hoje = DateTime.now();
+            if (dataNascimentoDoc.isAfter(hoje)) {
+              erros.add('Data de nascimento inválida (futura).');
+              valido = false;
+            }
+          }
+
+          // 4. Bater data de nascimento
+          if (dataNascimentoStr != null && dataNascimentoStr.isNotEmpty) {
+            final dataNascEsperada = _parseData(dataNascimentoStr);
+            if (dataNascEsperada != null) {
+              final dataEncontrada = _encontrarDataNascimento(datas, dataNascimentoStr);
+              if (dataEncontrada == null) {
+                erros.add('Data de nascimento não encontrada no documento.');
+                valido = false;
+              } else if (dataEncontrada.year != dataNascEsperada.year ||
+                         dataEncontrada.month != dataNascEsperada.month ||
+                         dataEncontrada.day != dataNascEsperada.day) {
+                erros.add('Data de nascimento do documento não confere com a cadastrada.');
+                valido = false;
+              }
+            }
+          }
+
+          // 5. Verificar órgão emissor / UF
+          final orgao = _extrairOrgaoEmissor(texto);
+          if (orgao == null) {
+            erros.add('Órgão emissor não identificado.');
+            valido = false;
+          }
+          if (uf == null) {
+            erros.add('UF do documento não identificada.');
+            valido = false;
+          } else if (!_ufsValidas.contains(uf)) {
+            erros.add('UF "$uf" não é válida.');
+            valido = false;
+          }
+          break;
+
+        case 'CIN':
+          if (cpfDigitado == null) {
+            erros.add('CPF não preenchido na etapa 1.');
+            valido = false;
+          } else if (cpfEncontrado == null) {
+            erros.add('Não foi possível identificar o CPF no documento.');
+            valido = false;
+          } else if (cpfEncontrado != cpfDigitado) {
+            erros.add('CPF do documento não corresponde ao CPF cadastrado.');
+            valido = false;
+          }
+          if (dataNascimentoStr != null && dataNascimentoStr.isNotEmpty) {
+            final dataNascEsperada = _parseData(dataNascimentoStr);
+            if (dataNascEsperada != null) {
+              final dataEncontrada = _encontrarDataNascimento(datas, dataNascimentoStr);
+              if (dataEncontrada == null) {
+                erros.add('Data de nascimento não encontrada no documento.');
+                valido = false;
+              } else if (dataEncontrada.year != dataNascEsperada.year ||
+                         dataEncontrada.month != dataNascEsperada.month ||
+                         dataEncontrada.day != dataNascEsperada.day) {
+                erros.add('Data de nascimento do documento não confere com a cadastrada.');
+                valido = false;
+              }
+            }
+          }
+          final orgao = _extrairOrgaoEmissor(texto);
+          if (orgao == null) {
+            erros.add('Órgão emissor não identificado.');
+            valido = false;
+          }
+          final uf = _extrairUf(texto);
+          if (uf == null) {
+            erros.add('UF do documento não identificada.');
+            valido = false;
+          } else if (!_ufsValidas.contains(uf)) {
+            erros.add('UF "$uf" não é válida.');
+            valido = false;
+          }
+          break;
+
+        case 'CNH':
+          if (cpfDigitado == null) {
+            erros.add('CPF não preenchido na etapa 1.');
+            valido = false;
+          } else if (cpfEncontrado == null) {
+            erros.add('Não foi possível identificar o CPF no documento.');
+            valido = false;
+          } else if (cpfEncontrado != cpfDigitado) {
+            erros.add('CPF do documento não corresponde ao CPF cadastrado.');
+            valido = false;
+          }
+          final hojeCNH = DateTime.now();
+          bool temDataValida = false;
+          for (final data in datas) {
+            if (data.isAfter(hojeCNH) || 
+                (data.year == hojeCNH.year && data.month == hojeCNH.month && data.day == hojeCNH.day)) {
+              temDataValida = true;
+              break;
+            }
+          }
+          if (!temDataValida && datas.isNotEmpty) {
+            erros.add('Documento parece estar vencido (data de validade expirada).');
+            valido = false;
+          }
+          if (dataNascimentoStr != null && dataNascimentoStr.isNotEmpty) {
+            final dataNascEsperada = _parseData(dataNascimentoStr);
+            if (dataNascEsperada != null) {
+              final dataEncontrada = _encontrarDataNascimento(datas, dataNascimentoStr);
+              if (dataEncontrada == null) {
+                erros.add('Data de nascimento não encontrada no documento.');
+                valido = false;
+              } else if (dataEncontrada.year != dataNascEsperada.year ||
+                         dataEncontrada.month != dataNascEsperada.month ||
+                         dataEncontrada.day != dataNascEsperada.day) {
+                erros.add('Data de nascimento do documento não confere com a cadastrada.');
+                valido = false;
+              }
+            }
+          }
+          break;
+
+        case 'PASSAPORTE':
+          final hojePass = DateTime.now();
+          bool temDataValidaPass = false;
+          for (final data in datas) {
+            if (data.isAfter(hojePass)) {
+              temDataValidaPass = true;
+              break;
+            }
+          }
+          if (!temDataValidaPass) {
+            erros.add('Passaporte parece estar vencido ou data de validade não identificada.');
+            valido = false;
+          }
+          if (dataNascimentoStr != null && dataNascimentoStr.isNotEmpty) {
+            final dataNascEsperada = _parseData(dataNascimentoStr);
+            if (dataNascEsperada != null) {
+              final dataEncontrada = _encontrarDataNascimento(datas, dataNascimentoStr);
+              if (dataEncontrada == null) {
+                erros.add('Data de nascimento não encontrada no passaporte.');
+                valido = false;
+              } else if (dataEncontrada.year != dataNascEsperada.year ||
+                         dataEncontrada.month != dataNascEsperada.month ||
+                         dataEncontrada.day != dataNascEsperada.day) {
+                erros.add('Data de nascimento do passaporte não confere com a cadastrada.');
+                valido = false;
+              }
+            }
+          }
+          if (!_verificarNacionalidadeBrasileira(texto)) {
+            erros.add('Nacionalidade brasileira não identificada no passaporte.');
+            valido = false;
+          }
+          for (final data in datas) {
+            final dataFuturaLimite = hojePass.add(const Duration(days: 365 * 15));
+            if (data.isAfter(dataFuturaLimite)) {
+              erros.add('Data de emissão inválida (futura demais).');
+              valido = false;
+              break;
+            }
+          }
+          break;
+      }
     }
 
     setState(() {

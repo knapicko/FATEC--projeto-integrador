@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_sign_in/google_sign_in.dart'; // Importação do Google adicionada
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'services/google_auth_service.dart';
 import 'tela_home.dart';
 import 'tela_home_profissional.dart';
 import 'esqueci_senha.dart';
+import 'services/auth_navigation.dart';
 
 // ================= TELA: LOGIN =================
 class LoginPage extends StatefulWidget {
@@ -95,63 +96,55 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       final supabase = Supabase.instance.client;
+      final user = await GoogleAuthService.signInWithGoogle();
 
-      // LEMBRETE: Cole o seu Client ID da Web aqui dentro
-      const webClientId =
-          '558968043989-rmv282bv5r41ntrkk4bumu4v0m7hdbs7.apps.googleusercontent.com';
-
-      final googleSignIn = GoogleSignIn(clientId: webClientId);
-      final googleUser = await googleSignIn.signIn();
-
-      if (googleUser == null) {
-        setState(() => _carregando = false);
+      if (user == null) {
         return; // Usuário cancelou o login
       }
 
-      final googleAuth = await googleUser.authentication;
-      final idToken = googleAuth.idToken;
-      final accessToken = googleAuth.accessToken;
+      if (!mounted) return;
 
-      if (idToken == null) {
-        throw 'Não foi possível obter o ID Token do Google.';
+      final currentUser = supabase.auth.currentUser;
+      if (currentUser == null) {
+        throw 'Falha ao obter usuário autenticado após login com Google.';
       }
 
-      await supabase.auth.signInWithIdToken(
-        provider: OAuthProvider.google,
-        idToken: idToken,
-        accessToken: accessToken,
-      );
+      final usuarioResponse = await supabase
+          .from('usuarios')
+          .select('tipo_conta')
+          .eq('auth_id', currentUser.id)
+          .maybeSingle();
+
+      final isProfissional = usuarioResponse?['tipo_conta'] == 'Profissional';
+      final nomeGoogle = GoogleAuthService.extrairNome(currentUser);
+      final fotoUrlGoogle = currentUser.userMetadata?['avatar_url'] as String? ?? GoogleAuthService.ultimaFotoUrl;
 
       if (mounted) {
-        // Verificar se o usuário é um profissional
-        final supabase = Supabase.instance.client;
-        final currentUser = supabase.auth.currentUser;
-        if (currentUser != null) {
-          final usuarioResponse = await supabase
-              .from('usuarios')
-              .select('tipo_conta')
-              .eq('auth_id', currentUser.id)
-              .maybeSingle();
-
-          final isProfissional = usuarioResponse?['tipo_conta'] == 'Profissional';
-
-          if (mounted) {
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (context) => isProfissional
-                  ? TelaHomeProfissional(isVisitante: false)
-                  : TelaHome(isVisitante: false)),
-              (route) => false,
-            );
-          }
+        if (isProfissional) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => TelaHomeProfissional(isVisitante: false)),
+            (route) => false,
+          );
+        } else if (usuarioResponse == null) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(
+              builder: (_) => TelaEscolhaContaCompletar(
+                authId: currentUser.id,
+                emailGoogle: currentUser.email ?? '',
+                nomeGoogle: nomeGoogle,
+                fotoUrlGoogle: fotoUrlGoogle,
+              ),
+            ),
+            (route) => false,
+          );
         } else {
-          if (mounted) {
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (context) => TelaHome(isVisitante: false)),
-              (route) => false,
-            );
-          }
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => TelaHome(isVisitante: false)),
+            (route) => false,
+          );
         }
       }
     } catch (e) {

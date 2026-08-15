@@ -263,7 +263,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
               decoration: BoxDecoration(
                 color: const Color(0xFFE3F2FD),
                 borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: const Color(0xFFB3E5FC).withOpacity(0.5)),
+                border: Border.all(color: const Color(0xFFB3E5FC).withValues(alpha: 0.5)),
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(4),
@@ -278,9 +278,9 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                         height: 160,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: const Color(0xFF0FB3FF).withOpacity(0.15),
+                          color: const Color(0xFF0FB3FF).withValues(alpha: 0.15),
                           border: Border.all(
-                            color: const Color(0xFF0FB3FF).withOpacity(0.3),
+                            color: const Color(0xFF0FB3FF).withValues(alpha: 0.3),
                             width: 1.5,
                           ),
                         ),
@@ -358,7 +358,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha: 0.04),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -395,7 +395,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
         decoration: BoxDecoration(
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: const Offset(0, -2),
             ),
@@ -431,7 +431,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
+        color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
@@ -454,7 +454,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 4,
             offset: const Offset(0, 1),
           ),
