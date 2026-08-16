@@ -1,20 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'tela_home.dart';
 import 'tela_home_profissional.dart';
 import 'tela_meu_perfil_cliente.dart';
 import 'tela_meu_perfil_profissional.dart';
 
+/// Constantes dos nomes das tabelas no Supabase
+const String _tabelaEndereco = 'enderecos';
+const String _tabelaAssUsuarioEndereco = 'ass_usuario_endereco';
+const String _tabelaCidade = 'cidades';
+const String _tabelaEstado = 'estados';
+
 class _EnderecoItem {
-  final String titulo;
+  final int? id; // fk_endereco / id_endereco
+  final String titulo; // apelido_endereco
   final IconData icone;
   final String linha1;
   final String? linha2;
   final String? linha3;
   final String? cep;
   final bool exibirMapa;
+  final bool principal; // deriva de endereco_ativo
 
   const _EnderecoItem({
+    this.id,
     required this.titulo,
     required this.icone,
     required this.linha1,
@@ -22,7 +32,22 @@ class _EnderecoItem {
     this.linha3,
     this.cep,
     this.exibirMapa = false,
+    this.principal = false,
   });
+
+  _EnderecoItem copyWith({bool? principal}) {
+    return _EnderecoItem(
+      id: id,
+      titulo: titulo,
+      icone: icone,
+      linha1: linha1,
+      linha2: linha2,
+      linha3: linha3,
+      cep: cep,
+      exibirMapa: exibirMapa,
+      principal: principal ?? this.principal,
+    );
+  }
 }
 
 class MeusEnderecosPage extends StatefulWidget {
@@ -50,36 +75,307 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
   final TextEditingController _buscaController = TextEditingController();
   String _termoBusca = '';
 
-  static const _EnderecoItem _enderecoPrincipal = _EnderecoItem(
-    titulo: 'CASA',
-    icone: Icons.home_rounded,
-    linha1: 'Rua das Flores, 123',
-    linha2: 'Apto 45 - Bloco B',
-    linha3: 'Jardim Botânico, São Paulo - SP',
-    cep: '01234-567',
-    exibirMapa: true,
-  );
+  List<_EnderecoItem> _enderecos = [];
+  bool _carregando = true;
+  bool _erro = false;
 
-  static const List<_EnderecoItem> _outrosEnderecos = [
-    _EnderecoItem(
-      titulo: 'TRABALHO',
-      icone: Icons.work_outline_rounded,
-      linha1: 'Av. Paulista, 1000',
-      linha2: 'Conjunto 101',
-      linha3: 'Bela Vista, São Paulo - SP',
-    ),
-    _EnderecoItem(
-      titulo: 'CASA DE PRAIA',
-      icone: Icons.location_on_outlined,
-      linha1: 'Av. Beira Mar, 500',
-      linha3: 'Guarujá - SP',
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _carregarEnderecos();
+  }
 
   @override
   void dispose() {
     _buscaController.dispose();
     super.dispose();
+  }
+
+  Future<int?> _buscarIdUsuario(SupabaseClient supabase, String authId) async {
+    final usuarioResponse = await supabase
+        .from('usuarios')
+        .select('id_usuario')
+        .eq('auth_id', authId)
+        .maybeSingle();
+    if (usuarioResponse == null) return null;
+    return usuarioResponse['id_usuario'] is int
+        ? usuarioResponse['id_usuario'] as int
+        : int.tryParse(usuarioResponse['id_usuario']?.toString() ?? '');
+  }
+
+  Future<void> _carregarEnderecos() async {
+    setState(() {
+      _carregando = true;
+      _erro = false;
+    });
+
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+
+      if (user == null) {
+        if (mounted) {
+          setState(() {
+            _enderecos = [];
+            _carregando = false;
+          });
+        }
+        return;
+      }
+
+      final usuarioId = await _buscarIdUsuario(supabase, user.id);
+      if (usuarioId == null) {
+        if (mounted) {
+          setState(() {
+            _enderecos = [];
+            _carregando = false;
+          });
+        }
+        return;
+      }
+
+      // 1. Busca associações do usuário (apelido + tipo + endereco_ativo)
+      final assResponse = await supabase
+          .from(_tabelaAssUsuarioEndereco)
+          .select('fk_endereco, apelido_endereco, tipo_endereco, endereco_ativo')
+          .eq('fk_usuario', usuarioId);
+
+      if (assResponse.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _enderecos = [];
+            _carregando = false;
+          });
+        }
+        return;
+      }
+
+      // 2. Busca todos os endereços
+      final idEnderecos = <int>[];
+      for (final ass in assResponse) {
+        final fk = ass['fk_endereco'];
+        final id = fk is int ? fk : int.tryParse(fk?.toString() ?? '');
+        if (id != null) idEnderecos.add(id);
+      }
+
+      final enderecosResponse = await supabase
+          .from(_tabelaEndereco)
+          .select('id_endereco, cep, logradouro, numero, bairro, complemento, fk_cidade');
+
+      // 3. Busca cidades e estados para montar o endereço completo
+      final cidadesResponse = await supabase
+          .from(_tabelaCidade)
+          .select('id_cidade, nome_cidade, fk_estado');
+
+      final estadosResponse = await supabase
+          .from(_tabelaEstado)
+          .select('id_estado, sigla_estado');
+
+      final Map<int, Map<String, dynamic>> cidadesMap = {};
+      for (final c in cidadesResponse) {
+        final id = c['id_cidade'] is int
+            ? c['id_cidade'] as int
+            : int.tryParse(c['id_cidade']?.toString() ?? '');
+        if (id != null) cidadesMap[id] = Map<String, dynamic>.from(c);
+      }
+
+      final Map<int, String> estadosMap = {};
+      for (final e in estadosResponse) {
+        final id = e['id_estado'] is int
+            ? e['id_estado'] as int
+            : int.tryParse(e['id_estado']?.toString() ?? '');
+        final sigla = e['sigla_estado']?.toString() ?? '';
+        if (id != null) estadosMap[id] = sigla;
+      }
+
+      // 4. Monta os itens
+      final enderecos = <_EnderecoItem>[];
+
+      for (final ass in assResponse) {
+        final fkEndereco = ass['fk_endereco'];
+        final idEndereco = fkEndereco is int
+            ? fkEndereco
+            : int.tryParse(fkEndereco?.toString() ?? '');
+        if (idEndereco == null) continue;
+
+        final itemRow = enderecosResponse.firstWhere(
+          (e) {
+            final id = e['id_endereco'];
+            final eid = id is int ? id : int.tryParse(id?.toString() ?? '');
+            return eid == idEndereco;
+          },
+          orElse: () => const {},
+        );
+
+        final logradouro = itemRow['logradouro']?.toString() ?? '';
+        final numero = itemRow['numero']?.toString() ?? '';
+        final bairro = itemRow['bairro']?.toString() ?? '';
+        final complemento = itemRow['complemento']?.toString() ?? '';
+        final cep = itemRow['cep']?.toString() ?? '';
+        final fkCidade = itemRow['fk_cidade'];
+
+        final idCidade = fkCidade is int
+            ? fkCidade
+            : int.tryParse(fkCidade?.toString() ?? '');
+
+        final cidadeInfo = idCidade != null ? cidadesMap[idCidade] : null;
+        final cidade = cidadeInfo?['nome_cidade']?.toString() ?? '';
+
+        final fkEstado = cidadeInfo?['fk_estado'];
+        final idEstado = fkEstado is int
+            ? fkEstado
+            : int.tryParse(fkEstado?.toString() ?? '');
+        final estado = idEstado != null
+            ? estadosMap[idEstado] ?? ''
+            : '';
+
+        // Titulo vem de tipo_endereco (Casa/Trabalho/Outro), com fallback para apelido
+        final titulo = ass['tipo_endereco']?.toString() ??
+            ass['apelido_endereco']?.toString() ??
+            'Endereço';
+        final ativo = ass['endereco_ativo'] == true;
+
+        final linha1 = numero.isNotEmpty
+            ? '$logradouro, $numero'
+            : logradouro;
+
+        final detalhesBairro = [if (bairro.isNotEmpty) bairro, if (complemento.isNotEmpty) complemento].join(', ');
+        final linha2 = detalhesBairro.isNotEmpty ? detalhesBairro : null;
+
+        final linha3 = cidade.isNotEmpty
+            ? '$cidade - $estado'
+            : null;
+
+        enderecos.add(
+          _EnderecoItem(
+            id: idEndereco,
+            titulo: titulo.toUpperCase(),
+            icone: _iconeParaTitulo(titulo),
+            linha1: linha1.isNotEmpty ? linha1 : 'Endereço sem logradouro',
+            linha2: linha2,
+            linha3: linha3,
+            cep: cep.isNotEmpty ? cep : null,
+            exibirMapa: ativo,
+            principal: ativo,
+          ),
+        );
+      }
+
+      // Ordena para que o endereço ativo venha primeiro
+      enderecos.sort((a, b) {
+        if (a.principal == b.principal) return 0;
+        return a.principal ? -1 : 1;
+      });
+
+      if (mounted) {
+        setState(() {
+          _enderecos = enderecos;
+          _carregando = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _erro = true;
+          _carregando = false;
+        });
+      }
+    }
+  }
+
+  IconData _iconeParaTitulo(String titulo) {
+    final t = titulo.toLowerCase();
+    if (t.contains('casa')) return Icons.home_rounded;
+    if (t.contains('trabalho')) return Icons.work_outline_rounded;
+    return Icons.location_on_outlined;
+  }
+
+  Future<void> _definirComoPrincipal(_EnderecoItem endereco) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user == null) return;
+
+      final usuarioId = await _buscarIdUsuario(supabase, user.id);
+      if (usuarioId == null) return;
+
+      // Remove o "ativo" de todos os endereços do usuário
+      await supabase
+          .from(_tabelaAssUsuarioEndereco)
+          .update({'endereco_ativo': false})
+          .eq('fk_usuario', usuarioId);
+
+      // Define o endereço selecionado como ativo (principal)
+      if (endereco.id != null) {
+        await supabase
+            .from(_tabelaAssUsuarioEndereco)
+            .update({'endereco_ativo': true})
+            .eq('fk_usuario', usuarioId)
+            .eq('fk_endereco', endereco.id!);
+      }
+
+      // Atualiza a lista local
+      setState(() {
+        _enderecos = _enderecos.map((e) {
+          return e.copyWith(principal: e.id == endereco.id);
+        }).toList();
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Endereço definido como principal!'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao definir endereço principal: $e'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _mostrarDialogoPrincipal(_EnderecoItem endereco) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Definir como principal?',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'Deseja transformar o endereço "${endereco.titulo}" em seu endereço principal?',
+          style: const TextStyle(fontSize: 14, color: _textGray),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'Cancelar',
+              style: TextStyle(color: _textGray),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Confirmar',
+              style: TextStyle(color: _blue, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar == true) {
+      await _definirComoPrincipal(endereco);
+    }
   }
 
   PageRouteBuilder<T> _rotaSemAnimacao<T>(Widget page) {
@@ -339,39 +635,42 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
   }
 
   Widget _buildCardOutroEndereco(_EnderecoItem endereco) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      padding: const EdgeInsets.all(16),
-      decoration: _cardDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              _buildIconeEndereco(icone: endereco.icone, principal: false),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  endereco.titulo,
-                  style: const TextStyle(
-                    color: _textDark,
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.3,
+    return GestureDetector(
+      onTap: () => _mostrarDialogoPrincipal(endereco),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        padding: const EdgeInsets.all(16),
+        decoration: _cardDecoration(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                _buildIconeEndereco(icone: endereco.icone, principal: false),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    endereco.titulo,
+                    style: const TextStyle(
+                      color: _textDark,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.3,
+                    ),
                   ),
                 ),
-              ),
-              IconButton(
-                onPressed: () {},
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                icon: Icon(Icons.more_vert, color: Colors.grey.shade500, size: 22),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          _buildLinhasEndereco(endereco),
-        ],
+                IconButton(
+                  onPressed: () => _mostrarDialogoPrincipal(endereco),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: Icon(Icons.more_vert, color: Colors.grey.shade500, size: 22),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            _buildLinhasEndereco(endereco),
+          ],
+        ),
       ),
     );
   }
@@ -382,8 +681,8 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
       child: CustomPaint(
         painter: _BordaTracejadaPainter(color: _blue.withValues(alpha: 0.5)),
         child: InkWell(
-          onTap: () {
-            Navigator.push(
+          onTap: () async {
+            await Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (context) => AdicionarEnderecoPage(
@@ -392,6 +691,7 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
                 ),
               ),
             );
+            _carregarEnderecos();
           },
           borderRadius: BorderRadius.circular(12),
           child: Container(
@@ -546,9 +846,12 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
 
   @override
   Widget build(BuildContext context) {
-    final exibirPrincipal = _correspondeBusca(_enderecoPrincipal);
-    final outrosFiltrados =
-        _outrosEnderecos.where(_correspondeBusca).toList();
+    final enderecoPrincipal = _enderecos.where((e) => e.principal).firstOrNull;
+    final outrosEnderecos = _enderecos.where((e) => !e.principal).toList();
+
+    final exibirPrincipal = enderecoPrincipal != null &&
+        _correspondeBusca(enderecoPrincipal);
+    final outrosFiltrados = outrosEnderecos.where(_correspondeBusca).toList();
 
     return Scaffold(
       backgroundColor: _background,
@@ -560,30 +863,68 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
         children: [
           _buildBarraPesquisa(),
           Expanded(
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                if (exibirPrincipal) ...[
-                  _buildTituloSecao('Endereço Principal'),
-                  _buildCardPrincipal(_enderecoPrincipal),
-                  const SizedBox(height: 20),
-                ],
-                if (outrosFiltrados.isNotEmpty) ...[
-                  _buildTituloSecao('Outros Endereços'),
-                  ...outrosFiltrados.map(_buildCardOutroEndereco),
-                ],
-                if (!exibirPrincipal && outrosFiltrados.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.all(32),
-                    child: Text(
-                      'Nenhum endereço encontrado.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey.shade500, fontSize: 15),
-                    ),
-                  ),
-                _buildBotaoAdicionar(),
-              ],
-            ),
+            child: _carregando
+                ? const Center(
+                    child: CircularProgressIndicator(color: _blue),
+                  )
+                : _erro
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              color: Colors.grey.shade400,
+                              size: 48,
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'Erro ao carregar endereços.',
+                              style: TextStyle(
+                                color: _textGray,
+                                fontSize: 15,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextButton(
+                              onPressed: _carregarEnderecos,
+                              child: const Text(
+                                'Tentar novamente',
+                                style: TextStyle(color: _blue),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView(
+                        padding: EdgeInsets.zero,
+                        children: [
+                          if (exibirPrincipal) ...[
+                            _buildTituloSecao('Endereço Principal'),
+                            _buildCardPrincipal(enderecoPrincipal),
+                            const SizedBox(height: 20),
+                          ],
+                          if (outrosFiltrados.isNotEmpty) ...[
+                            _buildTituloSecao('Outros Endereços'),
+                            ...outrosFiltrados.map(_buildCardOutroEndereco),
+                          ],
+                          if (!exibirPrincipal && outrosFiltrados.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.all(32),
+                              child: Text(
+                                _enderecos.isEmpty
+                                    ? 'Nenhum endereço cadastrado ainda.'
+                                    : 'Nenhum endereço encontrado.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.grey.shade500,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ),
+                          _buildBotaoAdicionar(),
+                        ],
+                      ),
           ),
         ],
       ),
@@ -628,6 +969,7 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
 
   String? _estadoSelecionado;
   String _tipoSalvar = 'Casa';
+  bool _salvando = false;
 
   @override
   void dispose() {
@@ -650,15 +992,176 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
     );
   }
 
-  void _salvarEndereco() {
+  Future<int?> _buscarIdUsuario(SupabaseClient supabase, String authId) async {
+    final usuarioResponse = await supabase
+        .from('usuarios')
+        .select('id_usuario')
+        .eq('auth_id', authId)
+        .maybeSingle();
+    if (usuarioResponse == null) return null;
+    return usuarioResponse['id_usuario'] is int
+        ? usuarioResponse['id_usuario'] as int
+        : int.tryParse(usuarioResponse['id_usuario']?.toString() ?? '');
+  }
+
+  Future<void> _salvarEndereco() async {
     FocusScope.of(context).unfocus();
-    Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Endereço salvo com sucesso!'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+
+    // Validação básica
+    if (_logradouroController.text.trim().isEmpty ||
+        _cidadeController.text.trim().isEmpty ||
+        _estadoSelecionado == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Preencha os campos obrigatórios: logradouro, cidade e estado.'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _salvando = true);
+
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+
+      if (user == null) {
+        if (mounted) {
+          setState(() => _salvando = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Você precisa estar logado para salvar um endereço.'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        return;
+      }
+
+      final usuarioId = await _buscarIdUsuario(supabase, user.id);
+      if (usuarioId == null) {
+        if (mounted) {
+          setState(() => _salvando = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Usuário não encontrado no sistema.'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        return;
+      }
+
+      // Verifica se é o primeiro endereço do usuário (será o ativo/principal)
+      final assResponse = await supabase
+          .from(_tabelaAssUsuarioEndereco)
+          .select('fk_endereco')
+          .eq('fk_usuario', usuarioId);
+
+      final isPrimeiroEndereco = assResponse.isEmpty;
+
+      // 1. Busca ou cria o estado (UF)
+      final estadoResponse = await supabase
+          .from(_tabelaEstado)
+          .select('id_estado')
+          .eq('sigla_estado', _estadoSelecionado!)
+          .maybeSingle();
+
+      int idEstado;
+      if (estadoResponse == null) {
+        final novoEstado = await supabase
+            .from(_tabelaEstado)
+            .insert({
+              'sigla_estado': _estadoSelecionado!,
+              'nome_estado': _estadoSelecionado!,
+            })
+            .select('id_estado')
+            .single();
+        idEstado = novoEstado['id_estado'] is int
+            ? novoEstado['id_estado'] as int
+            : int.parse(novoEstado['id_estado'].toString());
+      } else {
+        idEstado = estadoResponse['id_estado'] is int
+            ? estadoResponse['id_estado'] as int
+            : int.parse(estadoResponse['id_estado'].toString());
+      }
+
+      // 2. Busca ou cria a cidade
+      final cidadeResponse = await supabase
+          .from(_tabelaCidade)
+          .select('id_cidade')
+          .eq('nome_cidade', _cidadeController.text.trim())
+          .eq('fk_estado', idEstado)
+          .maybeSingle();
+
+      int idCidade;
+      if (cidadeResponse == null) {
+        final novaCidade = await supabase
+            .from(_tabelaCidade)
+            .insert({
+              'nome_cidade': _cidadeController.text.trim(),
+              'fk_estado': idEstado,
+            })
+            .select('id_cidade')
+            .single();
+        idCidade = novaCidade['id_cidade'] is int
+            ? novaCidade['id_cidade'] as int
+            : int.parse(novaCidade['id_cidade'].toString());
+      } else {
+        idCidade = cidadeResponse['id_cidade'] is int
+            ? cidadeResponse['id_cidade'] as int
+            : int.parse(cidadeResponse['id_cidade'].toString());
+      }
+
+      // 3. Insere o endereço
+      final enderecoResponse = await supabase
+          .from(_tabelaEndereco)
+          .insert({
+            'cep': _cepController.text.trim(),
+            'logradouro': _logradouroController.text.trim(),
+            'numero': _numeroController.text.trim(),
+            'bairro': _bairroController.text.trim(),
+            'complemento': _complementoController.text.trim(),
+            'fk_cidade': idCidade,
+          })
+          .select('id_endereco')
+          .single();
+
+      final idEndereco = enderecoResponse['id_endereco'] is int
+          ? enderecoResponse['id_endereco'] as int
+          : int.parse(enderecoResponse['id_endereco'].toString());
+
+      // 4. Insere a associação usuário-endereço (com tipo, apelido e ativo)
+      await supabase.from(_tabelaAssUsuarioEndereco).insert({
+        'fk_usuario': usuarioId,
+        'fk_endereco': idEndereco,
+        'apelido_endereco': _tipoSalvar,
+        'tipo_endereco': _tipoSalvar,
+        'endereco_ativo': isPrimeiroEndereco,
+      });
+
+      if (mounted) {
+        setState(() => _salvando = false);
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Endereço salvo com sucesso!'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _salvando = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao salvar endereço: $e'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   InputDecoration _inputDecoration(String hint) {
@@ -1059,7 +1562,7 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
               width: double.infinity,
               height: 52,
               child: ElevatedButton(
-                onPressed: _salvarEndereco,
+                onPressed: _salvando ? null : _salvarEndereco,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _blue,
                   foregroundColor: Colors.white,
@@ -1068,13 +1571,22 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
                     borderRadius: BorderRadius.circular(28),
                   ),
                 ),
-                child: const Text(
-                  'Salvar Endereço',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                child: _salvando
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text(
+                        'Salvar Endereço',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
           ),
