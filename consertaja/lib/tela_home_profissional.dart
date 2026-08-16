@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'main.dart';
-import 'login.dart';
-import 'tela_home.dart';
+import 'tela_meu_perfil_profissional.dart';
 
 class TelaHomeProfissional extends StatefulWidget {
   final bool isVisitante;
@@ -64,38 +62,11 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     }
   }
 
-  void _exibirDialogSair(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Confirmar Saída'),
-          content: const Text('Deseja realmente sair da sua conta?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
-            TextButton(
-              onPressed: () async {
-                Navigator.of(context, rootNavigator: true).pop();
-                await Supabase.instance.client.auth.signOut();
-                navigatorKey.currentState?.pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const TelaEscolhaConta()),
-                  (route) => false,
-                );
-              },
-              child: const Text(
-                'Sair',
-                style: TextStyle(
-                  color: Color(0xFF0FB3FF),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+  PageRouteBuilder _rotaSemAnimacao(Widget page) {
+    return PageRouteBuilder(
+      pageBuilder: (_, _, _) => page,
+      transitionDuration: Duration.zero,
+      reverseTransitionDuration: Duration.zero,
     );
   }
 
@@ -410,10 +381,17 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
           unselectedLabelStyle: const TextStyle(fontSize: 11),
           onTap: (index) {
-            setState(() => _currentIndex = index);
             if (index == 4) {
-              _exibirDialogSair(context);
+              Navigator.of(context).pushReplacement(
+                _rotaSemAnimacao(
+                  TelaMeuPerfilProfissionalPage(
+                    isVisitante: widget.isVisitante,
+                  ),
+                ),
+              );
+              return;
             }
+            setState(() => _currentIndex = index);
           },
           items: const [
             BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
