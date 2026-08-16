@@ -458,7 +458,120 @@ class _TelaBuscaState extends State<TelaBusca> {
         }
       }
 
-      // 5) Para cada usuário encontrado, busca endereço e ofícios
+      // 5) Busca endereços ativos para todos os usuários encontrados
+      final Map<int, String> localizacaoPorUsuario = {};
+
+      if (usuariosEncontrados.isNotEmpty) {
+        final idsUsuarios = usuariosEncontrados.keys.toList();
+
+        // Busca associações de endereço ativas
+        final assEnderecos = await supabase
+            .from('ass_usuario_endereco')
+            .select('fk_usuario, fk_endereco')
+            .inFilter('fk_usuario', idsUsuarios)
+            .eq('endereco_ativo', true);
+
+        if (assEnderecos.isNotEmpty) {
+          // Mapa de fk_usuario -> fk_endereco
+          final Map<int, int> enderecoPorUsuario = {};
+          final idEnderecos = <int>[];
+
+          for (final ass in assEnderecos) {
+            final fkUsuario = ass['fk_usuario'];
+            final fkEndereco = ass['fk_endereco'];
+            final idUsuario = fkUsuario is int
+                ? fkUsuario
+                : int.tryParse(fkUsuario?.toString() ?? '');
+            final idEndereco = fkEndereco is int
+                ? fkEndereco
+                : int.tryParse(fkEndereco?.toString() ?? '');
+            if (idUsuario != null && idEndereco != null) {
+              enderecoPorUsuario[idUsuario] = idEndereco;
+              idEnderecos.add(idEndereco);
+            }
+          }
+
+          if (idEnderecos.isNotEmpty) {
+            // Busca endereços
+            final enderecosResp = await supabase
+                .from('enderecos')
+                .select('id_endereco, logradouro, numero, complemento, fk_cidade')
+                .inFilter('id_endereco', idEnderecos);
+
+            // Busca cidades
+            final cidadesResp = await supabase
+                .from('cidades')
+                .select('id_cidade, nome_cidade, fk_estado');
+
+            // Busca estados
+            final estadosResp = await supabase
+                .from('estados')
+                .select('id_estado, sigla_estado');
+
+            // Mapas auxiliares
+            final Map<int, Map<String, dynamic>> cidadesMap = {};
+            for (final c in cidadesResp) {
+              final fk = c['id_cidade'];
+              final id = fk is int ? fk : int.tryParse(fk?.toString() ?? '');
+              if (id != null) cidadesMap[id] = Map<String, dynamic>.from(c);
+            }
+
+            final Map<int, String> estadosMap = {};
+            for (final e in estadosResp) {
+              final fk = e['id_estado'];
+              final id = fk is int ? fk : int.tryParse(fk?.toString() ?? '');
+              if (id != null) estadosMap[id] = e['sigla_estado']?.toString() ?? '';
+            }
+
+            // Mapa de id_endereco -> dados do endereço
+            final Map<int, Map<String, dynamic>> enderecosMap = {};
+            for (final e in enderecosResp) {
+              final fk = e['id_endereco'];
+              final id = fk is int ? fk : int.tryParse(fk?.toString() ?? '');
+              if (id != null) enderecosMap[id] = Map<String, dynamic>.from(e);
+            }
+
+            // Construye localização para cada usuário
+            for (final entry in enderecoPorUsuario.entries) {
+              final idUsuario = entry.key;
+              final idEndereco = entry.value;
+              final endereco = enderecosMap[idEndereco];
+              if (endereco == null) continue;
+
+              final logradouro = endereco['logradouro']?.toString() ?? '';
+              final numero = endereco['numero']?.toString() ?? '';
+              final complemento = endereco['complemento']?.toString() ?? '';
+              final fkCidade = endereco['fk_cidade'];
+              final idCidade = fkCidade is int
+                  ? fkCidade
+                  : int.tryParse(fkCidade?.toString() ?? '');
+
+              final cidadeInfo = idCidade != null ? cidadesMap[idCidade] : null;
+              final cidade = cidadeInfo?['nome_cidade']?.toString() ?? '';
+
+              final fkEstado = cidadeInfo?['fk_estado'];
+              final idEstado = fkEstado is int
+                  ? fkEstado
+                  : int.tryParse(fkEstado?.toString() ?? '');
+              final estado = idEstado != null ? estadosMap[idEstado] ?? '' : '';
+
+              final partes = <String>[];
+              if (logradouro.isNotEmpty) {
+                partes.add(numero.isNotEmpty ? '$logradouro, $numero' : logradouro);
+              }
+              if (complemento.isNotEmpty) {
+                partes.add(complemento);
+              }
+              if (cidade.isNotEmpty) {
+                partes.add(estado.isNotEmpty ? '$cidade - $estado' : cidade);
+              }
+              localizacaoPorUsuario[idUsuario] = partes.join(', ');
+            }
+          }
+        }
+      }
+
+      // 6) Para cada usuário encontrado, busca ofícios
       final resultados = <_ProfissionalBusca>[];
 
       for (final entry in usuariosEncontrados.entries) {
@@ -467,8 +580,7 @@ class _TelaBuscaState extends State<TelaBusca> {
         final nome = usuario['nome']?.toString() ?? '';
         if (nome.trim().isEmpty) continue;
 
-        // Endereço temporariamente desativado - tabela enderecos ainda não implementada no Supabase
-        final String localizacao = 'Localização não informada';
+        final String localizacao = localizacaoPorUsuario[usuarioId] ?? 'Localização não informada';
 
         // Ofícios do profissional (via dados_profissionais + ass_oficio_profissional + oficios)
         final idProfissional = usuarioParaProfissional[usuarioId];
