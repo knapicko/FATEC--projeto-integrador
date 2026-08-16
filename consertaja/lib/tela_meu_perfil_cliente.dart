@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'tela_home.dart';
 import 'editar_informacoes.dart';
+import 'meus_enderecos.dart';
 import 'main.dart';
 
 class TelaMeuPerfilClientePage extends StatefulWidget {
@@ -618,6 +619,16 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                     label: 'Meus Endereços',
                     imageAsset: 'assets/images/Endereço_Cinza.png',
                     fallbackIcon: Icons.location_on_outlined,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => MeusEnderecosPage(
+                            isVisitante: widget.isVisitante,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                   _buildProfileItem(
                     label: 'Histórico de Pedidos',

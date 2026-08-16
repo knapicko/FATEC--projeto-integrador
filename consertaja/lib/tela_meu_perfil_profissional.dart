@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'editar_informacoes.dart';
+import 'meus_enderecos.dart';
 import 'tela_home_profissional.dart';
 import 'main.dart';
 
@@ -651,6 +652,17 @@ class _TelaMeuPerfilProfissionalPageState
                     label: 'Meus Endereços',
                     imageAsset: 'assets/images/Endereço_Cinza.png',
                     fallbackIcon: Icons.location_on_outlined,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => MeusEnderecosPage(
+                            isVisitante: widget.isVisitante,
+                            isProfissional: true,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                   _buildProfileItem(
                     label: 'Histórico de Pedidos',
