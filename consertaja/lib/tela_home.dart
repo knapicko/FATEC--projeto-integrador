@@ -4,6 +4,7 @@ import 'main.dart';
 import 'perfil_loja.dart';
 import 'perfil_profissional.dart';
 import 'tela_meu_perfil_cliente.dart';
+import 'tela_busca.dart';
 import 'widgets/foto_perfil_google.dart';
 
 class ServicoPopular {
@@ -336,6 +337,12 @@ class TelaHome extends StatelessWidget {
     );
   }
 
+  void _navegarParaBusca(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => TelaBusca(isVisitante: isVisitante)),
+    );
+  }
+
   BoxDecoration _cardDecoration() {
     return BoxDecoration(
       color: Colors.white,
@@ -589,29 +596,37 @@ class TelaHome extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey.shade200),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: const TextField(
-                      decoration: InputDecoration(
-                        hintText: 'Qual será o serviço de hoje?',
-                        hintStyle: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 14,
-                        ),
-                        prefixIcon: Icon(Icons.search, color: Colors.grey),
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(vertical: 14),
+                  child: GestureDetector(
+                    onTap: () => _navegarParaBusca(context),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade200),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.04),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 14,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.search, color: Colors.grey.shade500),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Qual será o serviço de hoje?',
+                            style: TextStyle(
+                              color: Colors.grey.shade500,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
