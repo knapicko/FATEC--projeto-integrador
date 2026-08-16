@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'tela_home.dart';
 import 'tela_home_profissional.dart';
 import 'tela_meu_perfil_cliente.dart';
@@ -381,7 +382,17 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
       child: CustomPaint(
         painter: _BordaTracejadaPainter(color: _blue.withValues(alpha: 0.5)),
         child: InkWell(
-          onTap: () {},
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => AdicionarEnderecoPage(
+                  isVisitante: widget.isVisitante,
+                  isProfissional: widget.isProfissional,
+                ),
+              ),
+            );
+          },
           borderRadius: BorderRadius.circular(12),
           child: Container(
             width: double.infinity,
@@ -579,6 +590,569 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
       bottomNavigationBar: _buildBottomNav(),
     );
   }
+}
+
+class AdicionarEnderecoPage extends StatefulWidget {
+  final bool isVisitante;
+  final bool isProfissional;
+
+  const AdicionarEnderecoPage({
+    super.key,
+    this.isVisitante = false,
+    this.isProfissional = false,
+  });
+
+  @override
+  State<AdicionarEnderecoPage> createState() => _AdicionarEnderecoPageState();
+}
+
+class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
+  static const Color _blue = Color(0xFF0FB3FF);
+  static const Color _background = Color(0xFFF8F9FA);
+  static const Color _textDark = Color(0xFF1A1A1A);
+  static const Color _labelGray = Color(0xFF4A4A4A);
+  static const Color _inputFill = Color(0xFFF5F5F5);
+
+  static const List<String> _estados = [
+    'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
+    'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN',
+    'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
+  ];
+
+  final TextEditingController _cepController = TextEditingController();
+  final TextEditingController _logradouroController = TextEditingController();
+  final TextEditingController _numeroController = TextEditingController();
+  final TextEditingController _complementoController = TextEditingController();
+  final TextEditingController _bairroController = TextEditingController();
+  final TextEditingController _cidadeController = TextEditingController();
+
+  String? _estadoSelecionado;
+  String _tipoSalvar = 'Casa';
+
+  @override
+  void dispose() {
+    _cepController.dispose();
+    _logradouroController.dispose();
+    _numeroController.dispose();
+    _complementoController.dispose();
+    _bairroController.dispose();
+    _cidadeController.dispose();
+    super.dispose();
+  }
+
+  void _buscarCep() {
+    FocusScope.of(context).unfocus();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Busca de CEP em desenvolvimento.'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _salvarEndereco() {
+    FocusScope.of(context).unfocus();
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Endereço salvo com sucesso!'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  InputDecoration _inputDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+      filled: true,
+      fillColor: _inputFill,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide.none,
+      ),
+    );
+  }
+
+  Widget _buildLabel(String texto) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(
+        texto,
+        style: const TextStyle(
+          color: _labelGray,
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCampo({
+    required String label,
+    required TextEditingController controller,
+    required String hint,
+    TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildLabel(label),
+          TextField(
+            controller: controller,
+            keyboardType: keyboardType,
+            inputFormatters: inputFormatters,
+            style: const TextStyle(color: _textDark, fontSize: 14),
+            decoration: _inputDecoration(hint),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMapaPreview() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          children: [
+            SizedBox(
+              height: 180,
+              width: double.infinity,
+              child: CustomPaint(
+                painter: _MapaCidadePainter(),
+                child: Container(color: const Color(0xFFE4EBE4)),
+              ),
+            ),
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.location_on,
+                      color: _blue,
+                      size: 42,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'São Paulo',
+                      style: TextStyle(
+                        color: Colors.grey.shade700,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Positioned(
+              right: 12,
+              bottom: 12,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Text(
+                  'Ajustar no mapa',
+                  style: TextStyle(
+                    color: _blue,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCampoCep() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildLabel('CEP'),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _cepController,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [_CepInputFormatter()],
+                  style: const TextStyle(color: _textDark, fontSize: 14),
+                  decoration: _inputDecoration('00000-000'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: _buscarCep,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _blue,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  icon: const Icon(Icons.search, size: 18),
+                  label: const Text(
+                    'Buscar',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCampoEstado() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildLabel('Estado'),
+        Container(
+          height: 48,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            color: _inputFill,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _estadoSelecionado,
+              isExpanded: true,
+              hint: Text(
+                'UF',
+                style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+              ),
+              icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey.shade500),
+              style: const TextStyle(color: _textDark, fontSize: 14),
+              items: _estados
+                  .map(
+                    (uf) => DropdownMenuItem<String>(
+                      value: uf,
+                      child: Text(uf),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) => setState(() => _estadoSelecionado = value),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildChipTipo(String label) {
+    final selecionado = _tipoSalvar == label;
+    return GestureDetector(
+      onTap: () => setState(() => _tipoSalvar = label),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: selecionado ? _blue : Colors.grey.shade300,
+            width: selecionado ? 1.5 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selecionado ? _blue : _labelGray,
+            fontSize: 14,
+            fontWeight: selecionado ? FontWeight.w600 : FontWeight.w400,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFormulario() {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildCampoCep(),
+          _buildCampo(
+            label: 'Logradouro',
+            controller: _logradouroController,
+            hint: 'Ex: Rua das Flores',
+          ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 1,
+                child: _buildCampo(
+                  label: 'Número',
+                  controller: _numeroController,
+                  hint: '123',
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: _buildCampo(
+                  label: 'Complemento (Opcional)',
+                  controller: _complementoController,
+                  hint: 'Apto, Sala, Bloco...',
+                ),
+              ),
+            ],
+          ),
+          _buildCampo(
+            label: 'Bairro',
+            controller: _bairroController,
+            hint: 'Ex: Centro',
+          ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 2,
+                child: _buildCampo(
+                  label: 'Cidade',
+                  controller: _cidadeController,
+                  hint: 'Sua Cidade',
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 1,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _buildCampoEstado(),
+                ),
+              ),
+            ],
+          ),
+          _buildLabel('Salvar como'),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _buildChipTipo('Casa'),
+              _buildChipTipo('Trabalho'),
+              _buildChipTipo('Outro'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _background,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        surfaceTintColor: Colors.white,
+        leading: IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: const Icon(Icons.arrow_back_ios, size: 20, color: _textDark),
+        ),
+        title: const Text(
+          'Adicionar Endereço',
+          style: TextStyle(
+            color: _textDark,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        centerTitle: true,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(color: Colors.grey.shade200, height: 1),
+        ),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  _buildMapaPreview(),
+                  _buildFormulario(),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
+          ),
+          Container(
+            color: _background,
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            child: SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: _salvarEndereco,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _blue,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                ),
+                child: const Text(
+                  'Salvar Endereço',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CepInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    final buffer = StringBuffer();
+
+    for (var i = 0; i < digits.length && i < 8; i++) {
+      if (i == 5) buffer.write('-');
+      buffer.write(digits[i]);
+    }
+
+    final formatted = buffer.toString();
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
+class _MapaCidadePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final blockPaint = Paint()..color = const Color(0xFFDCE3DC);
+    final roadPaint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke;
+
+    const blockSize = 28.0;
+    for (var x = 0.0; x < size.width; x += blockSize) {
+      for (var y = 0.0; y < size.height; y += blockSize) {
+        if ((x / blockSize + y / blockSize).toInt().isEven) {
+          canvas.drawRect(
+            Rect.fromLTWH(x + 1, y + 1, blockSize - 2, blockSize - 2),
+            blockPaint,
+          );
+        }
+      }
+    }
+
+    for (var x = 0.0; x <= size.width; x += blockSize * 2) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), roadPaint);
+    }
+    for (var y = 0.0; y <= size.height; y += blockSize * 2) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), roadPaint);
+    }
+
+    final avenuePaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.85)
+      ..strokeWidth = 5
+      ..style = PaintingStyle.stroke;
+
+    canvas.drawLine(
+      Offset(size.width * 0.3, 0),
+      Offset(size.width * 0.35, size.height),
+      avenuePaint,
+    );
+    canvas.drawLine(
+      Offset(0, size.height * 0.45),
+      Offset(size.width, size.height * 0.5),
+      avenuePaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _MapaPlaceholderPainter extends CustomPainter {
