@@ -557,21 +557,21 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
       },
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.favorite_border),
-          label: 'Seguindo',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.chat_bubble_outline),
-          label: 'Mensagens',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.inventory_2_outlined),
-          label: 'Pedidos',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person_outline),
-          label: 'Perfil',
+          BottomNavigationBarItem(
+            icon: Icon(Icons.people_outline),
+            label: 'Seguindo',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.chat_bubble_outline),
+            label: 'Mensagens',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.inventory_2_outlined),
+            label: 'Pedidos',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.account_circle_outlined),
+            label: 'Perfil',
         ),
       ],
     );

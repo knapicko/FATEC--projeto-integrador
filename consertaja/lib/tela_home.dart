@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'; // IMPORTADO: Para realizar o logout do Supabase
-import 'main.dart'; // IMPORTADO: Para redirecionar para a TelaEscolhaConta
-import 'perfil_loja.dart'; // Conecta a tela de perfil da loja
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'main.dart';
+import 'perfil_loja.dart';
+import 'perfil_profissional.dart';
 import 'tela_meu_perfil_cliente.dart';
+import 'widgets/foto_perfil_google.dart';
 
 class ServicoPopular {
   final String titulo;
@@ -22,6 +24,20 @@ class ServicoPopular {
   });
 }
 
+class ServicoProximo {
+  final String titulo;
+  final String preco;
+  final IconData icone;
+  final String? oferecidoPor;
+
+  ServicoProximo({
+    required this.titulo,
+    required this.preco,
+    required this.icone,
+    this.oferecidoPor,
+  });
+}
+
 class LojaPopular {
   final String titulo;
   final double avaliacao;
@@ -35,6 +51,7 @@ class LojaPopular {
   final Color tag2TextColor;
   final String caminhoImagem;
   final bool isVerified;
+  final String descricao;
 
   LojaPopular({
     required this.titulo,
@@ -49,6 +66,7 @@ class LojaPopular {
     required this.tag2TextColor,
     required this.caminhoImagem,
     this.isVerified = false,
+    this.descricao = 'Eletricista Residencial | 120+ serviços concluídos',
   });
 }
 
@@ -60,6 +78,9 @@ class PerfilPopular {
   final Color tagBgColor;
   final Color tagTextColor;
   final String caminhoImagem;
+  final String profissao;
+  final String metrica;
+  final bool isVerified;
 
   PerfilPopular({
     required this.nome,
@@ -69,6 +90,9 @@ class PerfilPopular {
     required this.tagBgColor,
     required this.tagTextColor,
     required this.caminhoImagem,
+    this.profissao = 'Eletricista Residencial',
+    this.metrica = '120+ serviços concluídos',
+    this.isVerified = true,
   });
 }
 
@@ -77,18 +101,22 @@ class TelaHome extends StatelessWidget {
 
   TelaHome({super.key, required this.isVisitante});
 
+  static const Color _primaryBlue = Color(0xFF0FB3FF);
+  static const Color _ratingBg = Color(0xFFFFF8E1);
+  static const Color _ratingText = Color(0xFFE65100);
+
   final List<ServicoPopular> listaServicos = [
     ServicoPopular(
-      titulo: 'Conserto de cabo de panela',
-      categoria: 'Conserto de panela',
+      titulo: 'Instalação de Ar Condicionado',
+      categoria: 'Independente',
       avaliacao: 4.9,
       totalAvaliacoes: 253,
-      precoMedio: 15.99,
+      precoMedio: 350,
       caminhoImagem: 'assets/images/panela.png',
     ),
     ServicoPopular(
       titulo: 'Afiação de faca',
-      categoria: 'Afiação de faca',
+      categoria: 'Independente',
       avaliacao: 4.7,
       totalAvaliacoes: 1248,
       precoMedio: 14.98,
@@ -96,7 +124,7 @@ class TelaHome extends StatelessWidget {
     ),
     ServicoPopular(
       titulo: 'Costura de calça',
-      categoria: 'Costura',
+      categoria: 'Independente',
       avaliacao: 5.0,
       totalAvaliacoes: 10,
       precoMedio: 56.99,
@@ -104,7 +132,7 @@ class TelaHome extends StatelessWidget {
     ),
     ServicoPopular(
       titulo: 'Polimento de sapato',
-      categoria: 'Engraxate',
+      categoria: 'Independente',
       avaliacao: 4.8,
       totalAvaliacoes: 9023,
       precoMedio: 28.99,
@@ -112,18 +140,65 @@ class TelaHome extends StatelessWidget {
     ),
   ];
 
+  final List<ServicoProximo> listaServicosProximos = [
+    ServicoProximo(
+      titulo: 'Instalação de Ar',
+      preco: 'A partir de R\$ 150',
+      icone: Icons.ac_unit,
+    ),
+    ServicoProximo(
+      titulo: 'Pintura Residencial',
+      preco: 'A partir de R\$ 300',
+      icone: Icons.format_paint_outlined,
+      oferecidoPor: 'Oferecido por CAEDSS',
+    ),
+    ServicoProximo(
+      titulo: 'Limpeza Pesada',
+      preco: 'A partir de R\$ 120',
+      icone: Icons.cleaning_services_outlined,
+    ),
+  ];
+
   final List<LojaPopular> listaLojas = [
     LojaPopular(
       titulo: 'Caedss - Estrada das Lágrimas',
-      avaliacao: 5.0,
+      avaliacao: 4.9,
       totalAvaliacoes: 923,
       distancia: '1.2 km',
-      tag1: '#CAEDS',
-      tag2: 'Costura',
-      tag1BgColor: const Color(0xFFE1F5FE),
-      tag1TextColor: const Color(0xFF0288D1),
-      tag2BgColor: const Color(0xFFE8F5E9),
-      tag2TextColor: const Color(0xFF2E7D32),
+      tag1: 'Panelas',
+      tag2: '#CAEDS',
+      tag1BgColor: const Color(0xFFEEEEEE),
+      tag1TextColor: const Color(0xFF616161),
+      tag2BgColor: const Color(0xFFE1F5FE),
+      tag2TextColor: _primaryBlue,
+      caminhoImagem: 'assets/images/loja_caedss.png',
+      isVerified: true,
+    ),
+    LojaPopular(
+      titulo: 'Chaveiro - Ipiranga',
+      avaliacao: 4.9,
+      totalAvaliacoes: 252,
+      distancia: '800 m',
+      tag1: 'Panelas',
+      tag2: '#CAEDS',
+      tag1BgColor: const Color(0xFFEEEEEE),
+      tag1TextColor: const Color(0xFF616161),
+      tag2BgColor: const Color(0xFFE1F5FE),
+      tag2TextColor: _primaryBlue,
+      caminhoImagem: 'assets/images/loja_chaveiro.png',
+      isVerified: true,
+    ),
+    LojaPopular(
+      titulo: 'Caedss - Estrada das Lágrimas',
+      avaliacao: 4.9,
+      totalAvaliacoes: 923,
+      distancia: '1.2 km',
+      tag1: '#CHAVE',
+      tag2: 'Chaveiro',
+      tag1BgColor: const Color(0xFFFFE0B2),
+      tag1TextColor: const Color(0xFFE65100),
+      tag2BgColor: const Color(0xFFE1F5FE),
+      tag2TextColor: _primaryBlue,
       caminhoImagem: 'assets/images/loja_caedss.png',
       isVerified: true,
     ),
@@ -135,74 +210,39 @@ class TelaHome extends StatelessWidget {
       tag1: '#MUNLO',
       tag2: 'Panelas',
       tag1BgColor: const Color(0xFFE1F5FE),
-      tag1TextColor: const Color(0xFF0288D1),
+      tag1TextColor: _primaryBlue,
       tag2BgColor: const Color(0xFFEEEEEE),
       tag2TextColor: const Color(0xFF616161),
       caminhoImagem: 'assets/images/loja_mundo_loucas.png',
-    ),
-    LojaPopular(
-      titulo: 'Chaveiro - Ipiranga',
-      avaliacao: 4.9,
-      totalAvaliacoes: 252,
-      distancia: '800 m',
-      tag1: '#CHAVE',
-      tag2: 'Chaveiro',
-      tag1BgColor: const Color(0xFFFFE0B2),
-      tag1TextColor: const Color(0xFFE65100),
-      tag2BgColor: const Color(0xFFE1F5FE),
-      tag2TextColor: const Color(0xFF0288D1),
-      caminhoImagem: 'assets/images/loja_chaveiro.png',
-    ),
-    LojaPopular(
-      titulo: 'Caedss - Estrada das Lágrimas',
-      avaliacao: 5.0,
-      totalAvaliacoes: 923,
-      distancia: '1.2 km',
-      tag1: '#CAEDS',
-      tag2: 'Polimento',
-      tag1BgColor: const Color(0xFFE1F5FE),
-      tag1TextColor: const Color(0xFF0288D1),
-      tag2BgColor: const Color(0xFFEEEEEE),
-      tag2TextColor: const Color(0xFF616161),
-      caminhoImagem: 'assets/images/loja_caedss.png',
     ),
   ];
 
   final List<PerfilPopular> listaPerfis = [
     PerfilPopular(
-      nome: 'Caneta Azul',
+      nome: 'Carlos Mendes',
       avaliacao: 4.9,
       totalAvaliacoes: 423,
-      tag: 'Chaveiro',
+      tag: 'Eletricista',
       tagBgColor: const Color(0xFFE1F5FE),
-      tagTextColor: const Color(0xFF0288D1),
+      tagTextColor: _primaryBlue,
       caminhoImagem: 'assets/images/perfil_caneta_azul.png',
     ),
     PerfilPopular(
-      nome: 'Caneta Azul',
+      nome: 'Carlos Mendes',
       avaliacao: 4.9,
       totalAvaliacoes: 423,
-      tag: 'Costura',
-      tagBgColor: const Color(0xFFE8F5E9),
-      tagTextColor: const Color(0xFF2E7D32),
+      tag: 'Eletricista',
+      tagBgColor: const Color(0xFFE1F5FE),
+      tagTextColor: _primaryBlue,
       caminhoImagem: 'assets/images/perfil_caneta_azul.png',
     ),
     PerfilPopular(
-      nome: 'Caneta Azul',
+      nome: 'Carlos Mendes',
       avaliacao: 4.9,
       totalAvaliacoes: 423,
-      tag: 'Chaveiro',
+      tag: 'Eletricista',
       tagBgColor: const Color(0xFFE1F5FE),
-      tagTextColor: const Color(0xFF0288D1),
-      caminhoImagem: 'assets/images/perfil_caneta_azul.png',
-    ),
-    PerfilPopular(
-      nome: 'Caneta Azul',
-      avaliacao: 4.9,
-      totalAvaliacoes: 423,
-      tag: 'Chaveiro',
-      tagBgColor: const Color(0xFFE1F5FE),
-      tagTextColor: const Color(0xFF0288D1),
+      tagTextColor: _primaryBlue,
       caminhoImagem: 'assets/images/perfil_caneta_azul.png',
     ),
     PerfilPopular(
@@ -211,34 +251,25 @@ class TelaHome extends StatelessWidget {
       totalAvaliacoes: 423,
       tag: 'Chaveiro',
       tagBgColor: const Color(0xFFE1F5FE),
-      tagTextColor: const Color(0xFF0288D1),
+      tagTextColor: _primaryBlue,
       caminhoImagem: 'assets/images/perfil_caneta_azul.png',
-    ),
-    PerfilPopular(
-      nome: 'Caneta Azul',
-      avaliacao: 4.9,
-      totalAvaliacoes: 423,
-      tag: 'Chaveiro',
-      tagBgColor: const Color(0xFFE1F5FE),
-      tagTextColor: const Color(0xFF0288D1),
-      caminhoImagem: 'assets/images/perfil_caneta_azul.png',
+      profissao: 'Chaveiro',
     ),
   ];
 
-  Future<String?> _buscarNomeUsuario() async {
+  Future<Map<String, dynamic>?> _buscarDadosUsuario() async {
     try {
       final supabase = Supabase.instance.client;
       final user = supabase.auth.currentUser;
       if (user == null) return null;
 
-      // Busca apenas o nome do usuário logado relacionando o auth_id
       final response = await supabase
           .from('usuarios')
-          .select('nome')
+          .select('nome, foto_perfil_url')
           .eq('auth_id', user.id)
           .maybeSingle();
 
-      return response?['nome'] as String?;
+      return response;
     } catch (e) {
       return null;
     }
@@ -286,7 +317,7 @@ class TelaHome extends StatelessWidget {
               child: const Text(
                 'Sair',
                 style: TextStyle(
-                  color: Color(0xFF00A3FF),
+                  color: _primaryBlue,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -297,214 +328,325 @@ class TelaHome extends StatelessWidget {
     );
   }
 
+  void _navegarParaPerfil(BuildContext context) {
+    Navigator.of(context).pushReplacement(
+      _rotaSemAnimacao(
+        TelaMeuPerfilClientePage(isVisitante: isVisitante),
+      ),
+    );
+  }
+
+  BoxDecoration _cardDecoration() {
+    return BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.06),
+          blurRadius: 10,
+          offset: const Offset(0, 2),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRatingBadge(double avaliacao) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: _ratingBg,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.star, color: _ratingText, size: 12),
+          Text(
+            ' $avaliacao',
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: _ratingText,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVerifiedBadge() {
+    return Container(
+      width: 16,
+      height: 16,
+      decoration: BoxDecoration(
+        color: _primaryBlue,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 1.5),
+      ),
+      child: const Icon(Icons.check, color: Colors.white, size: 10),
+    );
+  }
+
+  Widget _buildSectionHeader({
+    required String titulo,
+    Color? tituloColor,
+    bool mostrarRadar = false,
+    String? linkVerTodos,
+  }) {
+    return Row(
+      children: [
+        Expanded(
+          child: Row(
+            children: [
+              Flexible(
+                child: Text(
+                  titulo,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: tituloColor ?? Colors.black87,
+                  ),
+                ),
+              ),
+              if (mostrarRadar) ...[
+                const SizedBox(width: 4),
+                const Icon(Icons.radar, color: _primaryBlue, size: 18),
+              ],
+            ],
+          ),
+        ),
+        if (linkVerTodos != null)
+          TextButton(
+            onPressed: () {},
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(
+              linkVerTodos,
+              style: const TextStyle(
+                color: _primaryBlue,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildOutlineButton(String texto) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton(
+        onPressed: () {},
+        style: OutlinedButton.styleFrom(
+          foregroundColor: _primaryBlue,
+          side: const BorderSide(color: _primaryBlue, width: 1.5),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: Text(
+          texto,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    double larguraDaTela = MediaQuery.of(context).size.width;
-    double alturaDaTela = MediaQuery.of(context).size.height;
-
-    double larguraDoQuadrado = (larguraDaTela - 32) / 4.2;
+    final larguraDaTela = MediaQuery.of(context).size.width;
+    final alturaDaTela = MediaQuery.of(context).size.height;
+    final larguraCategoria = (larguraDaTela - 32 - 24) / 4;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFFFF),
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           children: [
+            const SizedBox(height: 8),
+
+            // Cabeçalho
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'LOCALIZAÇÃO ATUAL',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade500,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.location_on,
+                            color: _primaryBlue,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 2),
+                          const Flexible(
+                            child: Text(
+                              'Novo Horizonte, SP',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: Colors.black87,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Icon(
+                            Icons.keyboard_arrow_down,
+                            color: Colors.grey.shade700,
+                            size: 20,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Stack(
+                  clipBehavior: Clip.none,
                   children: [
-                    Text(
-                      'LOCALIZAÇÃO ATUAL',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey,
+                    const Padding(
+                      padding: EdgeInsets.only(right: 12, top: 4),
+                      child: Icon(
+                        Icons.notifications_outlined,
+                        color: _primaryBlue,
+                        size: 26,
                       ),
                     ),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.location_on,
-                          color: Color(0xFF00A3FF),
-                          size: 16,
+                    Positioned(
+                      right: 4,
+                      top: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: _primaryBlue,
+                          shape: BoxShape.circle,
                         ),
-                        SizedBox(width: 4),
-                        Text(
-                          'Adicionar Localização',
+                        constraints: const BoxConstraints(
+                          minWidth: 18,
+                          minHeight: 18,
+                        ),
+                        child: const Text(
+                          '2',
+                          textAlign: TextAlign.center,
                           style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
                             fontWeight: FontWeight.bold,
-                            color: Colors.black87,
                           ),
                         ),
-                        Icon(Icons.keyboard_arrow_down, color: Colors.black54),
-                      ],
+                      ),
                     ),
                   ],
                 ),
-
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Novo bloco: Mostra o nome do usuário logado
-                    if (!isVisitante)
-                      FutureBuilder<String?>(
-                        future: _buscarNomeUsuario(),
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState ==
-                              ConnectionState.waiting) {
-                            return const Padding(
-                              padding: EdgeInsets.only(right: 8.0),
-                              child: SizedBox(
-                                width: 14,
-                                height: 14,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Color(0xFF00A3FF),
-                                ),
-                              ),
+                GestureDetector(
+                  onTap: () => _navegarParaPerfil(context),
+                  onLongPress: () => _exibirDialogSair(context),
+                  child: isVisitante
+                      ? CircleAvatar(
+                          radius: 20,
+                          backgroundColor: Colors.grey.shade200,
+                          child: Icon(
+                            Icons.person,
+                            color: Colors.grey.shade600,
+                            size: 22,
+                          ),
+                        )
+                      : FutureBuilder<Map<String, dynamic>?>(
+                          future: _buscarDadosUsuario(),
+                          builder: (context, snapshot) {
+                            final fotoUrl =
+                                snapshot.data?['foto_perfil_url'] as String?;
+                            return FotoPerfilGoogle(
+                              fotoUrl: fotoUrl,
+                              radius: 20,
                             );
-                          }
-                          final nomeCompleto = snapshot.data;
-                          if (nomeCompleto != null && nomeCompleto.isNotEmpty) {
-                            // Pega apenas o primeiro nome para não quebrar o layout da barra
-                            final primeiroNome = nomeCompleto.split(' ')[0];
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 4.0),
-                              child: Text(
-                                primeiroNome,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                            );
-                          }
-                          return const SizedBox.shrink();
-                        },
-                      ),
-
-                    // Botão de Logout mantido e ajustado
-                    if (!isVisitante)
-                      IconButton(
-                        icon: const Icon(
-                          Icons.logout,
-                          color: Color(0xFF00A3FF),
-                          size: 22,
+                          },
                         ),
-                        onPressed: () => _exibirDialogSair(context),
-                        tooltip: 'Sair da Conta',
-                      ),
-                  ],
                 ),
               ],
             ),
+
             SizedBox(height: alturaDaTela * 0.02),
 
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
+            // Barra de pesquisa + radar
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade200),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const TextField(
+                      decoration: InputDecoration(
+                        hintText: 'Qual será o serviço de hoje?',
+                        hintStyle: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 14,
+                        ),
+                        prefixIcon: Icon(Icons.search, color: Colors.grey),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
                   ),
-                ],
-              ),
-              child: const TextField(
-                decoration: InputDecoration(
-                  hintText: 'Qual será o serviço de hoje?',
-                  prefixIcon: Icon(Icons.search, color: Colors.grey),
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(vertical: 14),
                 ),
-              ),
+                const SizedBox(width: 10),
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.grey.shade200),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.radar, color: _primaryBlue, size: 24),
+                ),
+              ],
             ),
-            SizedBox(height: alturaDaTela * 0.03),
 
-            const Text(
-              'Serviços Iniciais',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 12),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: larguraDoQuadrado,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: _buildQuadradoServico(
-                        'Panelas',
-                        Icons.soup_kitchen_outlined,
-                        true,
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: larguraDoQuadrado,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: _buildQuadradoServico(
-                        'Chaveiro',
-                        Icons.vpn_key_outlined,
-                        true,
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: larguraDoQuadrado,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: _buildQuadradoServico('Mais', Icons.add, true),
-                    ),
-                  ),
-                  SizedBox(
-                    width: larguraDoQuadrado,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: _buildQuadradoServico('Mais', Icons.add, true),
-                    ),
-                  ),
-                  SizedBox(
-                    width: larguraDoQuadrado,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: _buildQuadradoServico('Mais', Icons.add, true),
-                    ),
-                  ),
-                  SizedBox(
-                    width: larguraDoQuadrado,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: _buildQuadradoServico('Mais', Icons.add, true),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(height: alturaDaTela * 0.03),
+            SizedBox(height: alturaDaTela * 0.025),
 
             if (isVisitante) ...[
               GestureDetector(
-                onTap: () {
-                  Navigator.pop(context);
-                },
+                onTap: () => Navigator.pop(context),
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF00A3FF), Color(0xFF0066FF)],
+                      colors: [_primaryBlue, Color(0xFF0066FF)],
                       begin: Alignment.centerLeft,
                       end: Alignment.centerRight,
                     ),
@@ -552,200 +694,181 @@ class TelaHome extends StatelessWidget {
                   ),
                 ),
               ),
-              SizedBox(height: alturaDaTela * 0.03),
+              SizedBox(height: alturaDaTela * 0.025),
             ],
 
-            const Text(
-              'Serviços Populares',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
+            // Tipos de Serviços
+            _buildSectionHeader(
+              titulo: 'Tipos de Serviços',
+              linkVerTodos: 'Ver todos',
             ),
             const SizedBox(height: 12),
-
-            GridView.builder(
+            GridView.count(
+              crossAxisCount: 4,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: (larguraDaTela / 2) / 220,
-              ),
-              itemCount: listaServicos.length,
-              itemBuilder: (context, index) {
-                final servico = listaServicos[index];
-                return _buildCardServico(servico);
-              },
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 8,
+              childAspectRatio: larguraCategoria / 72,
+              children: [
+                _buildCategoriaServico('Ar Cond.', Icons.ac_unit),
+                _buildCategoriaServico('Reformas', Icons.handyman_outlined),
+                _buildCategoriaServico(
+                  'Limpeza',
+                  Icons.cleaning_services_outlined,
+                ),
+                _buildCategoriaServico('Aulas', Icons.school_outlined),
+                _buildCategoriaServico('Assistência', Icons.build_outlined),
+                _buildCategoriaServico(
+                  'Fretes',
+                  Icons.local_shipping_outlined,
+                ),
+                _buildCategoriaServico('Beleza', Icons.content_cut),
+                _buildCategoriaServico('Mais', Icons.more_horiz, isMais: true),
+              ],
             ),
-            SizedBox(height: alturaDaTela * 0.04),
 
-            const Text(
-              'Lojas populares',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
+            SizedBox(height: alturaDaTela * 0.03),
+
+            // Profissionais Perto de Você
+            _buildSectionHeader(
+              titulo: 'Profissionais Perto de Você',
+              tituloColor: _primaryBlue,
+              mostrarRadar: true,
             ),
             const SizedBox(height: 12),
-
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              child: Row(
-                children: [
-                  _buildFiltroLoja('Todos', isSelected: true),
-                  _buildFiltroLoja('Costura'),
-                  _buildFiltroLoja('Panelas'),
-                  _buildFiltroLoja('Encanamento'),
-                  _buildFiltroLoja('Chaveiro'),
-                ],
+            SizedBox(
+              height: 110,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                itemCount: listaPerfis.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                itemBuilder: (context, index) {
+                  return _buildCardProfissional(
+                    listaPerfis[index],
+                    largura: larguraDaTela * 0.78,
+                  );
+                },
               ),
             ),
-            const SizedBox(height: 16),
 
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: List.generate((listaLojas.length / 2).ceil(), (
-                      index,
-                    ) {
-                      int actualIndex = index * 2;
-                      final loja = listaLojas[actualIndex];
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 12),
-                        child: GestureDetector(
-                          onTap: () {
-                            if (loja.titulo ==
-                                'Caedss - Estrada das Lágrimas') {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const PerfilLoja(),
-                                ),
-                              );
-                            }
-                          },
-                          child: _buildCardLoja(loja),
-                        ),
-                      );
-                    }),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: List.generate(listaLojas.length ~/ 2, (index) {
-                      int actualIndex = (index * 2) + 1;
-                      final loja = listaLojas[actualIndex];
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 12),
-                        child: GestureDetector(
-                          onTap: () {
-                            if (loja.titulo ==
-                                'Caedss - Estrada das Lágrimas') {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const PerfilLoja(),
-                                ),
-                              );
-                            }
-                          },
-                          child: _buildCardLoja(loja),
-                        ),
-                      );
-                    }),
-                  ),
-                ],
+            SizedBox(height: alturaDaTela * 0.03),
+
+            // Serviços Perto de Você
+            _buildSectionHeader(
+              titulo: 'Serviços Perto de Você',
+              tituloColor: _primaryBlue,
+              mostrarRadar: true,
+              linkVerTodos: 'Ver todos',
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 130,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                itemCount: listaServicosProximos.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                itemBuilder: (context, index) {
+                  return _buildCardServicoProximo(listaServicosProximos[index]);
+                },
               ),
             ),
+
+            SizedBox(height: alturaDaTela * 0.03),
+
+            // Profissionais em destaque
+            _buildSectionHeader(titulo: 'Profissionais em destaque'),
+            const SizedBox(height: 12),
+            ...listaPerfis.take(3).map(
+                  (perfil) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PerfilProfissionalPage(
+                              nomeInicial: perfil.nome,
+                              imagemInicial: perfil.caminhoImagem,
+                              profissao: perfil.profissao,
+                              avaliacao: perfil.avaliacao,
+                              totalAvaliacoes: perfil.totalAvaliacoes,
+                            ),
+                          ),
+                        );
+                      },
+                      child: _buildCardProfissional(perfil),
+                    ),
+                  ),
+                ),
+            _buildOutlineButton('Ver todos os profissionais'),
+
+            SizedBox(height: alturaDaTela * 0.03),
+
+            // Lojas em destaque
+            _buildSectionHeader(titulo: 'Lojas em destaque'),
+            const SizedBox(height: 12),
+            ...listaLojas.take(3).map(
+                  (loja) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: GestureDetector(
+                      onTap: () {
+                        if (loja.titulo == 'Caedss - Estrada das Lágrimas') {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const PerfilLoja(),
+                            ),
+                          );
+                        }
+                      },
+                      child: _buildCardLojaVertical(loja),
+                    ),
+                  ),
+                ),
+            _buildOutlineButton('Ver todos os profissionais'),
+
+            SizedBox(height: alturaDaTela * 0.03),
+
+            // Serviços populares
+            _buildSectionHeader(titulo: 'Serviços populares'),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 220,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                itemCount: listaServicos.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                itemBuilder: (context, index) {
+                  return _buildCardServicoPopular(listaServicos[index]);
+                },
+              ),
+            ),
+
             const SizedBox(height: 24),
-
-            const Text(
-              'Perfis populares',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              child: Row(
-                children: [
-                  _buildFiltroLoja('Todos', isSelected: true),
-                  _buildFiltroLoja('Costura'),
-                  _buildFiltroLoja('Panelas'),
-                  _buildFiltroLoja('Encanamento'),
-                  _buildFiltroLoja('Chaveiro'),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: List.generate((listaPerfis.length / 2).ceil(), (
-                      index,
-                    ) {
-                      int actualIndex = index * 2;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 12),
-                        child: _buildCardPerfil(listaPerfis[actualIndex]),
-                      );
-                    }),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: List.generate(listaPerfis.length ~/ 2, (index) {
-                      int actualIndex = (index * 2) + 1;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 12),
-                        child: _buildCardPerfil(listaPerfis[actualIndex]),
-                      );
-                    }),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
           ],
         ),
       ),
-
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.white,
-        selectedItemColor: const Color(0xFF00A3FF),
+        selectedItemColor: _primaryBlue,
         unselectedItemColor: Colors.grey,
+        selectedFontSize: 11,
+        unselectedFontSize: 11,
         currentIndex: 0,
         onTap: (index) {
           if (index == 4) {
-            Navigator.of(context).pushReplacement(
-              _rotaSemAnimacao(
-                TelaMeuPerfilClientePage(isVisitante: isVisitante),
-              ),
-            );
+            _navegarParaPerfil(context);
           }
         },
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(
-            icon: Icon(Icons.favorite_border),
+            icon: Icon(Icons.people_outline),
             label: 'Seguindo',
           ),
           BottomNavigationBarItem(
@@ -757,7 +880,7 @@ class TelaHome extends StatelessWidget {
             label: 'Pedidos',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
+            icon: Icon(Icons.account_circle_outlined),
             label: 'Perfil',
           ),
         ],
@@ -765,134 +888,114 @@ class TelaHome extends StatelessWidget {
     );
   }
 
-  Widget _buildQuadradoServico(
+  Widget _buildCategoriaServico(
     String texto,
-    IconData icone,
-    bool mostrarConteudo,
-  ) {
-    return Container(
-      height: 75,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: mostrarConteudo
-          ? Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icone, color: const Color(0xFF00A3FF), size: 26),
-                const SizedBox(height: 4),
-                if (texto.isNotEmpty)
-                  Text(
-                    texto,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: Colors.black87,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-              ],
-            )
-          : null,
+    IconData icone, {
+    bool isMais = false,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            color: isMais ? Colors.grey.shade200 : _primaryBlue,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            icone,
+            color: isMais ? Colors.grey.shade600 : Colors.white,
+            size: 26,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          texto,
+          style: TextStyle(
+            fontSize: 10,
+            color: Colors.grey.shade700,
+            fontWeight: FontWeight.w500,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 
-  Widget _buildCardServico(ServicoPopular servico) {
+  Widget _buildCardProfissional(PerfilPopular perfil, {double? largura}) {
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
+      width: largura,
+      padding: const EdgeInsets.all(12),
+      decoration: _cardDecoration(),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(12),
-                  topRight: Radius.circular(12),
-                ),
-                image: DecorationImage(
-                  image: AssetImage(servico.caminhoImagem),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.asset(
+                  perfil.caminhoImagem,
+                  width: 64,
+                  height: 64,
                   fit: BoxFit.cover,
-                ),
-              ),
-              alignment: Alignment.topRight,
-              padding: const EdgeInsets.all(6),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  servico.categoria,
-                  style: const TextStyle(
-                    fontSize: 8,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black54,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 64,
+                    height: 64,
+                    color: Colors.grey.shade200,
+                    child: Icon(Icons.person, color: Colors.grey.shade500),
                   ),
                 ),
               ),
-            ),
+              if (perfil.isVerified)
+                Positioned(right: -2, bottom: -2, child: _buildVerifiedBadge()),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
+          const SizedBox(width: 12),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        perfil.nome,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    _buildRatingBadge(perfil.avaliacao),
+                  ],
+                ),
+                const SizedBox(height: 4),
                 Text(
-                  servico.titulo,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
+                  perfil.profissao,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Text(
-                      '${servico.avaliacao}',
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(width: 2),
-                    const Icon(Icons.star, color: Color(0xFF00A3FF), size: 10),
-                    const SizedBox(width: 2),
-                    Text(
-                      '(${servico.totalAvaliacoes})',
-                      style: const TextStyle(fontSize: 9, color: Colors.grey),
-                    ),
-                  ],
-                ),
                 const SizedBox(height: 6),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Preço Médio',
-                      style: TextStyle(fontSize: 9, color: Colors.grey),
-                    ),
-                    Text(
-                      'R\$ ${servico.precoMedio.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.orange,
-                      ),
-                    ),
-                  ],
+                Text(
+                  perfil.metrica,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: _primaryBlue,
+                  ),
                 ),
               ],
             ),
@@ -902,48 +1005,68 @@ class TelaHome extends StatelessWidget {
     );
   }
 
-  Widget _buildFiltroLoja(String texto, {bool isSelected = false}) {
+  Widget _buildCardServicoProximo(ServicoProximo servico) {
     return Container(
-      margin: const EdgeInsets.only(right: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: BoxDecoration(
-        color: isSelected ? const Color(0xFFE3F2FD) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isSelected ? const Color(0xFF00A3FF) : Colors.white,
-          width: 1.2,
-        ),
-      ),
-      child: Text(
-        texto,
-        style: TextStyle(
-          color: isSelected ? const Color(0xFF00A3FF) : Colors.grey.shade600,
-          fontWeight: FontWeight.w600,
-          fontSize: 12,
-        ),
+      width: 120,
+      padding: const EdgeInsets.all(12),
+      decoration: _cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(servico.icone, color: _primaryBlue, size: 28),
+          const SizedBox(height: 8),
+          Text(
+            servico.titulo,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            servico.preco,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: _primaryBlue,
+            ),
+          ),
+          if (servico.oferecidoPor != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              servico.oferecidoPor!,
+              style: const TextStyle(
+                fontSize: 9,
+                color: _primaryBlue,
+                fontWeight: FontWeight.w500,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ],
       ),
     );
   }
 
-  Widget _buildCardLoja(LojaPopular loja) {
+  Widget _buildCardLojaVertical(LojaPopular loja) {
     return Container(
-      width: 260,
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
+      padding: const EdgeInsets.all(12),
+      decoration: _cardDecoration(),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Stack(
             clipBehavior: Clip.none,
             children: [
               Container(
-                width: 60,
-                height: 60,
+                width: 64,
+                height: 64,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
+                  color: _primaryBlue,
                   borderRadius: BorderRadius.circular(10),
                   image: DecorationImage(
                     image: AssetImage(loja.caminhoImagem),
@@ -952,106 +1075,48 @@ class TelaHome extends StatelessWidget {
                 ),
               ),
               if (loja.isVerified)
-                const Positioned(
-                  right: -4,
-                  bottom: -4,
-                  child: Icon(
-                    Icons.verified,
-                    color: Color(0xFF00A3FF),
-                    size: 16,
-                  ),
-                ),
+                Positioned(right: -2, bottom: -2, child: _buildVerifiedBadge()),
             ],
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
               children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        loja.titulo,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    _buildRatingBadge(loja.avaliacao),
+                  ],
+                ),
+                const SizedBox(height: 4),
                 Text(
-                  loja.titulo,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                  loja.descricao,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade600,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Icon(Icons.star, color: Color(0xFF00A3FF), size: 11),
-                    const SizedBox(width: 1),
-                    Text(
-                      '${loja.avaliacao}',
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    Text(
-                      '(${loja.totalAvaliacoes})',
-                      style: const TextStyle(fontSize: 9, color: Colors.grey),
-                    ),
+                    _buildTag(loja.tag1, loja.tag1BgColor, loja.tag1TextColor),
                     const SizedBox(width: 6),
-                    const Icon(
-                      Icons.location_on_outlined,
-                      color: Color(0xFF00A3FF),
-                      size: 11,
-                    ),
-                    Text(
-                      loja.distancia,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: loja.tag1BgColor,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        loja.tag1,
-                        style: TextStyle(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.bold,
-                          color: loja.tag1TextColor,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: loja.tag2BgColor,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        loja.tag2,
-                        style: TextStyle(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.bold,
-                          color: loja.tag2TextColor,
-                        ),
-                      ),
-                    ),
+                    _buildTag(loja.tag2, loja.tag2BgColor, loja.tag2TextColor),
                   ],
                 ),
               ],
@@ -1062,93 +1127,85 @@ class TelaHome extends StatelessWidget {
     );
   }
 
-  Widget _buildCardPerfil(PerfilPopular perfil) {
+  Widget _buildTag(String texto, Color bg, Color fg) {
     return Container(
-      width: 145,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        color: bg,
+        borderRadius: BorderRadius.circular(4),
       ),
+      child: Text(
+        texto,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: fg,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCardServicoPopular(ServicoPopular servico) {
+    return Container(
+      width: 160,
+      decoration: _cardDecoration(),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Center(
-            child: FutureBuilder<String?>(
-              future: _buscarNomeUsuario(),
-              builder: (context, snapshot) {
-                final nomeCompleto = snapshot.data ?? '';
-                final primeiroNome = nomeCompleto.trim().isNotEmpty
-                    ? nomeCompleto.trim().split(' ').first
-                    : 'Perfil';
-
-                return SizedBox(
-                  width: 56,
-                  height: 56,
-                  child: Center(
-                    child: Text(
-                      primeiroNome,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF00A3FF),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            perfil.nome,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 4),
-          Row(
+          Stack(
             children: [
-              const Icon(Icons.star, color: Color(0xFF00A3FF), size: 12),
-              const SizedBox(width: 2),
-              Text(
-                '${perfil.avaliacao}',
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+              Image.asset(
+                servico.caminhoImagem,
+                height: 100,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  height: 100,
+                  color: Colors.grey.shade200,
+                  child: Icon(Icons.image, color: Colors.grey.shade400),
                 ),
               ),
-              const SizedBox(width: 2),
-              Text(
-                '(${perfil.totalAvaliacoes})',
-                style: const TextStyle(fontSize: 10, color: Colors.grey),
+              Positioned(
+                top: 6,
+                right: 6,
+                child: _buildRatingBadge(servico.avaliacao),
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-              color: perfil.tagBgColor,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              perfil.tag,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: perfil.tagTextColor,
-              ),
+          Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  servico.titulo,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  servico.categoria,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Preço médio: R\$ ${servico.precoMedio.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: _primaryBlue,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
