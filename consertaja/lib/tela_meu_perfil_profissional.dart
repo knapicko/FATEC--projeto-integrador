@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'area_atuacao.dart';
 import 'editar_informacoes.dart';
 import 'meus_enderecos.dart';
 import 'tela_home_profissional.dart';
@@ -677,6 +678,14 @@ class _TelaMeuPerfilProfissionalPageState
                   _buildProfileItem(
                     label: 'Minha Área de Atuação',
                     fallbackIcon: Icons.work_outline,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const AreaAtuacaoPage(),
+                        ),
+                      );
+                    },
                   ),
                   _buildProfileItem(
                     label: 'Meus Documentos',
