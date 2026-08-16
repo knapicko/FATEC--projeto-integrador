@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -29,6 +30,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
   String _dataNascimento = '';
   String? _fotoPerfilUrl;
   String _genero = '';
+  String _tipoConta = 'Cliente';
 
   // IDs para atualização
   int? _telefoneId;
@@ -77,7 +79,8 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
             foto_perfil_url,
             fk_email,
             fk_telefone,
-            fk_tipo_pessoa
+            fk_tipo_pessoa,
+            tipo_conta
           ''')
           .eq('auth_id', user.id)
           .maybeSingle();
@@ -176,6 +179,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
           _telefone = telefone;
           _dataNascimento = dataNascimento;
           _fotoPerfilUrl = fotoUrl;
+          _tipoConta = usuarioResponse?['tipo_conta']?.toString() ?? 'Cliente';
           _isLoading = false;
         });
       }
@@ -266,17 +270,26 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
       final user = _supabase.auth.currentUser;
       if (user == null) return;
 
-      final file = File(pickedFile.path);
       final fileName = '${user.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final bucketName = 'Foto Perfil';
 
-      // Fazer upload para o Supabase Storage
+      // Fazer upload para o Supabase Storage (compatível com Web e Mobile)
       try {
-        await _supabase.storage.from(bucketName).upload(
-          fileName,
-          file,
-          fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
-        );
+        if (kIsWeb) {
+          final Uint8List bytes = await pickedFile.readAsBytes();
+          await _supabase.storage.from(bucketName).uploadBinary(
+            fileName,
+            bytes,
+            fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
+          );
+        } else {
+          final file = File(pickedFile.path);
+          await _supabase.storage.from(bucketName).upload(
+            fileName,
+            file,
+            fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
+          );
+        }
       } catch (bucketError) {
         // Se o bucket não existir, apenas ignora o erro de upload
         if (mounted) {
@@ -992,10 +1005,14 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                         ),
                       ),
                       const SizedBox(width: 6),
-                      const Text(
-                        'Perfil de Cliente',
+                      Text(
+                        _tipoConta == 'Profissional'
+                            ? 'Perfil de Profissional'
+                            : 'Perfil de Cliente',
                         style: TextStyle(
-                          color: _blue,
+                          color: _tipoConta == 'Profissional'
+                              ? const Color(0xFFFFAA47)
+                              : _blue,
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
                         ),
