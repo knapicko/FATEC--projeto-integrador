@@ -128,6 +128,10 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   void initState() {
     super.initState();
     _nome = widget.nomeInicial;
+    if (widget.imagemInicial.startsWith('http://') ||
+        widget.imagemInicial.startsWith('https://')) {
+      _fotoUrl = widget.imagemInicial;
+    }
     _scrollController.addListener(_onScroll);
     _carregarDadosProfissional();
   }
@@ -466,13 +470,17 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   }
 
   Widget _buildFotoPerfil() {
-    if (_fotoUrl != null) {
+    final String imagemParaExibir = _fotoUrl ?? widget.imagemInicial;
+    final bool ehUrl = imagemParaExibir.startsWith('http://') ||
+        imagemParaExibir.startsWith('https://');
+
+    if (ehUrl) {
       return Image.network(
-        _fotoUrl!,
+        imagemParaExibir,
         fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => Image.asset(
-          widget.imagemInicial,
-          fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Container(
+          color: Colors.grey.shade200,
+          child: const Icon(Icons.person, color: Colors.grey, size: 40),
         ),
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
@@ -485,7 +493,14 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
         },
       );
     }
-    return Image.asset(widget.imagemInicial, fit: BoxFit.cover);
+    return Image.asset(
+      widget.imagemInicial.isNotEmpty ? widget.imagemInicial : 'assets/images/perfil_caneta_azul.png',
+      fit: BoxFit.cover,
+      errorBuilder: (_, _, _) => Container(
+        color: Colors.grey.shade100,
+        child: const Icon(Icons.person, color: Colors.grey, size: 40),
+      ),
+    );
   }
 
   Widget _buildMetrica({

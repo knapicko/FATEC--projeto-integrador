@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'perfil_profissional.dart';
 import 'tela_meu_perfil_cliente.dart';
 
@@ -95,6 +96,10 @@ class _TelaBuscaState extends State<TelaBusca> {
   bool _mostrandoResultados = false;
   String _termoBusca = '';
   _AbaResultado _abaAtiva = _AbaResultado.todos;
+
+  List<_ProfissionalBusca> _profissionaisSupabase = [];
+  bool _carregandoProfissionais = false;
+  bool _erroNaBusca = false;
 
   static const List<String> _categoriasIniciais = [
     'Costura',
@@ -327,6 +332,224 @@ class _TelaBuscaState extends State<TelaBusca> {
         .replaceAll('ç', 'c');
   }
 
+  bool _imagemEhUrl(String? caminho) {
+    if (caminho == null) return false;
+    return caminho.startsWith('http://') || caminho.startsWith('https://');
+  }
+
+  Future<void> _buscarProfissionaisNoSupabase(String termo) async {
+    setState(() {
+      _carregandoProfissionais = true;
+      _erroNaBusca = false;
+    });
+
+    try {
+      final supabase = Supabase.instance.client;
+
+      // 1) Busca profissionais por NOME na tabela usuarios (sem joins)
+      final usuariosPorNome = await supabase
+          .from('usuarios')
+          .select('id_usuario, nome, foto_perfil_url')
+          .eq('tipo_conta', 'Profissional')
+          .ilike('nome', '%$termo%');
+
+      // 2) Busca ofícios (profissão) equivalentes ao termo
+      final oficiosEncontrados = await supabase
+          .from('oficios')
+          .select('id_oficio, funcao')
+          .ilike('funcao', '%$termo%');
+
+      // Mapa de id_oficio -> funcao
+      final oficiosPorId = <int, String>{
+        for (final oficio in oficiosEncontrados)
+          if ((oficio['id_oficio'] as num?)?.toInt() case final int id)
+            id: oficio['funcao']?.toString() ?? '',
+      };
+
+      final idsOficios = oficiosPorId.keys.toList();
+
+      // 3) Mapa de id_profissional -> Lista de id_oficio
+      final oficiosPorProfissional = <int, List<int>>{};
+
+      if (idsOficios.isNotEmpty) {
+        // Busca todas as associações desses ofícios
+        final associacoes = await supabase
+            .from('ass_oficio_profissional')
+            .select('fk_profissional, fk_oficio')
+            .inFilter('fk_oficio', idsOficios);
+
+        for (final ass in associacoes) {
+          final idProf = (ass['fk_profissional'] as num?)?.toInt();
+          final idOf = (ass['fk_oficio'] as num?)?.toInt();
+          if (idProf != null && idOf != null) {
+            oficiosPorProfissional.putIfAbsent(idProf, () => []).add(idOf);
+          }
+        }
+      }
+
+      // 4) Busca ids_profissional por fk_usuario (para todos os usuários encontrados)
+      Map<int, int> usuarioParaProfissional = {};
+
+      // Combina todos os ids de usuários relevantes: por nome e por ofício
+      final idsUsuariosRelevantes = usuariosPorNome
+          .map((e) => (e['id_usuario'] as num?)?.toInt() ?? 0)
+          .where((id) => id > 0)
+          .toSet();
+
+      // Usuários por ofício
+      Set<int> idsUsuariosPorOficio = {};
+      if (oficiosPorProfissional.isNotEmpty) {
+        final dadosProfPorOficio = await supabase
+            .from('dados_profissionais')
+            .select('id_profissional, fk_usuario')
+            .inFilter('id_profissional', oficiosPorProfissional.keys.toList());
+
+        for (final dp in dadosProfPorOficio) {
+          final idProf = (dp['id_profissional'] as num?)?.toInt();
+          final idUsuario = (dp['fk_usuario'] as num?)?.toInt();
+          if (idProf != null && idUsuario != null) {
+            usuarioParaProfissional[idUsuario] = idProf;
+          }
+          if (idUsuario != null) {
+            idsUsuariosPorOficio.add(idUsuario);
+          }
+        }
+      }
+
+      // Busca mapping para usuários por nome
+      if (idsUsuariosRelevantes.isNotEmpty) {
+        final dadosProfissionais = await supabase
+            .from('dados_profissionais')
+            .select('id_profissional, fk_usuario')
+            .inFilter('fk_usuario', idsUsuariosRelevantes.toList());
+
+        for (final dp in dadosProfissionais) {
+          final idProf = (dp['id_profissional'] as num?)?.toInt();
+          final idUsuario = (dp['fk_usuario'] as num?)?.toInt();
+          if (idProf != null && idUsuario != null) {
+            usuarioParaProfissional[idUsuario] = idProf;
+          }
+        }
+      }
+
+      // Combinar usuários por nome + usuários por ofício
+      Map<int, Map<String, dynamic>> usuariosEncontrados = {};
+      for (final item in usuariosPorNome) {
+        final id = (item['id_usuario'] as num?)?.toInt();
+        if (id != null) {
+          usuariosEncontrados[id] = Map<String, dynamic>.from(item);
+        }
+      }
+
+      if (idsUsuariosPorOficio.isNotEmpty) {
+        final usuariosPorOficio = await supabase
+            .from('usuarios')
+            .select('id_usuario, nome, foto_perfil_url')
+            .inFilter('id_usuario', idsUsuariosPorOficio.toList());
+
+        for (final item in usuariosPorOficio) {
+          final id = (item['id_usuario'] as num?)?.toInt();
+          if (id != null) {
+            usuariosEncontrados.putIfAbsent(
+              id,
+              () => Map<String, dynamic>.from(item),
+            );
+          }
+        }
+      }
+
+      // 5) Para cada usuário encontrado, busca endereço e ofícios
+      final resultados = <_ProfissionalBusca>[];
+
+      for (final entry in usuariosEncontrados.entries) {
+        final usuarioId = entry.key;
+        final usuario = entry.value;
+        final nome = usuario['nome']?.toString() ?? '';
+        if (nome.trim().isEmpty) continue;
+
+        // Endereço temporariamente desativado - tabela enderecos ainda não implementada no Supabase
+        final String localizacao = 'Localização não informada';
+
+        // Ofícios do profissional (via dados_profissionais + ass_oficio_profissional + oficios)
+        final idProfissional = usuarioParaProfissional[usuarioId];
+
+        List<String> oficiosDoUsuario = [];
+        if (idProfissional != null) {
+          final oficiosDoProf = oficiosPorProfissional[idProfissional] ?? [];
+
+          // Se veio via nome, ainda não temos ofícios; busca associações
+          if (oficiosDoProf.isEmpty) {
+            final assPorProf = await supabase
+                .from('ass_oficio_profissional')
+                .select('fk_oficio')
+                .eq('fk_profissional', idProfissional);
+
+            for (final ass in assPorProf) {
+              final idOf = (ass['fk_oficio'] as num?)?.toInt();
+              if (idOf != null) oficiosDoProf.add(idOf);
+            }
+          }
+
+          // Busca funções desses ofícios
+          if (oficiosDoProf.isNotEmpty) {
+            final oficiosData = await supabase
+                .from('oficios')
+                .select('id_oficio, funcao')
+                .inFilter('id_oficio', oficiosDoProf);
+
+            final funcoes = <String>[];
+            for (final of in oficiosData) {
+              final funcao = of['funcao']?.toString() ?? '';
+              if (funcao.trim().isNotEmpty) funcoes.add(funcao);
+            }
+            // Ordena conforme funções em oficiosPorId também
+            oficiosDoUsuario = funcoes;
+          }
+        }
+
+        final termosBusca = <String>[_normalizar(nome)];
+        for (final oficio in oficiosDoUsuario) {
+          termosBusca.add(_normalizar(oficio));
+        }
+
+        final foto = usuario['foto_perfil_url']?.toString() ?? '';
+        final caminhoImagem = (foto.isNotEmpty && foto.toLowerCase() != 'null')
+            ? foto
+            : 'assets/images/perfil_caneta_azul.png';
+
+        resultados.add(
+          _ProfissionalBusca(
+            nome: nome,
+            avaliacao: 4.9,
+            tag1: oficiosDoUsuario.isNotEmpty ? oficiosDoUsuario.first : 'Profissional',
+            tag2: oficiosDoUsuario.length > 1 ? oficiosDoUsuario[1] : null,
+            descricao: oficiosDoUsuario.isNotEmpty
+                ? 'Profissional especializado em ${oficiosDoUsuario.join(', ')} na plataforma ConsertaJá.'
+                : 'Profissional verificado na plataforma ConsertaJá.',
+            localizacao: localizacao,
+            distancia: '',
+            caminhoImagem: caminhoImagem,
+            verificado: true,
+            isLoja: false,
+            termosBusca: termosBusca,
+          ),
+        );
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _profissionaisSupabase = resultados;
+        _carregandoProfissionais = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _carregandoProfissionais = false;
+        _erroNaBusca = true;
+      });
+    }
+  }
+
   List<_ServicoBusca> get _servicosFiltrados {
     return _todosServicos
         .where((s) => _correspondeBusca(s.termosBusca, _termoBusca))
@@ -334,6 +557,9 @@ class _TelaBuscaState extends State<TelaBusca> {
   }
 
   List<_ProfissionalBusca> get _profissionaisFiltrados {
+    if (_profissionaisSupabase.isNotEmpty) {
+      return _profissionaisSupabase;
+    }
     return _todosProfissionais
         .where((p) => _correspondeBusca(p.termosBusca, _termoBusca))
         .toList();
@@ -345,7 +571,7 @@ class _TelaBuscaState extends State<TelaBusca> {
         .toList();
   }
 
-  void _executarBusca([String? termo]) {
+  Future<void> _executarBusca([String? termo]) async {
     final texto = (termo ?? _controllerBusca.text).trim();
     if (texto.isEmpty) return;
     _controllerBusca.text = texto;
@@ -353,8 +579,10 @@ class _TelaBuscaState extends State<TelaBusca> {
       _termoBusca = texto;
       _mostrandoResultados = true;
       _abaAtiva = _AbaResultado.todos;
+      _profissionaisSupabase = [];
     });
     _focusBusca.unfocus();
+    await _buscarProfissionaisNoSupabase(texto);
   }
 
   void _voltarParaBusca() {
@@ -810,18 +1038,31 @@ class _TelaBuscaState extends State<TelaBusca> {
                         )
                       : ClipRRect(
                           borderRadius: BorderRadius.circular(28),
-                          child: Image.asset(
-                            profissional.caminhoImagem!,
-                            width: 56,
-                            height: 56,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              width: 56,
-                              height: 56,
-                              color: Colors.grey.shade200,
-                              child: Icon(Icons.person, color: Colors.grey.shade500),
-                            ),
-                          ),
+                          child: _imagemEhUrl(profissional.caminhoImagem)
+                              ? Image.network(
+                                  profissional.caminhoImagem!,
+                                  width: 56,
+                                  height: 56,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Container(
+                                    width: 56,
+                                    height: 56,
+                                    color: Colors.grey.shade200,
+                                    child: Icon(Icons.person, color: Colors.grey.shade500),
+                                  ),
+                                )
+                              : Image.asset(
+                                  profissional.caminhoImagem!,
+                                  width: 56,
+                                  height: 56,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Container(
+                                    width: 56,
+                                    height: 56,
+                                    color: Colors.grey.shade200,
+                                    child: Icon(Icons.person, color: Colors.grey.shade500),
+                                  ),
+                                ),
                         ),
                   if (profissional.verificado)
                     Positioned(right: -2, bottom: -2, child: _buildVerifiedBadge()),
@@ -937,6 +1178,18 @@ class _TelaBuscaState extends State<TelaBusca> {
   Widget _buildConteudoResultados() {
     final servicos = _servicosFiltrados;
     final profissionais = _profissionaisFiltrados;
+
+    if (_carregandoProfissionais) {
+      return const Center(
+        child: CircularProgressIndicator(color: _primaryBlue),
+      );
+    }
+
+    if (_erroNaBusca && profissionais.isEmpty) {
+      return _buildSemResultados(
+        'Não foi possível buscar profissionais agora. Tente novamente.',
+      );
+    }
 
     switch (_abaAtiva) {
       case _AbaResultado.servicos:
