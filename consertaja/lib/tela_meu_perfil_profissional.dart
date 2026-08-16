@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'editar_informacoes.dart';
 import 'tela_home_profissional.dart';
+import 'main.dart';
 
 class TelaMeuPerfilProfissionalPage extends StatefulWidget {
   final bool isVisitante;
@@ -570,6 +571,15 @@ class _TelaMeuPerfilProfissionalPageState
     );
   }
 
+  Future<void> _sairDaConta() async {
+    await _supabase.auth.signOut();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const TelaEscolhaConta()),
+      (route) => false,
+    );
+  }
+
   Widget _buildBottomNav() {
     return BottomNavigationBar(
       type: BottomNavigationBarType.fixed,
@@ -698,12 +708,54 @@ class _TelaMeuPerfilProfissionalPageState
                     label: 'Termos de Uso',
                     semIcone: true,
                   ),
-                  _buildProfileItem(
-                    label: 'Política de Privacidade',
-                    semIcone: true,
-                  ),
+                   _buildProfileItem(
+                     label: 'Política de Privacidade',
+                     semIcone: true,
+                   ),
 
-                  const SizedBox(height: 20),
+                   const Divider(height: 1, thickness: 1, color: _divider),
+
+                   InkWell(
+                     onTap: _sairDaConta,
+                     child: Padding(
+                       padding: const EdgeInsets.symmetric(
+                         horizontal: 16,
+                         vertical: 14,
+                       ),
+                       child: Row(
+                         children: [
+                           const SizedBox(
+                             width: 28,
+                             child: Center(
+                               child: Icon(
+                                 Icons.logout,
+                                 color: Colors.red,
+                                 size: 24,
+                               ),
+                             ),
+                           ),
+                           const SizedBox(width: 12),
+                           const Expanded(
+                             child: Text(
+                               'Sair da conta',
+                               style: TextStyle(
+                                 color: Colors.red,
+                                 fontSize: 16,
+                                 fontWeight: FontWeight.w400,
+                               ),
+                             ),
+                           ),
+                           const Icon(
+                             Icons.chevron_right,
+                             color: Colors.red,
+                             size: 20,
+                           ),
+                         ],
+                       ),
+                     ),
+                   ),
+
+                   const SizedBox(height: 20),
                 ],
               ),
             ),
