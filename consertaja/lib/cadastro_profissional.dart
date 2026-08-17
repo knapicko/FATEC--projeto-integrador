@@ -3510,6 +3510,7 @@ class ValidacaoDocsPage extends StatefulWidget {
   final String? cnpj;
   final String? dataNascimento;
   final bool isPessoaJuridica;
+  final String? tipoDocumentoInicial;
 
   const ValidacaoDocsPage({
     super.key,
@@ -3517,6 +3518,7 @@ class ValidacaoDocsPage extends StatefulWidget {
     this.cnpj,
     this.dataNascimento,
     this.isPessoaJuridica = false,
+    this.tipoDocumentoInicial,
   });
 
   @override
@@ -3552,6 +3554,18 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
       _docTypes = _docTypesPJ;
     } else {
       _docTypes = _docTypesPF;
+    }
+
+    // Se um tipo de documento foi pré-selecionado (ex: vindo de "Meus Documentos"),
+    // inicia automaticamente o fluxo de captura frente/verso sem mostrar a lista.
+    if (widget.tipoDocumentoInicial != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final doc = _docTypes.where((d) => d.type == widget.tipoDocumentoInicial).firstOrNull;
+        if (doc != null) {
+          _selecionarDocumento(doc);
+        }
+      });
     }
   }
 
