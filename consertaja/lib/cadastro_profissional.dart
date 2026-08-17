@@ -1883,6 +1883,7 @@ class _CadastroProfissionalEtapa3PageState
         throw Exception('Falha ao criar conta de autenticação.');
       }
       final authId = authUser.id;
+      final precisaConfirmarEmail = authResponse.session == null;
 
       final emailResponse = await supabase
           .from('emails')
@@ -2025,13 +2026,31 @@ class _CadastroProfissionalEtapa3PageState
       }
 
       if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (context) => TelaHomeProfissional(isVisitante: false),
-          ),
-          (route) => false,
-        );
+        if (precisaConfirmarEmail) {
+          // "Confirmar e-mail" está ativo no Supabase: o usuário já foi criado no
+          // auth, mas ainda precisa confirmar o e-mail antes de conseguir entrar.
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Quase lá! Enviamos um link de confirmação para o seu e-mail. '
+                'Clique nele para ativar sua conta e depois faça login.',
+              ),
+            ),
+          );
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const LoginPage()),
+            (route) => false,
+          );
+        } else {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TelaHomeProfissional(isVisitante: false),
+            ),
+            (route) => false,
+          );
+        }
       }
     } on AuthException catch (e) {
       String mensagemAmigavel = 'Ocorreu um erro ao registrar.';
@@ -2046,8 +2065,17 @@ class _CadastroProfissionalEtapa3PageState
             'Este e-mail já está cadastrado em nossa plataforma.';
       } else if (errorMsg.contains('password should be at least') ||
           errorMsg.contains('weak password')) {
+        // Lê do servidor quantos caracteres ele exige de verdade (o Supabase pode
+        // pedir um mínimo maior do que as regras locais do app).
+        final match = RegExp(
+          r'at least (\d{1,3})',
+          caseSensitive: false,
+        ).firstMatch(e.message);
+        final requerido = match != null ? int.parse(match.group(1)!) : 8;
         mensagemAmigavel =
-            'Senha muito fraca! Garanta que ela possua 6 caracteres, 1 maiúscula, 1 minúscula e 1 símbolo.';
+            'Senha muito fraca para o servidor! Ela precisa ter no mínimo '
+            '$requerido caracteres, combinando letras maiúsculas, minúsculas, '
+            'números e símbolos.';
       } else if (errorMsg.contains('invalid email') ||
           errorMsg.contains('email format')) {
         mensagemAmigavel = 'O e-mail informado não é válido.';
