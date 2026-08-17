@@ -51,6 +51,7 @@ class _AlterarDisponibilidadePageState
   static const Color _blockedRed = Color(0xFF9B2335);
   static const Color _blockedBg = Color(0xFFFFF0F3);
   static const Color _blockedBorder = Color(0xFFCE4257);
+  static const Color _navyBlue = Color(0xFF001A40);
 
   static const List<String> _letrasDias = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
@@ -102,6 +103,15 @@ class _AlterarDisponibilidadePageState
 
   bool _salvando = false;
   bool _carregando = true;
+
+  // Seleção múltipla de datas para bloqueio em lote.
+  bool _selecaoMultiplaAtiva = false;
+  final Set<DateTime> _datasSelecionadasMultipla = {};
+  bool _salvandoLote = false;
+  bool _arrastandoSelecao = false;
+  Offset? _pontoInicialArraste;
+  final GlobalKey _gridCalendarioKey = GlobalKey();
+  int _totalCelulasCalendario = 0;
 
   @override
   void initState() {
@@ -362,6 +372,275 @@ class _AlterarDisponibilidadePageState
     );
   }
 
+  DateTime _normalizarData(DateTime data) =>
+      DateTime(data.year, data.month, data.day);
+
+  bool _isDataMultiSelecionada(DateTime data) =>
+      _datasSelecionadasMultipla.contains(_normalizarData(data));
+
+  bool _isDataBloqueada(DateTime data) =>
+      _excecoesLocal.containsKey(_formatarDataCompleta(data));
+
+  bool _temDatasBloqueadasSelecionadas() =>
+      _datasSelecionadasMultipla.any(_isDataBloqueada);
+
+  bool _temDatasNaoBloqueadasSelecionadas() =>
+      _datasSelecionadasMultipla.any((data) => !_isDataBloqueada(data));
+
+  void _limparSelecaoMultipla() {
+    _datasSelecionadasMultipla.clear();
+    _arrastandoSelecao = false;
+    _pontoInicialArraste = null;
+  }
+
+  void _alternarModoSelecaoMultipla(bool ativo) {
+    setState(() {
+      _selecaoMultiplaAtiva = ativo;
+      if (!ativo) _limparSelecaoMultipla();
+    });
+  }
+
+  void _alternarDataMultipla(DateTime data) {
+    final normalizada = _normalizarData(data);
+    setState(() {
+      if (_datasSelecionadasMultipla.contains(normalizada)) {
+        _datasSelecionadasMultipla.remove(normalizada);
+      } else {
+        _datasSelecionadasMultipla.add(normalizada);
+      }
+    });
+  }
+
+  void _adicionarDataMultipla(DateTime data) {
+    final normalizada = _normalizarData(data);
+    if (_datasSelecionadasMultipla.contains(normalizada)) return;
+    setState(() {
+      _datasSelecionadasMultipla.add(normalizada);
+    });
+  }
+
+  DateTime? _dataDoIndiceCalendario(int index) {
+    final primeiroDia = DateTime(_mesExibido.year, _mesExibido.month, 1);
+    final ultimoDia = DateTime(_mesExibido.year, _mesExibido.month + 1, 0);
+    final diaInicioSemana = primeiroDia.weekday % 7;
+    final diaNumero = index - diaInicioSemana + 1;
+    if (diaNumero < 1 || diaNumero > ultimoDia.day) return null;
+    return DateTime(_mesExibido.year, _mesExibido.month, diaNumero);
+  }
+
+  int? _indiceCalendarioNaPosicao(Offset local, Size gridSize) {
+    const crossCount = 7;
+    const mainSpacing = 2.0;
+    const crossSpacing = 2.0;
+    const aspectRatio = 0.85;
+
+    final cellWidth =
+        (gridSize.width - crossSpacing * (crossCount - 1)) / crossCount;
+    final cellHeight = cellWidth / aspectRatio;
+
+    final col = (local.dx / (cellWidth + crossSpacing)).floor();
+    final row = (local.dy / (cellHeight + mainSpacing)).floor();
+
+    if (col < 0 || col >= crossCount || row < 0) return null;
+
+    final index = row * crossCount + col;
+    if (index < 0 || index >= _totalCelulasCalendario) return null;
+    return index;
+  }
+
+  DateTime? _dataNaPosicaoCalendario(Offset globalPosition) {
+    final box =
+        _gridCalendarioKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return null;
+
+    final local = box.globalToLocal(globalPosition);
+    if (local.dx < 0 ||
+        local.dy < 0 ||
+        local.dx > box.size.width ||
+        local.dy > box.size.height) {
+      return null;
+    }
+
+    final index = _indiceCalendarioNaPosicao(local, box.size);
+    if (index == null) return null;
+    return _dataDoIndiceCalendario(index);
+  }
+
+  void _processarToqueMultipla(Offset globalPosition) {
+    final data = _dataNaPosicaoCalendario(globalPosition);
+    if (data == null) return;
+    _alternarDataMultipla(data);
+  }
+
+  void _processarArrasteMultipla(Offset globalPosition) {
+    final data = _dataNaPosicaoCalendario(globalPosition);
+    if (data == null) return;
+    _adicionarDataMultipla(data);
+  }
+
+  void _onPointerDownCalendario(PointerDownEvent event) {
+    if (!_selecaoMultiplaAtiva) return;
+    _pontoInicialArraste = event.position;
+    _arrastandoSelecao = false;
+  }
+
+  void _onPointerMoveCalendario(PointerMoveEvent event) {
+    if (!_selecaoMultiplaAtiva || _pontoInicialArraste == null) return;
+
+    if ((event.position - _pontoInicialArraste!).distance > 6) {
+      _arrastandoSelecao = true;
+    }
+
+    if (_arrastandoSelecao) {
+      _processarArrasteMultipla(event.position);
+    }
+  }
+
+  void _onPointerUpCalendario(PointerUpEvent event) {
+    if (!_selecaoMultiplaAtiva) return;
+
+    if (!_arrastandoSelecao) {
+      _processarToqueMultipla(event.position);
+    }
+
+    _pontoInicialArraste = null;
+    _arrastandoSelecao = false;
+  }
+
+  Future<void> _confirmarBloqueioLote() async {
+    final datas = _datasSelecionadasMultipla
+        .where((data) => !_isDataBloqueada(data))
+        .toList()
+      ..sort((a, b) => a.compareTo(b));
+
+    if (datas.isEmpty) return;
+
+    setState(() => _salvandoLote = true);
+
+    try {
+      final idProfissional = await _buscarIdProfissional();
+      if (idProfissional == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Não foi possível identificar seu perfil profissional.',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      final excecao = _DadosExcecao.diaInteiro(observacao: 'Bloqueado');
+
+      for (final data in datas) {
+        final chave = _formatarDataCompleta(data);
+        await _persistirExcecao(chave, excecao);
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        for (final data in datas) {
+          final chave = _formatarDataCompleta(data);
+          _excecoesLocal[chave] = excecao;
+          _excecoesBanco[chave] = excecao;
+        }
+        _limparSelecaoMultipla();
+        _sincronizarDiasBloqueadosVisiveis();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${datas.length} ${datas.length == 1 ? 'data bloqueada' : 'datas bloqueadas'} com sucesso!',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      debugPrint('Erro ao bloquear datas em lote: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao bloquear datas: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _salvandoLote = false);
+    }
+  }
+
+  Future<void> _confirmarDesbloqueioLote() async {
+    final datas = _datasSelecionadasMultipla
+        .where(_isDataBloqueada)
+        .toList()
+      ..sort((a, b) => a.compareTo(b));
+
+    if (datas.isEmpty) return;
+
+    setState(() => _salvandoLote = true);
+
+    try {
+      final idProfissional = await _buscarIdProfissional();
+      if (idProfissional == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Não foi possível identificar seu perfil profissional.',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      for (final data in datas) {
+        final chave = _formatarDataCompleta(data);
+        await _removerExcecao(chave);
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        for (final data in datas) {
+          final chave = _formatarDataCompleta(data);
+          _excecoesLocal.remove(chave);
+          _excecoesBanco.remove(chave);
+        }
+        _limparSelecaoMultipla();
+        _sincronizarDiasBloqueadosVisiveis();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${datas.length} ${datas.length == 1 ? 'data desbloqueada' : 'datas desbloqueadas'} com sucesso!',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      debugPrint('Erro ao desbloquear datas em lote: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao desbloquear datas: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _salvandoLote = false);
+    }
+  }
+
   /// Reconstrói os dias destacados no calendário com base nas datas locais
   /// bloqueadas que pertencem ao mês exibido.
   void _sincronizarDiasBloqueadosVisiveis() {
@@ -416,6 +695,7 @@ class _AlterarDisponibilidadePageState
     setState(() {
       _mesExibido = DateTime(_mesExibido.year, _mesExibido.month - 1);
       _diaSelecionado = null;
+      _limparSelecaoMultipla();
     });
     _sincronizarDiasBloqueadosVisiveis();
     await _carregarExcecoes();
@@ -425,14 +705,32 @@ class _AlterarDisponibilidadePageState
     setState(() {
       _mesExibido = DateTime(_mesExibido.year, _mesExibido.month + 1);
       _diaSelecionado = null;
+      _limparSelecaoMultipla();
     });
     _sincronizarDiasBloqueadosVisiveis();
     await _carregarExcecoes();
   }
 
   void _selecionarDiaCalendario(int dia) {
+    if (_selecaoMultiplaAtiva) return;
     setState(() => _diaSelecionado = dia);
     _abrirBottomSheetExcecao(dia);
+  }
+
+  Future<void> _alternarBloqueioRapido(int dia) async {
+    if (_selecaoMultiplaAtiva) return;
+
+    final data = _formatarDataExcecao(dia);
+    if (_excecoesLocal.containsKey(data)) {
+      await _restaurarDiaSelecionado(dia);
+      return;
+    }
+
+    setState(() => _diaSelecionado = dia);
+    await _confirmarExcecao(
+      dia,
+      _DadosExcecao.diaInteiro(observacao: 'Bloqueado'),
+    );
   }
 
   Future<void> _persistirExcecao(String data, _DadosExcecao excecao) async {
@@ -640,7 +938,12 @@ class _AlterarDisponibilidadePageState
   }
 
   String _descricaoExcecao(_DadosExcecao excecao) {
-    if (excecao.diaInteiro) return 'Bloqueado (Indisponível)';
+    if (excecao.diaInteiro) {
+      final obs = excecao.observacao?.trim();
+      if (obs == 'Bloqueado') return 'Bloqueado';
+      if (obs != null && obs.isNotEmpty) return obs;
+      return 'Bloqueado (Indisponível)';
+    }
     final ini = _formatarHorario(excecao.horaInicio!);
     final fim = _formatarHorario(excecao.horaFim!);
     return 'Ausente das $ini às $fim';
@@ -940,9 +1243,15 @@ class _AlterarDisponibilidadePageState
       return const SizedBox(height: 40);
     }
 
-    final isSelecionado = mesAtual && _diaSelecionado == dia;
+    final isSelecionado =
+        mesAtual && !_selecaoMultiplaAtiva && _diaSelecionado == dia;
     final isBloqueado = mesAtual && _diasBloqueados.contains(dia);
     final temEvento = mesAtual && _diasComEventos.contains(dia);
+    final isMultiSelecionado = mesAtual &&
+        _selecaoMultiplaAtiva &&
+        _isDataMultiSelecionada(
+          DateTime(_mesExibido.year, _mesExibido.month, dia),
+        );
 
     final hoje = DateTime.now();
     final isHoje = mesAtual &&
@@ -962,6 +1271,13 @@ class _AlterarDisponibilidadePageState
       textColor = _blockedRed;
       border = Border.all(color: _blockedBorder, width: 1.5);
       decoration = TextDecoration.underline;
+      if (isMultiSelecionado) {
+        border = Border.all(color: _blue, width: 2);
+      }
+    } else if (isMultiSelecionado) {
+      bgColor = _cardBlueBg;
+      textColor = _navyBlue;
+      border = Border.all(color: _blue, width: 2);
     } else if (isHoje) {
       bgColor = _blue;
       textColor = Colors.white;
@@ -970,46 +1286,55 @@ class _AlterarDisponibilidadePageState
       textColor = Colors.white;
     }
 
+    final celula = Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: bgColor,
+            shape: BoxShape.circle,
+            border: border,
+          ),
+          child: Text(
+            '$dia',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: textColor,
+              decoration: decoration,
+              decorationColor: _blockedRed,
+            ),
+          ),
+        ),
+        const SizedBox(height: 2),
+        Container(
+          width: 5,
+          height: 5,
+          decoration: BoxDecoration(
+            color: isBloqueado
+                ? _blockedRed
+                : (isMultiSelecionado || isSelecionado || temEvento)
+                    ? (isSelecionado && !isMultiSelecionado
+                        ? Colors.white
+                        : _blue)
+                    : Colors.transparent,
+            shape: BoxShape.circle,
+          ),
+        ),
+      ],
+    );
+
+    if (!mesAtual || _selecaoMultiplaAtiva) {
+      return celula;
+    }
+
     return GestureDetector(
-      onTap: mesAtual ? () => _selecionarDiaCalendario(dia) : null,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: bgColor,
-              shape: BoxShape.circle,
-              border: border,
-            ),
-            child: Text(
-              '$dia',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: textColor,
-                decoration: decoration,
-                decorationColor: _blockedRed,
-              ),
-            ),
-          ),
-          const SizedBox(height: 2),
-          Container(
-            width: 5,
-            height: 5,
-            decoration: BoxDecoration(
-              color: isBloqueado
-                  ? _blockedRed
-                  : (isSelecionado || temEvento)
-                      ? (isSelecionado ? Colors.white : _blue)
-                      : Colors.transparent,
-              shape: BoxShape.circle,
-            ),
-          ),
-        ],
-      ),
+      onTap: () => _selecionarDiaCalendario(dia),
+      onLongPress: () => _alternarBloqueioRapido(dia),
+      child: celula,
     );
   }
 
@@ -1021,6 +1346,8 @@ class _AlterarDisponibilidadePageState
 
     final mesAnterior = DateTime(_mesExibido.year, _mesExibido.month, 0);
     final diasMesAnterior = mesAnterior.day;
+
+    _totalCelulasCalendario = totalCelulas;
 
     return Column(
       children: [
@@ -1044,37 +1371,113 @@ class _AlterarDisponibilidadePageState
               .toList(),
         ),
         const SizedBox(height: 8),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 7,
-            mainAxisSpacing: 2,
-            crossAxisSpacing: 2,
-            childAspectRatio: 0.85,
-          ),
-          itemCount: totalCelulas,
-          itemBuilder: (context, index) {
-            final diaNumero = index - diaInicioSemana + 1;
-            final isMesAtual = diaNumero >= 1 && diaNumero <= ultimoDia.day;
-
-            int? diaExibido;
-            bool mesAtual = false;
-
-            if (isMesAtual) {
-              diaExibido = diaNumero;
-              mesAtual = true;
-            } else if (index < diaInicioSemana) {
-              diaExibido = diasMesAnterior - diaInicioSemana + index + 1;
-              mesAtual = false;
-            } else {
-              diaExibido = diaNumero - ultimoDia.day;
-              mesAtual = false;
-            }
-
-            return _buildCelulaDia(dia: diaExibido, mesAtual: mesAtual);
+        Listener(
+          key: _gridCalendarioKey,
+          behavior: HitTestBehavior.opaque,
+          onPointerDown: _onPointerDownCalendario,
+          onPointerMove: _onPointerMoveCalendario,
+          onPointerUp: _onPointerUpCalendario,
+          onPointerCancel: (_) {
+            _pontoInicialArraste = null;
+            _arrastandoSelecao = false;
           },
+          child: GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 7,
+              mainAxisSpacing: 2,
+              crossAxisSpacing: 2,
+              childAspectRatio: 0.85,
+            ),
+            itemCount: totalCelulas,
+            itemBuilder: (context, index) {
+              final diaNumero = index - diaInicioSemana + 1;
+              final isMesAtual = diaNumero >= 1 && diaNumero <= ultimoDia.day;
+
+              int? diaExibido;
+              bool mesAtual = false;
+
+              if (isMesAtual) {
+                diaExibido = diaNumero;
+                mesAtual = true;
+              } else if (index < diaInicioSemana) {
+                diaExibido = diasMesAnterior - diaInicioSemana + index + 1;
+                mesAtual = false;
+              } else {
+                diaExibido = diaNumero - ultimoDia.day;
+                mesAtual = false;
+              }
+
+              return _buildCelulaDia(dia: diaExibido, mesAtual: mesAtual);
+            },
+          ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildSelecaoMultipla() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Divider(
+            height: 1,
+            color: _textGray.withValues(alpha: 0.2),
+          ),
+        ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    'Seleção múltipla de datas',
+                    style: TextStyle(
+                      color: _textDark,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Ative para bloquear ou alterar vários dias de uma vez.',
+                    style: TextStyle(
+                      color: _textGray,
+                      fontSize: 13,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Switch(
+              value: _selecaoMultiplaAtiva,
+              activeTrackColor: _blue,
+              activeThumbColor: Colors.white,
+              inactiveTrackColor: const Color(0xFFE0E0E0),
+              inactiveThumbColor: Colors.white,
+              onChanged: _alternarModoSelecaoMultipla,
+            ),
+          ],
+        ),
+        if (_selecaoMultiplaAtiva && _datasSelecionadasMultipla.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text(
+            '${_datasSelecionadasMultipla.length} '
+            '${_datasSelecionadasMultipla.length == 1 ? 'data selecionada' : 'datas selecionadas'}',
+            style: const TextStyle(
+              color: _blue,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -1177,6 +1580,7 @@ class _AlterarDisponibilidadePageState
       conteudo: Column(
         children: [
           _buildCalendario(),
+          _buildSelecaoMultipla(),
           _buildListaExcecoes(),
         ],
       ),
@@ -1230,8 +1634,63 @@ class _AlterarDisponibilidadePageState
 
   @override
   Widget build(BuildContext context) {
+    final exibirFab =
+        _selecaoMultiplaAtiva && _datasSelecionadasMultipla.isNotEmpty;
+    final exibirFabBloquear = exibirFab && _temDatasNaoBloqueadasSelecionadas();
+    final exibirFabDesbloquear =
+        exibirFab && _temDatasBloqueadasSelecionadas();
+
     return Scaffold(
       backgroundColor: _background,
+      floatingActionButton: (exibirFabBloquear || exibirFabDesbloquear)
+          ? Padding(
+              padding: const EdgeInsets.only(bottom: 72),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (exibirFabDesbloquear) ...[
+                    FloatingActionButton(
+                      onPressed:
+                          _salvandoLote ? null : _confirmarDesbloqueioLote,
+                      backgroundColor: _blue,
+                      elevation: 4,
+                      child: _salvandoLote
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.lock_open_outlined,
+                              color: Colors.white,
+                            ),
+                    ),
+                    if (exibirFabBloquear) const SizedBox(width: 12),
+                  ],
+                  if (exibirFabBloquear)
+                    FloatingActionButton(
+                      onPressed:
+                          _salvandoLote ? null : _confirmarBloqueioLote,
+                      backgroundColor: _blockedRed,
+                      elevation: 4,
+                      child: _salvandoLote
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.lock_outline, color: Colors.white),
+                    ),
+                ],
+              ),
+            )
+          : null,
       body: SafeArea(
         child: Column(
           children: [
