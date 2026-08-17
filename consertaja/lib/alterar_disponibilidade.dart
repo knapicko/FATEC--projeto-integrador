@@ -1,6 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+/// Dados de uma exceção de calendário (dia bloqueado total ou parcialmente).
+class _DadosExcecao {
+  const _DadosExcecao({
+    required this.diaInteiro,
+    this.horaInicio,
+    this.horaFim,
+  });
+
+  final bool diaInteiro;
+  final TimeOfDay? horaInicio;
+  final TimeOfDay? horaFim;
+
+  factory _DadosExcecao.diaInteiro() =>
+      const _DadosExcecao(diaInteiro: true);
+
+  factory _DadosExcecao.parcial({
+    required TimeOfDay horaInicio,
+    required TimeOfDay horaFim,
+  }) =>
+      _DadosExcecao(
+        diaInteiro: false,
+        horaInicio: horaInicio,
+        horaFim: horaFim,
+      );
+}
+
 class AlterarDisponibilidadePage extends StatefulWidget {
   const AlterarDisponibilidadePage({super.key});
 
@@ -60,6 +86,14 @@ class _AlterarDisponibilidadePageState
   DateTime _mesExibido = DateTime(DateTime.now().year, DateTime.now().month);
   int? _diaSelecionado;
   final Set<int> _diasBloqueados = {};
+
+  // Exceções locais (chave YYYY-MM-DD).
+  final Map<String, _DadosExcecao> _excecoesLocal = {};
+  // Espelho das exceções persistidas no banco.
+  final Map<String, _DadosExcecao> _excecoesBanco = {};
+  // Meses ("YYYY-MM") já carregados na sessão para preservar edições locais.
+  final Set<String> _mesesExcecoesCarregados = {};
+
   final Set<int> _diasComEventos = {};
 
   bool _salvando = false;
@@ -112,7 +146,8 @@ class _AlterarDisponibilidadePageState
     }
   }
 
-  /// Carrega os dias e horários já salvos na agenda_profissional.
+  /// Carrega os dias e horários já salvos na agenda_profissional e as
+  /// exceções de calendário (grade_horario_excecao) do mês exibido.
   Future<void> _carregarDisponibilidade() async {
     setState(() => _carregando = true);
 
@@ -132,38 +167,87 @@ class _AlterarDisponibilidadePageState
           .limit(1)
           .maybeSingle();
 
-      if (response == null) {
-        if (mounted) setState(() => _carregando = false);
-        return;
-      }
+      if (response != null) {
+        // Converte a lista "segunda-feira,quinta-feira,sexta-feira"
+        // em índices de dia da semana (0=Domingo ... 6=Sábado).
+        final diasAtivos = <int>{};
+        final diasRaw = response['dias_semana']?.toString();
+        if (diasRaw != null && diasRaw.trim().isNotEmpty) {
+          for (final nome in diasRaw.split(',')) {
+            final indice = _nomesDias.indexOf(nome.trim().toLowerCase());
+            if (indice >= 0) diasAtivos.add(indice);
+          }
+        }
 
-      // Converte a lista "segunda-feira,quinta-feira,sexta-feira"
-      // em índices de dia da semana (0=Domingo ... 6=Sábado).
-      final diasAtivos = <int>{};
-      final diasRaw = response['dias_semana']?.toString();
-      if (diasRaw != null && diasRaw.trim().isNotEmpty) {
-        for (final nome in diasRaw.split(',')) {
-          final indice = _nomesDias.indexOf(nome.trim().toLowerCase());
-          if (indice >= 0) diasAtivos.add(indice);
+        final horarioInicioFinal = _parseTimetz(response['hora_ini']);
+        final horarioFimFinal = _parseTimetz(response['hora_fim']);
+
+        if (mounted) {
+          setState(() {
+            _diasSemanaAtivos
+              ..clear()
+              ..addAll(diasAtivos);
+            if (horarioInicioFinal != null) _horaInicio = horarioInicioFinal;
+            if (horarioFimFinal != null) _horaFim = horarioFimFinal;
+          });
         }
       }
 
-      final horarioInicioFinal = _parseTimetz(response['hora_ini']);
-      final horarioFimFinal = _parseTimetz(response['hora_fim']);
+      // Carrega as exceções (dias bloqueados) do mês atualmente exibido.
+      await _carregarExcecoes(idProfissional: idProfissional);
 
-      if (mounted) {
-        setState(() {
-          _diasSemanaAtivos
-            ..clear()
-            ..addAll(diasAtivos);
-          if (horarioInicioFinal != null) _horaInicio = horarioInicioFinal;
-          if (horarioFimFinal != null) _horaFim = horarioFimFinal;
-          _carregando = false;
-        });
-      }
+      if (mounted) setState(() => _carregando = false);
     } catch (e) {
       debugPrint('Erro ao carregar disponibilidade: $e');
       if (mounted) setState(() => _carregando = false);
+    }
+  }
+
+  /// Carrega as exceções do mês exibido da grade_horario_excecao.
+  ///
+  /// A coluna `dia_semana` é do tipo `date` (formato "YYYY-MM-DD"). As datas
+  /// encontradas são convertidas em dias do mês para destacar no calendário.
+  Future<void> _carregarExcecoes({int? idProfissional}) async {
+    try {
+      final id = idProfissional ?? await _buscarIdProfissional();
+      if (id == null) return;
+
+      final ano = _mesExibido.year;
+      final mes = _mesExibido.month;
+      final chaveMes = '$ano-${mes.toString().padLeft(2, '0')}';
+
+      final primeiroDia = DateTime(ano, mes, 1);
+      final ultimoDia = DateTime(ano, mes + 1, 0);
+
+      final response = await _supabase
+          .from('grade_horario_excecao')
+          .select('dia_semana, hora_ini, hora_fim')
+          .eq('fk_profissional', id)
+          .gte('dia_semana', _formatarDataCompleta(primeiroDia))
+          .lte('dia_semana', _formatarDataCompleta(ultimoDia));
+
+      if (!mounted) return;
+
+      setState(() {
+        final primeiroCarregamento = _mesesExcecoesCarregados.add(chaveMes);
+
+        for (final row in response) {
+          final dataExcecao = _parseDataExcecao(row['dia_semana']);
+          if (dataExcecao == null) continue;
+          final chave = _formatarDataCompleta(dataExcecao);
+          final dados = _parseDadosExcecao(row);
+          _excecoesBanco[chave] = dados;
+          if (primeiroCarregamento) {
+            _excecoesLocal[chave] = dados;
+          }
+        }
+
+        if (ano == _mesExibido.year && mes == _mesExibido.month) {
+          _sincronizarDiasBloqueadosVisiveis();
+        }
+      });
+    } catch (e) {
+      debugPrint('Erro ao carregar exceções de calendário: $e');
     }
   }
 
@@ -188,6 +272,97 @@ class _AlterarDisponibilidadePageState
     final hh = time.hour.toString().padLeft(2, '0');
     final mm = time.minute.toString().padLeft(2, '0');
     return '$hh:$mm:00$sinal$offsetHh:$offsetMm';
+  }
+
+  /// Converte um valor `time` (ex: "08:00:00") em TimeOfDay.
+  TimeOfDay? _parseTime(Object? raw) {
+    if (raw == null) return null;
+    final match = RegExp(r'^(\d{1,2}):(\d{2})').firstMatch(raw.toString());
+    if (match == null) return null;
+    return TimeOfDay(
+      hour: int.parse(match.group(1)!),
+      minute: int.parse(match.group(2)!),
+    );
+  }
+
+  /// Monta [_DadosExcecao] a partir de uma linha da grade_horario_excecao.
+  _DadosExcecao _parseDadosExcecao(Map<String, dynamic> row) {
+    final horaIni = _parseTime(row['hora_ini']);
+    final horaFim = _parseTime(row['hora_fim']);
+    if (horaIni != null && horaFim != null) {
+      return _DadosExcecao.parcial(horaInicio: horaIni, horaFim: horaFim);
+    }
+    return _DadosExcecao.diaInteiro();
+  }
+
+  /// Converte [_DadosExcecao] em mapa para insert/update no Supabase.
+  Map<String, dynamic> _excecaoParaSupabase(
+    String data,
+    _DadosExcecao excecao,
+    int idProfissional,
+  ) {
+    final map = <String, dynamic>{
+      'dia_semana': data,
+      'fk_profissional': idProfissional,
+      'observacao': excecao.diaInteiro ? 'Indisponível' : 'Ausência parcial',
+    };
+    if (!excecao.diaInteiro &&
+        excecao.horaInicio != null &&
+        excecao.horaFim != null) {
+      map['hora_ini'] = _formatarTime(excecao.horaInicio!);
+      map['hora_fim'] = _formatarTime(excecao.horaFim!);
+    }
+    return map;
+  }
+
+  /// Converte um TimeOfDay em string time (ex: "08:00:00") para a coluna
+  /// `time` da grade_horario_excecao.
+  String _formatarTime(TimeOfDay time) {
+    final hh = time.hour.toString().padLeft(2, '0');
+    final mm = time.minute.toString().padLeft(2, '0');
+    return '$hh:$mm:00';
+  }
+
+  /// Converte a coluna `date` (formato "YYYY-MM-DD") em DateTime.
+  DateTime? _parseDataExcecao(Object? raw) {
+    if (raw == null) return null;
+    final texto = raw.toString().trim();
+    final match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(texto);
+    if (match == null) return DateTime.tryParse(texto);
+    return DateTime(
+      int.parse(match.group(1)!),
+      int.parse(match.group(2)!),
+      int.parse(match.group(3)!),
+    );
+  }
+
+  /// Formata um DateTime como "YYYY-MM-DD", formato usado na coluna `date`.
+  String _formatarDataCompleta(DateTime data) {
+    final mm = data.month.toString().padLeft(2, '0');
+    final dd = data.day.toString().padLeft(2, '0');
+    return '${data.year}-$mm-$dd';
+  }
+
+  /// Formata o dia informado do mês exibido como "YYYY-MM-DD".
+  String _formatarDataExcecao(int dia) {
+    return _formatarDataCompleta(
+      DateTime(_mesExibido.year, _mesExibido.month, dia),
+    );
+  }
+
+  /// Reconstrói os dias destacados no calendário com base nas datas locais
+  /// bloqueadas que pertencem ao mês exibido.
+  void _sincronizarDiasBloqueadosVisiveis() {
+    final prefixo =
+        '${_mesExibido.year}-${_mesExibido.month.toString().padLeft(2, '0')}-';
+    _diasBloqueados
+      ..clear()
+      ..addAll(
+        _excecoesLocal.keys
+            .where((data) => data.startsWith(prefixo))
+            .map((data) => int.tryParse(data.substring(8)))
+            .whereType<int>(),
+      );
   }
 
   Future<void> _selecionarHorario({required bool inicio}) async {
@@ -225,41 +400,143 @@ class _AlterarDisponibilidadePageState
     });
   }
 
-  void _mesAnterior() {
+  Future<void> _mesAnterior() async {
     setState(() {
       _mesExibido = DateTime(_mesExibido.year, _mesExibido.month - 1);
       _diaSelecionado = null;
     });
+    _sincronizarDiasBloqueadosVisiveis();
+    await _carregarExcecoes();
   }
 
-  void _proximoMes() {
+  Future<void> _proximoMes() async {
     setState(() {
       _mesExibido = DateTime(_mesExibido.year, _mesExibido.month + 1);
       _diaSelecionado = null;
     });
+    _sincronizarDiasBloqueadosVisiveis();
+    await _carregarExcecoes();
   }
 
   void _selecionarDiaCalendario(int dia) {
     setState(() => _diaSelecionado = dia);
+    _abrirBottomSheetExcecao(dia);
   }
 
-  void _alternarBloqueioDia(int dia) {
-    setState(() {
-      if (_diasBloqueados.contains(dia)) {
-        _diasBloqueados.remove(dia);
-      } else {
-        _diasBloqueados.add(dia);
+  Future<void> _persistirExcecao(String data, _DadosExcecao excecao) async {
+    final idProfissional = await _buscarIdProfissional();
+    if (idProfissional == null) return;
+
+    await _supabase
+        .from('grade_horario_excecao')
+        .delete()
+        .eq('fk_profissional', idProfissional)
+        .eq('dia_semana', data);
+
+    await _supabase.from('grade_horario_excecao').insert(
+          _excecaoParaSupabase(data, excecao, idProfissional),
+        );
+  }
+
+  Future<void> _removerExcecao(String data) async {
+    final idProfissional = await _buscarIdProfissional();
+    if (idProfissional == null) return;
+
+    await _supabase
+        .from('grade_horario_excecao')
+        .delete()
+        .eq('fk_profissional', idProfissional)
+        .eq('dia_semana', data);
+  }
+
+  Future<void> _confirmarExcecao(int dia, _DadosExcecao excecao) async {
+    final data = _formatarDataExcecao(dia);
+
+    try {
+      await _persistirExcecao(data, excecao);
+
+      if (!mounted) return;
+
+      setState(() {
+        _excecoesLocal[data] = excecao;
+        _excecoesBanco[data] = excecao;
         _diasComEventos.remove(dia);
+        _diaSelecionado = dia;
+        _sincronizarDiasBloqueadosVisiveis();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Exceção salva com sucesso!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      debugPrint('Erro ao salvar exceção: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao salvar exceção: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
-      _diaSelecionado = dia;
-    });
+    }
   }
 
-  void _restaurarDiaSelecionado() {
+  void _abrirBottomSheetExcecao(int dia) {
+    final data = _formatarDataExcecao(dia);
+    final excecaoExistente = _excecoesLocal[data];
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _GerenciarExcecaoBottomSheet(
+        dataFormatada: _nomeDiaPorNumero(dia),
+        excecaoExistente: excecaoExistente,
+        onConfirmar: (excecao) async {
+          Navigator.pop(context);
+          await _confirmarExcecao(dia, excecao);
+        },
+        onCancelar: () => Navigator.pop(context),
+      ),
+    );
+  }
+
+  Future<void> _restaurarDiaSelecionado() async {
     if (_diaSelecionado == null) return;
-    setState(() {
-      _diasBloqueados.remove(_diaSelecionado);
-    });
+
+    final data = _formatarDataExcecao(_diaSelecionado!);
+
+    try {
+      await _removerExcecao(data);
+
+      if (!mounted) return;
+
+      setState(() {
+        _excecoesLocal.remove(data);
+        _excecoesBanco.remove(data);
+        _sincronizarDiasBloqueadosVisiveis();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Exceção removida.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      debugPrint('Erro ao remover exceção: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao remover exceção: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _salvarDisponibilidade() async {
@@ -314,6 +591,8 @@ class _AlterarDisponibilidadePageState
         'fk_solicitacao': 0,
       });
 
+      // Exceções são salvas imediatamente pelo Bottom Sheet.
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -337,9 +616,20 @@ class _AlterarDisponibilidadePageState
     }
   }
 
+  String _nomeDiaPorNumero(int dia) {
+    return '$dia de ${_meses[_mesExibido.month - 1]}';
+  }
+
   String _nomeDiaSelecionado() {
     if (_diaSelecionado == null) return '';
-    return '$_diaSelecionado de ${_meses[_mesExibido.month - 1]}';
+    return _nomeDiaPorNumero(_diaSelecionado!);
+  }
+
+  String _descricaoExcecao(_DadosExcecao excecao) {
+    if (excecao.diaInteiro) return 'Bloqueado (Indisponível)';
+    final ini = _formatarHorario(excecao.horaInicio!);
+    final fim = _formatarHorario(excecao.horaFim!);
+    return 'Ausente das $ini às $fim';
   }
 
   Widget _buildHeader() {
@@ -659,7 +949,6 @@ class _AlterarDisponibilidadePageState
 
     return GestureDetector(
       onTap: mesAtual ? () => _selecionarDiaCalendario(dia) : null,
-      onLongPress: mesAtual ? () => _alternarBloqueioDia(dia) : null,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -773,6 +1062,10 @@ class _AlterarDisponibilidadePageState
       return const SizedBox.shrink();
     }
 
+    final data = _formatarDataExcecao(_diaSelecionado!);
+    final excecao = _excecoesLocal[data];
+    if (excecao == null) return const SizedBox.shrink();
+
     return Container(
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -798,9 +1091,9 @@ class _AlterarDisponibilidadePageState
                   ),
                 ),
                 const SizedBox(height: 2),
-                const Text(
-                  'Bloqueado (Indisponível)',
-                  style: TextStyle(
+                Text(
+                  _descricaoExcecao(excecao),
+                  style: const TextStyle(
                     color: _blockedRed,
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
@@ -913,6 +1206,448 @@ class _AlterarDisponibilidadePageState
             ),
             _buildBotaoSalvar(),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Bottom sheet para confirmar exceção de calendário (dia inteiro ou parcial).
+class _GerenciarExcecaoBottomSheet extends StatefulWidget {
+  const _GerenciarExcecaoBottomSheet({
+    required this.dataFormatada,
+    required this.excecaoExistente,
+    required this.onConfirmar,
+    required this.onCancelar,
+  });
+
+  final String dataFormatada;
+  final _DadosExcecao? excecaoExistente;
+  final Future<void> Function(_DadosExcecao excecao) onConfirmar;
+  final VoidCallback onCancelar;
+
+  @override
+  State<_GerenciarExcecaoBottomSheet> createState() =>
+      _GerenciarExcecaoBottomSheetState();
+}
+
+class _GerenciarExcecaoBottomSheetState
+    extends State<_GerenciarExcecaoBottomSheet> {
+  static const Color _blue = Color(0xFF0FB3FF);
+  static const Color _textDark = Color(0xFF1A1A1A);
+  static const Color _textGray = Color(0xFF7B7B7B);
+  static const Color _cardBlueBg = Color(0xFFE8F7FF);
+  static const Color _navy = Color(0xFF001A40);
+  static const Color _cancelRed = Color(0xFFFF0202);
+  static const Color _timeFieldBg = Color(0xFFF5F5F5);
+  static const Color _toggleOff = Color(0xFFE0E0E0);
+
+  late bool _diaInteiro;
+  late TimeOfDay _horaInicio;
+  late TimeOfDay _horaFim;
+  bool _confirmando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final existente = widget.excecaoExistente;
+    if (existente != null && !existente.diaInteiro) {
+      _diaInteiro = false;
+      _horaInicio = existente.horaInicio ?? const TimeOfDay(hour: 13, minute: 0);
+      _horaFim = existente.horaFim ?? const TimeOfDay(hour: 17, minute: 0);
+    } else {
+      _diaInteiro = true;
+      _horaInicio = const TimeOfDay(hour: 13, minute: 0);
+      _horaFim = const TimeOfDay(hour: 17, minute: 0);
+    }
+  }
+
+  String _formatarHorario(TimeOfDay time) {
+    final hora = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
+    final minuto = time.minute.toString().padLeft(2, '0');
+    final periodo = time.period == DayPeriod.am ? 'AM' : 'PM';
+    return '${hora.toString().padLeft(2, '0')}:$minuto $periodo';
+  }
+
+  void _alternarDiaInteiro(bool valor) {
+    setState(() {
+      _diaInteiro = valor;
+    });
+  }
+
+  void _alternarHorarioEspecifico(bool valor) {
+    setState(() {
+      _diaInteiro = !valor;
+    });
+  }
+
+  Future<void> _selecionarHorario({required bool inicio}) async {
+    if (_diaInteiro) return;
+
+    final horario = await showTimePicker(
+      context: context,
+      initialTime: inicio ? _horaInicio : _horaFim,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(primary: _blue),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (horario == null || !mounted) return;
+
+    setState(() {
+      if (inicio) {
+        _horaInicio = horario;
+      } else {
+        _horaFim = horario;
+      }
+    });
+  }
+
+  Future<void> _confirmar() async {
+    if (!_diaInteiro) {
+      final inicioMinutos = _horaInicio.hour * 60 + _horaInicio.minute;
+      final fimMinutos = _horaFim.hour * 60 + _horaFim.minute;
+      if (fimMinutos <= inicioMinutos) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('O horário de fim deve ser posterior ao de início.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+    }
+
+    setState(() => _confirmando = true);
+
+    final excecao = _diaInteiro
+        ? _DadosExcecao.diaInteiro()
+        : _DadosExcecao.parcial(
+            horaInicio: _horaInicio,
+            horaFim: _horaFim,
+          );
+
+    await widget.onConfirmar(excecao);
+  }
+
+  Widget _buildToggle({
+    required bool value,
+    required ValueChanged<bool> onChanged,
+    required Color activeColor,
+  }) {
+    return GestureDetector(
+      onTap: () => onChanged(!value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 48,
+        height: 28,
+        padding: const EdgeInsets.all(3),
+        decoration: BoxDecoration(
+          color: value ? activeColor : _toggleOff,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: AnimatedAlign(
+          duration: const Duration(milliseconds: 200),
+          alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            width: 22,
+            height: 22,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOpcao({
+    required String titulo,
+    required String descricao,
+    required bool ativo,
+    required bool toggleValue,
+    required ValueChanged<bool> onToggle,
+  }) {
+    final tituloCor = ativo ? _textDark : _textGray.withValues(alpha: 0.6);
+    final descCor = ativo ? _textGray : _textGray.withValues(alpha: 0.45);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                titulo,
+                style: TextStyle(
+                  color: tituloCor,
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                descricao,
+                style: TextStyle(
+                  color: descCor,
+                  fontSize: 13,
+                  height: 1.35,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        _buildToggle(
+          value: toggleValue,
+          onChanged: onToggle,
+          activeColor: _blue,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCampoHorario({
+    required String rotulo,
+    required String valor,
+    required bool habilitado,
+    required VoidCallback onTap,
+  }) {
+    final corTexto =
+        habilitado ? _textDark : _textGray.withValues(alpha: 0.45);
+    final corRotulo =
+        habilitado ? _textGray : _textGray.withValues(alpha: 0.35);
+    final corBorda = habilitado
+        ? _textGray.withValues(alpha: 0.25)
+        : _textGray.withValues(alpha: 0.15);
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: habilitado ? onTap : null,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              rotulo,
+              style: TextStyle(
+                color: corRotulo,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              decoration: BoxDecoration(
+                color: habilitado ? Colors.white : _timeFieldBg,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: corBorda),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      valor,
+                      style: TextStyle(
+                        color: corTexto,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.access_time,
+                    color: corRotulo,
+                    size: 18,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final horarioEspecificoAtivo = !_diaInteiro;
+    final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomPadding),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: _textGray.withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Gerenciar Exceção',
+                        style: TextStyle(
+                          color: _textDark,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: _confirmando ? null : widget.onCancelar,
+                      icon: Icon(
+                        Icons.close,
+                        color: _textGray.withValues(alpha: 0.7),
+                      ),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: _cardBlueBg,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.calendar_today, color: _navy, size: 20),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Data selecionada: ${widget.dataFormatada}',
+                        style: const TextStyle(
+                          color: _navy,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _buildOpcao(
+                  titulo: 'Indisponibilidade total do dia',
+                  descricao: 'Bloquear todos os agendamentos para esta data.',
+                  ativo: _diaInteiro,
+                  toggleValue: _diaInteiro,
+                  onToggle: _alternarDiaInteiro,
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Divider(
+                    height: 1,
+                    color: _textGray.withValues(alpha: 0.2),
+                  ),
+                ),
+                _buildOpcao(
+                  titulo: 'Definir horário específico de ausência',
+                  descricao: 'Bloquear apenas um período do dia.',
+                  ativo: horarioEspecificoAtivo,
+                  toggleValue: horarioEspecificoAtivo,
+                  onToggle: _alternarHorarioEspecifico,
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    _buildCampoHorario(
+                      rotulo: 'Início',
+                      valor: _formatarHorario(_horaInicio),
+                      habilitado: horarioEspecificoAtivo,
+                      onTap: () => _selecionarHorario(inicio: true),
+                    ),
+                    const SizedBox(width: 12),
+                    _buildCampoHorario(
+                      rotulo: 'Fim',
+                      valor: _formatarHorario(_horaFim),
+                      habilitado: horarioEspecificoAtivo,
+                      onTap: () => _selecionarHorario(inicio: false),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: _confirmando ? null : _confirmar,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _blue,
+                      disabledBackgroundColor: _blue.withValues(alpha: 0.6),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                    ),
+                    child: _confirmando
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Confirmar Exceção',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 50,
+                  child: OutlinedButton(
+                    onPressed: _confirmando ? null : widget.onCancelar,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _cancelRed,
+                      side: const BorderSide(color: _cancelRed, width: 1.5),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                    ),
+                    child: const Text(
+                      'Cancelar',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
