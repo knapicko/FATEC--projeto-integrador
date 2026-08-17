@@ -7,23 +7,27 @@ class _DadosExcecao {
     required this.diaInteiro,
     this.horaInicio,
     this.horaFim,
+    this.observacao,
   });
 
   final bool diaInteiro;
   final TimeOfDay? horaInicio;
   final TimeOfDay? horaFim;
+  final String? observacao;
 
-  factory _DadosExcecao.diaInteiro() =>
-      const _DadosExcecao(diaInteiro: true);
+  factory _DadosExcecao.diaInteiro({String? observacao}) =>
+      _DadosExcecao(diaInteiro: true, observacao: observacao);
 
   factory _DadosExcecao.parcial({
     required TimeOfDay horaInicio,
     required TimeOfDay horaFim,
+    String? observacao,
   }) =>
       _DadosExcecao(
         diaInteiro: false,
         horaInicio: horaInicio,
         horaFim: horaFim,
+        observacao: observacao,
       );
 }
 
@@ -221,7 +225,7 @@ class _AlterarDisponibilidadePageState
 
       final response = await _supabase
           .from('grade_horario_excecao')
-          .select('dia_semana, hora_ini, hora_fim')
+          .select('dia_semana, hora_ini, hora_fim, observacao')
           .eq('fk_profissional', id)
           .gte('dia_semana', _formatarDataCompleta(primeiroDia))
           .lte('dia_semana', _formatarDataCompleta(ultimoDia));
@@ -289,10 +293,15 @@ class _AlterarDisponibilidadePageState
   _DadosExcecao _parseDadosExcecao(Map<String, dynamic> row) {
     final horaIni = _parseTime(row['hora_ini']);
     final horaFim = _parseTime(row['hora_fim']);
+    final observacao = row['observacao']?.toString();
     if (horaIni != null && horaFim != null) {
-      return _DadosExcecao.parcial(horaInicio: horaIni, horaFim: horaFim);
+      return _DadosExcecao.parcial(
+        horaInicio: horaIni,
+        horaFim: horaFim,
+        observacao: observacao,
+      );
     }
-    return _DadosExcecao.diaInteiro();
+    return _DadosExcecao.diaInteiro(observacao: observacao);
   }
 
   /// Converte [_DadosExcecao] em mapa para insert/update no Supabase.
@@ -301,10 +310,13 @@ class _AlterarDisponibilidadePageState
     _DadosExcecao excecao,
     int idProfissional,
   ) {
+    final observacao = excecao.observacao?.trim();
     final map = <String, dynamic>{
       'dia_semana': data,
       'fk_profissional': idProfissional,
-      'observacao': excecao.diaInteiro ? 'Indisponível' : 'Ausência parcial',
+      'observacao': (observacao != null && observacao.isNotEmpty)
+          ? observacao
+          : (excecao.diaInteiro ? 'Indisponível' : 'Ausência parcial'),
     };
     if (!excecao.diaInteiro &&
         excecao.horaInicio != null &&
@@ -500,14 +512,21 @@ class _AlterarDisponibilidadePageState
           await _confirmarExcecao(dia, excecao);
         },
         onCancelar: () => Navigator.pop(context),
+        onRetirar: excecaoExistente != null
+            ? () async {
+                Navigator.pop(context);
+                await _restaurarDiaSelecionado(dia);
+              }
+            : null,
       ),
     );
   }
 
-  Future<void> _restaurarDiaSelecionado() async {
-    if (_diaSelecionado == null) return;
+  Future<void> _restaurarDiaSelecionado([int? dia]) async {
+    final diaAlvo = dia ?? _diaSelecionado;
+    if (diaAlvo == null) return;
 
-    final data = _formatarDataExcecao(_diaSelecionado!);
+    final data = _formatarDataExcecao(diaAlvo);
 
     try {
       await _removerExcecao(data);
@@ -618,11 +637,6 @@ class _AlterarDisponibilidadePageState
 
   String _nomeDiaPorNumero(int dia) {
     return '$dia de ${_meses[_mesExibido.month - 1]}';
-  }
-
-  String _nomeDiaSelecionado() {
-    if (_diaSelecionado == null) return '';
-    return _nomeDiaPorNumero(_diaSelecionado!);
   }
 
   String _descricaoExcecao(_DadosExcecao excecao) {
@@ -930,6 +944,12 @@ class _AlterarDisponibilidadePageState
     final isBloqueado = mesAtual && _diasBloqueados.contains(dia);
     final temEvento = mesAtual && _diasComEventos.contains(dia);
 
+    final hoje = DateTime.now();
+    final isHoje = mesAtual &&
+        dia == hoje.day &&
+        _mesExibido.year == hoje.year &&
+        _mesExibido.month == hoje.month;
+
     Color? bgColor;
     Color textColor = _textDark;
     Border? border;
@@ -942,6 +962,9 @@ class _AlterarDisponibilidadePageState
       textColor = _blockedRed;
       border = Border.all(color: _blockedBorder, width: 1.5);
       decoration = TextDecoration.underline;
+    } else if (isHoje) {
+      bgColor = _blue;
+      textColor = Colors.white;
     } else if (isSelecionado) {
       bgColor = _blue;
       textColor = Colors.white;
@@ -1056,38 +1079,65 @@ class _AlterarDisponibilidadePageState
     );
   }
 
-  Widget _buildBannerDiaSelecionado() {
-    if (_diaSelecionado == null ||
-        !_diasBloqueados.contains(_diaSelecionado)) {
-      return const SizedBox.shrink();
+  Widget _buildListaExcecoes() {
+    final prefixo =
+        '${_mesExibido.year}-${_mesExibido.month.toString().padLeft(2, '0')}-';
+    final excecoesMes = _excecoesLocal.entries
+        .where((e) => e.key.startsWith(prefixo))
+        .toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+
+    if (excecoesMes.isEmpty) {
+      return Container(
+        margin: const EdgeInsets.only(top: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: _cardBlueBg,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Text(
+          'Nenhuma exceção neste mês.',
+          style: TextStyle(color: _textGray, fontSize: 13),
+        ),
+      );
     }
 
-    final data = _formatarDataExcecao(_diaSelecionado!);
-    final excecao = _excecoesLocal[data];
-    if (excecao == null) return const SizedBox.shrink();
-
-    return Container(
-      margin: const EdgeInsets.only(top: 16),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: _blockedBg,
-        borderRadius: BorderRadius.circular(8),
-        border: const Border(
-          left: BorderSide(color: _blockedRed, width: 4),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(bottom: 8),
+          child: Text(
+            'Exceções do mês',
+            style: TextStyle(
+              color: _textDark,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
         ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
+        ...excecoesMes.map((entry) {
+          final dia = int.tryParse(entry.key.substring(8)) ?? 0;
+          final excecao = entry.value;
+          return Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFDAD6).withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(8),
+              border: const Border(
+                left: BorderSide(color: _blockedRed, width: 4),
+              ),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _nomeDiaSelecionado(),
+                  '$dia de ${_meses[_mesExibido.month - 1]}',
                   style: const TextStyle(
                     color: _textDark,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -1095,26 +1145,26 @@ class _AlterarDisponibilidadePageState
                   _descricaoExcecao(excecao),
                   style: const TextStyle(
                     color: _blockedRed,
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
+                if (excecao.observacao != null &&
+                    excecao.observacao!.trim().isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    excecao.observacao!,
+                    style: const TextStyle(
+                      color: _textGray,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ],
             ),
-          ),
-          TextButton(
-            onPressed: _restaurarDiaSelecionado,
-            style: TextButton.styleFrom(
-              foregroundColor: _blockedRed,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-            ),
-            child: const Text(
-              'Restaurar',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-            ),
-          ),
-        ],
-      ),
+          );
+        }),
+      ],
     );
   }
 
@@ -1127,7 +1177,7 @@ class _AlterarDisponibilidadePageState
       conteudo: Column(
         children: [
           _buildCalendario(),
-          _buildBannerDiaSelecionado(),
+          _buildListaExcecoes(),
         ],
       ),
     );
@@ -1219,12 +1269,14 @@ class _GerenciarExcecaoBottomSheet extends StatefulWidget {
     required this.excecaoExistente,
     required this.onConfirmar,
     required this.onCancelar,
+    this.onRetirar,
   });
 
   final String dataFormatada;
   final _DadosExcecao? excecaoExistente;
   final Future<void> Function(_DadosExcecao excecao) onConfirmar;
   final VoidCallback onCancelar;
+  final VoidCallback? onRetirar;
 
   @override
   State<_GerenciarExcecaoBottomSheet> createState() =>
@@ -1245,12 +1297,16 @@ class _GerenciarExcecaoBottomSheetState
   late bool _diaInteiro;
   late TimeOfDay _horaInicio;
   late TimeOfDay _horaFim;
+  late final TextEditingController _observacaoController;
   bool _confirmando = false;
 
   @override
   void initState() {
     super.initState();
     final existente = widget.excecaoExistente;
+    _observacaoController = TextEditingController(
+      text: existente?.observacao ?? '',
+    );
     if (existente != null && !existente.diaInteiro) {
       _diaInteiro = false;
       _horaInicio = existente.horaInicio ?? const TimeOfDay(hour: 13, minute: 0);
@@ -1260,6 +1316,12 @@ class _GerenciarExcecaoBottomSheetState
       _horaInicio = const TimeOfDay(hour: 13, minute: 0);
       _horaFim = const TimeOfDay(hour: 17, minute: 0);
     }
+  }
+
+  @override
+  void dispose() {
+    _observacaoController.dispose();
+    super.dispose();
   }
 
   String _formatarHorario(TimeOfDay time) {
@@ -1326,10 +1388,13 @@ class _GerenciarExcecaoBottomSheetState
     setState(() => _confirmando = true);
 
     final excecao = _diaInteiro
-        ? _DadosExcecao.diaInteiro()
+        ? _DadosExcecao.diaInteiro(
+            observacao: _observacaoController.text,
+          )
         : _DadosExcecao.parcial(
             horaInicio: _horaInicio,
             horaFim: _horaFim,
+            observacao: _observacaoController.text,
           );
 
     await widget.onConfirmar(excecao);
@@ -1479,6 +1544,7 @@ class _GerenciarExcecaoBottomSheetState
   @override
   Widget build(BuildContext context) {
     final horarioEspecificoAtivo = !_diaInteiro;
+    final isEdicao = widget.excecaoExistente != null;
     final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
 
     return Padding(
@@ -1592,6 +1658,39 @@ class _GerenciarExcecaoBottomSheetState
                     ),
                   ],
                 ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _observacaoController,
+                  maxLines: 2,
+                  maxLength: 200,
+                  decoration: InputDecoration(
+                    labelText: 'Observação (opcional)',
+                    hintText: 'Ex.: Férias, consulta médica, etc.',
+                    labelStyle: const TextStyle(
+                      color: _textGray,
+                      fontSize: 13,
+                    ),
+                    hintStyle: TextStyle(
+                      color: _textGray.withValues(alpha: 0.6),
+                      fontSize: 13,
+                    ),
+                    filled: true,
+                    fillColor: _timeFieldBg,
+                    counterText: '',
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: _blue, width: 1.5),
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 24),
                 SizedBox(
                   height: 50,
@@ -1614,9 +1713,9 @@ class _GerenciarExcecaoBottomSheetState
                               color: Colors.white,
                             ),
                           )
-                        : const Text(
-                            'Confirmar Exceção',
-                            style: TextStyle(
+                        : Text(
+                            isEdicao ? 'Editar Exceção' : 'Confirmar Exceção',
+                            style: const TextStyle(
                               color: Colors.white,
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
@@ -1625,26 +1724,49 @@ class _GerenciarExcecaoBottomSheetState
                   ),
                 ),
                 const SizedBox(height: 10),
-                SizedBox(
-                  height: 50,
-                  child: OutlinedButton(
-                    onPressed: _confirmando ? null : widget.onCancelar,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: _cancelRed,
-                      side: const BorderSide(color: _cancelRed, width: 1.5),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(25),
+                if (isEdicao && widget.onRetirar != null) ...[
+                  SizedBox(
+                    height: 50,
+                    child: OutlinedButton(
+                      onPressed: _confirmando ? null : widget.onRetirar,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _cancelRed,
+                        side: const BorderSide(color: _cancelRed, width: 1.5),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
                       ),
-                    ),
-                    child: const Text(
-                      'Cancelar',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                      child: const Text(
+                        'Retirar Exceção',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
-                ),
+                ] else ...[
+                  SizedBox(
+                    height: 50,
+                    child: OutlinedButton(
+                      onPressed: _confirmando ? null : widget.onCancelar,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _cancelRed,
+                        side: const BorderSide(color: _cancelRed, width: 1.5),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                      ),
+                      child: const Text(
+                        'Cancelar',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
