@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'alterar_disponibilidade.dart';
 import 'area_atuacao.dart';
 import 'editar_informacoes.dart';
 import 'meus_documentos.dart';
@@ -703,6 +704,15 @@ class _TelaMeuPerfilProfissionalPageState
                   _buildProfileItem(
                     label: 'Ajustar Disponibilidade',
                     fallbackIcon: Icons.event_available_outlined,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const AlterarDisponibilidadePage(),
+                        ),
+                      );
+                    },
                   ),
                   _buildProfileItem(
                     label: 'Notificações',
