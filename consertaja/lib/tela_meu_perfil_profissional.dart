@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'area_atuacao.dart';
 import 'editar_informacoes.dart';
+import 'meus_documentos.dart';
 import 'meus_enderecos.dart';
 import 'tela_home_profissional.dart';
 import 'main.dart';
@@ -690,6 +691,14 @@ class _TelaMeuPerfilProfissionalPageState
                   _buildProfileItem(
                     label: 'Meus Documentos',
                     fallbackIcon: Icons.description_outlined,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const MeusDocumentosPage(),
+                        ),
+                      );
+                    },
                   ),
                   _buildProfileItem(
                     label: 'Ajustar Disponibilidade',
