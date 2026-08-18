@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'utils/cor_oficio.dart';
+import 'widgets/tag_oficio.dart';
 
 class PerfilProfissionalPage extends StatefulWidget {
   final String nomeInicial;
@@ -55,6 +57,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   );
 
   int? _idProfissional;
+  List<OficioInfo> _oficios = [];
   /// Chave YYYY-MM-DD → observação da exceção de dia inteiro.
   final Map<String, String?> _diasBloqueados = {};
   bool _carregandoExcecoes = false;
@@ -189,7 +192,10 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
         });
 
         if (idProfissional != null) {
-          await _carregarExcecoes();
+          await Future.wait([
+            _carregarExcecoes(),
+            _carregarOficios(idProfissional),
+          ]);
         }
       }
     } catch (_) {
@@ -198,6 +204,42 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
       if (mounted) {
         setState(() => _carregandoPerfil = false);
       }
+    }
+  }
+
+  Future<void> _carregarOficios(int idProfissional) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final assOficios = await supabase
+          .from('ass_oficio_profissional')
+          .select('fk_oficio')
+          .eq('fk_profissional', idProfissional);
+
+      final idsOficios = assOficios
+          .map((e) => e['fk_oficio'])
+          .whereType<num>()
+          .map((e) => e.toInt())
+          .toList();
+
+      if (idsOficios.isEmpty) {
+        if (mounted) setState(() => _oficios = []);
+        return;
+      }
+
+      final oficiosData = await supabase
+          .from('oficios')
+          .select('funcao, cor')
+          .inFilter('id_oficio', idsOficios);
+
+      final oficios = <OficioInfo>[];
+      for (final row in oficiosData) {
+        final info = OficioInfo.fromMap(row);
+        if (info.funcao.isNotEmpty) oficios.add(info);
+      }
+
+      if (mounted) setState(() => _oficios = oficios);
+    } catch (_) {
+      // Mantém ofícios anteriores em caso de falha
     }
   }
 
@@ -614,6 +656,20 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
             ),
           ],
         ),
+        if (_oficios.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: _oficios
+                  .map((oficio) => TagOficio(oficio: oficio))
+                  .toList(),
+            ),
+          ),
+        ],
         const SizedBox(height: 16),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
