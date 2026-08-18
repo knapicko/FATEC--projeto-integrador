@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'tela_meu_perfil_profissional.dart';
+import 'utils/cor_oficio.dart';
+import 'widgets/tag_oficio.dart';
 
 class TelaHomeProfissional extends StatefulWidget {
   final bool isVisitante;
@@ -112,7 +114,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     }
   }
 
-  Future<List<String>?> _buscarOficios() async {
+  Future<List<OficioInfo>?> _buscarOficios() async {
     try {
       final supabase = Supabase.instance.client;
       final user = supabase.auth.currentUser;
@@ -145,21 +147,22 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
 
       final idsOficios = assOficios
           .map((e) => e['fk_oficio'])
-          .whereType<int>()
+          .whereType<num>()
+          .map((e) => e.toInt())
           .toList();
 
-      // 4. Busca os nomes dos ofícios
-      final oficios = <String>[];
-      for (final id in idsOficios) {
-        final oficioResponse = await supabase
-            .from('oficios')
-            .select('funcao')
-            .eq('id_oficio', id)
-            .maybeSingle();
-        if (oficioResponse != null) {
-          final funcao = oficioResponse['funcao']?.toString() ?? '';
-          if (funcao.isNotEmpty) oficios.add(funcao);
-        }
+      if (idsOficios.isEmpty) return [];
+
+      // 4. Busca os nomes e cores dos ofícios
+      final oficiosData = await supabase
+          .from('oficios')
+          .select('funcao, cor')
+          .inFilter('id_oficio', idsOficios);
+
+      final oficios = <OficioInfo>[];
+      for (final row in oficiosData) {
+        final info = OficioInfo.fromMap(row);
+        if (info.funcao.isNotEmpty) oficios.add(info);
       }
 
       return oficios;
@@ -212,10 +215,10 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                     final enderecoTexto = enderecoSnapshot.data ??
                         'Nenhum endereço cadastrado';
 
-                    return FutureBuilder<List<String>?>(
+                    return FutureBuilder<List<OficioInfo>?>(
                       future: _buscarOficios(),
                       builder: (context, oficiosSnapshot) {
-                        final oficios = oficiosSnapshot.data ?? <String>[];
+                        final oficios = oficiosSnapshot.data ?? <OficioInfo>[];
 
                         return Container(
                           padding: const EdgeInsets.all(16),
@@ -361,13 +364,9 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                   spacing: 8,
                                   runSpacing: 8,
                                   alignment: WrapAlignment.end,
-                                  children: oficios.map(
-                                    (oficio) => _buildTag(
-                                      oficio,
-                                      const Color(0xFF7B5EA7),
-                                      const Color(0xFFEDE7F6),
-                                    ),
-                                  ).toList(),
+                                  children: oficios
+                                      .map((oficio) => TagOficio(oficio: oficio))
+                                      .toList(),
                                 ),
                               ],
                             ],
@@ -624,24 +623,6 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
               label: 'Perfil',
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTag(String text, Color textColor, Color bgColor) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: textColor,
         ),
       ),
     );
