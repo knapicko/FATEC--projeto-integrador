@@ -16,7 +16,7 @@ Existem duas formas de utilizar o projeto: **baixando o APK pronto** ou **abrind
 Para utilizar o aplicativo sem precisar configurar o projeto:
 
 1. Acesse a área de **Releases** deste repositório no GitHub.
-2. Baixe o arquivo **`latest-release.apk`**.
+2. Baixe o arquivo **`app-release.apk`**.
 3. Execute o arquivo no seu dispositivo Android para instalar o aplicativo.
 
 #### Opção 2 — Abrir o projeto no VS Code
