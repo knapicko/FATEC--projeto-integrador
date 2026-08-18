@@ -38,31 +38,131 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
       final supabase = Supabase.instance.client;
       final user = supabase.auth.currentUser;
       if (user == null) return null;
+
+      // 1. Busca o id do usuário
       final usuarioResponse = await supabase
           .from('usuarios')
           .select('id_usuario')
           .eq('auth_id', user.id)
           .maybeSingle();
-      if (usuarioResponse == null) {
-        return "Rua Capitão Pacheco e Chaves, 313 - Mooca, São Paulo - SP";
-      }
+      if (usuarioResponse == null) return null;
       final usuarioId = usuarioResponse['id_usuario'];
 
+      // 2. Busca a associação do usuário com endereço (ativo primeiro)
+      final assResponse = await supabase
+          .from('ass_usuario_endereco')
+          .select('fk_endereco, endereco_ativo')
+          .eq('fk_usuario', usuarioId)
+          .order('endereco_ativo', ascending: false)
+          .limit(1)
+          .maybeSingle();
+      if (assResponse == null) return null;
+      final fkEndereco = assResponse['fk_endereco'];
+
+      // 3. Busca o endereço
       final enderecoResponse = await supabase
           .from('enderecos')
-          .select('logradouro, numero, bairro, cidade, estado')
-          .eq('fk_usuario', usuarioId)
+          .select('logradouro, numero, bairro, fk_cidade')
+          .eq('id_endereco', fkEndereco)
           .maybeSingle();
       if (enderecoResponse == null) return null;
 
-      final logradouro = enderecoResponse['logradouro'] ?? '';
-      final numero = enderecoResponse['numero'] ?? '';
-      final bairro = enderecoResponse['bairro'] ?? '';
-      final cidade = enderecoResponse['cidade'] ?? '';
-      final estado = enderecoResponse['estado'] ?? '';
-      if (logradouro.toString().isEmpty) return null;
+      final logradouro = enderecoResponse['logradouro']?.toString() ?? '';
+      final numero = enderecoResponse['numero']?.toString() ?? '';
+      final bairro = enderecoResponse['bairro']?.toString() ?? '';
+      final fkCidade = enderecoResponse['fk_cidade'];
+      if (logradouro.isEmpty) return null;
 
-      return '$logradouro, $numero - $bairro, $cidade - $estado';
+      // 4. Busca a cidade
+      String cidade = '';
+      String estado = '';
+      if (fkCidade != null) {
+        final cidadeResponse = await supabase
+            .from('cidades')
+            .select('nome_cidade, fk_estado')
+            .eq('id_cidade', fkCidade)
+            .maybeSingle();
+        if (cidadeResponse != null) {
+          cidade = cidadeResponse['nome_cidade']?.toString() ?? '';
+          final fkEstado = cidadeResponse['fk_estado'];
+          if (fkEstado != null) {
+            final estadoResponse = await supabase
+                .from('estados')
+                .select('sigla_estado')
+                .eq('id_estado', fkEstado)
+                .maybeSingle();
+            if (estadoResponse != null) {
+              estado = estadoResponse['sigla_estado']?.toString() ?? '';
+            }
+          }
+        }
+      }
+
+      final partes = <String>[
+        if (logradouro.isNotEmpty) logradouro,
+        if (numero.isNotEmpty) numero,
+        if (bairro.isNotEmpty) bairro,
+        if (cidade.isNotEmpty) cidade,
+        if (estado.isNotEmpty) estado,
+      ];
+
+      return partes.join(', ');
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<List<String>?> _buscarOficios() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user == null) return null;
+
+      // 1. Busca o id do usuário
+      final usuarioResponse = await supabase
+          .from('usuarios')
+          .select('id_usuario')
+          .eq('auth_id', user.id)
+          .maybeSingle();
+      if (usuarioResponse == null) return null;
+      final usuarioId = usuarioResponse['id_usuario'];
+
+      // 2. Busca dados profissionais para obter o id_profissional
+      final dadosProf = await supabase
+          .from('dados_profissionais')
+          .select('id_profissional')
+          .eq('fk_usuario', usuarioId)
+          .maybeSingle();
+      if (dadosProf == null) return null;
+
+      final idProfissional = dadosProf['id_profissional'];
+
+      // 3. Busca os ofícios associados ao profissional
+      final assOficios = await supabase
+          .from('ass_oficio_profissional')
+          .select('fk_oficio')
+          .eq('fk_profissional', idProfissional);
+
+      final idsOficios = assOficios
+          .map((e) => e['fk_oficio'])
+          .whereType<int>()
+          .toList();
+
+      // 4. Busca os nomes dos ofícios
+      final oficios = <String>[];
+      for (final id in idsOficios) {
+        final oficioResponse = await supabase
+            .from('oficios')
+            .select('funcao')
+            .eq('id_oficio', id)
+            .maybeSingle();
+        if (oficioResponse != null) {
+          final funcao = oficioResponse['funcao']?.toString() ?? '';
+          if (funcao.isNotEmpty) oficios.add(funcao);
+        }
+      }
+
+      return oficios;
     } catch (e) {
       return null;
     }
@@ -110,161 +210,170 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                   future: _buscarEndereco(),
                   builder: (context, enderecoSnapshot) {
                     final enderecoTexto = enderecoSnapshot.data ??
-                        "Rua Capitão Pacheco e Chaves, 313 - Mooca, São Paulo - SP";
+                        'Nenhum endereço cadastrado';
 
-                    return Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: _cardDecoration(),
-                      child: Column(
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                    return FutureBuilder<List<String>?>(
+                      future: _buscarOficios(),
+                      builder: (context, oficiosSnapshot) {
+                        final oficios = oficiosSnapshot.data ?? <String>[];
+
+                        return Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: _cardDecoration(),
+                          child: Column(
                             children: [
-                              Stack(
-                                alignment: Alignment.bottomCenter,
-                                clipBehavior: Clip.none,
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  CircleAvatar(
-                                    radius: 34,
-                                    backgroundColor: const Color(0xFFE1F5FE),
-                                    backgroundImage: fotoUrl != null
-                                        ? NetworkImage(fotoUrl)
-                                        : null,
-                                    child: fotoUrl == null
-                                        ? Text(
-                                            nomeCompleto.isNotEmpty
-                                                ? nomeCompleto[0].toUpperCase()
-                                                : 'P',
-                                            style: const TextStyle(
-                                              fontSize: 26,
-                                              fontWeight: FontWeight.bold,
-                                              color: _primaryBlue,
-                                            ),
-                                          )
-                                        : null,
-                                  ),
-                                  Positioned(
-                                    bottom: -6,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 2,
+                                  Stack(
+                                    alignment: Alignment.bottomCenter,
+                                    clipBehavior: Clip.none,
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 34,
+                                        backgroundColor:
+                                            const Color(0xFFE1F5FE),
+                                        backgroundImage: fotoUrl != null
+                                            ? NetworkImage(fotoUrl)
+                                            : null,
+                                        child: fotoUrl == null
+                                            ? Text(
+                                                nomeCompleto.isNotEmpty
+                                                    ? nomeCompleto[0]
+                                                        .toUpperCase()
+                                                    : 'P',
+                                                style: const TextStyle(
+                                                  fontSize: 26,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: _primaryBlue,
+                                                ),
+                                              )
+                                            : null,
                                       ),
-                                      decoration: BoxDecoration(
-                                        color: _primaryBlue,
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: Colors.white,
-                                          width: 1.5,
-                                        ),
-                                      ),
-                                      child: const Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            Icons.check,
-                                            size: 9,
-                                            color: Colors.white,
+                                      Positioned(
+                                        bottom: -6,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
                                           ),
-                                          SizedBox(width: 2),
-                                          Text(
-                                            'Verificado',
-                                            style: TextStyle(
-                                              fontSize: 8,
-                                              fontWeight: FontWeight.bold,
+                                          decoration: BoxDecoration(
+                                            color: _primaryBlue,
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                            border: Border.all(
                                               color: Colors.white,
+                                              width: 1.5,
                                             ),
                                           ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      nomeCompleto,
-                                      style: const TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                        color: _titleDark,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      enderecoTexto,
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: Colors.grey.shade600,
-                                        height: 1.3,
-                                      ),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Stack(
-                                clipBehavior: Clip.none,
-                                children: [
-                                  IconButton(
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
-                                    icon: const Icon(
-                                      Icons.notifications_none_outlined,
-                                      color: _primaryBlue,
-                                      size: 26,
-                                    ),
-                                    onPressed: () {},
-                                  ),
-                                  Positioned(
-                                    right: -2,
-                                    top: -2,
-                                    child: Container(
-                                      width: 18,
-                                      height: 18,
-                                      alignment: Alignment.center,
-                                      decoration: const BoxDecoration(
-                                        color: _primaryBlue,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: const Text(
-                                        '2',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
+                                          child: const Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                Icons.check,
+                                                size: 9,
+                                                color: Colors.white,
+                                              ),
+                                              SizedBox(width: 2),
+                                              Text(
+                                                'Verificado',
+                                                style: TextStyle(
+                                                  fontSize: 8,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ),
+                                    ],
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          nomeCompleto,
+                                          style: const TextStyle(
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
+                                            color: _titleDark,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          enderecoTexto,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.grey.shade600,
+                                            height: 1.3,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
                                     ),
+                                  ),
+                                  Stack(
+                                    clipBehavior: Clip.none,
+                                    children: [
+                                      IconButton(
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        icon: const Icon(
+                                          Icons.notifications_none_outlined,
+                                          color: _primaryBlue,
+                                          size: 26,
+                                        ),
+                                        onPressed: () {},
+                                      ),
+                                      Positioned(
+                                        right: -2,
+                                        top: -2,
+                                        child: Container(
+                                          width: 18,
+                                          height: 18,
+                                          alignment: Alignment.center,
+                                          decoration: const BoxDecoration(
+                                            color: _primaryBlue,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Text(
+                                            '2',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
+                              if (oficios.isNotEmpty) ...[
+                                const SizedBox(height: 10),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  alignment: WrapAlignment.end,
+                                  children: oficios.map(
+                                    (oficio) => _buildTag(
+                                      oficio,
+                                      const Color(0xFF7B5EA7),
+                                      const Color(0xFFEDE7F6),
+                                    ),
+                                  ).toList(),
+                                ),
+                              ],
                             ],
                           ),
-                          const SizedBox(height: 10),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              _buildTag(
-                                'Chaveiro',
-                                const Color(0xFF7B5EA7),
-                                const Color(0xFFEDE7F6),
-                              ),
-                              const SizedBox(width: 8),
-                              _buildTag(
-                                '#CAEDS',
-                                _primaryBlue,
-                                const Color(0xFFE1F5FE),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+                        );
+                      },
                     );
                   },
                 );
