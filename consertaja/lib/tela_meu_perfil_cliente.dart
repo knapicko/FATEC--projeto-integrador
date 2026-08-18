@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'tela_home.dart';
 import 'editar_informacoes.dart';
 import 'meus_enderecos.dart';
+import 'perguntas_frequentes.dart';
 import 'main.dart';
 
 class TelaMeuPerfilClientePage extends StatefulWidget {
@@ -655,6 +656,15 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                   _buildProfileItem(
                     label: 'Perguntas Frequentes',
                     fallbackIcon: Icons.help_outline_rounded,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const PerguntasFrequentesPage(),
+                        ),
+                      );
+                    },
                   ),
                   _buildProfileItem(
                     label: 'Fale Conosco',

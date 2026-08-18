@@ -6,6 +6,7 @@ import 'area_atuacao.dart';
 import 'editar_informacoes.dart';
 import 'meus_documentos.dart';
 import 'meus_enderecos.dart';
+import 'perguntas_frequentes.dart';
 import 'tela_home_profissional.dart';
 import 'main.dart';
 
@@ -725,6 +726,15 @@ class _TelaMeuPerfilProfissionalPageState
                   _buildProfileItem(
                     label: 'Perguntas Frequentes',
                     fallbackIcon: Icons.help_outline_rounded,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const PerguntasFrequentesPage(),
+                        ),
+                      );
+                    },
                   ),
                   _buildProfileItem(
                     label: 'Fale Conosco',
