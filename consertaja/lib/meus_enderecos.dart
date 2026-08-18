@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -17,6 +18,30 @@ const String _tabelaAssUsuarioEndereco = 'ass_usuario_endereco';
 const String _tabelaCidade = 'cidades';
 const String _tabelaEstado = 'estados';
 
+class EnderecoEditData {
+  final int idEndereco;
+  final String cep;
+  final String logradouro;
+  final String numero;
+  final String bairro;
+  final String complemento;
+  final String cidade;
+  final String estado;
+  final String tipoEndereco;
+
+  const EnderecoEditData({
+    required this.idEndereco,
+    required this.cep,
+    required this.logradouro,
+    required this.numero,
+    required this.bairro,
+    required this.complemento,
+    required this.cidade,
+    required this.estado,
+    required this.tipoEndereco,
+  });
+}
+
 class _EnderecoItem {
   final int? id; // fk_endereco / id_endereco
   final String titulo; // apelido_endereco
@@ -27,6 +52,13 @@ class _EnderecoItem {
   final String? cep;
   final bool exibirMapa;
   final bool principal; // deriva de endereco_ativo
+  final String logradouro;
+  final String numero;
+  final String bairro;
+  final String complemento;
+  final String cidade;
+  final String estado;
+  final String tipoEndereco;
 
   const _EnderecoItem({
     this.id,
@@ -38,7 +70,28 @@ class _EnderecoItem {
     this.cep,
     this.exibirMapa = false,
     this.principal = false,
+    this.logradouro = '',
+    this.numero = '',
+    this.bairro = '',
+    this.complemento = '',
+    this.cidade = '',
+    this.estado = '',
+    this.tipoEndereco = 'Casa',
   });
+
+  EnderecoEditData toEditData() {
+    return EnderecoEditData(
+      idEndereco: id!,
+      cep: cep ?? '',
+      logradouro: logradouro,
+      numero: numero,
+      bairro: bairro,
+      complemento: complemento,
+      cidade: cidade,
+      estado: estado,
+      tipoEndereco: tipoEndereco,
+    );
+  }
 
   _EnderecoItem copyWith({bool? principal}) {
     return _EnderecoItem(
@@ -51,6 +104,13 @@ class _EnderecoItem {
       cep: cep,
       exibirMapa: exibirMapa,
       principal: principal ?? this.principal,
+      logradouro: logradouro,
+      numero: numero,
+      bairro: bairro,
+      complemento: complemento,
+      cidade: cidade,
+      estado: estado,
+      tipoEndereco: tipoEndereco,
     );
   }
 }
@@ -234,6 +294,10 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
         final estado = idEstado != null ? estadosMap[idEstado] ?? '' : '';
 
         // Titulo vem de tipo_endereco (Casa/Trabalho/Outro), com fallback para apelido
+        final tipoEndereco =
+            ass['tipo_endereco']?.toString() ??
+            ass['apelido_endereco']?.toString() ??
+            'Casa';
         final titulo =
             ass['tipo_endereco']?.toString() ??
             ass['apelido_endereco']?.toString() ??
@@ -261,6 +325,13 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
             cep: cep.isNotEmpty ? cep : null,
             exibirMapa: ativo,
             principal: ativo,
+            logradouro: logradouro,
+            numero: numero,
+            bairro: bairro,
+            complemento: complemento,
+            cidade: cidade,
+            estado: estado,
+            tipoEndereco: tipoEndereco,
           ),
         );
       }
@@ -343,6 +414,152 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
         );
       }
     }
+  }
+
+  Future<void> _abrirEditarEndereco(_EnderecoItem endereco) async {
+    if (endereco.id == null) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AdicionarEnderecoPage(
+          isVisitante: widget.isVisitante,
+          isProfissional: widget.isProfissional,
+          enderecoEditar: endereco.toEditData(),
+        ),
+      ),
+    );
+    _carregarEnderecos();
+  }
+
+  Future<void> _confirmarExclusaoEndereco(_EnderecoItem endereco) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Excluir endereço?',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'Deseja excluir o endereço "${endereco.titulo}"? Esta ação não pode ser desfeita.',
+          style: const TextStyle(fontSize: 14, color: _textGray),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar', style: TextStyle(color: _textGray)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Excluir',
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar == true) {
+      await _excluirEndereco(endereco);
+    }
+  }
+
+  Future<void> _excluirEndereco(_EnderecoItem endereco) async {
+    if (endereco.id == null) return;
+
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user == null) return;
+
+      final usuarioId = await _buscarIdUsuario(supabase, user.id);
+      if (usuarioId == null) return;
+
+      final eraPrincipal = endereco.principal;
+
+      await supabase
+          .from(_tabelaAssUsuarioEndereco)
+          .delete()
+          .eq('fk_usuario', usuarioId)
+          .eq('fk_endereco', endereco.id!);
+
+      await supabase
+          .from(_tabelaEndereco)
+          .delete()
+          .eq('id_endereco', endereco.id!);
+
+      if (eraPrincipal) {
+        final restantes = await supabase
+            .from(_tabelaAssUsuarioEndereco)
+            .select('fk_endereco')
+            .eq('fk_usuario', usuarioId)
+            .limit(1);
+
+        if (restantes.isNotEmpty) {
+          final fk = restantes.first['fk_endereco'];
+          final idRestante = fk is int
+              ? fk
+              : int.tryParse(fk?.toString() ?? '');
+          if (idRestante != null) {
+            await supabase
+                .from(_tabelaAssUsuarioEndereco)
+                .update({'endereco_ativo': true})
+                .eq('fk_usuario', usuarioId)
+                .eq('fk_endereco', idRestante);
+          }
+        }
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Endereço excluído com sucesso!'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+
+      _carregarEnderecos();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao excluir endereço: $e'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildBotoesAcaoEndereco(_EnderecoItem endereco) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          onPressed: () => _abrirEditarEndereco(endereco),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+          icon: Icon(
+            Icons.edit_outlined,
+            color: Colors.grey.shade500,
+            size: 20,
+          ),
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          onPressed: () => _confirmarExclusaoEndereco(endereco),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+          icon: Icon(
+            Icons.delete_outline,
+            color: Colors.grey.shade500,
+            size: 20,
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> _mostrarDialogoPrincipal(_EnderecoItem endereco) async {
@@ -596,16 +813,7 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
                   ),
                 ),
               ),
-              IconButton(
-                onPressed: () {},
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                icon: Icon(
-                  Icons.edit_outlined,
-                  color: Colors.grey.shade500,
-                  size: 20,
-                ),
-              ),
+              _buildBotoesAcaoEndereco(endereco),
             ],
           ),
           const SizedBox(height: 12),
@@ -644,16 +852,7 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
                     ),
                   ),
                 ),
-                IconButton(
-                  onPressed: () => _mostrarDialogoPrincipal(endereco),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  icon: Icon(
-                    Icons.more_vert,
-                    color: Colors.grey.shade500,
-                    size: 22,
-                  ),
-                ),
+                _buildBotoesAcaoEndereco(endereco),
               ],
             ),
             const SizedBox(height: 10),
@@ -921,12 +1120,16 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
 class AdicionarEnderecoPage extends StatefulWidget {
   final bool isVisitante;
   final bool isProfissional;
+  final EnderecoEditData? enderecoEditar;
 
   const AdicionarEnderecoPage({
     super.key,
     this.isVisitante = false,
     this.isProfissional = false,
+    this.enderecoEditar,
   });
+
+  bool get isEdicao => enderecoEditar != null;
 
   @override
   State<AdicionarEnderecoPage> createState() => _AdicionarEnderecoPageState();
@@ -980,13 +1183,57 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
   String _tipoSalvar = 'Casa';
   bool _salvando = false;
 
-  // Dados da consulta de CEP (AwesomeAPI) usados p/ auto-preenchimento e mapa
-  double? _cepLat;
-  double? _cepLng;
+  // Coordenadas do mapa (CEP, geocodificação ou clique)
+  double? _mapLat;
+  double? _mapLng;
   bool _buscandoCep = false;
+  bool _geocodificando = false;
+  Timer? _geocodeDebounce;
+  final MapController _mapController = MapController();
+
+  @override
+  void initState() {
+    super.initState();
+    final edit = widget.enderecoEditar;
+    if (edit != null) {
+      _cepController.text = edit.cep;
+      _logradouroController.text = edit.logradouro;
+      _numeroController.text = edit.numero;
+      _complementoController.text = edit.complemento;
+      _bairroController.text = edit.bairro;
+      _cidadeController.text = edit.cidade;
+      _estadoSelecionado =
+          _estados.contains(edit.estado.toUpperCase())
+              ? edit.estado.toUpperCase()
+              : null;
+      _tipoSalvar = edit.tipoEndereco;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _geocodificarEndereco();
+      });
+    }
+
+    _numeroController.addListener(_agendarGeocodificacao);
+    _logradouroController.addListener(_agendarGeocodificacao);
+    _bairroController.addListener(_agendarGeocodificacao);
+    _cidadeController.addListener(_agendarGeocodificacao);
+  }
+
+  void _agendarGeocodificacao() {
+    _geocodeDebounce?.cancel();
+    _geocodeDebounce = Timer(
+      const Duration(milliseconds: 900),
+      _geocodificarEndereco,
+    );
+  }
 
   @override
   void dispose() {
+    _geocodeDebounce?.cancel();
+    _mapController.dispose();
+    _numeroController.removeListener(_agendarGeocodificacao);
+    _logradouroController.removeListener(_agendarGeocodificacao);
+    _bairroController.removeListener(_agendarGeocodificacao);
+    _cidadeController.removeListener(_agendarGeocodificacao);
     _cepController.dispose();
     _logradouroController.dispose();
     _numeroController.dispose();
@@ -1032,10 +1279,18 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
           _bairroController.text = dados['district']?.toString().trim() ?? '';
           _cidadeController.text = dados['city']?.toString().trim() ?? '';
           _estadoSelecionado = _estados.contains(uf) ? uf : null;
-          _cepLat = (latitude != null && latitude != 0) ? latitude : null;
-          _cepLng = (longitude != null && longitude != 0) ? longitude : null;
+          _mapLat = (latitude != null && latitude != 0) ? latitude : null;
+          _mapLng = (longitude != null && longitude != 0) ? longitude : null;
           _buscandoCep = false;
         });
+
+        if (_mapLat != null && _mapLng != null) {
+          _moverMapaParaCoordenadas(_mapLat!, _mapLng!);
+        }
+
+        if (_numeroController.text.trim().isNotEmpty) {
+          _geocodificarEndereco();
+        }
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -1047,8 +1302,8 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
         );
       } else {
         setState(() {
-          _cepLat = null;
-          _cepLng = null;
+          _mapLat = null;
+          _mapLng = null;
           _buscandoCep = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1065,8 +1320,8 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
     } catch (_) {
       if (mounted) {
         setState(() {
-          _cepLat = null;
-          _cepLng = null;
+          _mapLat = null;
+          _mapLng = null;
           _buscandoCep = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1078,6 +1333,72 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
           ),
         );
       }
+    }
+  }
+
+  Future<void> _geocodificarEndereco() async {
+    final logradouro = _logradouroController.text.trim();
+    final numero = _numeroController.text.trim();
+    final bairro = _bairroController.text.trim();
+    final cidade = _cidadeController.text.trim();
+    final uf = _estadoSelecionado ?? '';
+
+    if (logradouro.isEmpty || cidade.isEmpty || uf.isEmpty) return;
+
+    setState(() => _geocodificando = true);
+
+    try {
+      final partes = <String>[
+        if (logradouro.isNotEmpty)
+          numero.isNotEmpty ? '$logradouro, $numero' : logradouro,
+        if (bairro.isNotEmpty) bairro,
+        cidade,
+        uf,
+        'Brasil',
+      ];
+      final query = Uri.encodeComponent(partes.join(', '));
+
+      final resposta = await http.get(
+        Uri.parse(
+          'https://nominatim.openstreetmap.org/search?q=$query&format=json&limit=1',
+        ),
+        headers: const {
+          'User-Agent': 'ConsertaJa/1.0 (contato@consertaja.com.br)',
+        },
+      );
+
+      if (!mounted) return;
+
+      if (resposta.statusCode == 200) {
+        final lista = jsonDecode(resposta.body) as List<dynamic>;
+        if (lista.isNotEmpty) {
+          final dados = lista.first as Map<String, dynamic>;
+          final lat = double.tryParse(dados['lat']?.toString() ?? '');
+          final lng = double.tryParse(dados['lon']?.toString() ?? '');
+
+          if (lat != null && lng != null) {
+            setState(() {
+              _mapLat = lat;
+              _mapLng = lng;
+              _geocodificando = false;
+            });
+            _moverMapaParaCoordenadas(lat, lng);
+            return;
+          }
+        }
+      }
+
+      if (mounted) setState(() => _geocodificando = false);
+    } catch (_) {
+      if (mounted) setState(() => _geocodificando = false);
+    }
+  }
+
+  void _moverMapaParaCoordenadas(double lat, double lng) {
+    try {
+      _mapController.move(LatLng(lat, lng), _mapController.camera.zoom);
+    } catch (_) {
+      // Mapa ainda não montado; coordenadas serão usadas no próximo build.
     }
   }
 
@@ -1207,40 +1528,63 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
             : int.parse(cidadeResponse['id_cidade'].toString());
       }
 
-      // 3. Insere o endereço
-      final enderecoResponse = await supabase
-          .from(_tabelaEndereco)
-          .insert({
-            'cep': _cepController.text.trim(),
-            'logradouro': _logradouroController.text.trim(),
-            'numero': _numeroController.text.trim(),
-            'bairro': _bairroController.text.trim(),
-            'complemento': _complementoController.text.trim(),
-            'fk_cidade': idCidade,
-          })
-          .select('id_endereco')
-          .single();
+      // 3. Salva ou atualiza o endereço
+      final dadosEndereco = {
+        'cep': _cepController.text.trim(),
+        'logradouro': _logradouroController.text.trim(),
+        'numero': _numeroController.text.trim(),
+        'bairro': _bairroController.text.trim(),
+        'complemento': _complementoController.text.trim(),
+        'fk_cidade': idCidade,
+      };
 
-      final idEndereco = enderecoResponse['id_endereco'] is int
-          ? enderecoResponse['id_endereco'] as int
-          : int.parse(enderecoResponse['id_endereco'].toString());
+      if (widget.isEdicao) {
+        final idEndereco = widget.enderecoEditar!.idEndereco;
 
-      // 4. Insere a associação usuário-endereço (com tipo, apelido e ativo)
-      await supabase.from(_tabelaAssUsuarioEndereco).insert({
-        'fk_usuario': usuarioId,
-        'fk_endereco': idEndereco,
-        'apelido_endereco': _tipoSalvar,
-        'tipo_endereco': _tipoSalvar,
-        'endereco_ativo': isPrimeiroEndereco,
-      });
+        await supabase
+            .from(_tabelaEndereco)
+            .update(dadosEndereco)
+            .eq('id_endereco', idEndereco);
+
+        await supabase
+            .from(_tabelaAssUsuarioEndereco)
+            .update({
+              'apelido_endereco': _tipoSalvar,
+              'tipo_endereco': _tipoSalvar,
+            })
+            .eq('fk_usuario', usuarioId)
+            .eq('fk_endereco', idEndereco);
+      } else {
+        final enderecoResponse = await supabase
+            .from(_tabelaEndereco)
+            .insert(dadosEndereco)
+            .select('id_endereco')
+            .single();
+
+        final idEndereco = enderecoResponse['id_endereco'] is int
+            ? enderecoResponse['id_endereco'] as int
+            : int.parse(enderecoResponse['id_endereco'].toString());
+
+        await supabase.from(_tabelaAssUsuarioEndereco).insert({
+          'fk_usuario': usuarioId,
+          'fk_endereco': idEndereco,
+          'apelido_endereco': _tipoSalvar,
+          'tipo_endereco': _tipoSalvar,
+          'endereco_ativo': isPrimeiroEndereco,
+        });
+      }
 
       if (mounted) {
         setState(() => _salvando = false);
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Endereço salvo com sucesso!'),
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: Text(
+              widget.isEdicao
+                  ? 'Endereço atualizado com sucesso!'
+                  : 'Endereço salvo com sucesso!',
+            ),
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -1319,8 +1663,8 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
   }
 
   Widget _buildMapaPreview() {
-    final double? lat = _cepLat;
-    final double? lng = _cepLng;
+    final double? lat = _mapLat;
+    final double? lng = _mapLng;
     final bool temCoordenadas = lat != null && lng != null;
     final String cidade = _cidadeController.text.trim().isNotEmpty
         ? _cidadeController.text.trim()
@@ -1348,28 +1692,35 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
               width: double.infinity,
               child: temCoordenadas
                   ? FlutterMap(
-                      key: ValueKey('mapa_$_cepLat-$_cepLng'),
+                      mapController: _mapController,
                       options: MapOptions(
                         initialCenter: LatLng(lat, lng),
                         initialZoom: 15,
+                        minZoom: 3,
+                        maxZoom: 19,
+                        onTap: (tapPosition, point) {
+                          setState(() {
+                            _mapLat = point.latitude;
+                            _mapLng = point.longitude;
+                          });
+                        },
                         interactionOptions: const InteractionOptions(
                           flags: InteractiveFlag.all,
                         ),
                       ),
                       children: [
-                        // Base de mapa em escala de cinza (preto e branco,
-                        // minimalista, inspirada no estilo do Uber). Tiles
-                        // públicos da ArcGIS Canvas sem necessidade de token.
                         TileLayer(
                           urlTemplate:
-                              'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                           userAgentPackageName: 'br.com.consertaja',
+                          maxNativeZoom: 19,
+                          maxZoom: 19,
                         ),
                         CircleLayer(
                           circles: [
                             CircleMarker(
                               point: LatLng(lat, lng),
-                              radius: 180,
+                              radius: 80,
                               useRadiusInMeter: true,
                               color: _blue.withValues(alpha: 0.16),
                               borderColor: _blue,
@@ -1381,12 +1732,13 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
                           markers: [
                             Marker(
                               point: LatLng(lat, lng),
-                              width: 38,
-                              height: 38,
+                              width: 40,
+                              height: 40,
+                              alignment: Alignment.bottomCenter,
                               child: const Icon(
-                                Icons.location_pin,
+                                Icons.location_on,
                                 color: _blue,
-                                size: 38,
+                                size: 40,
                               ),
                             ),
                           ],
@@ -1433,6 +1785,32 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
                   ),
                 ),
               ),
+            if (_geocodificando)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 4,
+                      ),
+                    ],
+                  ),
+                  child: const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      color: _blue,
+                      strokeWidth: 2,
+                    ),
+                  ),
+                ),
+              ),
             Positioned(
               left: 12,
               bottom: 12,
@@ -1464,6 +1842,29 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
                 ),
               ),
             ),
+            if (temCoordenadas)
+              Positioned(
+                right: 12,
+                bottom: 12,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.92),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'Toque no mapa para ajustar',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -1560,7 +1961,10 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
                         DropdownMenuItem<String>(value: uf, child: Text(uf)),
                   )
                   .toList(),
-              onChanged: (value) => setState(() => _estadoSelecionado = value),
+              onChanged: (value) {
+                setState(() => _estadoSelecionado = value);
+                _agendarGeocodificacao();
+              },
             ),
           ),
         ),
@@ -1696,9 +2100,9 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
           onPressed: () => Navigator.pop(context),
           icon: const Icon(Icons.arrow_back_ios, size: 20, color: _textDark),
         ),
-        title: const Text(
-          'Adicionar Endereço',
-          style: TextStyle(
+        title: Text(
+          widget.isEdicao ? 'Editar Endereço' : 'Adicionar Endereço',
+          style: const TextStyle(
             color: _textDark,
             fontSize: 18,
             fontWeight: FontWeight.bold,
@@ -1748,9 +2152,11 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
                           strokeWidth: 2,
                         ),
                       )
-                    : const Text(
-                        'Salvar Endereço',
-                        style: TextStyle(
+                    : Text(
+                        widget.isEdicao
+                            ? 'Salvar Alterações'
+                            : 'Salvar Endereço',
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
