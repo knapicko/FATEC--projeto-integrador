@@ -7,6 +7,9 @@ import 'editar_informacoes.dart';
 import 'meus_documentos.dart';
 import 'meus_enderecos.dart';
 import 'perguntas_frequentes.dart';
+import 'termos_de_uso.dart';
+import 'politica_de_privacidade.dart';
+import 'sobre_conserta_ja.dart';
 import 'tela_home_profissional.dart';
 import 'main.dart';
 
@@ -748,6 +751,14 @@ class _TelaMeuPerfilProfissionalPageState
                     label: 'Sobre a ConsertaJá',
                     imageAsset: 'assets/images/ConsertaJa_Cinza.png',
                     fallbackIcon: Icons.info_outline_rounded,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SobreConsertaJaPage(),
+                        ),
+                      );
+                    },
                   ),
                   _buildProfileItem(
                     label: 'Configurações',
@@ -757,11 +768,27 @@ class _TelaMeuPerfilProfissionalPageState
                   _buildProfileItem(
                     label: 'Termos de Uso',
                     semIcone: true,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const TermosDeUsoPage(),
+                        ),
+                      );
+                    },
                   ),
-                   _buildProfileItem(
-                     label: 'Política de Privacidade',
-                     semIcone: true,
-                   ),
+                  _buildProfileItem(
+                    label: 'Política de Privacidade',
+                    semIcone: true,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const PoliticaDePrivacidadePage(),
+                        ),
+                      );
+                    },
+                  ),
 
                    const Divider(height: 1, thickness: 1, color: _divider),
 

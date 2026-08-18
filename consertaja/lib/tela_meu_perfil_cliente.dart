@@ -4,6 +4,9 @@ import 'tela_home.dart';
 import 'editar_informacoes.dart';
 import 'meus_enderecos.dart';
 import 'perguntas_frequentes.dart';
+import 'termos_de_uso.dart';
+import 'politica_de_privacidade.dart';
+import 'sobre_conserta_ja.dart';
 import 'main.dart';
 
 class TelaMeuPerfilClientePage extends StatefulWidget {
@@ -675,6 +678,14 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                     label: 'Sobre a ConsertaJá',
                     imageAsset: 'assets/images/ConsertaJa_Cinza.png',
                     fallbackIcon: Icons.info_outline_rounded,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SobreConsertaJaPage(),
+                        ),
+                      );
+                    },
                   ),
 
                   const Divider(height: 1, thickness: 1, color: _divider),
@@ -687,11 +698,27 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                   _buildProfileItem(
                     label: 'Termos de Uso',
                     fallbackIcon: Icons.description_outlined,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const TermosDeUsoPage(),
+                        ),
+                      );
+                    },
                   ),
-                   _buildProfileItem(
-                     label: 'Política de Privacidade',
-                     fallbackIcon: Icons.privacy_tip_outlined,
-                   ),
+                  _buildProfileItem(
+                    label: 'Política de Privacidade',
+                    fallbackIcon: Icons.privacy_tip_outlined,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const PoliticaDePrivacidadePage(),
+                        ),
+                      );
+                    },
+                  ),
 
                    const Divider(height: 1, thickness: 1, color: _divider),
 
