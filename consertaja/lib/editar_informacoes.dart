@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'services/validacao_telefone.dart';
+import 'services/formatacao_data.dart';
 import 'widgets/seletor_ddi.dart';
 
 class EditarInformacoesPage extends StatefulWidget {
@@ -54,12 +55,18 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
       // Nome + Sobrenome: pega primeira letra do primeiro nome e primeira letra do sobrenome
       final primeiroNome = partes.first.trim();
       final sobrenome = partes.last.trim();
-      final primeiraLetraNome = primeiroNome.isNotEmpty ? primeiroNome.substring(0, 1) : '';
-      final primeiraLetraSobrenome = sobrenome.isNotEmpty ? sobrenome.substring(0, 1) : '';
+      final primeiraLetraNome = primeiroNome.isNotEmpty
+          ? primeiroNome.substring(0, 1)
+          : '';
+      final primeiraLetraSobrenome = sobrenome.isNotEmpty
+          ? sobrenome.substring(0, 1)
+          : '';
       return (primeiraLetraNome + primeiraLetraSobrenome).toUpperCase();
     }
     // Apenas nome: pega as primeiras 2 letras
-    return nome.length >= 2 ? nome.substring(0, 2).toUpperCase() : nome.substring(0, 1).toUpperCase();
+    return nome.length >= 2
+        ? nome.substring(0, 2).toUpperCase()
+        : nome.substring(0, 1).toUpperCase();
   }
 
   Future<void> _carregarDados() async {
@@ -89,16 +96,12 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
 
       _usuarioId = usuarioResponse?['id_usuario'] as int?;
       String nome = usuarioResponse?['nome']?.toString() ?? 'Usuário';
-      String dataNascimento = usuarioResponse?['data_nascimento']?.toString() ?? '';
+      String dataNascimento =
+          usuarioResponse?['data_nascimento']?.toString() ?? '';
       String? fotoUrl = usuarioResponse?['foto_perfil_url']?.toString();
 
       if (dataNascimento.isNotEmpty && dataNascimento != 'null') {
-        try {
-          final partes = dataNascimento.split('-');
-          if (partes.length == 3) {
-            dataNascimento = '${partes[2]}/${partes[1]}/${partes[0]}';
-          }
-        } catch (_) {}
+        dataNascimento = formatarDataBrasileira(dataNascimento);
       } else {
         dataNascimento = '';
       }
@@ -113,7 +116,8 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
               .select('endereco_email')
               .eq('id_email', emailId)
               .maybeSingle();
-          email = emailResponse?['endereco_email']?.toString() ?? user.email ?? '';
+          email =
+              emailResponse?['endereco_email']?.toString() ?? user.email ?? '';
         } catch (_) {
           email = user.email ?? '';
         }
@@ -163,7 +167,8 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                 .maybeSingle();
             final cpfRaw = pfResponse?['cpf']?.toString() ?? '';
             if (cpfRaw.length == 11) {
-              cpf = '${cpfRaw.substring(0, 3)}.${cpfRaw.substring(3, 6)}.${cpfRaw.substring(6, 9)}-${cpfRaw.substring(9, 11)}';
+              cpf =
+                  '${cpfRaw.substring(0, 3)}.${cpfRaw.substring(3, 6)}.${cpfRaw.substring(6, 9)}-${cpfRaw.substring(9, 11)}';
             } else {
               cpf = cpfRaw;
             }
@@ -239,8 +244,10 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
               if (_fotoPerfilUrl != null && _fotoPerfilUrl!.isNotEmpty)
                 ListTile(
                   leading: const Icon(Icons.delete_outline, color: Colors.red),
-                  title: const Text('Remover Foto',
-                      style: TextStyle(color: Colors.red)),
+                  title: const Text(
+                    'Remover Foto',
+                    style: TextStyle(color: Colors.red),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     _removerFoto();
@@ -270,39 +277,56 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
       final user = _supabase.auth.currentUser;
       if (user == null) return;
 
-      final fileName = '${user.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final fileName =
+          '${user.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final bucketName = 'Foto Perfil';
 
       // Fazer upload para o Supabase Storage (compatível com Web e Mobile)
       try {
         if (kIsWeb) {
           final Uint8List bytes = await pickedFile.readAsBytes();
-          await _supabase.storage.from(bucketName).uploadBinary(
-            fileName,
-            bytes,
-            fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
-          );
+          await _supabase.storage
+              .from(bucketName)
+              .uploadBinary(
+                fileName,
+                bytes,
+                fileOptions: const FileOptions(
+                  contentType: 'image/jpeg',
+                  upsert: true,
+                ),
+              );
         } else {
           final file = File(pickedFile.path);
-          await _supabase.storage.from(bucketName).upload(
-            fileName,
-            file,
-            fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
-          );
+          await _supabase.storage
+              .from(bucketName)
+              .upload(
+                fileName,
+                file,
+                fileOptions: const FileOptions(
+                  contentType: 'image/jpeg',
+                  upsert: true,
+                ),
+              );
         }
       } catch (bucketError) {
         // Se o bucket não existir, apenas ignora o erro de upload
         if (mounted) {
           setState(() => _isUploading = false);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Ocorreu um erro ao fazer upload da foto. Contate o suporte.')),
+            const SnackBar(
+              content: Text(
+                'Ocorreu um erro ao fazer upload da foto. Contate o suporte.',
+              ),
+            ),
           );
         }
         return;
       }
 
       // Obter URL pública
-      final publicUrl = _supabase.storage.from(bucketName).getPublicUrl(fileName);
+      final publicUrl = _supabase.storage
+          .from(bucketName)
+          .getPublicUrl(fileName);
 
       // Atualizar no banco
       await _supabase
@@ -322,9 +346,9 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
     } catch (e) {
       if (mounted) {
         setState(() => _isUploading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao alterar foto: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erro ao alterar foto: $e')));
       }
     }
   }
@@ -347,15 +371,19 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao remover foto: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erro ao remover foto: $e')));
       }
     }
   }
 
   // ================= POPUP DE EDIÇÃO =================
-  Future<void> _mostrarPopupEdicao(String campo, String valorAtual, Function(String) onSalvar) async {
+  Future<void> _mostrarPopupEdicao(
+    String campo,
+    String valorAtual,
+    Function(String) onSalvar,
+  ) async {
     final controller = TextEditingController(text: valorAtual);
     final formKey = GlobalKey<FormState>();
 
@@ -367,10 +395,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeInOutBack,
           builder: (context, value, child) {
-            return Transform.scale(
-              scale: value,
-              child: child,
-            );
+            return Transform.scale(scale: value, child: child);
           },
           child: Dialog(
             backgroundColor: Colors.white,
@@ -412,7 +437,11 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                           ? TextInputType.phone
                           : null,
                       inputFormatters: campo == 'Celular'
-                          ? [FilteringTextInputFormatter.allow(RegExp(r'[\d+\-() ]'))]
+                          ? [
+                              FilteringTextInputFormatter.allow(
+                                RegExp(r'[\d+\-() ]'),
+                              ),
+                            ]
                           : null,
                       decoration: InputDecoration(
                         labelText: campo,
@@ -490,10 +519,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                         onPressed: () => Navigator.pop(context),
                         child: const Text(
                           'Cancelar',
-                          style: TextStyle(
-                            color: _textGray,
-                            fontSize: 15,
-                          ),
+                          style: TextStyle(color: _textGray, fontSize: 15),
                         ),
                       ),
                     ),
@@ -528,9 +554,9 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao atualizar nome: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erro ao atualizar nome: $e')));
       }
     }
   }
@@ -566,9 +592,9 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao atualizar email: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erro ao atualizar email: $e')));
       }
     }
   }
@@ -651,13 +677,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
       if (user == null) return;
 
       // Converter de DD/MM/AAAA para AAAA-MM-DD
-      String dataFormatada = novaData;
-      if (novaData.contains('/')) {
-        final partes = novaData.split('/');
-        if (partes.length == 3) {
-          dataFormatada = '${partes[2]}-${partes[1]}-${partes[0]}';
-        }
-      }
+      final dataFormatada = converterDataParaIso(novaData);
 
       await _supabase
           .from('usuarios')
@@ -667,14 +687,16 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
       if (mounted) {
         setState(() => _dataNascimento = novaData);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Data de nascimento atualizada com sucesso!')),
+          const SnackBar(
+            content: Text('Data de nascimento atualizada com sucesso!'),
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao atualizar data: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erro ao atualizar data: $e')));
       }
     }
   }
@@ -689,9 +711,9 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao atualizar gênero: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erro ao atualizar gênero: $e')));
       }
     }
   }
@@ -708,7 +730,11 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
         _mostrarPopupEdicao('Celular', _telefone, _salvarTelefone);
         break;
       case 'Data de Nascimento':
-        _mostrarPopupEdicao('Data de Nascimento', _dataNascimento, _salvarDataNascimento);
+        _mostrarPopupEdicao(
+          'Data de Nascimento',
+          _dataNascimento,
+          _salvarDataNascimento,
+        );
         break;
       case 'Gênero':
         _mostrarPopupEdicao('Gênero', _genero, _salvarGenero);
@@ -732,10 +758,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeInOutBack,
           builder: (context, value, child) {
-            return Transform.scale(
-              scale: value,
-              child: child,
-            );
+            return Transform.scale(scale: value, child: child);
           },
           child: Dialog(
             backgroundColor: Colors.white,
@@ -838,21 +861,27 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                               final user = _supabase.auth.currentUser;
                               if (user != null) {
                                 await _supabase.auth.updateUser(
-                                  UserAttributes(password: novaSenhaController.text),
+                                  UserAttributes(
+                                    password: novaSenhaController.text,
+                                  ),
                                 );
                               }
                               if (context.mounted) {
                                 Navigator.pop(context);
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content: Text('Senha alterada com sucesso!'),
+                                    content: Text(
+                                      'Senha alterada com sucesso!',
+                                    ),
                                   ),
                                 );
                               }
                             } catch (e) {
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Erro ao alterar senha: $e')),
+                                  SnackBar(
+                                    content: Text('Erro ao alterar senha: $e'),
+                                  ),
                                 );
                               }
                             }
@@ -922,7 +951,11 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
         ),
         title: const Text(
           'Editar Informações',
-          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         centerTitle: true,
       ),
@@ -941,10 +974,14 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                       CircleAvatar(
                         radius: 50,
                         backgroundColor: _blue,
-                        backgroundImage: _fotoPerfilUrl != null && _fotoPerfilUrl!.trim().isNotEmpty
+                        backgroundImage:
+                            _fotoPerfilUrl != null &&
+                                _fotoPerfilUrl!.trim().isNotEmpty
                             ? NetworkImage(_fotoPerfilUrl!)
                             : null,
-                        child: _fotoPerfilUrl == null || _fotoPerfilUrl!.trim().isEmpty
+                        child:
+                            _fotoPerfilUrl == null ||
+                                _fotoPerfilUrl!.trim().isEmpty
                             ? Text(
                                 _obterIniciais(_nomeCompleto),
                                 style: const TextStyle(
@@ -965,7 +1002,9 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        _isUploading ? Icons.hourglass_top : Icons.camera_alt_outlined,
+                        _isUploading
+                            ? Icons.hourglass_top
+                            : Icons.camera_alt_outlined,
                         color: _blue,
                         size: 20,
                       ),
@@ -986,7 +1025,10 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                 // ================= TIPO DE PERFIL =================
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF5F9FF),
                     borderRadius: BorderRadius.circular(12),
@@ -1066,7 +1108,11 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                   showEditButton: true,
                   onTap: () {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('A função de alterar email ainda não foi implementada')),
+                      const SnackBar(
+                        content: Text(
+                          'A função de alterar email ainda não foi implementada',
+                        ),
+                      ),
                     );
                   },
                 ),
@@ -1087,7 +1133,9 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                 // Data de Nascimento (não editável)
                 _buildInfoField(
                   label: 'Data de Nascimento',
-                  value: _dataNascimento.isNotEmpty ? _dataNascimento : 'Definir agora',
+                  value: _dataNascimento.isNotEmpty
+                      ? _dataNascimento
+                      : 'Definir agora',
                   icon: Icons.cake_outlined,
                   editable: false,
                 ),
@@ -1103,7 +1151,11 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                   showEditButton: _genero.isNotEmpty,
                   onTap: () {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('A função de definir gênero ainda não foi implementada')),
+                      const SnackBar(
+                        content: Text(
+                          'A função de definir gênero ainda não foi implementada',
+                        ),
+                      ),
                     );
                   },
                 ),
@@ -1112,7 +1164,10 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                 // ================= SENHA =================
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF5F9FF),
                     borderRadius: BorderRadius.circular(12),
@@ -1149,7 +1204,11 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                       InkWell(
                         onTap: () {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('A função de alterar senha ainda não foi implementada')),
+                            const SnackBar(
+                              content: Text(
+                                'A função de alterar senha ainda não foi implementada',
+                              ),
+                            ),
                           );
                         },
                         child: const Text(
@@ -1170,7 +1229,11 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.shield_outlined, color: _textGray, size: 20),
+                    const Icon(
+                      Icons.shield_outlined,
+                      color: _textGray,
+                      size: 20,
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: RichText(
@@ -1280,7 +1343,11 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
           if (editable && showArrow)
             InkWell(
               onTap: onTap,
-              child: const Icon(Icons.chevron_right, color: Color(0xFFB0B0B0), size: 22),
+              child: const Icon(
+                Icons.chevron_right,
+                color: Color(0xFFB0B0B0),
+                size: 22,
+              ),
             ),
           if (editable && showEditButton && !isEmail)
             InkWell(

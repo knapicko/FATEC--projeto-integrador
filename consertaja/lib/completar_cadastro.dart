@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -8,8 +9,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'tela_home.dart';
 import 'tela_home_profissional.dart';
 import 'services/validacao_telefone.dart';
+import 'services/formatacao_data.dart';
 import 'widgets/seletor_ddi.dart';
 import 'widgets/foto_perfil_google.dart';
+import 'widgets/dialogo_documento.dart';
+import 'termos_de_uso.dart';
+import 'politica_de_privacidade.dart';
 
 // Reaproveita as telas de documento/facial que já existem no fluxo normal
 // do profissional (não duplicamos essa lógica).
@@ -288,7 +293,7 @@ class _CompletarCadastroClientePageState
       final mes = dataSelecionada.month.toString().padLeft(2, '0');
       final ano = dataSelecionada.year.toString();
       setState(() {
-        _dataNascimentoController.text = '$ano-$mes-$dia';
+        _dataNascimentoController.text = '$dia/$mes/$ano';
         _erroDataNascimento = null;
       });
     }
@@ -318,7 +323,7 @@ class _CompletarCadastroClientePageState
       final mes = dataSelecionada.month.toString().padLeft(2, '0');
       final ano = dataSelecionada.year.toString();
       setState(() {
-        _dataFundacaoController.text = '$ano-$mes-$dia';
+        _dataFundacaoController.text = '$dia/$mes/$ano';
         _erroDataFundacao = null;
       });
     }
@@ -441,7 +446,7 @@ class _CompletarCadastroClientePageState
               'nome_fantasia': _nomeFantasiaController.text.trim(),
               'tem_imovel': !_cnpjDeEmpresa,
               'data_fundacao': _dataFundacaoController.text.trim().isNotEmpty
-                  ? _dataFundacaoController.text.trim()
+                  ? converterDataParaIso(_dataFundacaoController.text.trim())
                   : null,
             })
             .select()
@@ -463,7 +468,7 @@ class _CompletarCadastroClientePageState
             ? _nomeController.text.trim()
             : _nomeFantasiaController.text.trim(),
         'data_nascimento': _dataNascimentoController.text.trim().isNotEmpty
-            ? _dataNascimentoController.text.trim()
+            ? converterDataParaIso(_dataNascimentoController.text.trim())
             : null,
         'data_criacao': DateTime.now().toUtc().toIso8601String(),
         'tipo_conta': 'Cliente',
@@ -686,7 +691,32 @@ class _CompletarCadastroClientePageState
               onChanged: (v) => setState(() => _aceitouTermos = v ?? false),
               controlAffinity: ListTileControlAffinity.leading,
               contentPadding: EdgeInsets.zero,
-              title: const Text('Li e aceito os Termos de Uso'),
+              title: Text.rich(
+                TextSpan(
+                  style: const TextStyle(
+                    color: Color(0xFF333333),
+                    fontSize: 14,
+                  ),
+                  children: [
+                    const TextSpan(text: 'Li e aceito os '),
+                    TextSpan(
+                      text: 'Termos de Uso',
+                      style: const TextStyle(
+                        color: Color(0xFF0FB3FF),
+                        fontWeight: FontWeight.bold,
+                      ),
+                      recognizer: TapGestureRecognizer()
+                        ..onTap = () {
+                          mostrarDialogoDocumento(
+                            context,
+                            titulo: 'Termos de Uso',
+                            conteudo: TermosDeUsoPage.conteudo,
+                          );
+                        },
+                    ),
+                  ],
+                ),
+              ),
             ),
             CheckboxListTile(
               value: _aceitouPrivacidade,
@@ -694,7 +724,32 @@ class _CompletarCadastroClientePageState
                   setState(() => _aceitouPrivacidade = v ?? false),
               controlAffinity: ListTileControlAffinity.leading,
               contentPadding: EdgeInsets.zero,
-              title: const Text('Li e aceito a Política de Privacidade'),
+              title: Text.rich(
+                TextSpan(
+                  style: const TextStyle(
+                    color: Color(0xFF333333),
+                    fontSize: 14,
+                  ),
+                  children: [
+                    const TextSpan(text: 'Li e aceito a '),
+                    TextSpan(
+                      text: 'Política de Privacidade',
+                      style: const TextStyle(
+                        color: Color(0xFF0FB3FF),
+                        fontWeight: FontWeight.bold,
+                      ),
+                      recognizer: TapGestureRecognizer()
+                        ..onTap = () {
+                          mostrarDialogoDocumento(
+                            context,
+                            titulo: 'Política de Privacidade',
+                            conteudo: PoliticaDePrivacidadePage.conteudo,
+                          );
+                        },
+                    ),
+                  ],
+                ),
+              ),
             ),
 
             const SizedBox(height: 24),
@@ -856,7 +911,7 @@ class _CompletarCadastroProfissionalPageState
       final mes = dataSelecionada.month.toString().padLeft(2, '0');
       final ano = dataSelecionada.year.toString();
       setState(() {
-        _dataNascimentoController.text = '$ano-$mes-$dia';
+        _dataNascimentoController.text = '$dia/$mes/$ano';
         _erroDataNascimento = null;
       });
     }
@@ -874,7 +929,7 @@ class _CompletarCadastroProfissionalPageState
       final mes = dataSelecionada.month.toString().padLeft(2, '0');
       final ano = dataSelecionada.year.toString();
       setState(() {
-        _dataFundacaoController.text = '$ano-$mes-$dia';
+        _dataFundacaoController.text = '$dia/$mes/$ano';
         _erroDataFundacao = null;
       });
     }
@@ -895,8 +950,8 @@ class _CompletarCadastroProfissionalPageState
       } else {
         _erroTelefone = null;
       }
-      _erroDataNascimento = (_isPessoaFisica &&
-              _dataNascimentoController.text.trim().isEmpty)
+      _erroDataNascimento =
+          (_isPessoaFisica && _dataNascimentoController.text.trim().isEmpty)
           ? 'A data de nascimento é obrigatória'
           : null;
       if (!_isPessoaFisica) {
@@ -954,9 +1009,15 @@ class _CompletarCadastroProfissionalPageState
           isPessoaFisica: _isPessoaFisica,
           cnpjDeEmpresa: _cnpjDeEmpresa,
           telefone: _telefoneController.text.trim(),
-          dataNascimento: _dataNascimentoController.text.trim(),
-          dataFundacao: _dataFundacaoController.text.trim(),
-          oficiosSelecionados: _oficiosSelecionados.map((e) => (e['id_oficio'] as num).toInt()).toList(),
+          dataNascimento: converterDataParaIso(
+            _dataNascimentoController.text.trim(),
+          ),
+          dataFundacao: converterDataParaIso(
+            _dataFundacaoController.text.trim(),
+          ),
+          oficiosSelecionados: _oficiosSelecionados
+              .map((e) => (e['id_oficio'] as num).toInt())
+              .toList(),
         ),
       ),
     );
@@ -1416,13 +1477,21 @@ class _CompletarCadastroProfissionalDocumentosPageState
       if (widget.oficiosSelecionados.isNotEmpty) {
         for (final oficioId in widget.oficiosSelecionados) {
           try {
-            final res = await supabase.from('ass_oficio_profissional').insert({
-              'fk_profissional': profissionalId,
-              'fk_oficio': oficioId,
-            }).select().maybeSingle();
-            debugPrint('ass_oficio_profissional insert res (google flow): $res');
+            final res = await supabase
+                .from('ass_oficio_profissional')
+                .insert({
+                  'fk_profissional': profissionalId,
+                  'fk_oficio': oficioId,
+                })
+                .select()
+                .maybeSingle();
+            debugPrint(
+              'ass_oficio_profissional insert res (google flow): $res',
+            );
           } catch (e) {
-            debugPrint('Falha ao inserir ass_oficio_profissional (google flow, oficio $oficioId): $e');
+            debugPrint(
+              'Falha ao inserir ass_oficio_profissional (google flow, oficio $oficioId): $e',
+            );
           }
         }
       }
@@ -1553,7 +1622,32 @@ class _CompletarCadastroProfissionalDocumentosPageState
               onChanged: (v) => setState(() => _termosDeUso = v ?? false),
               controlAffinity: ListTileControlAffinity.leading,
               contentPadding: EdgeInsets.zero,
-              title: const Text('Li e aceito os Termos de Uso'),
+              title: Text.rich(
+                TextSpan(
+                  style: const TextStyle(
+                    color: Color(0xFF333333),
+                    fontSize: 14,
+                  ),
+                  children: [
+                    const TextSpan(text: 'Li e aceito os '),
+                    TextSpan(
+                      text: 'Termos de Uso',
+                      style: const TextStyle(
+                        color: Color(0xFF0FB3FF),
+                        fontWeight: FontWeight.bold,
+                      ),
+                      recognizer: TapGestureRecognizer()
+                        ..onTap = () {
+                          mostrarDialogoDocumento(
+                            context,
+                            titulo: 'Termos de Uso',
+                            conteudo: TermosDeUsoPage.conteudo,
+                          );
+                        },
+                    ),
+                  ],
+                ),
+              ),
             ),
             CheckboxListTile(
               value: _politicaPrivacidade,
@@ -1561,7 +1655,32 @@ class _CompletarCadastroProfissionalDocumentosPageState
                   setState(() => _politicaPrivacidade = v ?? false),
               controlAffinity: ListTileControlAffinity.leading,
               contentPadding: EdgeInsets.zero,
-              title: const Text('Li e aceito a Política de Privacidade'),
+              title: Text.rich(
+                TextSpan(
+                  style: const TextStyle(
+                    color: Color(0xFF333333),
+                    fontSize: 14,
+                  ),
+                  children: [
+                    const TextSpan(text: 'Li e aceito a '),
+                    TextSpan(
+                      text: 'Política de Privacidade',
+                      style: const TextStyle(
+                        color: Color(0xFF0FB3FF),
+                        fontWeight: FontWeight.bold,
+                      ),
+                      recognizer: TapGestureRecognizer()
+                        ..onTap = () {
+                          mostrarDialogoDocumento(
+                            context,
+                            titulo: 'Política de Privacidade',
+                            conteudo: PoliticaDePrivacidadePage.conteudo,
+                          );
+                        },
+                    ),
+                  ],
+                ),
+              ),
             ),
 
             const SizedBox(height: 24),

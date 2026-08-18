@@ -1,5 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:http/http.dart' as http;
+import 'package:latlong2/latlong.dart' hide Path;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'tela_home.dart';
 import 'tela_home_profissional.dart';
@@ -137,7 +142,9 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
       // 1. Busca associações do usuário (apelido + tipo + endereco_ativo)
       final assResponse = await supabase
           .from(_tabelaAssUsuarioEndereco)
-          .select('fk_endereco, apelido_endereco, tipo_endereco, endereco_ativo')
+          .select(
+            'fk_endereco, apelido_endereco, tipo_endereco, endereco_ativo',
+          )
           .eq('fk_usuario', usuarioId);
 
       if (assResponse.isEmpty) {
@@ -160,7 +167,9 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
 
       final enderecosResponse = await supabase
           .from(_tabelaEndereco)
-          .select('id_endereco, cep, logradouro, numero, bairro, complemento, fk_cidade');
+          .select(
+            'id_endereco, cep, logradouro, numero, bairro, complemento, fk_cidade',
+          );
 
       // 3. Busca cidades e estados para montar o endereço completo
       final cidadesResponse = await supabase
@@ -198,14 +207,11 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
             : int.tryParse(fkEndereco?.toString() ?? '');
         if (idEndereco == null) continue;
 
-        final itemRow = enderecosResponse.firstWhere(
-          (e) {
-            final id = e['id_endereco'];
-            final eid = id is int ? id : int.tryParse(id?.toString() ?? '');
-            return eid == idEndereco;
-          },
-          orElse: () => const {},
-        );
+        final itemRow = enderecosResponse.firstWhere((e) {
+          final id = e['id_endereco'];
+          final eid = id is int ? id : int.tryParse(id?.toString() ?? '');
+          return eid == idEndereco;
+        }, orElse: () => const {});
 
         final logradouro = itemRow['logradouro']?.toString() ?? '';
         final numero = itemRow['numero']?.toString() ?? '';
@@ -225,26 +231,24 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
         final idEstado = fkEstado is int
             ? fkEstado
             : int.tryParse(fkEstado?.toString() ?? '');
-        final estado = idEstado != null
-            ? estadosMap[idEstado] ?? ''
-            : '';
+        final estado = idEstado != null ? estadosMap[idEstado] ?? '' : '';
 
         // Titulo vem de tipo_endereco (Casa/Trabalho/Outro), com fallback para apelido
-        final titulo = ass['tipo_endereco']?.toString() ??
+        final titulo =
+            ass['tipo_endereco']?.toString() ??
             ass['apelido_endereco']?.toString() ??
             'Endereço';
         final ativo = ass['endereco_ativo'] == true;
 
-        final linha1 = numero.isNotEmpty
-            ? '$logradouro, $numero'
-            : logradouro;
+        final linha1 = numero.isNotEmpty ? '$logradouro, $numero' : logradouro;
 
-        final detalhesBairro = [if (bairro.isNotEmpty) bairro, if (complemento.isNotEmpty) complemento].join(', ');
+        final detalhesBairro = [
+          if (bairro.isNotEmpty) bairro,
+          if (complemento.isNotEmpty) complemento,
+        ].join(', ');
         final linha2 = detalhesBairro.isNotEmpty ? detalhesBairro : null;
 
-        final linha3 = cidade.isNotEmpty
-            ? '$cidade - $estado'
-            : null;
+        final linha3 = cidade.isNotEmpty ? '$cidade - $estado' : null;
 
         enderecos.add(
           _EnderecoItem(
@@ -357,10 +361,7 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text(
-              'Cancelar',
-              style: TextStyle(color: _textGray),
-            ),
+            child: const Text('Cancelar', style: TextStyle(color: _textGray)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
@@ -449,11 +450,12 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
           style: const TextStyle(fontSize: 15, color: _textDark),
           decoration: InputDecoration(
             hintText: 'Buscar endereço',
-            hintStyle: TextStyle(
+            hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 15),
+            prefixIcon: Icon(
+              Icons.search,
               color: Colors.grey.shade400,
-              fontSize: 15,
+              size: 22,
             ),
-            prefixIcon: Icon(Icons.search, color: Colors.grey.shade400, size: 22),
             border: InputBorder.none,
             contentPadding: const EdgeInsets.symmetric(vertical: 12),
           ),
@@ -483,15 +485,8 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
     return Container(
       width: 40,
       height: 40,
-      decoration: BoxDecoration(
-        color: _iconCircleGray,
-        shape: BoxShape.circle,
-      ),
-      child: Icon(
-        icone,
-        color: principal ? _blue : _iconGray,
-        size: 22,
-      ),
+      decoration: BoxDecoration(color: _iconCircleGray, shape: BoxShape.circle),
+      child: Icon(icone, color: principal ? _blue : _iconGray, size: 22),
     );
   }
 
@@ -511,29 +506,17 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
         if (endereco.linha2 != null)
           Text(
             endereco.linha2!,
-            style: const TextStyle(
-              color: _textGray,
-              fontSize: 14,
-              height: 1.4,
-            ),
+            style: const TextStyle(color: _textGray, fontSize: 14, height: 1.4),
           ),
         if (endereco.linha3 != null)
           Text(
             endereco.linha3!,
-            style: const TextStyle(
-              color: _textGray,
-              fontSize: 14,
-              height: 1.4,
-            ),
+            style: const TextStyle(color: _textGray, fontSize: 14, height: 1.4),
           ),
         if (endereco.cep != null)
           Text(
             endereco.cep!,
-            style: const TextStyle(
-              color: _textGray,
-              fontSize: 14,
-              height: 1.4,
-            ),
+            style: const TextStyle(color: _textGray, fontSize: 14, height: 1.4),
           ),
       ],
     );
@@ -549,9 +532,7 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
             width: double.infinity,
             child: CustomPaint(
               painter: _MapaPlaceholderPainter(),
-              child: Container(
-                color: const Color(0xFFE8EDE8),
-              ),
+              child: Container(color: const Color(0xFFE8EDE8)),
             ),
           ),
         ),
@@ -619,7 +600,11 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
                 onPressed: () {},
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
-                icon: Icon(Icons.edit_outlined, color: Colors.grey.shade500, size: 20),
+                icon: Icon(
+                  Icons.edit_outlined,
+                  color: Colors.grey.shade500,
+                  size: 20,
+                ),
               ),
             ],
           ),
@@ -663,7 +648,11 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
                   onPressed: () => _mostrarDialogoPrincipal(endereco),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
-                  icon: Icon(Icons.more_vert, color: Colors.grey.shade500, size: 22),
+                  icon: Icon(
+                    Icons.more_vert,
+                    color: Colors.grey.shade500,
+                    size: 22,
+                  ),
                 ),
               ],
             ),
@@ -706,11 +695,7 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
                 Stack(
                   alignment: Alignment.center,
                   children: [
-                    const Icon(
-                      Icons.location_on,
-                      color: _blue,
-                      size: 36,
-                    ),
+                    const Icon(Icons.location_on, color: _blue, size: 36),
                     Positioned(
                       top: 6,
                       child: Container(
@@ -720,11 +705,7 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
                           color: Colors.white,
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
-                          Icons.add,
-                          color: _blue,
-                          size: 12,
-                        ),
+                        child: const Icon(Icons.add, color: _blue, size: 12),
                       ),
                     ),
                   ],
@@ -806,8 +787,14 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
         },
         items: widget.isProfissional
             ? [
-                const BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-                const BottomNavigationBarItem(icon: Icon(Icons.sensors), label: 'Radar'),
+                const BottomNavigationBarItem(
+                  icon: Icon(Icons.home),
+                  label: 'Home',
+                ),
+                const BottomNavigationBarItem(
+                  icon: Icon(Icons.sensors),
+                  label: 'Radar',
+                ),
                 const BottomNavigationBarItem(
                   icon: Icon(Icons.chat_bubble_outline),
                   label: 'Mensagens',
@@ -822,7 +809,10 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
                 ),
               ]
             : [
-                const BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+                const BottomNavigationBarItem(
+                  icon: Icon(Icons.home),
+                  label: 'Home',
+                ),
                 const BottomNavigationBarItem(
                   icon: Icon(Icons.people_outline),
                   label: 'Seguindo',
@@ -849,8 +839,8 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
     final enderecoPrincipal = _enderecos.where((e) => e.principal).firstOrNull;
     final outrosEnderecos = _enderecos.where((e) => !e.principal).toList();
 
-    final exibirPrincipal = enderecoPrincipal != null &&
-        _correspondeBusca(enderecoPrincipal);
+    final exibirPrincipal =
+        enderecoPrincipal != null && _correspondeBusca(enderecoPrincipal);
     final outrosFiltrados = outrosEnderecos.where(_correspondeBusca).toList();
 
     return Scaffold(
@@ -864,67 +854,62 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
           _buildBarraPesquisa(),
           Expanded(
             child: _carregando
-                ? const Center(
-                    child: CircularProgressIndicator(color: _blue),
-                  )
+                ? const Center(child: CircularProgressIndicator(color: _blue))
                 : _erro
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.error_outline,
-                              color: Colors.grey.shade400,
-                              size: 48,
-                            ),
-                            const SizedBox(height: 12),
-                            const Text(
-                              'Erro ao carregar endereços.',
-                              style: TextStyle(
-                                color: _textGray,
-                                fontSize: 15,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            TextButton(
-                              onPressed: _carregarEnderecos,
-                              child: const Text(
-                                'Tentar novamente',
-                                style: TextStyle(color: _blue),
-                              ),
-                            ),
-                          ],
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          color: Colors.grey.shade400,
+                          size: 48,
                         ),
-                      )
-                    : ListView(
-                        padding: EdgeInsets.zero,
-                        children: [
-                          if (exibirPrincipal) ...[
-                            _buildTituloSecao('Endereço Principal'),
-                            _buildCardPrincipal(enderecoPrincipal),
-                            const SizedBox(height: 20),
-                          ],
-                          if (outrosFiltrados.isNotEmpty) ...[
-                            _buildTituloSecao('Outros Endereços'),
-                            ...outrosFiltrados.map(_buildCardOutroEndereco),
-                          ],
-                          if (!exibirPrincipal && outrosFiltrados.isEmpty)
-                            Padding(
-                              padding: const EdgeInsets.all(32),
-                              child: Text(
-                                _enderecos.isEmpty
-                                    ? 'Nenhum endereço cadastrado ainda.'
-                                    : 'Nenhum endereço encontrado.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: Colors.grey.shade500,
-                                  fontSize: 15,
-                                ),
-                              ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Erro ao carregar endereços.',
+                          style: TextStyle(color: _textGray, fontSize: 15),
+                        ),
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: _carregarEnderecos,
+                          child: const Text(
+                            'Tentar novamente',
+                            style: TextStyle(color: _blue),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView(
+                    padding: EdgeInsets.zero,
+                    children: [
+                      if (exibirPrincipal) ...[
+                        _buildTituloSecao('Endereço Principal'),
+                        _buildCardPrincipal(enderecoPrincipal),
+                        const SizedBox(height: 20),
+                      ],
+                      if (outrosFiltrados.isNotEmpty) ...[
+                        _buildTituloSecao('Outros Endereços'),
+                        ...outrosFiltrados.map(_buildCardOutroEndereco),
+                      ],
+                      if (!exibirPrincipal && outrosFiltrados.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Text(
+                            _enderecos.isEmpty
+                                ? 'Nenhum endereço cadastrado ainda.'
+                                : 'Nenhum endereço encontrado.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.grey.shade500,
+                              fontSize: 15,
                             ),
-                          _buildBotaoAdicionar(),
-                        ],
-                      ),
+                          ),
+                        ),
+                      _buildBotaoAdicionar(),
+                    ],
+                  ),
           ),
         ],
       ),
@@ -955,9 +940,33 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
   static const Color _inputFill = Color(0xFFF5F5F5);
 
   static const List<String> _estados = [
-    'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
-    'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN',
-    'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
+    'AC',
+    'AL',
+    'AP',
+    'AM',
+    'BA',
+    'CE',
+    'DF',
+    'ES',
+    'GO',
+    'MA',
+    'MT',
+    'MS',
+    'MG',
+    'PA',
+    'PB',
+    'PR',
+    'PE',
+    'PI',
+    'RJ',
+    'RN',
+    'RS',
+    'RO',
+    'RR',
+    'SC',
+    'SP',
+    'SE',
+    'TO',
   ];
 
   final TextEditingController _cepController = TextEditingController();
@@ -971,6 +980,11 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
   String _tipoSalvar = 'Casa';
   bool _salvando = false;
 
+  // Dados da consulta de CEP (AwesomeAPI) usados p/ auto-preenchimento e mapa
+  double? _cepLat;
+  double? _cepLng;
+  bool _buscandoCep = false;
+
   @override
   void dispose() {
     _cepController.dispose();
@@ -982,14 +996,89 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
     super.dispose();
   }
 
-  void _buscarCep() {
+  Future<void> _buscarCep() async {
     FocusScope.of(context).unfocus();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Busca de CEP em desenvolvimento.'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+
+    final cep = _cepController.text.replaceAll(RegExp(r'\D'), '');
+    if (cep.length != 8) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Informe um CEP válido com 8 dígitos.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _buscandoCep = true);
+
+    try {
+      // AwesomeAPI - API de CEP
+      final resposta = await http.get(
+        Uri.parse('https://cep.awesomeapi.com.br/json/$cep'),
+      );
+
+      if (!mounted) return;
+
+      if (resposta.statusCode == 200) {
+        final dados = jsonDecode(resposta.body) as Map<String, dynamic>;
+        final uf = (dados['state']?.toString() ?? '').toUpperCase().trim();
+        final latitude = double.tryParse(dados['lat']?.toString() ?? '');
+        final longitude = double.tryParse(dados['lng']?.toString() ?? '');
+
+        setState(() {
+          _logradouroController.text =
+              dados['address']?.toString().trim() ?? '';
+          _bairroController.text = dados['district']?.toString().trim() ?? '';
+          _cidadeController.text = dados['city']?.toString().trim() ?? '';
+          _estadoSelecionado = _estados.contains(uf) ? uf : null;
+          _cepLat = (latitude != null && latitude != 0) ? latitude : null;
+          _cepLng = (longitude != null && longitude != 0) ? longitude : null;
+          _buscandoCep = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Endereço encontrado! Campos preenchidos automaticamente.',
+            ),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      } else {
+        setState(() {
+          _cepLat = null;
+          _cepLng = null;
+          _buscandoCep = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              resposta.statusCode == 404
+                  ? 'CEP não encontrado. Verifique e tente novamente.'
+                  : 'CEP inválido. Informe apenas os 8 números.',
+            ),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _cepLat = null;
+          _cepLng = null;
+          _buscandoCep = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Erro ao buscar o CEP. Verifique sua conexão e tente novamente.',
+            ),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   Future<int?> _buscarIdUsuario(SupabaseClient supabase, String authId) async {
@@ -1013,7 +1102,9 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
         _estadoSelecionado == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Preencha os campos obrigatórios: logradouro, cidade e estado.'),
+          content: Text(
+            'Preencha os campos obrigatórios: logradouro, cidade e estado.',
+          ),
           duration: Duration(seconds: 3),
         ),
       );
@@ -1031,7 +1122,9 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
           setState(() => _salvando = false);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Você precisa estar logado para salvar um endereço.'),
+              content: Text(
+                'Você precisa estar logado para salvar um endereço.',
+              ),
               duration: Duration(seconds: 3),
             ),
           );
@@ -1226,6 +1319,14 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
   }
 
   Widget _buildMapaPreview() {
+    final double? lat = _cepLat;
+    final double? lng = _cepLng;
+    final bool temCoordenadas = lat != null && lng != null;
+    final String cidade = _cidadeController.text.trim().isNotEmpty
+        ? _cidadeController.text.trim()
+        : 'São Paulo';
+    final String uf = _estadoSelecionado ?? '';
+
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       decoration: BoxDecoration(
@@ -1245,66 +1346,119 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
             SizedBox(
               height: 180,
               width: double.infinity,
-              child: CustomPaint(
-                painter: _MapaCidadePainter(),
-                child: Container(color: const Color(0xFFE4EBE4)),
-              ),
-            ),
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.location_on,
-                      color: _blue,
-                      size: 42,
-                      shadows: [
-                        Shadow(
-                          color: Colors.black.withValues(alpha: 0.15),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
+              child: temCoordenadas
+                  ? FlutterMap(
+                      key: ValueKey('mapa_$_cepLat-$_cepLng'),
+                      options: MapOptions(
+                        initialCenter: LatLng(lat, lng),
+                        initialZoom: 15,
+                        interactionOptions: const InteractionOptions(
+                          flags: InteractiveFlag.all,
+                        ),
+                      ),
+                      children: [
+                        // Base de mapa em escala de cinza (preto e branco,
+                        // minimalista, inspirada no estilo do Uber). Tiles
+                        // públicos da ArcGIS Canvas sem necessidade de token.
+                        TileLayer(
+                          urlTemplate:
+                              'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+                          userAgentPackageName: 'br.com.consertaja',
+                        ),
+                        CircleLayer(
+                          circles: [
+                            CircleMarker(
+                              point: LatLng(lat, lng),
+                              radius: 180,
+                              useRadiusInMeter: true,
+                              color: _blue.withValues(alpha: 0.16),
+                              borderColor: _blue,
+                              borderStrokeWidth: 2,
+                            ),
+                          ],
+                        ),
+                        MarkerLayer(
+                          markers: [
+                            Marker(
+                              point: LatLng(lat, lng),
+                              width: 38,
+                              height: 38,
+                              child: const Icon(
+                                Icons.location_pin,
+                                color: _blue,
+                                size: 38,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
+                    )
+                  : CustomPaint(
+                      painter: _MapaCidadePainter(),
+                      child: Container(color: const Color(0xFFE4EBE4)),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'São Paulo',
-                      style: TextStyle(
-                        color: Colors.grey.shade700,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
+            ),
+            if (!temCoordenadas)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.location_on,
+                        color: _blue,
+                        size: 42,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black.withValues(alpha: 0.15),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 2),
+                      Text(
+                        cidade,
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
             Positioned(
-              right: 12,
+              left: 12,
               bottom: 12,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(8),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
+                      color: Colors.black.withValues(alpha: 0.06),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
                     ),
                   ],
                 ),
-                child: const Text(
-                  'Ajustar no mapa',
-                  style: TextStyle(
-                    color: _blue,
-                    fontSize: 13,
+                child: Text(
+                  temCoordenadas
+                      ? (uf.isNotEmpty ? '$cidade - $uf' : cidade)
+                      : 'Informe o CEP para visualizar no mapa',
+                  style: const TextStyle(
+                    color: Color(0xFF2B2B2B),
+                    fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -1338,20 +1492,33 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
               SizedBox(
                 height: 48,
                 child: ElevatedButton.icon(
-                  onPressed: _buscarCep,
+                  onPressed: _buscandoCep ? null : _buscarCep,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _blue,
                     foregroundColor: Colors.white,
+                    disabledBackgroundColor: _blue.withValues(alpha: 0.6),
                     elevation: 0,
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  icon: const Icon(Icons.search, size: 18),
-                  label: const Text(
-                    'Buscar',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  icon: _buscandoCep
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Icon(Icons.search, size: 18),
+                  label: Text(
+                    _buscandoCep ? '...' : 'Buscar',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
@@ -1382,14 +1549,15 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
                 'UF',
                 style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
               ),
-              icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey.shade500),
+              icon: Icon(
+                Icons.keyboard_arrow_down,
+                color: Colors.grey.shade500,
+              ),
               style: const TextStyle(color: _textDark, fontSize: 14),
               items: _estados
                   .map(
-                    (uf) => DropdownMenuItem<String>(
-                      value: uf,
-                      child: Text(uf),
-                    ),
+                    (uf) =>
+                        DropdownMenuItem<String>(value: uf, child: Text(uf)),
                   )
                   .toList(),
               onChanged: (value) => setState(() => _estadoSelecionado = value),
@@ -1699,7 +1867,11 @@ class _MapaPlaceholderPainter extends CustomPainter {
     canvas.drawPath(routePath, routePaint);
 
     final pinPaint = Paint()..color = const Color(0xFF0FB3FF);
-    canvas.drawCircle(Offset(size.width * 0.85, size.height * 0.55), 6, pinPaint);
+    canvas.drawCircle(
+      Offset(size.width * 0.85, size.height * 0.55),
+      6,
+      pinPaint,
+    );
   }
 
   @override
