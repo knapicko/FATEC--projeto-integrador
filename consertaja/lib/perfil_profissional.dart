@@ -39,6 +39,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   bool _isAtBottom = false;
   double _lastScrollOffset = 0;
   bool _isScrollingProgrammatically = false;
+  DateTime _ultimaAtualizacaoAba = DateTime.fromMillisecondsSinceEpoch(0);
 
   String _nome = '';
   String? _fotoUrl;
@@ -48,7 +49,19 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   String _categoriaServico = 'Todos';
   bool _descricaoExpandida = false;
 
-  DateTime _mesSelecionado = DateTime(2026, 5);
+  DateTime _mesSelecionado = DateTime(
+    DateTime.now().year,
+    DateTime.now().month,
+  );
+
+  int? _idProfissional;
+  /// Chave YYYY-MM-DD → observação da exceção de dia inteiro.
+  final Map<String, String?> _diasBloqueados = {};
+  bool _carregandoExcecoes = false;
+
+  static const Color _blockedRed = Color(0xFF9B2335);
+  static const Color _blockedBg = Color(0xFFFFF0F3);
+  static const Color _blockedBorder = Color(0xFFCE4257);
 
   int _likesComentario1 = 0;
   bool _likedComentario1 = false;
@@ -148,19 +161,36 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
       final supabase = Supabase.instance.client;
       final response = await supabase
           .from('usuarios')
-          .select('nome, foto_perfil_url')
+          .select('nome, foto_perfil_url, id_usuario')
           .eq('tipo_conta', 'Profissional')
           .ilike('nome', '%${widget.nomeInicial}%')
           .maybeSingle();
 
       if (response != null && mounted) {
+        int? idProfissional;
+        final fkUsuario = response['id_usuario'];
+        if (fkUsuario != null) {
+          final dadosProf = await supabase
+              .from('dados_profissionais')
+              .select('id_profissional')
+              .eq('fk_usuario', fkUsuario)
+              .maybeSingle();
+          idProfissional =
+              (dadosProf?['id_profissional'] as num?)?.toInt();
+        }
+
         setState(() {
           _nome = response['nome']?.toString() ?? widget.nomeInicial;
           final foto = response['foto_perfil_url']?.toString();
           if (foto != null && foto.isNotEmpty && foto != 'null') {
             _fotoUrl = foto;
           }
+          _idProfissional = idProfissional;
         });
+
+        if (idProfissional != null) {
+          await _carregarExcecoes();
+        }
       }
     } catch (_) {
       // Mantém dados iniciais em caso de falha
@@ -171,6 +201,139 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
     }
   }
 
+  String _formatarDataCompleta(DateTime data) {
+    final mm = data.month.toString().padLeft(2, '0');
+    final dd = data.day.toString().padLeft(2, '0');
+    return '${data.year}-$mm-$dd';
+  }
+
+  DateTime? _parseDataExcecao(Object? raw) {
+    if (raw == null) return null;
+    final texto = raw.toString().trim();
+    final match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(texto);
+    if (match == null) return DateTime.tryParse(texto);
+    return DateTime(
+      int.parse(match.group(1)!),
+      int.parse(match.group(2)!),
+      int.parse(match.group(3)!),
+    );
+  }
+
+  bool _isExcecaoDiaInteiro(Map<String, dynamic> row) {
+    final horaIni = row['hora_ini'];
+    final horaFim = row['hora_fim'];
+    if (horaIni == null || horaFim == null) return true;
+    final iniStr = horaIni.toString().trim();
+    final fimStr = horaFim.toString().trim();
+    if (iniStr.isEmpty || fimStr.isEmpty) return true;
+    final iniMatch = RegExp(r'^(\d{1,2}):(\d{2})').firstMatch(iniStr);
+    final fimMatch = RegExp(r'^(\d{1,2}):(\d{2})').firstMatch(fimStr);
+    return iniMatch == null || fimMatch == null;
+  }
+
+  Future<void> _carregarExcecoes() async {
+    if (_idProfissional == null) return;
+
+    setState(() => _carregandoExcecoes = true);
+
+    try {
+      final supabase = Supabase.instance.client;
+      final ano = _mesSelecionado.year;
+      final mes = _mesSelecionado.month;
+      final primeiroDia = DateTime(ano, mes, 1);
+      final ultimoDia = DateTime(ano, mes + 1, 0);
+
+      final response = await supabase
+          .from('grade_horario_excecao')
+          .select('dia_semana, hora_ini, hora_fim, observacao')
+          .eq('fk_profissional', _idProfissional!)
+          .gte('dia_semana', _formatarDataCompleta(primeiroDia))
+          .lte('dia_semana', _formatarDataCompleta(ultimoDia));
+
+      if (!mounted) return;
+
+      final bloqueados = <String, String?>{};
+      for (final row in response) {
+        if (!_isExcecaoDiaInteiro(row)) continue;
+        final dataExcecao = _parseDataExcecao(row['dia_semana']);
+        if (dataExcecao == null) continue;
+        final chave = _formatarDataCompleta(dataExcecao);
+        final obs = row['observacao']?.toString().trim();
+        bloqueados[chave] =
+            (obs != null && obs.isNotEmpty) ? obs : null;
+      }
+
+      setState(() {
+        _diasBloqueados
+          ..clear()
+          ..addAll(bloqueados);
+      });
+    } catch (_) {
+      // Mantém exceções anteriores em caso de falha
+    } finally {
+      if (mounted) {
+        setState(() => _carregandoExcecoes = false);
+      }
+    }
+  }
+
+  void _mostrarPopupDiaBloqueado(DateTime data, String? observacao) {
+    final meses = [
+      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+    ];
+    final dataFormatada = '${data.day} de ${meses[data.month - 1]}';
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.event_busy, color: _blockedRed, size: 22),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                dataFormatada,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'O profissional não está disponível neste dia.',
+              style: TextStyle(fontSize: 14, color: Colors.black87),
+            ),
+            if (observacao != null && observacao.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                observacao,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade700,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Fechar',
+              style: TextStyle(color: _primaryBlue, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _onScroll() {
     if (!_scrollController.hasClients) return;
 
@@ -179,69 +342,88 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
     final atBottom = offset >= maxScroll - 80;
     final scrollingDown = offset > _lastScrollOffset;
 
-    if (!_isScrollingProgrammatically) {
-      _atualizarAbaAtiva();
+    bool novoShowFloating = _showFloatingButton;
+    if (atBottom) {
+      novoShowFloating = false;
+    } else if (scrollingDown && offset > 200) {
+      novoShowFloating = true;
+    } else if (!scrollingDown) {
+      novoShowFloating = false;
     }
 
-    setState(() {
-      _isAtBottom = atBottom;
-      if (atBottom) {
-        _showFloatingButton = false;
-      } else if (scrollingDown && offset > 200) {
-        _showFloatingButton = true;
-      } else if (!scrollingDown) {
-        _showFloatingButton = false;
+    _lastScrollOffset = offset;
+
+    int? novaAba;
+    if (!_isScrollingProgrammatically) {
+      final now = DateTime.now();
+      if (now.difference(_ultimaAtualizacaoAba) >=
+          const Duration(milliseconds: 150)) {
+        _ultimaAtualizacaoAba = now;
+        novaAba = _calcularAbaAtiva(offset);
       }
-      _lastScrollOffset = offset;
-    });
+    }
+
+    if (novoShowFloating != _showFloatingButton ||
+        atBottom != _isAtBottom ||
+        (novaAba != null && novaAba != _abaAtiva)) {
+      setState(() {
+        _showFloatingButton = novoShowFloating;
+        _isAtBottom = atBottom;
+        if (novaAba != null) _abaAtiva = novaAba;
+      });
+    }
   }
 
-  double? _getSectionScrollOffset(GlobalKey key) {
-    final context = key.currentContext;
-    if (context == null) return null;
-    final renderObject = context.findRenderObject();
+  double? _offsetDaSecao(GlobalKey key) {
+    final sectionContext = key.currentContext;
+    if (sectionContext == null) return null;
+    final renderObject = sectionContext.findRenderObject();
     if (renderObject == null || !renderObject.attached) return null;
     final viewport = RenderAbstractViewport.of(renderObject);
     return viewport.getOffsetToReveal(renderObject, 0.0).offset;
   }
 
-  void _atualizarAbaAtiva() {
+  int _calcularAbaAtiva(double scrollOffset) {
+    final scrollTop = scrollOffset + _pinnedHeaderHeight;
     final keys = [_disponibilidadeKey, _avaliacoesKey, _detalhesKey];
-    final scrollTop = _scrollController.offset + _pinnedHeaderHeight + 8;
-
-    int novaAba = 0;
-    for (int i = 0; i < keys.length; i++) {
-      final offset = _getSectionScrollOffset(keys[i]);
-      if (offset != null && scrollTop >= offset - 20) {
-        novaAba = i;
+    var aba = 0;
+    for (var i = 0; i < keys.length; i++) {
+      final sectionOffset = _offsetDaSecao(keys[i]);
+      if (sectionOffset != null && scrollTop >= sectionOffset - 20) {
+        aba = i;
       }
     }
-
-    if (novaAba != _abaAtiva) {
-      setState(() => _abaAtiva = novaAba);
-    }
+    return aba;
   }
 
   Future<void> _scrollParaAba(int index) async {
     final keys = [_disponibilidadeKey, _avaliacoesKey, _detalhesKey];
-    final key = keys[index];
-    final context = key.currentContext;
-    if (context == null) return;
 
     setState(() {
       _abaAtiva = index;
       _isScrollingProgrammatically = true;
     });
 
-    await Scrollable.ensureVisible(
-      context,
-      duration: const Duration(milliseconds: 500),
-      curve: Curves.easeInOut,
-      alignment: 0.0,
-      alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtStart,
-    );
+    for (var tentativa = 0; tentativa < 5; tentativa++) {
+      await Future<void>.delayed(Duration.zero);
+      if (!mounted || !_scrollController.hasClients) break;
 
-    await Future.delayed(const Duration(milliseconds: 550));
+      final sectionOffset = _offsetDaSecao(keys[index]);
+      if (sectionOffset != null) {
+        final target = (sectionOffset - _pinnedHeaderHeight).clamp(
+          0.0,
+          _scrollController.position.maxScrollExtent,
+        );
+        await _scrollController.animateTo(
+          target,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeInOut,
+        );
+        break;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+
     if (mounted) {
       setState(() => _isScrollingProgrammatically = false);
     }
@@ -567,13 +749,12 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
       'SEXTA',
       'SÁBADO',
     ];
-    final diasDestacados = {5, 18, 19, 20};
-    final diasIndisponiveis = {13, 14};
 
     final primeiroDia = DateTime(_mesSelecionado.year, _mesSelecionado.month, 1);
     final ultimoDia = DateTime(_mesSelecionado.year, _mesSelecionado.month + 1, 0);
     final diaInicioSemana = primeiroDia.weekday % 7;
     final totalCelulas = ((diaInicioSemana + ultimoDia.day) / 7).ceil() * 7;
+    final hoje = DateTime.now();
 
     final meses = [
       'Janeiro',
@@ -606,6 +787,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                       _mesSelecionado.month - 1,
                     );
                   });
+                  _carregarExcecoes();
                 },
                 child: const Icon(Icons.chevron_left, color: _primaryBlue),
               ),
@@ -642,6 +824,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                       _mesSelecionado.month + 1,
                     );
                   });
+                  _carregarExcecoes();
                 },
                 child: const Icon(Icons.chevron_right, color: _primaryBlue),
               ),
@@ -674,60 +857,106 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                       .toList(),
                 ),
                 const SizedBox(height: 8),
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 7,
-                    mainAxisSpacing: 4,
-                    crossAxisSpacing: 4,
-                    childAspectRatio: 1.1,
+                if (_carregandoExcecoes)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: _primaryBlue,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 7,
+                      mainAxisSpacing: 4,
+                      crossAxisSpacing: 4,
+                      childAspectRatio: 1.1,
+                    ),
+                    itemCount: totalCelulas,
+                    itemBuilder: (context, index) {
+                      final diaNumero = index - diaInicioSemana + 1;
+                      final isMesAtual =
+                          diaNumero >= 1 && diaNumero <= ultimoDia.day;
+
+                      if (!isMesAtual) {
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade200,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                        );
+                      }
+
+                      final dataDia = DateTime(
+                        _mesSelecionado.year,
+                        _mesSelecionado.month,
+                        diaNumero,
+                      );
+                      final chaveData = _formatarDataCompleta(dataDia);
+                      final isHoje = dataDia.year == hoje.year &&
+                          dataDia.month == hoje.month &&
+                          dataDia.day == hoje.day;
+                      final isBloqueado = _diasBloqueados.containsKey(chaveData);
+                      final observacao = _diasBloqueados[chaveData];
+
+                      Color bgColor;
+                      Color textColor;
+                      Color borderColor;
+
+                      if (isBloqueado) {
+                        bgColor = _blockedBg;
+                        textColor = _blockedRed;
+                        borderColor = _blockedBorder;
+                      } else if (isHoje) {
+                        bgColor = _primaryBlue;
+                        textColor = Colors.white;
+                        borderColor = _primaryBlue;
+                      } else {
+                        bgColor = Colors.white;
+                        textColor = Colors.grey.shade700;
+                        borderColor = Colors.grey.shade300;
+                      }
+
+                      return GestureDetector(
+                        onTap: isBloqueado
+                            ? () => _mostrarPopupDiaBloqueado(dataDia, observacao)
+                            : null,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: bgColor,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: borderColor,
+                              width: isBloqueado ? 1.5 : 1,
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            '$diaNumero',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: textColor,
+                              decoration: isBloqueado
+                                  ? TextDecoration.underline
+                                  : null,
+                              decorationColor: _blockedRed,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                  itemCount: totalCelulas,
-                  itemBuilder: (context, index) {
-                    final diaNumero = index - diaInicioSemana + 1;
-                    final isMesAtual =
-                        diaNumero >= 1 && diaNumero <= ultimoDia.day;
-                    final isDestacado =
-                        isMesAtual && diasDestacados.contains(diaNumero);
-                    final isIndisponivel =
-                        isMesAtual && diasIndisponiveis.contains(diaNumero);
-
-                    Color bgColor;
-                    Color textColor;
-                    if (isDestacado) {
-                      bgColor = _primaryBlue;
-                      textColor = Colors.white;
-                    } else if (!isMesAtual || isIndisponivel) {
-                      bgColor = Colors.grey.shade200;
-                      textColor = Colors.grey.shade400;
-                    } else {
-                      bgColor = Colors.white;
-                      textColor = Colors.grey.shade700;
-                    }
-
-                    return Container(
-                      decoration: BoxDecoration(
-                        color: bgColor,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: isDestacado
-                              ? _primaryBlue
-                              : Colors.grey.shade300,
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        isMesAtual ? '$diaNumero' : '',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: textColor,
-                        ),
-                      ),
-                    );
-                  },
-                ),
               ],
             ),
           ),
