@@ -82,6 +82,7 @@ class PerfilPopular {
   final String profissao;
   final String metrica;
   final bool isVerified;
+  final List<String> oficios;
 
   PerfilPopular({
     required this.nome,
@@ -94,6 +95,7 @@ class PerfilPopular {
     this.profissao = 'Eletricista Residencial',
     this.metrica = '120+ serviços concluídos',
     this.isVerified = true,
+    this.oficios = const [],
   });
 }
 
@@ -273,6 +275,82 @@ class TelaHome extends StatelessWidget {
       return response;
     } catch (e) {
       return null;
+    }
+  }
+
+  Future<List<PerfilPopular>> _buscarProfissionaisDestaque() async {
+    try {
+      final supabase = Supabase.instance.client;
+
+      // 1. Busca todos os profissionais cadastrados (com dados do usuário)
+      final dadosProfissionais = await supabase
+          .from('dados_profissionais')
+          .select('id_profissional, fk_usuario');
+
+      final perfis = <PerfilPopular>[];
+
+      for (final dados in dadosProfissionais) {
+        final idProfissional = dados['id_profissional'];
+        final fkUsuario = dados['fk_usuario'];
+
+        if (idProfissional == null || fkUsuario == null) continue;
+
+        // 2. Busca dados do usuário (nome e foto)
+        final usuarioResponse = await supabase
+            .from('usuarios')
+            .select('nome, foto_perfil_url')
+            .eq('id_usuario', fkUsuario)
+            .maybeSingle();
+
+        if (usuarioResponse == null) continue;
+
+        final nome = usuarioResponse['nome']?.toString() ?? 'Profissional';
+        final fotoUrl =
+            usuarioResponse['foto_perfil_url']?.toString() ?? '';
+
+        // 3. Busca os ofícios associados ao profissional
+        final assOficios = await supabase
+            .from('ass_oficio_profissional')
+            .select('fk_oficio')
+            .eq('fk_profissional', idProfissional);
+
+        final idsOficios = assOficios
+            .map((e) => e['fk_oficio'])
+            .whereType<int>()
+            .toList();
+
+        // 4. Busca os nomes dos ofícios
+        final oficios = <String>[];
+        for (final id in idsOficios) {
+          final oficioResponse = await supabase
+              .from('oficios')
+              .select('funcao')
+              .eq('id_oficio', id)
+              .maybeSingle();
+          if (oficioResponse != null) {
+            final funcao = oficioResponse['funcao']?.toString() ?? '';
+            if (funcao.isNotEmpty) oficios.add(funcao);
+          }
+        }
+
+        perfis.add(
+          PerfilPopular(
+            nome: nome,
+            avaliacao: 4.9,
+            totalAvaliacoes: 120,
+            tag: oficios.isNotEmpty ? oficios.first : 'Profissional',
+            tagBgColor: const Color(0xFFE1F5FE),
+            tagTextColor: _primaryBlue,
+            caminhoImagem: fotoUrl,
+            profissao: oficios.isNotEmpty ? oficios.first : 'Profissional',
+            oficios: oficios,
+          ),
+        );
+      }
+
+      return perfis;
+    } catch (e) {
+      return [];
     }
   }
 
@@ -794,31 +872,56 @@ class TelaHome extends StatelessWidget {
             SizedBox(height: alturaDaTela * 0.03),
 
             // Profissionais em destaque
-            _buildSectionHeader(titulo: 'Profissionais em destaque'),
-            const SizedBox(height: 12),
-            ...listaPerfis.take(3).map(
-                  (perfil) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => PerfilProfissionalPage(
-                              nomeInicial: perfil.nome,
-                              imagemInicial: perfil.caminhoImagem,
-                              profissao: perfil.profissao,
-                              avaliacao: perfil.avaliacao,
-                              totalAvaliacoes: perfil.totalAvaliacoes,
-                            ),
-                          ),
-                        );
-                      },
-                      child: _buildCardProfissional(perfil),
+            FutureBuilder<List<PerfilPopular>>(
+              future: _buscarProfissionaisDestaque(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: CircularProgressIndicator(color: _primaryBlue),
                     ),
-                  ),
-                ),
-            _buildOutlineButton('Ver todos os profissionais'),
+                  );
+                }
+
+                final perfis = snapshot.data ?? <PerfilPopular>[];
+
+                if (perfis.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildSectionHeader(titulo: 'Profissionais em destaque'),
+                    const SizedBox(height: 12),
+                    ...perfis.take(3).map(
+                      (perfil) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => PerfilProfissionalPage(
+                                  nomeInicial: perfil.nome,
+                                  imagemInicial: perfil.caminhoImagem,
+                                  profissao: perfil.profissao,
+                                  avaliacao: perfil.avaliacao,
+                                  totalAvaliacoes: perfil.totalAvaliacoes,
+                                ),
+                              ),
+                            );
+                          },
+                          child: _buildCardProfissionalDestaque(perfil),
+                        ),
+                      ),
+                    ),
+                    _buildOutlineButton('Ver todos os profissionais'),
+                  ],
+                );
+              },
+            ),
 
             SizedBox(height: alturaDaTela * 0.03),
 
@@ -1003,6 +1106,121 @@ class TelaHome extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
+                const SizedBox(height: 6),
+                Text(
+                  perfil.metrica,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: _primaryBlue,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCardProfissionalDestaque(PerfilPopular perfil, {double? largura}) {
+    final bool usaImagemRede =
+        perfil.caminhoImagem.startsWith('http') ||
+        perfil.caminhoImagem.startsWith('https');
+
+    Widget imagem;
+    if (usaImagemRede) {
+      imagem = Image.network(
+        perfil.caminhoImagem,
+        width: 64,
+        height: 64,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+          width: 64,
+          height: 64,
+          color: Colors.grey.shade200,
+          child: Icon(Icons.person, color: Colors.grey.shade500),
+        ),
+      );
+    } else {
+      imagem = Image.asset(
+        perfil.caminhoImagem,
+        width: 64,
+        height: 64,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+          width: 64,
+          height: 64,
+          color: Colors.grey.shade200,
+          child: Icon(Icons.person, color: Colors.grey.shade500),
+        ),
+      );
+    }
+
+    return Container(
+      width: largura,
+      padding: const EdgeInsets.all(12),
+      decoration: _cardDecoration(),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: imagem,
+              ),
+              if (perfil.isVerified)
+                Positioned(right: -2, bottom: -2, child: _buildVerifiedBadge()),
+            ],
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        perfil.nome,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    _buildRatingBadge(perfil.avaliacao),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                if (perfil.oficios.isNotEmpty)
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: perfil.oficios.take(2).map(
+                      (oficio) => _buildTag(
+                        oficio,
+                        const Color(0xFFE1F5FE),
+                        _primaryBlue,
+                      ),
+                    ).toList(),
+                  )
+                else
+                  Text(
+                    perfil.profissao,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 const SizedBox(height: 6),
                 Text(
                   perfil.metrica,
