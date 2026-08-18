@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'perfil_profissional.dart';
 import 'tela_meu_perfil_cliente.dart';
+import 'utils/cor_oficio.dart';
+import 'widgets/tag_oficio.dart';
 
 enum _AbaResultado { todos, servicos, profissionais }
 
@@ -32,6 +34,7 @@ class _ProfissionalBusca {
   final double avaliacao;
   final String tag1;
   final String? tag2;
+  final List<OficioInfo> oficios;
   final String descricao;
   final String localizacao;
   final String distancia;
@@ -45,6 +48,7 @@ class _ProfissionalBusca {
     required this.avaliacao,
     required this.tag1,
     this.tag2,
+    this.oficios = const [],
     required this.descricao,
     required this.localizacao,
     required this.distancia,
@@ -356,7 +360,7 @@ class _TelaBuscaState extends State<TelaBusca> {
       // 2) Busca ofícios (profissão) equivalentes ao termo
       final oficiosEncontrados = await supabase
           .from('oficios')
-          .select('id_oficio, funcao')
+          .select('id_oficio, funcao, cor')
           .ilike('funcao', '%$termo%');
 
       // Mapa de id_oficio -> funcao
@@ -585,7 +589,7 @@ class _TelaBuscaState extends State<TelaBusca> {
         // Ofícios do profissional (via dados_profissionais + ass_oficio_profissional + oficios)
         final idProfissional = usuarioParaProfissional[usuarioId];
 
-        List<String> oficiosDoUsuario = [];
+        List<OficioInfo> oficiosDoUsuario = [];
         if (idProfissional != null) {
           final oficiosDoProf = oficiosPorProfissional[idProfissional] ?? [];
 
@@ -602,26 +606,23 @@ class _TelaBuscaState extends State<TelaBusca> {
             }
           }
 
-          // Busca funções desses ofícios
+          // Busca funções e cores desses ofícios
           if (oficiosDoProf.isNotEmpty) {
             final oficiosData = await supabase
                 .from('oficios')
-                .select('id_oficio, funcao')
+                .select('funcao, cor')
                 .inFilter('id_oficio', oficiosDoProf);
 
-            final funcoes = <String>[];
             for (final of in oficiosData) {
-              final funcao = of['funcao']?.toString() ?? '';
-              if (funcao.trim().isNotEmpty) funcoes.add(funcao);
+              final info = OficioInfo.fromMap(of);
+              if (info.funcao.isNotEmpty) oficiosDoUsuario.add(info);
             }
-            // Ordena conforme funções em oficiosPorId também
-            oficiosDoUsuario = funcoes;
           }
         }
 
         final termosBusca = <String>[_normalizar(nome)];
         for (final oficio in oficiosDoUsuario) {
-          termosBusca.add(_normalizar(oficio));
+          termosBusca.add(_normalizar(oficio.funcao));
         }
 
         final foto = usuario['foto_perfil_url']?.toString() ?? '';
@@ -633,10 +634,15 @@ class _TelaBuscaState extends State<TelaBusca> {
           _ProfissionalBusca(
             nome: nome,
             avaliacao: 4.9,
-            tag1: oficiosDoUsuario.isNotEmpty ? oficiosDoUsuario.first : 'Profissional',
-            tag2: oficiosDoUsuario.length > 1 ? oficiosDoUsuario[1] : null,
+            tag1: oficiosDoUsuario.isNotEmpty
+                ? oficiosDoUsuario.first.funcao
+                : 'Profissional',
+            tag2: oficiosDoUsuario.length > 1
+                ? oficiosDoUsuario[1].funcao
+                : null,
+            oficios: oficiosDoUsuario,
             descricao: oficiosDoUsuario.isNotEmpty
-                ? 'Profissional especializado em ${oficiosDoUsuario.join(', ')} na plataforma ConsertaJá.'
+                ? 'Profissional especializado em ${oficiosDoUsuario.map((o) => o.funcao).join(', ')} na plataforma ConsertaJá.'
                 : 'Profissional verificado na plataforma ConsertaJá.',
             localizacao: localizacao,
             distancia: '',
@@ -1206,23 +1212,40 @@ class _TelaBuscaState extends State<TelaBusca> {
                       ],
                     ),
                     const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        _buildTag(
-                          profissional.tag1,
-                          const Color(0xFFE1F5FE),
-                          _primaryBlue,
-                        ),
-                        if (profissional.tag2 != null) ...[
-                          const SizedBox(width: 6),
+                    if (profissional.oficios.isNotEmpty)
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: profissional.oficios
+                            .map((oficio) => TagOficio(
+                                  oficio: oficio,
+                                  fontSize: 10,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 3,
+                                  ),
+                                  borderRadius: 20,
+                                ))
+                            .toList(),
+                      )
+                    else
+                      Row(
+                        children: [
                           _buildTag(
-                            profissional.tag2!,
-                            const Color(0xFFEEEEEE),
-                            const Color(0xFF616161),
+                            profissional.tag1,
+                            const Color(0xFFE1F5FE),
+                            _primaryBlue,
                           ),
+                          if (profissional.tag2 != null) ...[
+                            const SizedBox(width: 6),
+                            _buildTag(
+                              profissional.tag2!,
+                              const Color(0xFFEEEEEE),
+                              const Color(0xFF616161),
+                            ),
+                          ],
                         ],
-                      ],
-                    ),
+                      ),
                   ],
                 ),
               ),
@@ -1241,9 +1264,15 @@ class _TelaBuscaState extends State<TelaBusca> {
             children: [
               Icon(Icons.location_on_outlined, color: Colors.grey.shade500, size: 14),
               const SizedBox(width: 2),
-              Text(
-                '${profissional.localizacao} - ${profissional.distancia}',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              Expanded(
+                child: Text(
+                  profissional.distancia.isNotEmpty
+                      ? '${profissional.localizacao} - ${profissional.distancia}'
+                      : profissional.localizacao,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),
