@@ -5,7 +5,9 @@ import 'perfil_loja.dart';
 import 'perfil_profissional.dart';
 import 'tela_meu_perfil_cliente.dart';
 import 'tela_busca.dart';
+import 'utils/cor_oficio.dart';
 import 'widgets/foto_perfil_google.dart';
+import 'widgets/tag_oficio.dart';
 
 class ServicoPopular {
   final String titulo;
@@ -82,7 +84,7 @@ class PerfilPopular {
   final String profissao;
   final String metrica;
   final bool isVerified;
-  final List<String> oficios;
+  final List<OficioInfo> oficios;
 
   PerfilPopular({
     required this.nome,
@@ -316,20 +318,20 @@ class TelaHome extends StatelessWidget {
 
         final idsOficios = assOficios
             .map((e) => e['fk_oficio'])
-            .whereType<int>()
+            .whereType<num>()
+            .map((e) => e.toInt())
             .toList();
 
-        // 4. Busca os nomes dos ofícios
-        final oficios = <String>[];
-        for (final id in idsOficios) {
-          final oficioResponse = await supabase
+        final oficios = <OficioInfo>[];
+        if (idsOficios.isNotEmpty) {
+          final oficiosData = await supabase
               .from('oficios')
-              .select('funcao')
-              .eq('id_oficio', id)
-              .maybeSingle();
-          if (oficioResponse != null) {
-            final funcao = oficioResponse['funcao']?.toString() ?? '';
-            if (funcao.isNotEmpty) oficios.add(funcao);
+              .select('funcao, cor')
+              .inFilter('id_oficio', idsOficios);
+
+          for (final row in oficiosData) {
+            final info = OficioInfo.fromMap(row);
+            if (info.funcao.isNotEmpty) oficios.add(info);
           }
         }
 
@@ -338,11 +340,11 @@ class TelaHome extends StatelessWidget {
             nome: nome,
             avaliacao: 4.9,
             totalAvaliacoes: 120,
-            tag: oficios.isNotEmpty ? oficios.first : 'Profissional',
+            tag: oficios.isNotEmpty ? oficios.first.funcao : 'Profissional',
             tagBgColor: const Color(0xFFE1F5FE),
             tagTextColor: _primaryBlue,
             caminhoImagem: fotoUrl,
-            profissao: oficios.isNotEmpty ? oficios.first : 'Profissional',
+            profissao: oficios.isNotEmpty ? oficios.first.funcao : 'Profissional',
             oficios: oficios,
           ),
         );
@@ -1203,13 +1205,17 @@ class TelaHome extends StatelessWidget {
                   Wrap(
                     spacing: 6,
                     runSpacing: 4,
-                    children: perfil.oficios.take(2).map(
-                      (oficio) => _buildTag(
-                        oficio,
-                        const Color(0xFFE1F5FE),
-                        _primaryBlue,
-                      ),
-                    ).toList(),
+                    children: perfil.oficios
+                        .map((oficio) => TagOficio(
+                              oficio: oficio,
+                              fontSize: 10,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              borderRadius: 20,
+                            ))
+                        .toList(),
                   )
                 else
                   Text(
