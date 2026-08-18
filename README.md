@@ -26,6 +26,11 @@ Para executar e modificar o projeto, é necessário ter instalado:
 * **Flutter**
 * **Dart**
 * **Visual Studio Code**
+* **Google Chrome (para executar a versão Web)**
+
+Para **gerar o APK Android**, também é necessário ter o **Android Studio**, com o Android SDK configurado.
+
+> Se você só quiser utilizar o aplicativo, não é necessário instalar nada disso. Basta baixar o arquivo `latest-release.apk` na área de Releases.
 
 Depois de instalar os requisitos:
 
