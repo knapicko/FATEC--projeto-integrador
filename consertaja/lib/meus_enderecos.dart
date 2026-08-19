@@ -28,6 +28,8 @@ class EnderecoEditData {
   final String cidade;
   final String estado;
   final String tipoEndereco;
+  final double? latitude;
+  final double? longitude;
 
   const EnderecoEditData({
     required this.idEndereco,
@@ -39,19 +41,23 @@ class EnderecoEditData {
     required this.cidade,
     required this.estado,
     required this.tipoEndereco,
+    this.latitude,
+    this.longitude,
   });
 }
 
 class _EnderecoItem {
-  final int? id; // fk_endereco / id_endereco
-  final String titulo; // apelido_endereco
+  final int? id;
+  final String titulo;
   final IconData icone;
+  final double? latitude;
+  final double? longitude;
   final String linha1;
   final String? linha2;
   final String? linha3;
   final String? cep;
   final bool exibirMapa;
-  final bool principal; // deriva de endereco_ativo
+  final bool principal;
   final String logradouro;
   final String numero;
   final String bairro;
@@ -62,9 +68,11 @@ class _EnderecoItem {
 
   const _EnderecoItem({
     this.id,
-    required this.titulo,
-    required this.icone,
-    required this.linha1,
+    this.titulo = 'Endereço',
+    this.icone = Icons.location_on_outlined,
+    this.latitude,
+    this.longitude,
+    this.linha1 = '',
     this.linha2,
     this.linha3,
     this.cep,
@@ -90,6 +98,8 @@ class _EnderecoItem {
       cidade: cidade,
       estado: estado,
       tipoEndereco: tipoEndereco,
+      latitude: latitude,
+      longitude: longitude,
     );
   }
 
@@ -98,6 +108,8 @@ class _EnderecoItem {
       id: id,
       titulo: titulo,
       icone: icone,
+      latitude: latitude,
+      longitude: longitude,
       linha1: linha1,
       linha2: linha2,
       linha3: linha3,
@@ -199,7 +211,7 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
         return;
       }
 
-      // 1. Busca associações do usuário (apelido + tipo + endereco_ativo)
+      // 1. Busca associações do usuário
       final assResponse = await supabase
           .from(_tabelaAssUsuarioEndereco)
           .select(
@@ -218,20 +230,13 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
       }
 
       // 2. Busca todos os endereços
-      final idEnderecos = <int>[];
-      for (final ass in assResponse) {
-        final fk = ass['fk_endereco'];
-        final id = fk is int ? fk : int.tryParse(fk?.toString() ?? '');
-        if (id != null) idEnderecos.add(id);
-      }
-
       final enderecosResponse = await supabase
           .from(_tabelaEndereco)
           .select(
-            'id_endereco, cep, logradouro, numero, bairro, complemento, fk_cidade',
+            'id_endereco, cep, logradouro, numero, bairro, complemento, fk_cidade, latitude, longitude',
           );
 
-      // 3. Busca cidades e estados para montar o endereço completo
+      // 3. Busca cidades e estados
       final cidadesResponse = await supabase
           .from(_tabelaCidade)
           .select('id_cidade, nome_cidade, fk_estado');
@@ -279,6 +284,8 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
         final complemento = itemRow['complemento']?.toString() ?? '';
         final cep = itemRow['cep']?.toString() ?? '';
         final fkCidade = itemRow['fk_cidade'];
+        final latDb = double.tryParse(itemRow['latitude']?.toString() ?? '');
+        final lngDb = double.tryParse(itemRow['longitude']?.toString() ?? '');
 
         final idCidade = fkCidade is int
             ? fkCidade
@@ -293,7 +300,6 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
             : int.tryParse(fkEstado?.toString() ?? '');
         final estado = idEstado != null ? estadosMap[idEstado] ?? '' : '';
 
-        // Titulo vem de tipo_endereco (Casa/Trabalho/Outro), com fallback para apelido
         final tipoEndereco =
             ass['tipo_endereco']?.toString() ??
             ass['apelido_endereco']?.toString() ??
@@ -319,6 +325,8 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
             id: idEndereco,
             titulo: titulo.toUpperCase(),
             icone: _iconeParaTitulo(titulo),
+            latitude: latDb,
+            longitude: lngDb,
             linha1: linha1.isNotEmpty ? linha1 : 'Endereço sem logradouro',
             linha2: linha2,
             linha3: linha3,
@@ -348,6 +356,12 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
           _carregando = false;
         });
       }
+
+      // Geocodifica o endereço principal se não tiver coordenadas salvas
+      final principal = enderecos.where((e) => e.principal).firstOrNull;
+      if (principal != null && principal.latitude == null) {
+        await _geocodificarEnderecoPrincipal(principal);
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -355,6 +369,80 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
           _carregando = false;
         });
       }
+    }
+  }
+
+  Future<void> _geocodificarEnderecoPrincipal(_EnderecoItem endereco) async {
+    try {
+      final logradouro = endereco.logradouro;
+      final numero = endereco.numero;
+      final bairro = endereco.bairro;
+      final cidade = endereco.cidade;
+      final uf = endereco.estado;
+
+      if (logradouro.isEmpty || cidade.isEmpty || uf.isEmpty) return;
+
+      final partes = <String>[
+        if (logradouro.isNotEmpty)
+          numero.isNotEmpty ? '$logradouro, $numero' : logradouro,
+        if (bairro.isNotEmpty) bairro,
+        cidade,
+        uf,
+        'Brasil',
+      ];
+      final query = Uri.encodeComponent(partes.join(', '));
+
+      final resposta = await http.get(
+        Uri.parse(
+          'https://nominatim.openstreetmap.org/search?q=$query&format=json&limit=1',
+        ),
+        headers: const {
+          'User-Agent': 'ConsertaJa/1.0 (contato@consertaja.com.br)',
+        },
+      );
+
+      if (!mounted) return;
+
+      if (resposta.statusCode == 200) {
+        final lista = jsonDecode(resposta.body) as List<dynamic>;
+        if (lista.isNotEmpty) {
+          final dados = lista.first as Map<String, dynamic>;
+          final lat = double.tryParse(dados['lat']?.toString() ?? '');
+          final lng = double.tryParse(dados['lon']?.toString() ?? '');
+
+          if (lat != null && lng != null) {
+            setState(() {
+              _enderecos = _enderecos.map((e) {
+                if (e.id == endereco.id) {
+                  return _EnderecoItem(
+                    id: e.id,
+                    titulo: e.titulo,
+                    icone: e.icone,
+                    latitude: lat,
+                    longitude: lng,
+                    linha1: e.linha1,
+                    linha2: e.linha2,
+                    linha3: e.linha3,
+                    cep: e.cep,
+                    exibirMapa: e.exibirMapa,
+                    principal: e.principal,
+                    logradouro: e.logradouro,
+                    numero: e.numero,
+                    bairro: e.bairro,
+                    complemento: e.complemento,
+                    cidade: e.cidade,
+                    estado: e.estado,
+                    tipoEndereco: e.tipoEndereco,
+                  );
+                }
+                return e;
+              }).toList();
+            });
+          }
+        }
+      }
+    } catch (_) {
+      // Falha silenciosa na geocodificação
     }
   }
 
@@ -740,6 +828,11 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
   }
 
   Widget _buildMapaMiniatura() {
+    final principal = _enderecos.where((e) => e.principal).firstOrNull;
+    final double? lat = principal?.latitude;
+    final double? lng = principal?.longitude;
+    final bool temCoordenadas = lat != null && lng != null;
+
     return Stack(
       children: [
         ClipRRect(
@@ -747,10 +840,46 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
           child: SizedBox(
             height: 130,
             width: double.infinity,
-            child: CustomPaint(
-              painter: _MapaPlaceholderPainter(),
-              child: Container(color: const Color(0xFFE8EDE8)),
-            ),
+            child: temCoordenadas
+                ? FlutterMap(
+                    options: MapOptions(
+                      initialCenter: LatLng(lat, lng),
+                      initialZoom: 16,
+                      minZoom: 3,
+                      maxZoom: 19,
+                      interactionOptions: const InteractionOptions(
+                        flags: InteractiveFlag.none,
+                      ),
+                    ),
+                    children: [
+                      TileLayer(
+                        urlTemplate:
+                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'br.com.consertaja',
+                        maxNativeZoom: 19,
+                        maxZoom: 19,
+                      ),
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: LatLng(lat, lng),
+                            width: 36,
+                            height: 36,
+                            alignment: Alignment.center,
+                            child: const Icon(
+                              Icons.location_on,
+                              color: _blue,
+                              size: 36,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  )
+                : CustomPaint(
+                    painter: _MapaPlaceholderPainter(),
+                    child: Container(color: const Color(0xFFE8EDE8)),
+                  ),
           ),
         ),
         Positioned(
@@ -1143,33 +1272,9 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
   static const Color _inputFill = Color(0xFFF5F5F5);
 
   static const List<String> _estados = [
-    'AC',
-    'AL',
-    'AP',
-    'AM',
-    'BA',
-    'CE',
-    'DF',
-    'ES',
-    'GO',
-    'MA',
-    'MT',
-    'MS',
-    'MG',
-    'PA',
-    'PB',
-    'PR',
-    'PE',
-    'PI',
-    'RJ',
-    'RN',
-    'RS',
-    'RO',
-    'RR',
-    'SC',
-    'SP',
-    'SE',
-    'TO',
+    'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS',
+    'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC',
+    'SP', 'SE', 'TO',
   ];
 
   final TextEditingController _cepController = TextEditingController();
@@ -1207,9 +1312,16 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
               ? edit.estado.toUpperCase()
               : null;
       _tipoSalvar = edit.tipoEndereco;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _geocodificarEndereco();
-      });
+
+      // Carrega coordenadas salvas se existirem
+      if (edit.latitude != null && edit.longitude != null) {
+        _mapLat = edit.latitude;
+        _mapLng = edit.longitude;
+      } else {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _geocodificarEndereco();
+        });
+      }
     }
 
     _numeroController.addListener(_agendarGeocodificacao);
@@ -1260,7 +1372,6 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
     setState(() => _buscandoCep = true);
 
     try {
-      // AwesomeAPI - API de CEP
       final resposta = await http.get(
         Uri.parse('https://cep.awesomeapi.com.br/json/$cep'),
       );
@@ -1417,7 +1528,6 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
   Future<void> _salvarEndereco() async {
     FocusScope.of(context).unfocus();
 
-    // Validação básica
     if (_logradouroController.text.trim().isEmpty ||
         _cidadeController.text.trim().isEmpty ||
         _estadoSelecionado == null) {
@@ -1467,7 +1577,6 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
         return;
       }
 
-      // Verifica se é o primeiro endereço do usuário (será o ativo/principal)
       final assResponse = await supabase
           .from(_tabelaAssUsuarioEndereco)
           .select('fk_endereco')
@@ -1528,7 +1637,7 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
             : int.parse(cidadeResponse['id_cidade'].toString());
       }
 
-      // 3. Salva ou atualiza o endereço
+      // 3. Salva ou atualiza o endereço (incluindo latitude/longitude do ponteiro)
       final dadosEndereco = {
         'cep': _cepController.text.trim(),
         'logradouro': _logradouroController.text.trim(),
@@ -1536,6 +1645,8 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
         'bairro': _bairroController.text.trim(),
         'complemento': _complementoController.text.trim(),
         'fk_cidade': idCidade,
+        if (_mapLat != null) 'latitude': _mapLat,
+        if (_mapLng != null) 'longitude': _mapLng,
       };
 
       if (widget.isEdicao) {
@@ -1716,29 +1827,17 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
                           maxNativeZoom: 19,
                           maxZoom: 19,
                         ),
-                        CircleLayer(
-                          circles: [
-                            CircleMarker(
-                              point: LatLng(lat, lng),
-                              radius: 80,
-                              useRadiusInMeter: true,
-                              color: _blue.withValues(alpha: 0.16),
-                              borderColor: _blue,
-                              borderStrokeWidth: 2,
-                            ),
-                          ],
-                        ),
                         MarkerLayer(
                           markers: [
                             Marker(
                               point: LatLng(lat, lng),
-                              width: 40,
-                              height: 40,
-                              alignment: Alignment.bottomCenter,
+                              width: 36,
+                              height: 36,
+                              alignment: Alignment.center,
                               child: const Icon(
                                 Icons.location_on,
                                 color: _blue,
-                                size: 40,
+                                size: 36,
                               ),
                             ),
                           ],
