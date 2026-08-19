@@ -1,24 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'minhas_postagens_profissional.dart';
+import 'models/postagem_resumo.dart';
+import 'services/postagens_profissional_service.dart';
 import 'tela_meu_perfil_profissional.dart';
 import 'utils/cor_oficio.dart';
 import 'widgets/tag_oficio.dart';
-
-class PostagemResumo {
-  final int idPostagem;
-  final String titulo;
-  final String? imagemUrl;
-  final DateTime dataPostagem;
-  final int curtidas;
-
-  const PostagemResumo({
-    required this.idPostagem,
-    required this.titulo,
-    this.imagemUrl,
-    required this.dataPostagem,
-    required this.curtidas,
-  });
-}
 
 class TelaHomeProfissional extends StatefulWidget {
   final bool isVisitante;
@@ -35,22 +22,9 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   static const Color _inputGray = Color(0xFFF0F2F5);
   static const Color _textMuted = Color(0xFF9CA3AF);
 
-  static const List<String> _mesesAbreviados = [
-    'Jan',
-    'Fev',
-    'Mar',
-    'Abr',
-    'Mai',
-    'Jun',
-    'Jul',
-    'Ago',
-    'Set',
-    'Out',
-    'Nov',
-    'Dez',
-  ];
-
   int _currentIndex = 0;
+
+  final TextEditingController _postagemController = TextEditingController();
 
   Future<Map<String, dynamic>?> _buscarDadosProfissional() async {
     try {
@@ -202,97 +176,6 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     } catch (e) {
       return null;
     }
-  }
-
-  Future<int?> _buscarIdPerfil() async {
-    try {
-      final supabase = Supabase.instance.client;
-      final user = supabase.auth.currentUser;
-      if (user == null) return null;
-
-      final usuarioResponse = await supabase
-          .from('usuarios')
-          .select('id_usuario')
-          .eq('auth_id', user.id)
-          .maybeSingle();
-      if (usuarioResponse == null) return null;
-
-      final dadosProf = await supabase
-          .from('dados_profissionais')
-          .select('fk_perfil')
-          .eq('fk_usuario', usuarioResponse['id_usuario'])
-          .maybeSingle();
-      if (dadosProf == null) return null;
-
-      return (dadosProf['fk_perfil'] as num?)?.toInt();
-    } catch (e) {
-      return null;
-    }
-  }
-
-  Future<List<PostagemResumo>> _buscarPostagens() async {
-    try {
-      final idPerfil = await _buscarIdPerfil();
-      if (idPerfil == null) return [];
-
-      final supabase = Supabase.instance.client;
-      final rows = await supabase
-          .from('postagens')
-          .select('id_postagem, conteudo, data_postagem')
-          .eq('fk_perfil', idPerfil)
-          .eq('arquivado', false)
-          .order('data_postagem', ascending: false)
-          .limit(10);
-
-      final postagens = <PostagemResumo>[];
-      for (final row in rows) {
-        final idPostagem = (row['id_postagem'] as num).toInt();
-        final conteudo = row['conteudo']?.toString().trim() ?? '';
-        final dataRaw = row['data_postagem']?.toString();
-        final dataPostagem = dataRaw != null
-            ? DateTime.tryParse(dataRaw) ?? DateTime.now()
-            : DateTime.now();
-
-        String? imagemUrl;
-        String titulo = conteudo;
-        if (conteudo.startsWith('http://') || conteudo.startsWith('https://')) {
-          imagemUrl = conteudo;
-          titulo = 'Postagem';
-        } else if (titulo.isEmpty) {
-          titulo = 'Sem título';
-        }
-
-        int curtidas = 0;
-        try {
-          final curtidasRows = await supabase
-              .from('curtidas_postagem')
-              .select('id_curtida_postagem')
-              .eq('fk_postagem', idPostagem);
-          curtidas = curtidasRows.length;
-        } catch (_) {
-          curtidas = 0;
-        }
-
-        postagens.add(
-          PostagemResumo(
-            idPostagem: idPostagem,
-            titulo: titulo,
-            imagemUrl: imagemUrl,
-            dataPostagem: dataPostagem,
-            curtidas: curtidas,
-          ),
-        );
-      }
-
-      return postagens;
-    } catch (e) {
-      return [];
-    }
-  }
-
-  String _formatarDataPostagem(DateTime data) {
-    final mes = _mesesAbreviados[data.month - 1];
-    return '${data.day} $mes ${data.year}';
   }
 
   PageRouteBuilder _rotaSemAnimacao(Widget page) {
@@ -519,16 +402,6 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
             ),
             const SizedBox(height: 20),
 
-            // ================= SUAS POSTAGENS =================
-            FutureBuilder<List<PostagemResumo>>(
-              future: _buscarPostagens(),
-              builder: (context, snapshot) {
-                final postagens = snapshot.data ?? [];
-                return _buildSecaoPostagens(postagens);
-              },
-            ),
-            const SizedBox(height: 20),
-
             // ================= RADAR GEOGRÁFICO =================
             const Row(
               children: [
@@ -717,6 +590,16 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                   ),
                 ],
               ),
+            ),
+            const SizedBox(height: 20),
+
+            // ================= SUAS POSTAGENS =================
+            FutureBuilder<List<PostagemResumo>>(
+              future: PostagensProfissionalService.buscarPostagens(limit: 10),
+              builder: (context, snapshot) {
+                final postagens = snapshot.data ?? [];
+                return _buildSecaoPostagens(postagens);
+              },
             ),
             const SizedBox(height: 20),
           ],
@@ -997,7 +880,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                   ),
                 ),
               ),
-            ),
+              ),
           ),
           const SizedBox(width: 8),
           Material(
@@ -1024,8 +907,8 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                         decoration: const BoxDecoration(
                           color: _primaryBlue,
                           shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
+                ),
+                 child: const Icon(
                           Icons.add,
                           color: Colors.white,
                           size: 10,
@@ -1059,7 +942,13 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
               ),
             ),
             GestureDetector(
-              onTap: () {},
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const MinhasPostagensProfissionalPage(),
+                  ),
+                );
+              },
               child: Text(
                 'Ver todas',
                 style: TextStyle(
@@ -1160,7 +1049,9 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                     children: [
                       Expanded(
                         child: Text(
-                          _formatarDataPostagem(postagem.dataPostagem),
+                          PostagensProfissionalService.formatarDataPostagem(
+                            postagem.dataPostagem,
+                          ),
                           style: const TextStyle(
                             fontSize: 10,
                             color: _textMuted,
