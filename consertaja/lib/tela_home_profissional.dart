@@ -1,4 +1,8 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'minhas_postagens_profissional.dart';
 import 'models/postagem_resumo.dart';
@@ -25,6 +29,30 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   int _currentIndex = 0;
 
   final TextEditingController _postagemController = TextEditingController();
+  final ImagePicker _picker = ImagePicker();
+
+  // Futures cacheados para evitar recarregamento ao rolar a tela
+  late Future<Map<String, dynamic>?> _dadosProfissionalFuture;
+  late Future<String?> _enderecoFuture;
+  late Future<List<OficioInfo>?> _oficiosFuture;
+  late Future<List<PostagemResumo>> _postagensFuture;
+
+  // Estado da criação de postagem
+  List<XFile> _imagensSelecionadas = [];
+  bool _enviandoPostagem = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _inicializarFutures();
+  }
+
+  void _inicializarFutures() {
+    _dadosProfissionalFuture = _buscarDadosProfissional();
+    _enderecoFuture = _buscarEndereco();
+    _oficiosFuture = _buscarOficios();
+    _postagensFuture = PostagensProfissionalService.buscarPostagens(limit: 10);
+  }
 
   Future<Map<String, dynamic>?> _buscarDadosProfissional() async {
     try {
@@ -200,6 +228,345 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     );
   }
 
+  // ================= CRIAÇÃO DE POSTAGEM =================
+
+  Future<void> _abrirCriacaoPostagem({
+    required String? fotoUrl,
+    required String nome,
+  }) async {
+    _postagemController.clear();
+    setState(() {
+      _imagensSelecionadas = [];
+      _enviandoPostagem = false;
+    });
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 16,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 20,
+                        backgroundColor: const Color(0xFFE1F5FE),
+                        backgroundImage:
+                            fotoUrl != null ? NetworkImage(fotoUrl) : null,
+                        child: fotoUrl == null
+                            ? Text(
+                                nome.isNotEmpty ? nome[0].toUpperCase() : 'P',
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  color: _primaryBlue,
+                                ),
+                              )
+                            : null,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          nome,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: _titleDark,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _postagemController,
+                    maxLines: 4,
+                    minLines: 2,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      hintText: 'No que você está trabalhando hoje?',
+                      hintStyle: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade500,
+                      ),
+                      filled: true,
+                      fillColor: _inputGray,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: _primaryBlue,
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (_imagensSelecionadas.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 90,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _imagensSelecionadas.length,
+                        separatorBuilder: (_, _) => const SizedBox(width: 8),
+                        itemBuilder: (context, index) {
+                          final imagem = _imagensSelecionadas[index];
+                          return Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: kIsWeb
+                                    ? Image.network(
+                                        imagem.path,
+                                        width: 90,
+                                        height: 90,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, _, _) =>
+                                            _buildPlaceholderImagemSelecionada(),
+                                      )
+                                    : Image.file(
+                                        File(imagem.path),
+                                        width: 90,
+                                        height: 90,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, _, _) =>
+                                            _buildPlaceholderImagemSelecionada(),
+                                      ),
+                              ),
+                              Positioned(
+                                right: -6,
+                                top: -6,
+                                child: GestureDetector(
+                                  onTap: () {
+                                    setModalState(() {
+                                      _imagensSelecionadas.removeAt(index);
+                                    });
+                                  },
+                                  child: Container(
+                                    width: 22,
+                                    height: 22,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.close,
+                                      color: Colors.white,
+                                      size: 14,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      // Botão de anexar foto
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: _enviandoPostagem
+                              ? null
+                              : () => _escolherImagens(setModalState),
+                          borderRadius: BorderRadius.circular(20),
+                          child: Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                const Icon(
+                                  Icons.photo_camera_outlined,
+                                  color: _primaryBlue,
+                                  size: 26,
+                                ),
+                                Positioned(
+                                  right: -2,
+                                  top: -2,
+                                  child: Container(
+                                    width: 14,
+                                    height: 14,
+                                    decoration: const BoxDecoration(
+                                      color: _primaryBlue,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.add,
+                                      color: Colors.white,
+                                      size: 10,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // Botão de enviar postagem (avião de papel)
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: _enviandoPostagem
+                              ? null
+                              : () => _enviarPostagem(setModalState),
+                          borderRadius: BorderRadius.circular(20),
+                          child: Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: _enviandoPostagem
+                                ? const SizedBox(
+                                    width: 26,
+                                    height: 26,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                      color: _primaryBlue,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.send_outlined,
+                                    color: _primaryBlue,
+                                    size: 26,
+                                  ),
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '${_imagensSelecionadas.length} foto(s)',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _escolherImagens(StateSetter setModalState) async {
+    try {
+      final pickedFiles = await _picker.pickMultiImage(
+        maxWidth: 1280,
+        maxHeight: 1280,
+        imageQuality: 85,
+      );
+
+      if (pickedFiles.isEmpty) return;
+
+      setModalState(() {
+        _imagensSelecionadas = [..._imagensSelecionadas, ...pickedFiles];
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao selecionar imagens: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _enviarPostagem(StateSetter setModalState) async {
+    final conteudo = _postagemController.text.trim();
+    if (conteudo.isEmpty && _imagensSelecionadas.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Escreva algo ou anexe uma foto para postar.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    setModalState(() => _enviandoPostagem = true);
+
+    final resultado = await PostagensProfissionalService.criarPostagem(
+      conteudo: conteudo,
+      imagens: _imagensSelecionadas,
+    );
+
+    if (!mounted) return;
+
+    if (resultado.sucesso) {
+      Navigator.of(context).pop();
+      setState(() {
+        _imagensSelecionadas = [];
+        _enviandoPostagem = false;
+        _postagensFuture =
+            PostagensProfissionalService.buscarPostagens(limit: 10);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Postagem publicada com sucesso!')),
+      );
+    } else {
+      setModalState(() => _enviandoPostagem = false);
+      debugPrint('❌ [tela_home_profissional] Falha ao publicar: ${resultado.erro}');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(resultado.erro ?? 'Erro ao publicar postagem.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Widget _buildPlaceholderImagemSelecionada() {
+    return Container(
+      width: 90,
+      height: 90,
+      color: const Color(0xFFE8EDF2),
+      child: Center(
+        child: Icon(
+          Icons.image_outlined,
+          size: 28,
+          color: Colors.grey.shade400,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -210,20 +577,20 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           children: [
             // ================= CARTÃO DE PERFIL =================
             FutureBuilder<Map<String, dynamic>?>(
-              future: _buscarDadosProfissional(),
+              future: _dadosProfissionalFuture,
               builder: (context, snapshot) {
                 final nomeCompleto =
                     snapshot.data?['nome'] as String? ?? 'Caneta Azul';
                 final fotoUrl = snapshot.data?['foto_perfil_url'] as String?;
 
                 return FutureBuilder<String?>(
-                  future: _buscarEndereco(),
+                  future: _enderecoFuture,
                   builder: (context, enderecoSnapshot) {
                     final enderecoTexto = enderecoSnapshot.data ??
                         'Nenhum endereço cadastrado';
 
                     return FutureBuilder<List<OficioInfo>?>(
-                      future: _buscarOficios(),
+                      future: _oficiosFuture,
                       builder: (context, oficiosSnapshot) {
                         final oficios = oficiosSnapshot.data ?? <OficioInfo>[];
 
@@ -372,7 +739,8 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                   runSpacing: 8,
                                   alignment: WrapAlignment.end,
                                   children: oficios
-                                      .map((oficio) => TagOficio(oficio: oficio))
+                                      .map((oficio) =>
+                                          TagOficio(oficio: oficio))
                                       .toList(),
                                 ),
                               ],
@@ -389,7 +757,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
 
             // ================= CRIAR POSTAGEM =================
             FutureBuilder<Map<String, dynamic>?>(
-              future: _buscarDadosProfissional(),
+              future: _dadosProfissionalFuture,
               builder: (context, snapshot) {
                 final nomeCompleto =
                     snapshot.data?['nome'] as String? ?? 'Profissional';
@@ -595,7 +963,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
 
             // ================= SUAS POSTAGENS =================
             FutureBuilder<List<PostagemResumo>>(
-              future: PostagensProfissionalService.buscarPostagens(limit: 10),
+              future: _postagensFuture,
               builder: (context, snapshot) {
                 final postagens = snapshot.data ?? [];
                 return _buildSecaoPostagens(postagens);
@@ -859,7 +1227,10 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
             child: Material(
               color: Colors.transparent,
               child: InkWell(
-                onTap: () {},
+                onTap: () => _abrirCriacaoPostagem(
+                  fotoUrl: fotoUrl,
+                  nome: nome,
+                ),
                 borderRadius: BorderRadius.circular(24),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
@@ -880,13 +1251,16 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                   ),
                 ),
               ),
-              ),
+            ),
           ),
           const SizedBox(width: 8),
           Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: () {},
+              onTap: () => _abrirCriacaoPostagem(
+                fotoUrl: fotoUrl,
+                nome: nome,
+              ),
               borderRadius: BorderRadius.circular(20),
               child: Padding(
                 padding: const EdgeInsets.all(4),
@@ -907,8 +1281,8 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                         decoration: const BoxDecoration(
                           color: _primaryBlue,
                           shape: BoxShape.circle,
-                ),
-                 child: const Icon(
+                        ),
+                        child: const Icon(
                           Icons.add,
                           color: Colors.white,
                           size: 10,
@@ -916,6 +1290,26 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                       ),
                     ),
                   ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Botão de enviar postagem (avião de papel)
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => _abrirCriacaoPostagem(
+                fotoUrl: fotoUrl,
+                nome: nome,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              child: const Padding(
+                padding: EdgeInsets.all(4),
+                child: Icon(
+                  Icons.send_outlined,
+                  color: _primaryBlue,
+                  size: 26,
                 ),
               ),
             ),
