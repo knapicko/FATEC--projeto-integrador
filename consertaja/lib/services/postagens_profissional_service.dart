@@ -251,6 +251,17 @@ class PostagensProfissionalService {
       final idPerfil = await buscarIdPerfil();
       if (idPerfil == null) return [];
 
+      return buscarPostagensPorPerfil(idPerfil, limit: limit);
+    } catch (e) {
+      return [];
+    }
+  }
+
+  static Future<List<PostagemResumo>> buscarPostagensPorPerfil(
+    int idPerfil, {
+    int? limit,
+  }) async {
+    try {
       final supabase = Supabase.instance.client;
       var query = supabase
           .from('postagens')
