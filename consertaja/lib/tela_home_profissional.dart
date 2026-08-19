@@ -4,6 +4,22 @@ import 'tela_meu_perfil_profissional.dart';
 import 'utils/cor_oficio.dart';
 import 'widgets/tag_oficio.dart';
 
+class PostagemResumo {
+  final int idPostagem;
+  final String titulo;
+  final String? imagemUrl;
+  final DateTime dataPostagem;
+  final int curtidas;
+
+  const PostagemResumo({
+    required this.idPostagem,
+    required this.titulo,
+    this.imagemUrl,
+    required this.dataPostagem,
+    required this.curtidas,
+  });
+}
+
 class TelaHomeProfissional extends StatefulWidget {
   final bool isVisitante;
   const TelaHomeProfissional({super.key, required this.isVisitante});
@@ -16,6 +32,23 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   static const Color _primaryBlue = Color(0xFF0FB3FF);
   static const Color _background = Color(0xFFF8FAFC);
   static const Color _titleDark = Color(0xFF1A2B4A);
+  static const Color _inputGray = Color(0xFFF0F2F5);
+  static const Color _textMuted = Color(0xFF9CA3AF);
+
+  static const List<String> _mesesAbreviados = [
+    'Jan',
+    'Fev',
+    'Mar',
+    'Abr',
+    'Mai',
+    'Jun',
+    'Jul',
+    'Ago',
+    'Set',
+    'Out',
+    'Nov',
+    'Dez',
+  ];
 
   int _currentIndex = 0;
 
@@ -169,6 +202,97 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     } catch (e) {
       return null;
     }
+  }
+
+  Future<int?> _buscarIdPerfil() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user == null) return null;
+
+      final usuarioResponse = await supabase
+          .from('usuarios')
+          .select('id_usuario')
+          .eq('auth_id', user.id)
+          .maybeSingle();
+      if (usuarioResponse == null) return null;
+
+      final dadosProf = await supabase
+          .from('dados_profissionais')
+          .select('fk_perfil')
+          .eq('fk_usuario', usuarioResponse['id_usuario'])
+          .maybeSingle();
+      if (dadosProf == null) return null;
+
+      return (dadosProf['fk_perfil'] as num?)?.toInt();
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<List<PostagemResumo>> _buscarPostagens() async {
+    try {
+      final idPerfil = await _buscarIdPerfil();
+      if (idPerfil == null) return [];
+
+      final supabase = Supabase.instance.client;
+      final rows = await supabase
+          .from('postagens')
+          .select('id_postagem, conteudo, data_postagem')
+          .eq('fk_perfil', idPerfil)
+          .eq('arquivado', false)
+          .order('data_postagem', ascending: false)
+          .limit(10);
+
+      final postagens = <PostagemResumo>[];
+      for (final row in rows) {
+        final idPostagem = (row['id_postagem'] as num).toInt();
+        final conteudo = row['conteudo']?.toString().trim() ?? '';
+        final dataRaw = row['data_postagem']?.toString();
+        final dataPostagem = dataRaw != null
+            ? DateTime.tryParse(dataRaw) ?? DateTime.now()
+            : DateTime.now();
+
+        String? imagemUrl;
+        String titulo = conteudo;
+        if (conteudo.startsWith('http://') || conteudo.startsWith('https://')) {
+          imagemUrl = conteudo;
+          titulo = 'Postagem';
+        } else if (titulo.isEmpty) {
+          titulo = 'Sem título';
+        }
+
+        int curtidas = 0;
+        try {
+          final curtidasRows = await supabase
+              .from('curtidas_postagem')
+              .select('id_curtida_postagem')
+              .eq('fk_postagem', idPostagem);
+          curtidas = curtidasRows.length;
+        } catch (_) {
+          curtidas = 0;
+        }
+
+        postagens.add(
+          PostagemResumo(
+            idPostagem: idPostagem,
+            titulo: titulo,
+            imagemUrl: imagemUrl,
+            dataPostagem: dataPostagem,
+            curtidas: curtidas,
+          ),
+        );
+      }
+
+      return postagens;
+    } catch (e) {
+      return [];
+    }
+  }
+
+  String _formatarDataPostagem(DateTime data) {
+    final mes = _mesesAbreviados[data.month - 1];
+    return '${data.day} $mes ${data.year}';
   }
 
   PageRouteBuilder _rotaSemAnimacao(Widget page) {
@@ -376,6 +500,31 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                     );
                   },
                 );
+              },
+            ),
+            const SizedBox(height: 16),
+
+            // ================= CRIAR POSTAGEM =================
+            FutureBuilder<Map<String, dynamic>?>(
+              future: _buscarDadosProfissional(),
+              builder: (context, snapshot) {
+                final nomeCompleto =
+                    snapshot.data?['nome'] as String? ?? 'Profissional';
+                final fotoUrl = snapshot.data?['foto_perfil_url'] as String?;
+                return _buildCaixaCriacaoPostagem(
+                  fotoUrl: fotoUrl,
+                  nome: nomeCompleto,
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+
+            // ================= SUAS POSTAGENS =================
+            FutureBuilder<List<PostagemResumo>>(
+              future: _buscarPostagens(),
+              builder: (context, snapshot) {
+                final postagens = snapshot.data ?? [];
+                return _buildSecaoPostagens(postagens);
               },
             ),
             const SizedBox(height: 20),
@@ -794,6 +943,265 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           }),
         ),
       ],
+    );
+  }
+
+  Widget _buildCaixaCriacaoPostagem({
+    required String? fotoUrl,
+    required String nome,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: _cardDecoration(),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 22,
+            backgroundColor: const Color(0xFFE1F5FE),
+            backgroundImage:
+                fotoUrl != null ? NetworkImage(fotoUrl) : null,
+            child: fotoUrl == null
+                ? Text(
+                    nome.isNotEmpty ? nome[0].toUpperCase() : 'P',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: _primaryBlue,
+                    ),
+                  )
+                : null,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {},
+                borderRadius: BorderRadius.circular(24),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _inputGray,
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Text(
+                    'No que você está trabalhando hoje?',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {},
+              borderRadius: BorderRadius.circular(20),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Icon(
+                      Icons.photo_camera_outlined,
+                      color: _primaryBlue,
+                      size: 26,
+                    ),
+                    Positioned(
+                      right: -2,
+                      top: -2,
+                      child: Container(
+                        width: 14,
+                        height: 14,
+                        decoration: const BoxDecoration(
+                          color: _primaryBlue,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.add,
+                          color: Colors.white,
+                          size: 10,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSecaoPostagens(List<PostagemResumo> postagens) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Suas Postagens',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: _titleDark,
+                ),
+              ),
+            ),
+            GestureDetector(
+              onTap: () {},
+              child: Text(
+                'Ver todas',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (postagens.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 28),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.photo_library_outlined,
+                  size: 32,
+                  color: Colors.grey.shade400,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Nenhuma postagem ainda',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          SizedBox(
+            height: 210,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: postagens.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 12),
+              itemBuilder: (context, index) {
+                return _buildCardPostagem(postagens[index]);
+              },
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildCardPostagem(PostagemResumo postagem) {
+    return Container(
+      width: 150,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            height: 100,
+            width: double.infinity,
+            child: postagem.imagemUrl != null
+                ? Image.network(
+                    postagem.imagemUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => _buildPlaceholderImagemPostagem(),
+                  )
+                : _buildPlaceholderImagemPostagem(),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    postagem.titulo,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: _titleDark,
+                      height: 1.2,
+                    ),
+                  ),
+                  const Spacer(),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _formatarDataPostagem(postagem.dataPostagem),
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: _textMuted,
+                          ),
+                        ),
+                      ),
+                      const Icon(
+                        Icons.favorite_border,
+                        size: 14,
+                        color: _textMuted,
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        postagem.curtidas.toString(),
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: _textMuted,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlaceholderImagemPostagem() {
+    return Container(
+      color: const Color(0xFFE8EDF2),
+      child: Center(
+        child: Icon(
+          Icons.image_outlined,
+          size: 32,
+          color: Colors.grey.shade400,
+        ),
+      ),
     );
   }
 

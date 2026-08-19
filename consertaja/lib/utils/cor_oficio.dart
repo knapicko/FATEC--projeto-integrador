@@ -27,19 +27,13 @@ class CorOficio {
   static const Map<String, Color> _coresNomeadas = {
     'vinho': Color(0xFF722F37),
     'roxo': Color(0xFF7B5EA7),
-    'lavanda': Color(0xFF9575CD),
-    'azul': Color(0xFF0FB3FF),
+    'magenta': Color(0xFFB606B6),
+    'azul escuro': Color(0xFF0C06FF),
     'verde': Color(0xFF43A047),
-    'laranja': Color(0xFFE65100),
     'vermelho': Color(0xFFE53935),
-    'amarelo': Color(0xFFFFB300),
     'marrom': Color(0xFF6D4C41),
-    'cinza': Color(0xFF616161),
-    'rosa': Color(0xFFE91E63),
-    'turquesa': Color(0xFF00ACC1),
-    'ciano': Color(0xFF00ACC1),
-    'indigo': Color(0xFF3949AB),
-    'teal': Color(0xFF00897B),
+    'cinza': Color(0xFF676768),
+    'azul claro': Color(0xFF0FB3FF),
   };
 
   static Color parse(String? valor) {
