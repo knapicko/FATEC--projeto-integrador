@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'main.dart';
 import 'perfil_loja.dart';
 import 'perfil_profissional.dart';
+import 'meus_enderecos.dart';
 import 'tela_meu_perfil_cliente.dart';
 import 'tela_busca.dart';
 import 'utils/cor_oficio.dart';
@@ -101,14 +102,38 @@ class PerfilPopular {
   });
 }
 
-class TelaHome extends StatelessWidget {
+class EnderecoHomeResumo {
+  final int idEndereco;
+  final String titulo;
+  final String tipoEndereco;
+  final String enderecoFormatado;
+  final bool principal;
+
+  const EnderecoHomeResumo({
+    required this.idEndereco,
+    required this.titulo,
+    required this.tipoEndereco,
+    required this.enderecoFormatado,
+    required this.principal,
+  });
+}
+
+class TelaHome extends StatefulWidget {
   final bool isVisitante;
 
-  TelaHome({super.key, required this.isVisitante});
+  const TelaHome({super.key, required this.isVisitante});
+
+  @override
+  State<TelaHome> createState() => _TelaHomeState();
+}
+
+class _TelaHomeState extends State<TelaHome> {
 
   static const Color _primaryBlue = Color(0xFF0FB3FF);
   static const Color _ratingBg = Color(0xFFFFF8E1);
   static const Color _ratingText = Color(0xFFE65100);
+
+  late Future<List<EnderecoHomeResumo>> _enderecosFuture;
 
   final List<ServicoPopular> listaServicos = [
     ServicoPopular(
@@ -262,6 +287,219 @@ class TelaHome extends StatelessWidget {
     ),
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _enderecosFuture = _carregarEnderecosCliente();
+  }
+
+  Future<int?> _buscarIdUsuario(SupabaseClient supabase, String authId) async {
+    final usuarioResponse = await supabase
+        .from('usuarios')
+        .select('id_usuario')
+        .eq('auth_id', authId)
+        .maybeSingle();
+
+    if (usuarioResponse == null) return null;
+    final idUsuario = usuarioResponse['id_usuario'];
+    return idUsuario is int
+        ? idUsuario
+        : int.tryParse(idUsuario?.toString() ?? '');
+  }
+
+  String _capitalizar(String texto) {
+    final limpo = texto.trim();
+    if (limpo.isEmpty) return limpo;
+    return limpo[0].toUpperCase() + limpo.substring(1).toLowerCase();
+  }
+
+  String _tipoEnderecoExibicao(String? tipo) {
+    final texto = tipo?.trim() ?? '';
+    if (texto.isEmpty) return 'Outro';
+    final normalizado = texto.toLowerCase();
+    if (normalizado.contains('casa')) return 'Casa';
+    if (normalizado.contains('trabalho')) return 'Trabalho';
+    if (normalizado.contains('outro')) return 'Outro';
+    return _capitalizar(texto);
+  }
+
+  String _formatarEnderecoCompleto(Map<String, dynamic> row, String cidade, String estado) {
+    final logradouro = row['logradouro']?.toString().trim() ?? '';
+    final numero = row['numero']?.toString().trim() ?? '';
+    final bairro = row['bairro']?.toString().trim() ?? '';
+    final complemento = row['complemento']?.toString().trim() ?? '';
+
+    final primeiraLinha = [
+      if (logradouro.isNotEmpty) logradouro,
+      if (numero.isNotEmpty) numero,
+    ].join(numero.isNotEmpty ? ', ' : '');
+
+    final partes = <String>[];
+    if (primeiraLinha.isNotEmpty) partes.add(primeiraLinha);
+    if (bairro.isNotEmpty) partes.add(bairro);
+    if (complemento.isNotEmpty) partes.add(complemento);
+
+    final cidadeEstado = [
+      if (cidade.isNotEmpty) cidade,
+      if (estado.isNotEmpty) estado,
+    ].join(estado.isNotEmpty ? ' - ' : '');
+
+    if (cidadeEstado.isNotEmpty) partes.add(cidadeEstado);
+
+    return partes.join(', ');
+  }
+
+  Future<List<EnderecoHomeResumo>> _carregarEnderecosCliente() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user == null) return [];
+
+      final usuarioId = await _buscarIdUsuario(supabase, user.id);
+      if (usuarioId == null) return [];
+
+      final assResponse = await supabase
+          .from('ass_usuario_endereco')
+          .select('fk_endereco, apelido_endereco, tipo_endereco, endereco_ativo')
+          .eq('fk_usuario', usuarioId);
+
+      if (assResponse.isEmpty) return [];
+
+      final enderecosResponse = await supabase
+          .from('enderecos')
+          .select('id_endereco, logradouro, numero, bairro, complemento, fk_cidade');
+
+      final cidadesResponse = await supabase
+          .from('cidades')
+          .select('id_cidade, nome_cidade, fk_estado');
+
+      final estadosResponse = await supabase
+          .from('estados')
+          .select('id_estado, sigla_estado');
+
+      final Map<int, Map<String, dynamic>> cidadesMap = {};
+      for (final cidade in cidadesResponse) {
+        final idCidade = cidade['id_cidade'] is int
+            ? cidade['id_cidade'] as int
+            : int.tryParse(cidade['id_cidade']?.toString() ?? '');
+        if (idCidade != null) cidadesMap[idCidade] = Map<String, dynamic>.from(cidade);
+      }
+
+      final Map<int, String> estadosMap = {};
+      for (final estado in estadosResponse) {
+        final idEstado = estado['id_estado'] is int
+            ? estado['id_estado'] as int
+            : int.tryParse(estado['id_estado']?.toString() ?? '');
+        if (idEstado != null) {
+          estadosMap[idEstado] = estado['sigla_estado']?.toString() ?? '';
+        }
+      }
+
+      final enderecos = <EnderecoHomeResumo>[];
+      for (final ass in assResponse) {
+        final fkEndereco = ass['fk_endereco'];
+        final idEndereco = fkEndereco is int
+            ? fkEndereco
+            : int.tryParse(fkEndereco?.toString() ?? '');
+        if (idEndereco == null) continue;
+
+        final enderecoRow = enderecosResponse.firstWhere(
+          (row) {
+            final id = row['id_endereco'];
+            final idRow = id is int ? id : int.tryParse(id?.toString() ?? '');
+            return idRow == idEndereco;
+          },
+          orElse: () => const {},
+        );
+
+        final fkCidade = enderecoRow['fk_cidade'];
+        final idCidade = fkCidade is int
+            ? fkCidade
+            : int.tryParse(fkCidade?.toString() ?? '');
+        final cidadeInfo = idCidade != null ? cidadesMap[idCidade] : null;
+        final cidade = cidadeInfo?['nome_cidade']?.toString() ?? '';
+
+        final fkEstado = cidadeInfo?['fk_estado'];
+        final idEstado = fkEstado is int
+            ? fkEstado
+            : int.tryParse(fkEstado?.toString() ?? '');
+        final estado = idEstado != null ? estadosMap[idEstado] ?? '' : '';
+
+        final apelido = ass['apelido_endereco']?.toString().trim() ?? '';
+        final tipoEndereco = _tipoEnderecoExibicao(ass['tipo_endereco']?.toString());
+        final principal = ass['endereco_ativo'] == true;
+
+        enderecos.add(
+          EnderecoHomeResumo(
+            idEndereco: idEndereco,
+            titulo: apelido.isNotEmpty ? apelido : tipoEndereco,
+            tipoEndereco: tipoEndereco,
+            enderecoFormatado: _formatarEnderecoCompleto(enderecoRow, cidade, estado),
+            principal: principal,
+          ),
+        );
+      }
+
+      enderecos.sort((a, b) {
+        if (a.principal == b.principal) return 0;
+        return a.principal ? -1 : 1;
+      });
+
+      return enderecos;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> _definirEnderecoPrincipal(int idEndereco) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user == null) return;
+
+      final usuarioId = await _buscarIdUsuario(supabase, user.id);
+      if (usuarioId == null) return;
+
+      await supabase
+          .from('ass_usuario_endereco')
+          .update({'endereco_ativo': false})
+          .eq('fk_usuario', usuarioId);
+
+      await supabase
+          .from('ass_usuario_endereco')
+          .update({'endereco_ativo': true})
+          .eq('fk_usuario', usuarioId)
+          .eq('fk_endereco', idEndereco);
+
+      if (!mounted) return;
+      setState(() {
+        _enderecosFuture = _carregarEnderecosCliente();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Endereço definido como principal.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao trocar o endereço principal: $e')),
+      );
+    }
+  }
+
+  Future<void> _abrirMeusEnderecos() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => MeusEnderecosPage(isVisitante: widget.isVisitante),
+      ),
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _enderecosFuture = _carregarEnderecosCliente();
+    });
+  }
+
   Future<Map<String, dynamic>?> _buscarDadosUsuario() async {
     try {
       final supabase = Supabase.instance.client;
@@ -370,10 +608,10 @@ class TelaHome extends StatelessWidget {
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text(
-            isVisitante ? 'Sair do Modo Visitante' : 'Confirmar Saída',
+            widget.isVisitante ? 'Sair do Modo Visitante' : 'Confirmar Saída',
           ),
           content: Text(
-            isVisitante
+            widget.isVisitante
                 ? 'Deseja realmente voltar para a tela de escolha de conta?'
                 : 'Deseja realmente sair da sua conta?',
           ),
@@ -386,7 +624,7 @@ class TelaHome extends StatelessWidget {
               onPressed: () async {
                 Navigator.of(context, rootNavigator: true).pop();
 
-                if (!isVisitante) {
+                if (!widget.isVisitante) {
                   await Supabase.instance.client.auth.signOut();
                 }
 
@@ -412,14 +650,14 @@ class TelaHome extends StatelessWidget {
   void _navegarParaPerfil(BuildContext context) {
     Navigator.of(context).pushReplacement(
       _rotaSemAnimacao(
-        TelaMeuPerfilClientePage(isVisitante: isVisitante),
+        TelaMeuPerfilClientePage(isVisitante: widget.isVisitante),
       ),
     );
   }
 
   void _navegarParaBusca(BuildContext context) {
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => TelaBusca(isVisitante: isVisitante)),
+      MaterialPageRoute(builder: (_) => TelaBusca(isVisitante: widget.isVisitante)),
     );
   }
 
@@ -544,6 +782,187 @@ class TelaHome extends StatelessWidget {
     );
   }
 
+  Widget _buildEnderecoAtual() {
+    return FutureBuilder<List<EnderecoHomeResumo>>(
+      future: _enderecosFuture,
+      builder: (context, snapshot) {
+        final enderecos = snapshot.data ?? <EnderecoHomeResumo>[];
+        final enderecoPrincipal = enderecos.isNotEmpty
+            ? enderecos.firstWhere(
+                (endereco) => endereco.principal,
+                orElse: () => enderecos.first,
+              )
+            : null;
+
+        Widget conteudo() {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'LOCALIZAÇÃO ATUAL',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade500,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.location_on,
+                    color: _primaryBlue,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 2),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          enderecoPrincipal?.enderecoFormatado ??
+                              'Nenhum endereço cadastrado',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Row(
+                          children: [
+                            if (enderecoPrincipal != null)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _primaryBlue.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  enderecoPrincipal.tipoEndereco,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: _primaryBlue,
+                                  ),
+                                ),
+                              )
+                            else
+                              Expanded(
+                                child: Text(
+                                  'Toque para cadastrar um endereço',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              enderecoPrincipal != null && enderecos.length > 1
+                                  ? Icons.keyboard_arrow_down
+                                  : Icons.keyboard_arrow_right,
+                              color: Colors.grey.shade700,
+                              size: 20,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        }
+
+        if (enderecos.length > 1) {
+          return PopupMenuButton<int>(
+            tooltip: 'Selecionar endereço',
+            offset: const Offset(0, 50),
+            onSelected: (idEndereco) {
+              final selecionado = enderecos.firstWhere(
+                (endereco) => endereco.idEndereco == idEndereco,
+                orElse: () => enderecoPrincipal ?? enderecos.first,
+              );
+              if (!selecionado.principal) {
+                _definirEnderecoPrincipal(selecionado.idEndereco);
+              }
+            },
+            itemBuilder: (context) => enderecos
+                .map(
+                  (endereco) => PopupMenuItem<int>(
+                    value: endereco.idEndereco,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 280),
+                      child: Row(
+                        children: [
+                          Icon(
+                            endereco.principal
+                                ? Icons.location_on
+                                : Icons.place_outlined,
+                            size: 18,
+                            color: endereco.principal
+                                ? _primaryBlue
+                                : Colors.grey.shade600,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  endereco.enderecoFormatado,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 13),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  endereco.tipoEndereco,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (endereco.principal) ...[
+                            const SizedBox(width: 8),
+                            const Icon(Icons.check, color: _primaryBlue, size: 18),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
+            child: conteudo(),
+          );
+        }
+
+        return GestureDetector(
+          onTap: _abrirMeusEnderecos,
+          child: conteudo(),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final larguraDaTela = MediaQuery.of(context).size.width;
@@ -562,49 +981,7 @@ class TelaHome extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'LOCALIZAÇÃO ATUAL',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey.shade500,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.location_on,
-                            color: _primaryBlue,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 2),
-                          const Flexible(
-                            child: Text(
-                              'Novo Horizonte, SP',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                                color: Colors.black87,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          Icon(
-                            Icons.keyboard_arrow_down,
-                            color: Colors.grey.shade700,
-                            size: 20,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+                Expanded(child: _buildEnderecoAtual()),
                 Stack(
                   clipBehavior: Clip.none,
                   children: [
@@ -645,7 +1022,7 @@ class TelaHome extends StatelessWidget {
                 GestureDetector(
                   onTap: () => _navegarParaPerfil(context),
                   onLongPress: () => _exibirDialogSair(context),
-                  child: isVisitante
+                    child: widget.isVisitante
                       ? CircleAvatar(
                           radius: 20,
                           backgroundColor: Colors.grey.shade200,
@@ -734,7 +1111,7 @@ class TelaHome extends StatelessWidget {
 
             SizedBox(height: alturaDaTela * 0.025),
 
-            if (isVisitante) ...[
+            if (widget.isVisitante) ...[
               GestureDetector(
                 onTap: () => Navigator.pop(context),
                 child: Container(
