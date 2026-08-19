@@ -458,9 +458,11 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                       color: _primaryBlue,
                                     ),
                                   )
-                                : const Icon(
+                                : Icon(
                                     Icons.send_outlined,
-                                    color: _primaryBlue,
+                                    color: _imagensSelecionadas.isEmpty
+                                        ? Colors.grey.shade400
+                                        : _primaryBlue,
                                     size: 26,
                                   ),
                           ),
@@ -509,11 +511,11 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
 
   Future<void> _enviarPostagem(StateSetter setModalState) async {
     final conteudo = _postagemController.text.trim();
-    if (conteudo.isEmpty && _imagensSelecionadas.isEmpty) {
+    if (_imagensSelecionadas.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Escreva algo ou anexe uma foto para postar.'),
+            content: Text('Você só pode realizar postagens com fotos anexadas.'),
           ),
         );
       }
