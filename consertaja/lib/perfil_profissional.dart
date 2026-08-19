@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'models/postagem_resumo.dart';
+import 'services/postagens_profissional_service.dart';
 import 'utils/cor_oficio.dart';
 import 'widgets/tag_oficio.dart';
 
@@ -58,6 +60,8 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
 
   int? _idProfissional;
   List<OficioInfo> _oficios = [];
+  Future<List<PostagemResumo>> _postagensGaleriaFuture =
+      Future.value(<PostagemResumo>[]);
   /// Chave YYYY-MM-DD → observação da exceção de dia inteiro.
   final Map<String, String?> _diasBloqueados = {};
   bool _carregandoExcecoes = false;
@@ -171,15 +175,17 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
 
       if (response != null && mounted) {
         int? idProfissional;
+        int? fkPerfil;
         final fkUsuario = response['id_usuario'];
         if (fkUsuario != null) {
           final dadosProf = await supabase
               .from('dados_profissionais')
-              .select('id_profissional')
+              .select('id_profissional, fk_perfil')
               .eq('fk_usuario', fkUsuario)
               .maybeSingle();
           idProfissional =
               (dadosProf?['id_profissional'] as num?)?.toInt();
+          fkPerfil = (dadosProf?['fk_perfil'] as num?)?.toInt();
         }
 
         setState(() {
@@ -189,6 +195,12 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
             _fotoUrl = foto;
           }
           _idProfissional = idProfissional;
+          _postagensGaleriaFuture = fkPerfil != null
+              ? PostagensProfissionalService.buscarPostagensPorPerfil(
+                  fkPerfil,
+                  limit: 6,
+                )
+              : Future.value(<PostagemResumo>[]);
         });
 
         if (idProfissional != null) {
@@ -1412,48 +1424,126 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
             ),
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            height: 140,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              itemCount: 3,
-              itemBuilder: (context, index) {
-                return Container(
-                  width: 200,
-                  margin: EdgeInsets.only(right: index < 2 ? 10 : 0),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    image: const DecorationImage(
-                      image: AssetImage('assets/images/panela.png'),
-                      fit: BoxFit.cover,
-                    ),
+          FutureBuilder<List<PostagemResumo>>(
+            future: _postagensGaleriaFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const SizedBox(
+                  height: 140,
+                  child: Center(
+                    child: CircularProgressIndicator(color: _primaryBlue),
                   ),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: 0.6),
-                        ],
-                      ),
-                    ),
-                    alignment: Alignment.bottomLeft,
-                    padding: const EdgeInsets.all(10),
-                    child: const Text(
-                      'Instalação Split 12k BTUs',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
+                );
+              }
+
+              final postagens = snapshot.data ?? const <PostagemResumo>[];
+              if (postagens.isEmpty) {
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Text(
+                    'Este profissional ainda não publicou serviços.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
                     ),
                   ),
                 );
-              },
+              }
+
+              return SizedBox(
+                height: 188,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: postagens.length,
+                  itemBuilder: (context, index) {
+                    final postagem = postagens[index];
+                    return Container(
+                      width: 220,
+                      margin: EdgeInsets.only(right: index < postagens.length - 1 ? 10 : 0),
+                      child: _buildCardGaleriaPostagem(postagem),
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCardGaleriaPostagem(PostagemResumo postagem) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: SizedBox(
+              width: double.infinity,
+              child: postagem.imagemUrl != null
+                  ? Image.network(
+                      postagem.imagemUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Container(
+                        color: Colors.grey.shade200,
+                        child: const Icon(Icons.image_outlined, color: Colors.grey),
+                      ),
+                    )
+                  : Container(
+                      color: Colors.grey.shade200,
+                      child: const Icon(Icons.image_outlined, color: Colors.grey),
+                    ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  postagem.titulo,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    const Icon(Icons.calendar_today_outlined, size: 12, color: Colors.grey),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        PostagensProfissionalService.formatarDataPostagem(
+                          postagem.dataPostagem,
+                        ),
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ],
