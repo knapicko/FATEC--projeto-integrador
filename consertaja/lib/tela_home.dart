@@ -821,21 +821,45 @@ class _TelaHomeState extends State<TelaHome> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          enderecoPrincipal?.enderecoFormatado ??
-                              'Nenhum endereço cadastrado',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                            color: Colors.black87,
+                        if (enderecoPrincipal != null)
+                          Text(
+                            enderecoPrincipal.enderecoFormatado,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Colors.black87,
+                            ),
+                          )
+                        else
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  'Nenhum endereço cadastrado',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 2),
+                              Icon(
+                                Icons.keyboard_arrow_right,
+                                color: Colors.grey.shade700,
+                                size: 20,
+                              ),
+                            ],
                           ),
-                        ),
-                        const SizedBox(height: 3),
-                        Row(
-                          children: [
-                            if (enderecoPrincipal != null)
+                        if (enderecoPrincipal != null) ...[
+                          const SizedBox(height: 3),
+                          Row(
+                            children: [
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 8,
@@ -855,28 +879,18 @@ class _TelaHomeState extends State<TelaHome> {
                                     color: _primaryBlue,
                                   ),
                                 ),
-                              )
-                            else
-                              Expanded(
-                                child: Text(
-                                  'Toque para cadastrar um endereço',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.grey.shade600,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
                               ),
-                            const SizedBox(width: 4),
-                            Icon(
-                              enderecoPrincipal != null && enderecos.length > 1
-                                  ? Icons.keyboard_arrow_down
-                                  : Icons.keyboard_arrow_right,
-                              color: Colors.grey.shade700,
-                              size: 20,
-                            ),
-                          ],
-                        ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                enderecos.length > 1
+                                    ? Icons.keyboard_arrow_down
+                                    : Icons.keyboard_arrow_right,
+                                color: Colors.grey.shade700,
+                                size: 20,
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),

@@ -338,7 +338,7 @@ class PostagensProfissionalService {
       titulo: titulo,
       imagemUrl: imagemUrl,
       dataPostagem: dataPostagem,
-      curtidas: 0,
+      curtidas: curtidas,
     );
   }
 }

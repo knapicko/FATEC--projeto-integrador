@@ -59,9 +59,14 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   );
 
   int? _idProfissional;
+  int? _idPerfilProfissional;
+  int? _idUsuarioLogado;
   List<OficioInfo> _oficios = [];
   Future<List<PostagemResumo>> _postagensGaleriaFuture =
       Future.value(<PostagemResumo>[]);
+  final Map<int, int> _curtidasPorPostagem = {};
+  final Set<int> _postagensCurtidasPorMim = <int>{};
+  final Set<int> _curtidasEmAndamento = <int>{};
   /// Chave YYYY-MM-DD → observação da exceção de dia inteiro.
   final Map<String, String?> _diasBloqueados = {};
   bool _carregandoExcecoes = false;
@@ -153,6 +158,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
       _fotoUrl = widget.imagemInicial;
     }
     _scrollController.addListener(_onScroll);
+    _carregarUsuarioLogado();
     _carregarDadosProfissional();
   }
 
@@ -195,11 +201,9 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
             _fotoUrl = foto;
           }
           _idProfissional = idProfissional;
+          _idPerfilProfissional = fkPerfil;
           _postagensGaleriaFuture = fkPerfil != null
-              ? PostagensProfissionalService.buscarPostagensPorPerfil(
-                  fkPerfil,
-                  limit: 6,
-                )
+              ? _carregarPostagensGaleria(fkPerfil, limit: 6)
               : Future.value(<PostagemResumo>[]);
         });
 
@@ -217,6 +221,422 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
         setState(() => _carregandoPerfil = false);
       }
     }
+  }
+
+  Future<void> _carregarUsuarioLogado() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final authUser = supabase.auth.currentUser;
+      if (authUser == null) return;
+
+      final usuario = await supabase
+          .from('usuarios')
+          .select('id_usuario')
+          .eq('auth_id', authUser.id)
+          .maybeSingle();
+
+      final idUsuario = (usuario?['id_usuario'] as num?)?.toInt();
+      if (!mounted || idUsuario == null) return;
+      setState(() => _idUsuarioLogado = idUsuario);
+    } catch (_) {
+      // Se não conseguir identificar o usuário, mantém como null.
+    }
+  }
+
+  Future<List<PostagemResumo>> _carregarPostagensGaleria(
+    int idPerfil, {
+    int? limit,
+  }) async {
+    final postagens = await PostagensProfissionalService.buscarPostagensPorPerfil(
+      idPerfil,
+      limit: limit,
+    );
+
+    if (!mounted) return postagens;
+
+    setState(() {
+      _curtidasPorPostagem
+        ..clear()
+        ..addEntries(postagens.map((p) => MapEntry(p.idPostagem, p.curtidas)));
+    });
+
+    await _carregarCurtidasDoUsuario(postagens);
+    return postagens;
+  }
+
+  Future<void> _carregarCurtidasDoUsuario(List<PostagemResumo> postagens) async {
+    if (postagens.isEmpty) return;
+
+    if (_idUsuarioLogado == null) {
+      await _carregarUsuarioLogado();
+    }
+
+    final idUsuario = _idUsuarioLogado;
+    if (idUsuario == null) return;
+
+    try {
+      final supabase = Supabase.instance.client;
+      final idsPostagens = postagens.map((p) => p.idPostagem).toList();
+      final response = await supabase
+          .from('curtidas_postagem')
+          .select('fk_postagem')
+          .eq('fk_usuario', idUsuario)
+          .inFilter('fk_postagem', idsPostagens);
+
+      if (!mounted) return;
+
+      setState(() {
+        _postagensCurtidasPorMim
+          ..clear()
+          ..addAll(
+            response
+                .map((row) => (row['fk_postagem'] as num?)?.toInt())
+                .whereType<int>(),
+          );
+      });
+    } catch (_) {
+      // Em caso de erro, mantém estado local sem marcação de curtidas do usuário.
+    }
+  }
+
+  String _formatarDataHora(DateTime data) {
+    final dd = data.day.toString().padLeft(2, '0');
+    final mm = data.month.toString().padLeft(2, '0');
+    final yyyy = data.year.toString();
+    final hh = data.hour.toString().padLeft(2, '0');
+    final min = data.minute.toString().padLeft(2, '0');
+    return '$dd/$mm/$yyyy às $hh:$min';
+  }
+
+  String _formatarHora(DateTime data) {
+    final hh = data.hour.toString().padLeft(2, '0');
+    final min = data.minute.toString().padLeft(2, '0');
+    return '$hh:$min';
+  }
+
+  int _curtidasExibidas(PostagemResumo postagem) {
+    return _curtidasPorPostagem[postagem.idPostagem] ?? postagem.curtidas;
+  }
+
+  bool _usuarioCurtiuPostagem(int idPostagem) {
+    return _postagensCurtidasPorMim.contains(idPostagem);
+  }
+
+  bool _erroRelacionadoAFkPostagem(PostgrestException erro) {
+    final texto = '${erro.message} ${erro.details ?? ''} ${erro.hint ?? ''}'
+        .toLowerCase();
+    return erro.code == '42703' || texto.contains('fk_postagem');
+  }
+
+  bool _erroRelacionadoAIdCurtida(PostgrestException erro) {
+    final texto = '${erro.message} ${erro.details ?? ''} ${erro.hint ?? ''}'
+        .toLowerCase();
+    return erro.code == '23502' && texto.contains('id_curtida_postagem');
+  }
+
+  bool _erroPermissaoRls(PostgrestException erro) {
+    final texto = '${erro.message} ${erro.details ?? ''} ${erro.hint ?? ''}'
+        .toLowerCase();
+    return erro.code == '42501' ||
+        texto.contains('row-level security') ||
+        texto.contains('permission denied');
+  }
+
+  Future<int> _proximoIdCurtidaPostagem() async {
+    final supabase = Supabase.instance.client;
+    final row = await supabase
+        .from('curtidas_postagem')
+        .select('id_curtida_postagem')
+        .order('id_curtida_postagem', ascending: false)
+        .limit(1)
+        .maybeSingle();
+    final atual = (row?['id_curtida_postagem'] as num?)?.toInt() ?? 0;
+    return atual + 1;
+  }
+
+  Future<void> _inserirCurtidaNoSupabase({
+    required int idPerfil,
+    required int idUsuario,
+    required int idPostagem,
+  }) async {
+    final supabase = Supabase.instance.client;
+    final payload = {
+      'curtido_em': DateTime.now().toUtc().toIso8601String(),
+      'fk_perfil': idPerfil,
+      'fk_usuario': idUsuario,
+      'fk_postagem': idPostagem,
+    };
+
+    try {
+      await supabase.from('curtidas_postagem').insert(payload);
+    } on PostgrestException catch (erro) {
+      if (_erroRelacionadoAIdCurtida(erro)) {
+        final payloadComId = {
+          ...payload,
+          'id_curtida_postagem': await _proximoIdCurtidaPostagem(),
+        };
+        await supabase.from('curtidas_postagem').insert(payloadComId);
+        return;
+      }
+      rethrow;
+    }
+  }
+
+  Future<int?> _buscarPerfilDaPostagem(int idPostagem) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final row = await supabase
+          .from('postagens')
+          .select('fk_perfil')
+          .eq('id_postagem', idPostagem)
+          .maybeSingle();
+      return (row?['fk_perfil'] as num?)?.toInt();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _curtirPostagem(PostagemResumo postagem) async {
+    final idPostagem = postagem.idPostagem;
+    if (_curtidasEmAndamento.contains(idPostagem)) return;
+
+    if (_usuarioCurtiuPostagem(idPostagem)) {
+      return;
+    }
+
+    if (_idUsuarioLogado == null) {
+      await _carregarUsuarioLogado();
+    }
+
+    final idUsuario = _idUsuarioLogado;
+    if (idUsuario == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Faça login para curtir postagens.')),
+      );
+      return;
+    }
+
+    var idPerfil = _idPerfilProfissional;
+    if (idPerfil == null) {
+      idPerfil = await _buscarPerfilDaPostagem(idPostagem);
+    }
+
+    if (idPerfil == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Não foi possível curtir esta postagem agora.')),
+      );
+      return;
+    }
+
+    setState(() => _curtidasEmAndamento.add(idPostagem));
+
+    try {
+      await _inserirCurtidaNoSupabase(
+        idPerfil: idPerfil,
+        idUsuario: idUsuario,
+        idPostagem: idPostagem,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _postagensCurtidasPorMim.add(idPostagem);
+        _curtidasPorPostagem[idPostagem] = _curtidasExibidas(postagem) + 1;
+      });
+    } catch (e) {
+      final erroDuplicado =
+          e is PostgrestException && e.code == '23505';
+      if (!mounted) return;
+      if (erroDuplicado) {
+        setState(() => _postagensCurtidasPorMim.add(idPostagem));
+      } else if (e is PostgrestException && _erroPermissaoRls(e)) {
+        debugPrint(
+          'Curtida bloqueada por permissão/RLS: code=${e.code} message=${e.message} details=${e.details} hint=${e.hint}',
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Sem permissão para curtir (RLS). Ajuste as políticas do Supabase para INSERT em curtidas_postagem.',
+            ),
+          ),
+        );
+      } else if (e is PostgrestException && _erroRelacionadoAFkPostagem(e)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'A tabela curtidas_postagem precisa da coluna fk_postagem para registrar curtidas por postagem.',
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Não foi possível registrar a curtida agora.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _curtidasEmAndamento.remove(idPostagem));
+      }
+    }
+  }
+
+  Future<void> _abrirGaleriaPostagens(
+    List<PostagemResumo> postagens,
+    int initialIndex,
+  ) async {
+    if (postagens.isEmpty) return;
+
+    await showDialog<void>(
+      context: context,
+      barrierColor: Colors.black,
+      builder: (context) {
+        var paginaAtual = initialIndex;
+        final pageController = PageController(initialPage: initialIndex);
+
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final postagemAtual = postagens[paginaAtual];
+            final curtidas = _curtidasExibidas(postagemAtual);
+            final curtiu = _usuarioCurtiuPostagem(postagemAtual.idPostagem);
+
+            Future<void> curtirAtual() async {
+              await _curtirPostagem(postagemAtual);
+              if (!mounted) return;
+              setModalState(() {});
+            }
+
+            return Scaffold(
+              backgroundColor: Colors.black,
+              body: SafeArea(
+                child: Stack(
+                  children: [
+                    PageView.builder(
+                      controller: pageController,
+                      itemCount: postagens.length,
+                      onPageChanged: (index) {
+                        setModalState(() => paginaAtual = index);
+                      },
+                      itemBuilder: (context, index) {
+                        final postagem = postagens[index];
+                        return GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onDoubleTap: () async {
+                            await _curtirPostagem(postagem);
+                            if (!mounted) return;
+                            setModalState(() {});
+                          },
+                          child: Center(
+                            child: postagem.imagemUrl != null
+                                ? InteractiveViewer(
+                                    minScale: 1,
+                                    maxScale: 4,
+                                    child: Image.network(
+                                      postagem.imagemUrl!,
+                                      fit: BoxFit.contain,
+                                      errorBuilder: (_, _, _) => const Icon(
+                                        Icons.broken_image_outlined,
+                                        color: Colors.white54,
+                                        size: 64,
+                                      ),
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.image_outlined,
+                                    color: Colors.white54,
+                                    size: 72,
+                                  ),
+                          ),
+                        );
+                      },
+                    ),
+                    Positioned(
+                      top: 12,
+                      right: 12,
+                      child: IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.close, color: Colors.white),
+                      ),
+                    ),
+                    Positioned(
+                      left: 16,
+                      right: 16,
+                      bottom: 24,
+                      child: GestureDetector(
+                        onDoubleTap: () async {
+                          await curtirAtual();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.55),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.white24),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                postagemAtual.titulo,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.schedule,
+                                    color: Colors.white70,
+                                    size: 14,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    _formatarDataHora(postagemAtual.dataPostagem),
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  Icon(
+                                    curtiu
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
+                                    color: curtiu ? _primaryBlue : Colors.white70,
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '$curtidas',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _carregarOficios(int idProfissional) async {
@@ -1416,7 +1836,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
           ),
           const SizedBox(height: 20),
           const Text(
-            'Galeria de serviços',
+            'Postagens do profissional',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.bold,
@@ -1465,10 +1885,18 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                   itemCount: postagens.length,
                   itemBuilder: (context, index) {
                     final postagem = postagens[index];
+                    final curtidas = _curtidasExibidas(postagem);
+                    final curtiu = _usuarioCurtiuPostagem(postagem.idPostagem);
                     return Container(
                       width: 220,
                       margin: EdgeInsets.only(right: index < postagens.length - 1 ? 10 : 0),
-                      child: _buildCardGaleriaPostagem(postagem),
+                      child: _buildCardGaleriaPostagem(
+                        postagem,
+                        curtidas: curtidas,
+                        curtiu: curtiu,
+                        onTap: () => _abrirGaleriaPostagens(postagens, index),
+                        onDoubleTap: () => _curtirPostagem(postagem),
+                      ),
                     );
                   },
                 ),
@@ -1480,73 +1908,113 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
     );
   }
 
-  Widget _buildCardGaleriaPostagem(PostagemResumo postagem) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: SizedBox(
-              width: double.infinity,
-              child: postagem.imagemUrl != null
-                  ? Image.network(
-                      postagem.imagemUrl!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Container(
+  Widget _buildCardGaleriaPostagem(
+    PostagemResumo postagem, {
+    required int curtidas,
+    required bool curtiu,
+    required VoidCallback onTap,
+    required VoidCallback onDoubleTap,
+  }) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      onDoubleTap: onDoubleTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: SizedBox(
+                width: double.infinity,
+                child: postagem.imagemUrl != null
+                    ? Image.network(
+                        postagem.imagemUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => Container(
+                          color: Colors.grey.shade200,
+                          child: const Icon(Icons.image_outlined, color: Colors.grey),
+                        ),
+                      )
+                    : Container(
                         color: Colors.grey.shade200,
                         child: const Icon(Icons.image_outlined, color: Colors.grey),
                       ),
-                    )
-                  : Container(
-                      color: Colors.grey.shade200,
-                      child: const Icon(Icons.image_outlined, color: Colors.grey),
-                    ),
+              ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  postagem.titulo,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                    height: 1.2,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    postagem.titulo,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                      height: 1.2,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    const Icon(Icons.calendar_today_outlined, size: 12, color: Colors.grey),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        PostagensProfissionalService.formatarDataPostagem(
-                          postagem.dataPostagem,
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Icon(Icons.calendar_today_outlined, size: 12, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          PostagensProfissionalService.formatarDataPostagem(
+                            postagem.dataPostagem,
+                          ),
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey.shade600,
+                          ),
                         ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.schedule, size: 12, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Text(
+                        _formatarHora(postagem.dataPostagem),
                         style: TextStyle(
                           fontSize: 10,
                           color: Colors.grey.shade600,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(
+                        curtiu ? Icons.favorite : Icons.favorite_border,
+                        size: 13,
+                        color: curtiu ? _primaryBlue : Colors.grey.shade600,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$curtidas curtidas',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey.shade700,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
