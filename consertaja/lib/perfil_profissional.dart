@@ -67,6 +67,8 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   final Map<int, int> _curtidasPorPostagem = {};
   final Set<int> _postagensCurtidasPorMim = <int>{};
   final Set<int> _curtidasEmAndamento = <int>{};
+  final Set<int> _animandoLikeNoCard = <int>{};
+  int? _postagemAnimandoLikeTelaCheia;
   /// Chave YYYY-MM-DD → observação da exceção de dia inteiro.
   final Map<String, String?> _diasBloqueados = {};
   bool _carregandoExcecoes = false;
@@ -322,6 +324,50 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
     return _postagensCurtidasPorMim.contains(idPostagem);
   }
 
+  void _dispararAnimacaoLikeNoCard(int idPostagem) {
+    setState(() => _animandoLikeNoCard.add(idPostagem));
+    Future<void>.delayed(const Duration(milliseconds: 650), () {
+      if (!mounted) return;
+      setState(() => _animandoLikeNoCard.remove(idPostagem));
+    });
+  }
+
+  void _dispararAnimacaoLikeTelaCheia(int idPostagem) {
+    setState(() => _postagemAnimandoLikeTelaCheia = idPostagem);
+  }
+
+  void _limparAnimacaoLikeTelaCheia() {
+    if (_postagemAnimandoLikeTelaCheia == null) return;
+    setState(() => _postagemAnimandoLikeTelaCheia = null);
+  }
+
+  Widget _buildAnimacaoCoracao(bool visivel) {
+    return IgnorePointer(
+      child: AnimatedOpacity(
+        opacity: visivel ? 1 : 0,
+        duration: const Duration(milliseconds: 180),
+        child: AnimatedScale(
+          scale: visivel ? 1 : 0.6,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutBack,
+          child: Container(
+            width: 84,
+            height: 84,
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.28),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.favorite,
+              color: Colors.white,
+              size: 44,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   bool _erroRelacionadoAFkPostagem(PostgrestException erro) {
     final texto = '${erro.message} ${erro.details ?? ''} ${erro.hint ?? ''}'
         .toLowerCase();
@@ -340,6 +386,29 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
     return erro.code == '42501' ||
         texto.contains('row-level security') ||
         texto.contains('permission denied');
+  }
+
+  bool _erroDuplicadoCurtida(PostgrestException erro) {
+    final texto = '${erro.message} ${erro.details ?? ''} ${erro.hint ?? ''}'
+        .toLowerCase();
+    return erro.code == '23505' ||
+        texto.contains('duplicate key') ||
+        texto.contains('unique constraint') ||
+        texto.contains('conflict');
+  }
+
+  int _ajustarContagemLike(int atual, int delta) {
+    final proximo = atual + delta;
+    return proximo < 0 ? 0 : proximo;
+  }
+
+  Future<int> _buscarTotalCurtidasDaPostagem(int idPostagem) async {
+    final supabase = Supabase.instance.client;
+    final rows = await supabase
+        .from('curtidas_postagem')
+        .select('id_curtida_postagem')
+        .eq('fk_postagem', idPostagem);
+    return rows.length;
   }
 
   Future<int> _proximoIdCurtidaPostagem() async {
@@ -380,6 +449,21 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
       }
       rethrow;
     }
+  }
+
+  Future<bool> _removerCurtidaNoSupabase({
+    required int idUsuario,
+    required int idPostagem,
+  }) async {
+    final supabase = Supabase.instance.client;
+    final removidas = await supabase
+        .from('curtidas_postagem')
+        .delete()
+        .eq('fk_usuario', idUsuario)
+        .eq('fk_postagem', idPostagem)
+        .select('id_curtida_postagem');
+
+    return removidas.isNotEmpty;
   }
 
   Future<int?> _buscarPerfilDaPostagem(int idPostagem) async {
@@ -430,7 +514,14 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
       return;
     }
 
+    final curtiaAntes = _usuarioCurtiuPostagem(idPostagem);
+    final totalAntes = _curtidasExibidas(postagem);
+
     setState(() => _curtidasEmAndamento.add(idPostagem));
+    setState(() {
+      _postagensCurtidasPorMim.add(idPostagem);
+      _curtidasPorPostagem[idPostagem] = _ajustarContagemLike(totalAntes, 1);
+    });
 
     try {
       await _inserirCurtidaNoSupabase(
@@ -439,21 +530,30 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
         idPostagem: idPostagem,
       );
 
+      final totalReal = await _buscarTotalCurtidasDaPostagem(idPostagem);
       if (!mounted) return;
-      setState(() {
-        _postagensCurtidasPorMim.add(idPostagem);
-        _curtidasPorPostagem[idPostagem] = _curtidasExibidas(postagem) + 1;
-      });
+      setState(() => _curtidasPorPostagem[idPostagem] = totalReal);
     } catch (e) {
       final erroDuplicado =
-          e is PostgrestException && e.code == '23505';
+          e is PostgrestException && _erroDuplicadoCurtida(e);
       if (!mounted) return;
       if (erroDuplicado) {
-        setState(() => _postagensCurtidasPorMim.add(idPostagem));
+        final totalReal = await _buscarTotalCurtidasDaPostagem(idPostagem);
+        if (!mounted) return;
+        setState(() {
+          _postagensCurtidasPorMim.add(idPostagem);
+          _curtidasPorPostagem[idPostagem] = totalReal;
+        });
       } else if (e is PostgrestException && _erroPermissaoRls(e)) {
         debugPrint(
           'Curtida bloqueada por permissão/RLS: code=${e.code} message=${e.message} details=${e.details} hint=${e.hint}',
         );
+        setState(() {
+          if (!curtiaAntes) {
+            _postagensCurtidasPorMim.remove(idPostagem);
+          }
+          _curtidasPorPostagem[idPostagem] = totalAntes;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -462,6 +562,12 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
           ),
         );
       } else if (e is PostgrestException && _erroRelacionadoAFkPostagem(e)) {
+        setState(() {
+          if (!curtiaAntes) {
+            _postagensCurtidasPorMim.remove(idPostagem);
+          }
+          _curtidasPorPostagem[idPostagem] = totalAntes;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -470,6 +576,12 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
           ),
         );
       } else {
+        setState(() {
+          if (!curtiaAntes) {
+            _postagensCurtidasPorMim.remove(idPostagem);
+          }
+          _curtidasPorPostagem[idPostagem] = totalAntes;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Não foi possível registrar a curtida agora.'),
@@ -481,6 +593,94 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
         setState(() => _curtidasEmAndamento.remove(idPostagem));
       }
     }
+  }
+
+  Future<void> _descurtirPostagem(PostagemResumo postagem) async {
+    final idPostagem = postagem.idPostagem;
+    if (_curtidasEmAndamento.contains(idPostagem)) return;
+
+    if (!_usuarioCurtiuPostagem(idPostagem)) {
+      return;
+    }
+
+    if (_idUsuarioLogado == null) {
+      await _carregarUsuarioLogado();
+    }
+
+    final idUsuario = _idUsuarioLogado;
+    if (idUsuario == null) return;
+
+    final curtiaAntes = _usuarioCurtiuPostagem(idPostagem);
+    final totalAntes = _curtidasExibidas(postagem);
+
+    setState(() => _curtidasEmAndamento.add(idPostagem));
+    setState(() {
+      _postagensCurtidasPorMim.remove(idPostagem);
+      _curtidasPorPostagem[idPostagem] = _ajustarContagemLike(totalAntes, -1);
+    });
+
+    try {
+      final removeu = await _removerCurtidaNoSupabase(
+        idUsuario: idUsuario,
+        idPostagem: idPostagem,
+      );
+
+      if (!removeu) {
+        throw const PostgrestException(
+          code: '42501',
+          message: 'Delete bloqueado por RLS ou filtro não encontrou linha.',
+        );
+      }
+
+      final totalReal = await _buscarTotalCurtidasDaPostagem(idPostagem);
+      if (!mounted) return;
+      setState(() => _curtidasPorPostagem[idPostagem] = totalReal);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        if (curtiaAntes) {
+          _postagensCurtidasPorMim.add(idPostagem);
+        }
+        _curtidasPorPostagem[idPostagem] = totalAntes;
+      });
+      if (e is PostgrestException && _erroPermissaoRls(e)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Sem permissão para remover curtida (RLS). Ajuste as políticas DELETE no Supabase.',
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Não foi possível remover a curtida agora.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _curtidasEmAndamento.remove(idPostagem));
+      }
+    }
+  }
+
+  Future<void> _alternarCurtida(PostagemResumo postagem) async {
+    if (_usuarioCurtiuPostagem(postagem.idPostagem)) {
+      await _descurtirPostagem(postagem);
+      return;
+    }
+    await _curtirPostagem(postagem);
+  }
+
+  Future<void> _curtirComAnimacaoNoCard(PostagemResumo postagem) async {
+    _dispararAnimacaoLikeNoCard(postagem.idPostagem);
+    await _curtirPostagem(postagem);
+  }
+
+  Future<void> _curtirComAnimacaoTelaCheia(PostagemResumo postagem) async {
+    _dispararAnimacaoLikeTelaCheia(postagem.idPostagem);
+    await _curtirPostagem(postagem);
   }
 
   Future<void> _abrirGaleriaPostagens(
@@ -517,6 +717,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                       controller: pageController,
                       itemCount: postagens.length,
                       onPageChanged: (index) {
+                        _limparAnimacaoLikeTelaCheia();
                         setModalState(() => paginaAtual = index);
                       },
                       itemBuilder: (context, index) {
@@ -524,30 +725,39 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                         return GestureDetector(
                           behavior: HitTestBehavior.opaque,
                           onDoubleTap: () async {
-                            await _curtirPostagem(postagem);
+                            await _curtirComAnimacaoTelaCheia(postagem);
                             if (!mounted) return;
                             setModalState(() {});
                           },
-                          child: Center(
-                            child: postagem.imagemUrl != null
-                                ? InteractiveViewer(
-                                    minScale: 1,
-                                    maxScale: 4,
-                                    child: Image.network(
-                                      postagem.imagemUrl!,
-                                      fit: BoxFit.contain,
-                                      errorBuilder: (_, _, _) => const Icon(
-                                        Icons.broken_image_outlined,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Center(
+                                child: postagem.imagemUrl != null
+                                    ? InteractiveViewer(
+                                        minScale: 1,
+                                        maxScale: 4,
+                                        child: Image.network(
+                                          postagem.imagemUrl!,
+                                          fit: BoxFit.contain,
+                                          errorBuilder: (_, _, _) => const Icon(
+                                            Icons.broken_image_outlined,
+                                            color: Colors.white54,
+                                            size: 64,
+                                          ),
+                                        ),
+                                      )
+                                    : const Icon(
+                                        Icons.image_outlined,
                                         color: Colors.white54,
-                                        size: 64,
+                                        size: 72,
                                       ),
-                                    ),
-                                  )
-                                : const Icon(
-                                    Icons.image_outlined,
-                                    color: Colors.white54,
-                                    size: 72,
-                                  ),
+                              ),
+                              _buildAnimacaoCoracao(
+                                _postagemAnimandoLikeTelaCheia ==
+                                    postagem.idPostagem,
+                              ),
+                            ],
                           ),
                         );
                       },
@@ -614,12 +824,19 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                                     size: 16,
                                   ),
                                   const SizedBox(width: 4),
-                                  Text(
-                                    '$curtidas',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
+                                  GestureDetector(
+                                    onTap: () async {
+                                      await _alternarCurtida(postagemAtual);
+                                      if (!mounted) return;
+                                      setModalState(() {});
+                                    },
+                                    child: Text(
+                                      '$curtidas',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -1895,7 +2112,8 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                         curtidas: curtidas,
                         curtiu: curtiu,
                         onTap: () => _abrirGaleriaPostagens(postagens, index),
-                        onDoubleTap: () => _curtirPostagem(postagem),
+                        onDoubleTap: () => _curtirComAnimacaoNoCard(postagem),
+                        onLikeTap: () => _alternarCurtida(postagem),
                       ),
                     );
                   },
@@ -1914,6 +2132,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
     required bool curtiu,
     required VoidCallback onTap,
     required VoidCallback onDoubleTap,
+    required VoidCallback onLikeTap,
   }) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -1930,21 +2149,29 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: SizedBox(
-                width: double.infinity,
-                child: postagem.imagemUrl != null
-                    ? Image.network(
-                        postagem.imagemUrl!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => Container(
-                          color: Colors.grey.shade200,
-                          child: const Icon(Icons.image_outlined, color: Colors.grey),
-                        ),
-                      )
-                    : Container(
-                        color: Colors.grey.shade200,
-                        child: const Icon(Icons.image_outlined, color: Colors.grey),
-                      ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: postagem.imagemUrl != null
+                        ? Image.network(
+                            postagem.imagemUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => Container(
+                              color: Colors.grey.shade200,
+                              child: const Icon(Icons.image_outlined, color: Colors.grey),
+                            ),
+                          )
+                        : Container(
+                            color: Colors.grey.shade200,
+                            child: const Icon(Icons.image_outlined, color: Colors.grey),
+                          ),
+                  ),
+                  _buildAnimacaoCoracao(
+                    _animandoLikeNoCard.contains(postagem.idPostagem),
+                  ),
+                ],
               ),
             ),
             Padding(
@@ -1992,23 +2219,27 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                     ],
                   ),
                   const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Icon(
-                        curtiu ? Icons.favorite : Icons.favorite_border,
-                        size: 13,
-                        color: curtiu ? _primaryBlue : Colors.grey.shade600,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '$curtidas curtidas',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: Colors.grey.shade700,
-                          fontWeight: FontWeight.w600,
+                  GestureDetector(
+                    onTap: onLikeTap,
+                    behavior: HitTestBehavior.opaque,
+                    child: Row(
+                      children: [
+                        Icon(
+                          curtiu ? Icons.favorite : Icons.favorite_border,
+                          size: 13,
+                          color: curtiu ? _primaryBlue : Colors.grey.shade600,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 4),
+                        Text(
+                          '$curtidas curtidas',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey.shade700,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
