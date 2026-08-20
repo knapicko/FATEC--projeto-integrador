@@ -1468,6 +1468,7 @@ class _CompletarCadastroProfissionalDocumentosPageState
             'fk_usuario': usuarioId,
             'id_facial': _idFacial,
             'rosto_validado': true,
+            'data_admissao': DateTime.now().toUtc().toIso8601String(),
           })
           .select()
           .single();
