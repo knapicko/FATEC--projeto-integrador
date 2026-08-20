@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
@@ -29,17 +30,22 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   int _currentIndex = 0;
 
   final TextEditingController _postagemController = TextEditingController();
+  final TextEditingController _descricaoPerfilController =
+      TextEditingController();
   final ImagePicker _picker = ImagePicker();
+  Timer? _descricaoPerfilTimer;
 
   // Futures cacheados para evitar recarregamento ao rolar a tela
   late Future<Map<String, dynamic>?> _dadosProfissionalFuture;
   late Future<String?> _enderecoFuture;
   late Future<List<OficioInfo>?> _oficiosFuture;
   late Future<List<PostagemResumo>> _postagensFuture;
+  late Future<Map<String, dynamic>?> _informacoesPerfilFuture;
 
   // Estado da criação de postagem
   List<XFile> _imagensSelecionadas = [];
   bool _enviandoPostagem = false;
+  String _anosExperienciaSelecionado = '0-1 ano';
 
   @override
   void initState() {
@@ -52,6 +58,129 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     _enderecoFuture = _buscarEndereco();
     _oficiosFuture = _buscarOficios();
     _postagensFuture = PostagensProfissionalService.buscarPostagens(limit: 10);
+    _informacoesPerfilFuture = _buscarInformacoesPerfil();
+  }
+
+  @override
+  void dispose() {
+    _postagemController.dispose();
+    _descricaoPerfilController.dispose();
+    _descricaoPerfilTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<Map<String, dynamic>?> _buscarInformacoesPerfil() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user == null) return null;
+
+      final usuario = await supabase
+          .from('usuarios')
+          .select('id_usuario')
+          .eq('auth_id', user.id)
+          .maybeSingle();
+      final usuarioId = usuario?['id_usuario'];
+      if (usuarioId == null) return null;
+
+      final dadosProfissional = await supabase
+          .from('dados_profissionais')
+          .select('fk_perfil, anos_experiencia')
+          .eq('fk_usuario', usuarioId)
+          .maybeSingle();
+      if (dadosProfissional == null) return null;
+
+      final idPerfil =
+          (dadosProfissional['fk_perfil'] as num?)?.toInt() ??
+          await PostagensProfissionalService.buscarIdPerfil();
+      if (idPerfil == null) return dadosProfissional;
+
+      final perfil = await supabase
+          .from('perfil')
+          .select('descricao_perfil')
+          .eq('id_perfil', idPerfil)
+          .maybeSingle();
+
+      return {
+        ...dadosProfissional,
+        'fk_perfil': idPerfil,
+        'descricao_perfil': perfil?['descricao_perfil'],
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  String _rotuloAnosExperiencia(dynamic valor) {
+    if (valor == null) return '0-1 ano';
+    final data = DateTime.tryParse(valor.toString());
+    if (data == null) return '0-1 ano';
+
+    final anos = DateTime.now().difference(data).inDays ~/ 365;
+    if (anos <= 1) return '0-1 ano';
+    if (anos <= 5) return '2-5 anos';
+    if (anos <= 10) return '6-10 anos';
+    if (anos <= 15) return '11-15 anos';
+    return 'Mais de 15 anos';
+  }
+
+  DateTime _dataRepresentativaExperiencia(String rotulo) {
+    final anos = switch (rotulo) {
+      '2-5 anos' => 3,
+      '6-10 anos' => 8,
+      '11-15 anos' => 13,
+      'Mais de 15 anos' => 16,
+      _ => 0,
+    };
+    return DateTime(
+      DateTime.now().year - anos,
+      DateTime.now().month,
+      DateTime.now().day,
+    );
+  }
+
+  void _agendarSalvamentoDescricao(String descricao) {
+    _descricaoPerfilTimer?.cancel();
+    _descricaoPerfilTimer = Timer(const Duration(milliseconds: 700), () {
+      _salvarPerfil(descricao: descricao);
+    });
+  }
+
+  Future<void> _salvarPerfil({String? descricao, String? anos}) async {
+    try {
+      final idPerfil = await PostagensProfissionalService.buscarIdPerfil();
+      if (idPerfil == null) return;
+      final supabase = Supabase.instance.client;
+
+      if (descricao != null) {
+        await supabase
+            .from('perfil')
+            .update({
+              'descricao_perfil': descricao.trim().isEmpty
+                  ? null
+                  : descricao.trim(),
+            })
+            .eq('id_perfil', idPerfil);
+      }
+      if (anos != null) {
+        final user = supabase.auth.currentUser;
+        final usuario = await supabase
+            .from('usuarios')
+            .select('id_usuario')
+            .eq('auth_id', user!.id)
+            .maybeSingle();
+        await supabase
+            .from('dados_profissionais')
+            .update({
+              'anos_experiencia': _dataRepresentativaExperiencia(
+                anos,
+              ).toIso8601String().split('T').first,
+            })
+            .eq('fk_usuario', usuario!['id_usuario']);
+      }
+    } catch (e) {
+      debugPrint('Falha ao salvar informações do perfil: $e');
+    }
   }
 
   Future<Map<String, dynamic>?> _buscarDadosProfissional() async {
@@ -277,8 +406,9 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                       CircleAvatar(
                         radius: 20,
                         backgroundColor: const Color(0xFFE1F5FE),
-                        backgroundImage:
-                            fotoUrl != null ? NetworkImage(fotoUrl) : null,
+                        backgroundImage: fotoUrl != null
+                            ? NetworkImage(fotoUrl)
+                            : null,
                         child: fotoUrl == null
                             ? Text(
                                 nome.isNotEmpty ? nome[0].toUpperCase() : 'P',
@@ -515,7 +645,9 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Você só pode realizar postagens com fotos anexadas.'),
+            content: Text(
+              'Você só pode realizar postagens com fotos anexadas.',
+            ),
           ),
         );
       }
@@ -536,15 +668,18 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
       setState(() {
         _imagensSelecionadas = [];
         _enviandoPostagem = false;
-        _postagensFuture =
-            PostagensProfissionalService.buscarPostagens(limit: 10);
+        _postagensFuture = PostagensProfissionalService.buscarPostagens(
+          limit: 10,
+        );
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Postagem publicada com sucesso!')),
       );
     } else {
       setModalState(() => _enviandoPostagem = false);
-      debugPrint('❌ [tela_home_profissional] Falha ao publicar: ${resultado.erro}');
+      debugPrint(
+        '❌ [tela_home_profissional] Falha ao publicar: ${resultado.erro}',
+      );
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(resultado.erro ?? 'Erro ao publicar postagem.'),
@@ -588,8 +723,8 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                 return FutureBuilder<String?>(
                   future: _enderecoFuture,
                   builder: (context, enderecoSnapshot) {
-                    final enderecoTexto = enderecoSnapshot.data ??
-                        'Nenhum endereço cadastrado';
+                    final enderecoTexto =
+                        enderecoSnapshot.data ?? 'Nenhum endereço cadastrado';
 
                     return FutureBuilder<List<OficioInfo>?>(
                       future: _oficiosFuture,
@@ -610,8 +745,9 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                     children: [
                                       CircleAvatar(
                                         radius: 34,
-                                        backgroundColor:
-                                            const Color(0xFFE1F5FE),
+                                        backgroundColor: const Color(
+                                          0xFFE1F5FE,
+                                        ),
                                         backgroundImage: fotoUrl != null
                                             ? NetworkImage(fotoUrl)
                                             : null,
@@ -619,7 +755,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                             ? Text(
                                                 nomeCompleto.isNotEmpty
                                                     ? nomeCompleto[0]
-                                                        .toUpperCase()
+                                                          .toUpperCase()
                                                     : 'P',
                                                 style: const TextStyle(
                                                   fontSize: 26,
@@ -638,8 +774,9 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                           ),
                                           decoration: BoxDecoration(
                                             color: _primaryBlue,
-                                            borderRadius:
-                                                BorderRadius.circular(12),
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
                                             border: Border.all(
                                               color: Colors.white,
                                               width: 1.5,
@@ -741,8 +878,9 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                   runSpacing: 8,
                                   alignment: WrapAlignment.end,
                                   children: oficios
-                                      .map((oficio) =>
-                                          TagOficio(oficio: oficio))
+                                      .map(
+                                        (oficio) => TagOficio(oficio: oficio),
+                                      )
                                       .toList(),
                                 ),
                               ],
@@ -971,6 +1109,26 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                 return _buildSecaoPostagens(postagens);
               },
             ),
+            const SizedBox(height: 28),
+            FutureBuilder<Map<String, dynamic>?>(
+              future: _informacoesPerfilFuture,
+              builder: (context, snapshot) {
+                final dados = snapshot.data;
+                final descricao = dados?['descricao_perfil']?.toString() ?? '';
+                if (snapshot.connectionState == ConnectionState.done &&
+                    _descricaoPerfilController.text != descricao) {
+                  _descricaoPerfilController.text = descricao;
+                }
+                if (snapshot.connectionState == ConnectionState.done &&
+                    dados?['anos_experiencia'] != null) {
+                  _anosExperienciaSelecionado = _rotuloAnosExperiencia(
+                    dados!['anos_experiencia'],
+                  );
+                }
+
+                return _buildInformacoesPerfil();
+              },
+            ),
             const SizedBox(height: 20),
           ],
         ),
@@ -993,8 +1151,10 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           selectedItemColor: _primaryBlue,
           unselectedItemColor: Colors.grey,
           currentIndex: _currentIndex,
-          selectedLabelStyle:
-              const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
+          selectedLabelStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 11,
+          ),
           unselectedLabelStyle: const TextStyle(fontSize: 11),
           onTap: (index) {
             if (index == 4) {
@@ -1115,8 +1275,10 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                 child: Container(
                   height: 72,
                   margin: const EdgeInsets.symmetric(horizontal: 1.5),
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 6,
+                    horizontal: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: _primaryBlue,
                     borderRadius: BorderRadius.circular(6),
@@ -1211,8 +1373,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           CircleAvatar(
             radius: 22,
             backgroundColor: const Color(0xFFE1F5FE),
-            backgroundImage:
-                fotoUrl != null ? NetworkImage(fotoUrl) : null,
+            backgroundImage: fotoUrl != null ? NetworkImage(fotoUrl) : null,
             child: fotoUrl == null
                 ? Text(
                     nome.isNotEmpty ? nome[0].toUpperCase() : 'P',
@@ -1229,10 +1390,8 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
             child: Material(
               color: Colors.transparent,
               child: InkWell(
-                onTap: () => _abrirCriacaoPostagem(
-                  fotoUrl: fotoUrl,
-                  nome: nome,
-                ),
+                onTap: () =>
+                    _abrirCriacaoPostagem(fotoUrl: fotoUrl, nome: nome),
                 borderRadius: BorderRadius.circular(24),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
@@ -1259,10 +1418,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: () => _abrirCriacaoPostagem(
-                fotoUrl: fotoUrl,
-                nome: nome,
-              ),
+              onTap: () => _abrirCriacaoPostagem(fotoUrl: fotoUrl, nome: nome),
               borderRadius: BorderRadius.circular(20),
               child: Padding(
                 padding: const EdgeInsets.all(4),
@@ -1301,18 +1457,11 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: () => _abrirCriacaoPostagem(
-                fotoUrl: fotoUrl,
-                nome: nome,
-              ),
+              onTap: () => _abrirCriacaoPostagem(fotoUrl: fotoUrl, nome: nome),
               borderRadius: BorderRadius.circular(20),
               child: const Padding(
                 padding: EdgeInsets.all(4),
-                child: Icon(
-                  Icons.send_outlined,
-                  color: _primaryBlue,
-                  size: 26,
-                ),
+                child: Icon(Icons.send_outlined, color: _primaryBlue, size: 26),
               ),
             ),
           ),
@@ -1376,10 +1525,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                 const SizedBox(height: 8),
                 Text(
                   'Nenhuma postagem ainda',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey.shade500,
-                  ),
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
                 ),
               ],
             ),
@@ -1396,6 +1542,114 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
               },
             ),
           ),
+      ],
+    );
+  }
+
+  Widget _buildInformacoesPerfil() {
+    const opcoesExperiencia = [
+      '0-1 ano',
+      '2-5 anos',
+      '6-10 anos',
+      '11-15 anos',
+      'Mais de 15 anos',
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Descrição',
+          style: TextStyle(
+            fontSize: 36,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 46),
+        const Text(
+          'Sobre mim',
+          style: TextStyle(
+            fontSize: 36,
+            fontWeight: FontWeight.bold,
+            color: _titleDark,
+          ),
+        ),
+        const SizedBox(height: 24),
+        TextField(
+          controller: _descricaoPerfilController,
+          minLines: 5,
+          maxLines: 7,
+          onChanged: _agendarSalvamentoDescricao,
+          style: const TextStyle(fontSize: 30, color: Colors.black87),
+          decoration: InputDecoration(
+            hintText: 'Conte um pouco sobre sua trajetória\nprofissional...',
+            hintStyle: const TextStyle(
+              fontSize: 30,
+              color: Color(0xFF707784),
+              height: 1.35,
+            ),
+            contentPadding: const EdgeInsets.fromLTRB(28, 26, 20, 26),
+            filled: true,
+            fillColor: const Color(0xFFFCFAFA),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFFD9DADF), width: 2),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFFD9DADF), width: 2),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: _primaryBlue, width: 2),
+            ),
+          ),
+        ),
+        const SizedBox(height: 46),
+        const Text(
+          'Anos de Experiência',
+          style: TextStyle(
+            fontSize: 36,
+            fontWeight: FontWeight.bold,
+            color: _titleDark,
+          ),
+        ),
+        const SizedBox(height: 24),
+        DropdownButtonFormField<String>(
+          key: ValueKey(_anosExperienciaSelecionado),
+          initialValue: _anosExperienciaSelecionado,
+          isExpanded: true,
+          icon: const Icon(Icons.keyboard_arrow_down, size: 36),
+          style: const TextStyle(fontSize: 30, color: Colors.black87),
+          decoration: InputDecoration(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 28,
+              vertical: 20,
+            ),
+            filled: true,
+            fillColor: const Color(0xFFFCFAFA),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFFD9DADF), width: 2),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFFD9DADF), width: 2),
+            ),
+          ),
+          items: opcoesExperiencia
+              .map(
+                (opcao) =>
+                    DropdownMenuItem<String>(value: opcao, child: Text(opcao)),
+              )
+              .toList(),
+          onChanged: (opcao) {
+            if (opcao == null) return;
+            setState(() => _anosExperienciaSelecionado = opcao);
+            _salvarPerfil(anos: opcao);
+          },
+        ),
       ],
     );
   }
@@ -1419,7 +1673,8 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                 ? Image.network(
                     postagem.imagemUrl!,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => _buildPlaceholderImagemPostagem(),
+                    errorBuilder: (_, _, _) =>
+                        _buildPlaceholderImagemPostagem(),
                   )
                 : _buildPlaceholderImagemPostagem(),
           ),
@@ -1533,50 +1788,21 @@ class _MapPatternPainter extends CustomPainter {
       ..color = const Color(0xFFE8EDF2)
       ..style = PaintingStyle.fill;
 
-    canvas.drawRect(
-      Rect.fromLTWH(20, 15, 60, 40),
-      blockPaint,
-    );
+    canvas.drawRect(Rect.fromLTWH(20, 15, 60, 40), blockPaint);
 
-    canvas.drawRect(
-      Rect.fromLTWH(100, 30, 80, 50),
-      blockPaint,
-    );
+    canvas.drawRect(Rect.fromLTWH(100, 30, 80, 50), blockPaint);
 
-    canvas.drawRect(
-      Rect.fromLTWH(200, 10, 70, 35),
-      blockPaint,
-    );
+    canvas.drawRect(Rect.fromLTWH(200, 10, 70, 35), blockPaint);
 
-    canvas.drawLine(
-      const Offset(0, 60),
-      Offset(size.width, 60),
-      roadPaint,
-    );
+    canvas.drawLine(const Offset(0, 60), Offset(size.width, 60), roadPaint);
 
-    canvas.drawLine(
-      const Offset(0, 90),
-      Offset(size.width, 90),
-      roadPaint,
-    );
+    canvas.drawLine(const Offset(0, 90), Offset(size.width, 90), roadPaint);
 
-    canvas.drawLine(
-      const Offset(80, 0),
-      Offset(80, size.height),
-      roadPaint,
-    );
+    canvas.drawLine(const Offset(80, 0), Offset(80, size.height), roadPaint);
 
-    canvas.drawLine(
-      const Offset(180, 0),
-      Offset(180, size.height),
-      roadPaint,
-    );
+    canvas.drawLine(const Offset(180, 0), Offset(180, size.height), roadPaint);
 
-    canvas.drawLine(
-      const Offset(260, 0),
-      Offset(260, size.height),
-      roadPaint,
-    );
+    canvas.drawLine(const Offset(260, 0), Offset(260, size.height), roadPaint);
   }
 
   @override
