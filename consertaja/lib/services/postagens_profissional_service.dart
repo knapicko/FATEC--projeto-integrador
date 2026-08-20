@@ -251,7 +251,24 @@ class PostagensProfissionalService {
       final idPerfil = await buscarIdPerfil();
       if (idPerfil == null) return [];
 
-      return buscarPostagensPorPerfil(idPerfil, limit: limit);
+      return await buscarPostagensPorPerfil(idPerfil, limit: limit);
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Busca todas as postagens do profissional, incluindo as arquivadas.
+  /// Usado na página "Minhas Postagens" do profissional.
+  static Future<List<PostagemResumo>> buscarTodasPostagens({int? limit}) async {
+    try {
+      final idPerfil = await buscarIdPerfil();
+      if (idPerfil == null) return [];
+
+      return await buscarPostagensPorPerfil(
+        idPerfil,
+        limit: limit,
+        incluirArquivadas: true,
+      );
     } catch (e) {
       return [];
     }
@@ -260,21 +277,27 @@ class PostagensProfissionalService {
   static Future<List<PostagemResumo>> buscarPostagensPorPerfil(
     int idPerfil, {
     int? limit,
+    bool incluirArquivadas = false,
   }) async {
     try {
       final supabase = Supabase.instance.client;
-      var query = supabase
+      PostgrestFilterBuilder<PostgrestList> query = supabase
           .from('postagens')
-          .select('id_postagem, conteudo, data_postagem')
-          .eq('fk_perfil', idPerfil)
-          .eq('arquivado', false)
-          .order('data_postagem', ascending: false);
+          .select('id_postagem, conteudo, data_postagem, arquivado')
+          .eq('fk_perfil', idPerfil);
 
-      if (limit != null) {
-        query = query.limit(limit);
+      if (!incluirArquivadas) {
+        query = query.eq('arquivado', false);
       }
 
-      final rows = await query;
+      PostgrestTransformBuilder<PostgrestList> queryFinal =
+          query.order('data_postagem', ascending: false);
+
+      if (limit != null) {
+        queryFinal = queryFinal.limit(limit);
+      }
+
+      final rows = await queryFinal;
       final postagens = <PostagemResumo>[];
 
       for (final row in rows) {
@@ -285,7 +308,48 @@ class PostagensProfissionalService {
 
       return postagens;
     } catch (e) {
+      debugPrint('❌ [buscarPostagensPorPerfil] ERRO: $e');
       return [];
+    }
+  }
+
+  /// Apaga permanentemente uma postagem do Supabase.
+  /// Retorna `true` apenas se a postagem foi realmente removida do banco.
+  static Future<bool> apagarPostagem(int idPostagem) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final removidas = await supabase
+          .from('postagens')
+          .delete()
+          .eq('id_postagem', idPostagem)
+          .select('id_postagem');
+
+      final sucesso = removidas.isNotEmpty;
+      debugPrint('🗑️ [apagarPostagem] id=$idPostagem sucesso=$sucesso linhas=${removidas.length}');
+      return sucesso;
+    } catch (e) {
+      debugPrint('❌ [apagarPostagem] ERRO: $e');
+      return false;
+    }
+  }
+
+  /// Marca uma postagem como arquivada (arquivado = true).
+  /// Retorna `true` apenas se a postagem foi realmente atualizada no banco.
+  static Future<bool> arquivarPostagem(int idPostagem) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final atualizadas = await supabase
+          .from('postagens')
+          .update({'arquivado': true})
+          .eq('id_postagem', idPostagem)
+          .select('id_postagem');
+
+      final sucesso = atualizadas.isNotEmpty;
+      debugPrint('📦 [arquivarPostagem] id=$idPostagem sucesso=$sucesso linhas=${atualizadas.length}');
+      return sucesso;
+    } catch (e) {
+      debugPrint('❌ [arquivarPostagem] ERRO: $e');
+      return false;
     }
   }
 
@@ -311,6 +375,7 @@ class PostagensProfissionalService {
     final dataPostagem = dataRaw != null
         ? DateTime.tryParse(dataRaw) ?? DateTime.now()
         : DateTime.now();
+    final arquivado = row['arquivado'] == true;
 
     // Separa linhas de texto de URLs de imagens
     final linhas = conteudo
@@ -339,6 +404,7 @@ class PostagensProfissionalService {
       imagemUrl: imagemUrl,
       dataPostagem: dataPostagem,
       curtidas: curtidas,
+      arquivado: arquivado,
     );
   }
 }
