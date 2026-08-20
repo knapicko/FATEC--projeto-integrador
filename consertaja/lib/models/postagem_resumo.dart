@@ -4,6 +4,7 @@ class PostagemResumo {
   final String? imagemUrl;
   final DateTime dataPostagem;
   final int curtidas;
+  final bool arquivado;
 
   const PostagemResumo({
     required this.idPostagem,
@@ -11,5 +12,6 @@ class PostagemResumo {
     this.imagemUrl,
     required this.dataPostagem,
     required this.curtidas,
+    this.arquivado = false,
   });
 }
