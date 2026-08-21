@@ -112,31 +112,15 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   }
 
   String _rotuloAnosExperiencia(dynamic valor) {
-    if (valor == null) return '0-1 ano';
-    final data = DateTime.tryParse(valor.toString());
-    if (data == null) return '0-1 ano';
-
-    final anos = DateTime.now().difference(data).inDays ~/ 365;
-    if (anos <= 1) return '0-1 ano';
-    if (anos <= 5) return '2-5 anos';
-    if (anos <= 10) return '6-10 anos';
-    if (anos <= 15) return '11-15 anos';
-    return 'Mais de 15 anos';
-  }
-
-  DateTime _dataRepresentativaExperiencia(String rotulo) {
-    final anos = switch (rotulo) {
-      '2-5 anos' => 3,
-      '6-10 anos' => 8,
-      '11-15 anos' => 13,
-      'Mais de 15 anos' => 16,
-      _ => 0,
+    const opcoes = {
+      '0-1 ano',
+      '2-5 anos',
+      '6-10 anos',
+      '11-15 anos',
+      'Mais de 15 anos',
     };
-    return DateTime(
-      DateTime.now().year - anos,
-      DateTime.now().month,
-      DateTime.now().day,
-    );
+    final rotulo = valor?.toString().trim();
+    return opcoes.contains(rotulo) ? rotulo! : '0-1 ano';
   }
 
   void _agendarSalvamentoDescricao(String descricao) {
@@ -163,20 +147,10 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
             .eq('id_perfil', idPerfil);
       }
       if (anos != null) {
-        final user = supabase.auth.currentUser;
-        final usuario = await supabase
-            .from('usuarios')
-            .select('id_usuario')
-            .eq('auth_id', user!.id)
-            .maybeSingle();
         await supabase
             .from('dados_profissionais')
-            .update({
-              'anos_experiencia': _dataRepresentativaExperiencia(
-                anos,
-              ).toIso8601String().split('T').first,
-            })
-            .eq('fk_usuario', usuario!['id_usuario']);
+            .update({'anos_experiencia': anos})
+            .eq('fk_perfil', idPerfil);
       }
     } catch (e) {
       debugPrint('Falha ao salvar informações do perfil: $e');
@@ -1561,35 +1535,35 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
         const Text(
           'Descrição',
           style: TextStyle(
-            fontSize: 36,
+            fontSize: 24,
             fontWeight: FontWeight.bold,
             color: Colors.black87,
           ),
         ),
-        const SizedBox(height: 46),
+        const SizedBox(height: 24),
         const Text(
           'Sobre mim',
           style: TextStyle(
-            fontSize: 36,
+            fontSize: 22,
             fontWeight: FontWeight.bold,
             color: _titleDark,
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 12),
         TextField(
           controller: _descricaoPerfilController,
-          minLines: 5,
-          maxLines: 7,
+          minLines: 4,
+          maxLines: 6,
           onChanged: _agendarSalvamentoDescricao,
-          style: const TextStyle(fontSize: 30, color: Colors.black87),
+          style: const TextStyle(fontSize: 16, color: Colors.black87),
           decoration: InputDecoration(
             hintText: 'Conte um pouco sobre sua trajetória\nprofissional...',
             hintStyle: const TextStyle(
-              fontSize: 30,
+              fontSize: 16,
               color: Color(0xFF707784),
               height: 1.35,
             ),
-            contentPadding: const EdgeInsets.fromLTRB(28, 26, 20, 26),
+            contentPadding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
             filled: true,
             fillColor: const Color(0xFFFCFAFA),
             border: OutlineInputBorder(
@@ -1606,26 +1580,26 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
             ),
           ),
         ),
-        const SizedBox(height: 46),
+        const SizedBox(height: 24),
         const Text(
           'Anos de Experiência',
           style: TextStyle(
-            fontSize: 36,
+            fontSize: 22,
             fontWeight: FontWeight.bold,
             color: _titleDark,
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 12),
         DropdownButtonFormField<String>(
           key: ValueKey(_anosExperienciaSelecionado),
           initialValue: _anosExperienciaSelecionado,
           isExpanded: true,
-          icon: const Icon(Icons.keyboard_arrow_down, size: 36),
-          style: const TextStyle(fontSize: 30, color: Colors.black87),
+          icon: const Icon(Icons.keyboard_arrow_down, size: 24),
+          style: const TextStyle(fontSize: 16, color: Colors.black87),
           decoration: InputDecoration(
             contentPadding: const EdgeInsets.symmetric(
-              horizontal: 28,
-              vertical: 20,
+              horizontal: 16,
+              vertical: 14,
             ),
             filled: true,
             fillColor: const Color(0xFFFCFAFA),
