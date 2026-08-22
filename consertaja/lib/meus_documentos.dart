@@ -69,7 +69,7 @@ class _MeusDocumentosPageState extends State<MeusDocumentosPage> {
       subtitulo: 'Carteira Nacional de Habilitação',
       icone: Icons.directions_car_outlined,
     ),
-    'PASSAPORTE': (
+    'Passaporte': (
       titulo: 'Passaporte',
       subtitulo: 'Passaporte',
       icone: Icons.menu_book_outlined,
@@ -77,7 +77,7 @@ class _MeusDocumentosPageState extends State<MeusDocumentosPage> {
   };
 
   /// Ordem de exibição dos tipos de documento.
-  static const List<String> _ordemTipos = ['RG', 'CIN', 'CNH', 'PASSAPORTE'];
+  static const List<String> _ordemTipos = ['RG', 'CIN', 'CNH', 'Passaporte'];
 
   @override
   void initState() {
@@ -140,7 +140,7 @@ class _MeusDocumentosPageState extends State<MeusDocumentosPage> {
       // 4. Converte os dados do Supabase para um mapa de status por tipo
       final statusPorTipo = <String, bool>{};
       for (final doc in docsResponse) {
-        final tipo = doc['tipo_documento']?.toString().toUpperCase() ?? '';
+        final tipo = doc['tipo_documento']?.toString() ?? '';
         if (tipo.isEmpty) continue;
         statusPorTipo[tipo] = doc['validacao_documento'] == true;
       }
@@ -331,7 +331,7 @@ class _MeusDocumentosPageState extends State<MeusDocumentosPage> {
         }
 
         for (final doc in docsData) {
-          final tipo = doc['tipo']?.toString().toUpperCase() ?? '';
+          final tipo = doc['tipo']?.toString() ?? '';
           if (tipo.isEmpty) continue;
 
           // Verifica se o documento já existe para atualizar ou inserir
@@ -1200,7 +1200,7 @@ class _ValidarDocumentoPageState extends State<_ValidarDocumentoPage> {
           }
           break;
 
-        case 'PASSAPORTE':
+        case 'Passaporte':
           final hojePass = DateTime.now();
           bool temDataValidaPass = false;
           for (final data in datas) {

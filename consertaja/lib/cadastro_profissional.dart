@@ -3588,18 +3588,21 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
     _DocType(label: 'Registro Geral (RG)', type: 'RG'),
     _DocType(label: 'Carteira de Identidade Nacional (CIN)', type: 'CIN'),
     _DocType(label: 'Carteira Nacional de Habilitação (CNH)', type: 'CNH'),
-    _DocType(label: 'Passaporte', type: 'PASSAPORTE'),
+    _DocType(label: 'Passaporte', type: 'Passaporte'),
   ];
 
   // Tipos de documentos para pessoa jurídica
   static final List<_DocType> _docTypesPJ = [
-    _DocType(label: 'Cartão CNPJ', type: 'CARTAO_CNPJ'),
+    _DocType(label: 'Cartão CNPJ', type: 'Cartão CNPJ'),
     _DocType(
       label: 'Contrato Social / Estatuto Social / Requerimento Empresário',
-      type: 'CONTRATO_SOCIAL',
+      type: 'Contrato Social / Estatuto Social/ Requerimento Empresário',
     ),
-    _DocType(label: 'Notas Fiscais (DANFE)', type: 'DANFE'),
-    _DocType(label: 'Alvará de Funcionamento', type: 'ALVARA'),
+    _DocType(
+      label: 'Notas Fiscais (DANFE)',
+      type: 'Notas Fiscais (DANFE)',
+    ),
+    _DocType(label: 'Alvará de Funcionamento', type: 'Alvará de Funcionamento'),
   ];
 
   bool _carregando = false;
@@ -4290,7 +4293,7 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
       final cnpjEncontrado = _extrairCnpj(texto);
 
       switch (doc.type) {
-        case 'CARTAO_CNPJ':
+        case 'Cartão CNPJ':
           if (cnpjDigitado == null) {
             erros.add('CNPJ não preenchido na etapa 1.');
             valido = false;
@@ -4303,7 +4306,7 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
           }
           break;
 
-        case 'CONTRATO_SOCIAL':
+        case 'Contrato Social / Estatuto Social/ Requerimento Empresário':
           if (cnpjDigitado == null) {
             erros.add('CNPJ não preenchido na etapa 1.');
             valido = false;
@@ -4326,7 +4329,7 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
           }
           break;
 
-        case 'DANFE':
+        case 'Notas Fiscais (DANFE)':
           if (cnpjDigitado == null) {
             erros.add('CNPJ não preenchido na etapa 1.');
             valido = false;
@@ -4348,7 +4351,7 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
           }
           break;
 
-        case 'ALVARA':
+        case 'Alvará de Funcionamento':
           if (cnpjDigitado == null) {
             erros.add('CNPJ não preenchido na etapa 1.');
             valido = false;
@@ -4566,7 +4569,7 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
           }
           break;
 
-        case 'PASSAPORTE':
+        case 'Passaporte':
           final hojePass = DateTime.now();
           bool temDataValidaPass = false;
           for (final data in datas) {
