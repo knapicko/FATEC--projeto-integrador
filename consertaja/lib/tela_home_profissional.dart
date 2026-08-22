@@ -1,10 +1,11 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'alterar_disponibilidade.dart';
+import 'modificar_conta_profissional.dart';
 import 'minhas_postagens_profissional.dart';
 import 'models/postagem_resumo.dart';
 import 'services/postagens_profissional_service.dart';
@@ -102,25 +103,18 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   int _currentIndex = 0;
 
   final TextEditingController _postagemController = TextEditingController();
-  final TextEditingController _descricaoPerfilController =
-      TextEditingController();
-  final FocusNode _descricaoPerfilFocusNode = FocusNode();
   final ImagePicker _picker = ImagePicker();
-  Timer? _descricaoPerfilTimer;
-  bool _descricaoPerfilCarregada = false;
 
   // Futures cacheados para evitar recarregamento ao rolar a tela
   late Future<Map<String, dynamic>?> _dadosProfissionalFuture;
   late Future<String?> _enderecoFuture;
   late Future<List<OficioInfo>?> _oficiosFuture;
   late Future<List<PostagemResumo>> _postagensFuture;
-  late Future<Map<String, dynamic>?> _informacoesPerfilFuture;
   late Future<List<_DiaAgendaCalendario>> _agendaSemanaFuture;
 
   // Estado da criação de postagem
   List<XFile> _imagensSelecionadas = [];
   bool _enviandoPostagem = false;
-  String _anosExperienciaSelecionado = '0-1 ano';
 
   @override
   void initState() {
@@ -133,247 +127,13 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     _enderecoFuture = _buscarEndereco();
     _oficiosFuture = _buscarOficios();
     _postagensFuture = PostagensProfissionalService.buscarPostagens(limit: 10);
-    _informacoesPerfilFuture = _buscarInformacoesPerfil();
     _agendaSemanaFuture = _carregarAgendaSemana();
   }
 
   @override
   void dispose() {
     _postagemController.dispose();
-    _descricaoPerfilController.dispose();
-    _descricaoPerfilFocusNode.dispose();
-    _descricaoPerfilTimer?.cancel();
     super.dispose();
-  }
-
-  Future<Map<String, dynamic>?> _buscarInformacoesPerfil() async {
-    try {
-      final supabase = Supabase.instance.client;
-      final user = supabase.auth.currentUser;
-      debugPrint('🔎 [_buscarInformacoesPerfil] Inciado. user=${user?.id}');
-      if (user == null) return null;
-
-      final usuario = await supabase
-          .from('usuarios')
-          .select('id_usuario')
-          .eq('auth_id', user.id)
-          .maybeSingle();
-      final usuarioId = usuario?['id_usuario'];
-      debugPrint('🔎 [_buscarInformacoesPerfil] usuarioId=$usuarioId');
-      if (usuarioId == null) return null;
-
-      final dadosProfissional = await supabase
-          .from('dados_profissionais')
-          .select('fk_perfil, anos_experiencia, id_profissional')
-          .eq('fk_usuario', usuarioId)
-          .maybeSingle();
-      debugPrint('🔎 [_buscarInformacoesPerfil] dadosProfissional=$dadosProfissional');
-      if (dadosProfissional == null) return null;
-
-      final idPerfil = await _buscarIdPerfilDireto();
-      debugPrint('🔎 [_buscarInformacoesPerfil] idPerfil=$idPerfil');
-      if (idPerfil == null) return dadosProfissional;
-
-      final perfil = await supabase
-          .from('perfil')
-          .select('id_perfil, descricao_perfil')
-          .eq('id_perfil', idPerfil)
-          .maybeSingle();
-      debugPrint(
-        '🔎 [_buscarInformacoesPerfil] perfil retornado=$perfil',
-      );
-
-      return {
-        ...dadosProfissional,
-        'fk_perfil': idPerfil,
-        'descricao_perfil': perfil?['descricao_perfil'],
-      };
-    } catch (e) {
-      debugPrint('❌ [_buscarInformacoesPerfil] ERRO: $e');
-      return null;
-    }
-  }
-
-  /// Busca o `fk_perfil` direto da tabela `dados_profissionais`, sem passar
-  /// pela verificação extra que o `buscarIdPerfil()` faz (que pode ser
-  /// bloqueada por RLS e criar perfis desnecessariamente).
-  Future<int?> _buscarIdPerfilDireto() async {
-    try {
-      final supabase = Supabase.instance.client;
-      final user = supabase.auth.currentUser;
-      if (user == null) return null;
-
-      final usuario = await supabase
-          .from('usuarios')
-          .select('id_usuario')
-          .eq('auth_id', user.id)
-          .maybeSingle();
-      final usuarioId = usuario?['id_usuario'];
-      if (usuarioId == null) return null;
-
-      final dadosProf = await supabase
-          .from('dados_profissionais')
-          .select('fk_perfil')
-          .eq('fk_usuario', usuarioId)
-          .maybeSingle();
-
-      final fkPerfil = (dadosProf?['fk_perfil'] as num?)?.toInt();
-      debugPrint('🔎 [_buscarIdPerfilDireto] fk_perfil=$fkPerfil');
-      return fkPerfil;
-    } catch (e) {
-      debugPrint('❌ [_buscarIdPerfilDireto] ERRO: $e');
-      return null;
-    }
-  }
-
-  String _rotuloAnosExperiencia(dynamic valor) {
-    const opcoes = {
-      '0-1 ano',
-      '2-5 anos',
-      '6-10 anos',
-      '11-15 anos',
-      'Mais de 15 anos',
-    };
-    final rotulo = valor?.toString().trim();
-    return opcoes.contains(rotulo) ? rotulo! : '0-1 ano';
-  }
-
-  void _agendarSalvamentoDescricao(String descricao) {
-    _descricaoPerfilTimer?.cancel();
-    _descricaoPerfilTimer = Timer(const Duration(milliseconds: 700), () {
-      _salvarPerfil(descricao: descricao);
-    });
-  }
-
-  Future<void> _salvarPerfil({String? descricao, String? anos}) async {
-    _descricaoPerfilTimer?.cancel();
-    debugPrint('💾 [_salvarPerfil] Chamado. descricao=$descricao | anos=$anos');
-    try {
-      var idPerfil = await _buscarIdPerfilDireto();
-      debugPrint('💾 [_salvarPerfil] idPerfil (direto)=$idPerfil');
-      if (idPerfil == null) {
-        // Fallback 1: tenta criar o perfil via serviço
-        idPerfil = await PostagensProfissionalService.buscarIdPerfil();
-        debugPrint('💾 [_salvarPerfil] idPerfil (após buscarIdPerfil)=$idPerfil');
-      }
-      if (idPerfil == null) {
-        // Fallback 2: usa o id_profissional como id_perfil
-        final supabase = Supabase.instance.client;
-        final user = supabase.auth.currentUser;
-        if (user != null) {
-          final usuario = await supabase
-              .from('usuarios')
-              .select('id_usuario')
-              .eq('auth_id', user.id)
-              .maybeSingle();
-          final usuarioId = usuario?['id_usuario'];
-          if (usuarioId != null) {
-            final dadosProf = await supabase
-                .from('dados_profissionais')
-                .select('id_profissional')
-                .eq('fk_usuario', usuarioId)
-                .maybeSingle();
-            final idProfissional =
-                (dadosProf?['id_profissional'] as num?)?.toInt();
-            debugPrint('💾 [_salvarPerfil] Fallback 2: id_profissional=$idProfissional');
-            if (idProfissional != null) {
-              // Tenta usar o id_profissional como id_perfil
-              try {
-                await supabase.from('perfil').insert({
-                  'id_perfil': idProfissional,
-                  'descricao_perfil': descricao?.trim().isEmpty ?? true
-                      ? null
-                      : descricao!.trim(),
-                });
-                await supabase
-                    .from('dados_profissionais')
-                    .update({'fk_perfil': idProfissional})
-                    .eq('id_profissional', idProfissional);
-                idPerfil = idProfissional;
-                debugPrint('✅ [_salvarPerfil] Perfil criado com id_perfil=$idPerfil');
-              } catch (eInsert) {
-                debugPrint('❌ [_salvarPerfil] Falha ao criar perfil com id_profissional: $eInsert');
-              }
-            }
-          }
-        }
-      }
-      if (idPerfil == null) {
-        debugPrint('❌ [_salvarPerfil] idPerfil é null — abortando salvamento');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Perfil não encontrado. Verifique seus dados profissionais.',
-              ),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
-        return;
-      }
-      debugPrint('💾 [_salvarPerfil] Salvando com idPerfil=$idPerfil');
-      final supabase = Supabase.instance.client;
-
-      if (descricao != null) {
-        final textoLimpo = descricao.trim();
-        final valorFinal = textoLimpo.isEmpty
-            ? null
-            : (textoLimpo.length > 250
-                ? textoLimpo.substring(0, 250)
-                : textoLimpo);
-        debugPrint('💾 [_salvarPerfil] Atualizando perfil $idPerfil com descricao_perfil=$valorFinal (${valorFinal?.length ?? 0} chars)');
-        final resultado = await supabase
-            .from('perfil')
-            .update({
-              'descricao_perfil': valorFinal,
-            })
-            .eq('id_perfil', idPerfil)
-            .select('id_perfil, descricao_perfil');
-        debugPrint('✅ [_salvarPerfil] UPDATE perfil retornou: $resultado');
-        if (resultado.isEmpty) {
-          debugPrint('⚠️ [_salvarPerfil] UPDATE retornou 0 linhas! RLS pode estar bloqueando. Verifique as policies da tabela perfil no Supabase.');
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'O Supabase não permitiu atualizar a descrição. Verifique as políticas (RLS) da tabela "perfil".',
-                ),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-        }
-      }
-      if (anos != null) {
-        debugPrint('💾 [_salvarPerfil] Atualizando dados_profissionais com anos_experiencia=$anos');
-        await supabase
-            .from('dados_profissionais')
-            .update({'anos_experiencia': anos})
-            .eq('fk_perfil', idPerfil);
-      }
-      if (mounted) {
-        setState(() {
-          _informacoesPerfilFuture = _buscarInformacoesPerfil();
-        });
-        if (descricao != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Descrição salva com sucesso!')),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('❌ [_salvarPerfil] Falha ao salvar informações do perfil: $e');
-      debugPrint('❌ [_salvarPerfil] StackTrace: ${StackTrace.current}');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Falha ao salvar descrição: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
   }
 
   Future<Map<String, dynamic>?> _buscarDadosProfissional() async {
@@ -617,9 +377,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
       final diasRaw = agenda?['dias_semana']?.toString();
       if (diasRaw != null && diasRaw.trim().isNotEmpty) {
         for (final nome in diasRaw.split(',')) {
-          final indice = _nomesDiasMinusculo.indexOf(
-            nome.trim().toLowerCase(),
-          );
+          final indice = _nomesDiasMinusculo.indexOf(nome.trim().toLowerCase());
           if (indice >= 0) diasDisponiveis.add(indice);
         }
       }
@@ -651,12 +409,11 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
         TimeOfDay? horaIni;
         TimeOfDay? horaFim;
 
-        final excecao = excecoes.where(
-          (e) {
-            final dataExcecao = _parseDataExcecao(e['dia_semana']);
-            return dataExcecao != null && _formatarDataCompleta(dataExcecao) == chave;
-          },
-        );
+        final excecao = excecoes.where((e) {
+          final dataExcecao = _parseDataExcecao(e['dia_semana']);
+          return dataExcecao != null &&
+              _formatarDataCompleta(dataExcecao) == chave;
+        });
 
         if (excecao.isNotEmpty) {
           final row = excecao.first;
@@ -752,10 +509,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
               const SizedBox(height: 4),
               Text(
                 _nomesDiasSemana[dia.data.weekday % 7],
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey.shade600,
-                ),
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
               ),
               const SizedBox(height: 12),
               Container(
@@ -809,9 +563,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              style: TextButton.styleFrom(
-                foregroundColor: _vermelhoExcecao,
-              ),
+              style: TextButton.styleFrom(foregroundColor: _vermelhoExcecao),
               child: const Text('Fechar'),
             ),
           ],
@@ -1202,7 +954,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
               future: _dadosProfissionalFuture,
               builder: (context, snapshot) {
                 final nomeCompleto =
-                    snapshot.data?['nome'] as String? ?? 'Caneta Azul';
+                    snapshot.data?['nome'] as String? ?? 'Nome não encontrado';
                 final fotoUrl = snapshot.data?['foto_perfil_url'] as String?;
 
                 return FutureBuilder<String?>(
@@ -1540,7 +1292,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                       Expanded(
                         child: _buildQuickOption(
                           Icons.bar_chart,
-                          'Estatísticas\nFinanceiras',
+                          'Estatísticas\ne Gráficos',
                         ),
                       ),
                       Expanded(
@@ -1575,8 +1327,55 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                       ),
                       Expanded(
                         child: _buildQuickOption(
-                          Icons.add_circle_outline,
-                          'Mais\nOpções',
+                          Icons.calendar_month_outlined,
+                          'Ajustar\nDisponibilidade',
+                          onTap: () {
+                            Navigator.of(context).push(
+                              _rotaSemAnimacao(
+                                const AlterarDisponibilidadePage(),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _buildQuickOption(
+                          Icons.account_balance_wallet_outlined,
+                          'Dados\nFinanceiros',
+                        ),
+                      ),
+                      Expanded(
+                        child: _buildQuickOption(
+                          Icons.manage_accounts_outlined,
+                          'Modificar\nconta',
+                          onTap: () {
+                            Navigator.of(context).push(
+                              _rotaSemAnimacao(
+                                const ModificarContaProfissionalPage(),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      Expanded(
+                        child: _buildQuickOption(
+                          Icons.remove_red_eye_outlined,
+                          'Visualizar\nperfil',
+                          onTap: () {
+                            Navigator.of(context).push(
+                              _rotaSemAnimacao(
+                                TelaMeuPerfilProfissionalPage(
+                                  isVisitante: widget.isVisitante,
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ],
@@ -1592,28 +1391,6 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
               builder: (context, snapshot) {
                 final postagens = snapshot.data ?? [];
                 return _buildSecaoPostagens(postagens);
-              },
-            ),
-            const SizedBox(height: 28),
-            FutureBuilder<Map<String, dynamic>?>(
-              future: _informacoesPerfilFuture,
-              builder: (context, snapshot) {
-                final dados = snapshot.data;
-                if (snapshot.connectionState == ConnectionState.done &&
-                    !_descricaoPerfilCarregada) {
-                  final descricao =
-                      dados?['descricao_perfil']?.toString() ?? '';
-                  _descricaoPerfilController.text = descricao;
-                  _descricaoPerfilCarregada = true;
-                }
-                if (snapshot.connectionState == ConnectionState.done &&
-                    dados?['anos_experiencia'] != null) {
-                  _anosExperienciaSelecionado = _rotuloAnosExperiencia(
-                    dados!['anos_experiencia'],
-                  );
-                }
-
-                return _buildInformacoesPerfil();
               },
             ),
             const SizedBox(height: 20),
@@ -1752,9 +1529,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: List.generate(dias.length, (index) {
                 final dia = dias[index];
-                return Expanded(
-                  child: _buildCelulaDiaAgenda(dia),
-                );
+                return Expanded(child: _buildCelulaDiaAgenda(dia));
               }),
             ),
           ],
@@ -1843,10 +1618,9 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
 
       // Dia inteiro com exceção: fundo vermelho e mostra a observação
       // (motivo) no dia.
-      final motivo =
-          dia.observacaoExcecao?.trim().isNotEmpty == true
-              ? dia.observacaoExcecao!.trim()
-              : 'Indisponível';
+      final motivo = dia.observacaoExcecao?.trim().isNotEmpty == true
+          ? dia.observacaoExcecao!.trim()
+          : 'Indisponível';
 
       return GestureDetector(
         onTap: () => _mostrarPopupExcecao(dia),
@@ -1857,9 +1631,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           decoration: BoxDecoration(
             color: _vermelhoExcecao,
             borderRadius: BorderRadius.circular(6),
-            border: isHoje
-                ? Border.all(color: Colors.white, width: 2)
-                : null,
+            border: isHoje ? Border.all(color: Colors.white, width: 2) : null,
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -2172,121 +1944,6 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     );
   }
 
-  Widget _buildInformacoesPerfil() {
-    const opcoesExperiencia = [
-      '0-1 ano',
-      '2-5 anos',
-      '6-10 anos',
-      '11-15 anos',
-      'Mais de 15 anos',
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Descrição',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
-        ),
-        const SizedBox(height: 24),
-        const Text(
-          'Sobre mim',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: _titleDark,
-          ),
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _descricaoPerfilController,
-          focusNode: _descricaoPerfilFocusNode,
-          minLines: 4,
-          maxLines: 6,
-          maxLength: 250,
-          onChanged: _agendarSalvamentoDescricao,
-          onTapOutside: (event) {
-            _descricaoPerfilFocusNode.unfocus();
-            _descricaoPerfilTimer?.cancel();
-            _salvarPerfil(descricao: _descricaoPerfilController.text);
-          },
-          style: const TextStyle(fontSize: 16, color: Colors.black87),
-          decoration: InputDecoration(
-            hintText: 'Conte um pouco sobre sua trajetória\nprofissional...',
-            hintStyle: const TextStyle(
-              fontSize: 16,
-              color: Color(0xFF707784),
-              height: 1.35,
-            ),
-            contentPadding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-            filled: true,
-            fillColor: const Color(0xFFFCFAFA),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: Color(0xFFD9DADF), width: 2),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: Color(0xFFD9DADF), width: 2),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: _primaryBlue, width: 2),
-            ),
-          ),
-        ),
-        const SizedBox(height: 24),
-        const Text(
-          'Anos de Experiência',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: _titleDark,
-          ),
-        ),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          key: ValueKey(_anosExperienciaSelecionado),
-          initialValue: _anosExperienciaSelecionado,
-          isExpanded: true,
-          icon: const Icon(Icons.keyboard_arrow_down, size: 24),
-          style: const TextStyle(fontSize: 16, color: Colors.black87),
-          decoration: InputDecoration(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
-            ),
-            filled: true,
-            fillColor: const Color(0xFFFCFAFA),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: Color(0xFFD9DADF), width: 2),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: Color(0xFFD9DADF), width: 2),
-            ),
-          ),
-          items: opcoesExperiencia
-              .map(
-                (opcao) =>
-                    DropdownMenuItem<String>(value: opcao, child: Text(opcao)),
-              )
-              .toList(),
-          onChanged: (opcao) {
-            if (opcao == null) return;
-            setState(() => _anosExperienciaSelecionado = opcao);
-            _salvarPerfil(anos: opcao);
-          },
-        ),
-      ],
-    );
-  }
-
   Widget _buildCardPostagem(PostagemResumo postagem) {
     return Container(
       width: 150,
@@ -2380,18 +2037,25 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     );
   }
 
-  Widget _buildQuickOption(IconData icon, String label) {
+  Widget _buildQuickOption(IconData icon, String label, {VoidCallback? onTap}) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(
-            color: _primaryBlue,
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
             borderRadius: BorderRadius.circular(14),
+            child: Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: _primaryBlue,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: Colors.white, size: 26),
+            ),
           ),
-          child: Icon(icon, color: Colors.white, size: 26),
         ),
         const SizedBox(height: 8),
         Text(
