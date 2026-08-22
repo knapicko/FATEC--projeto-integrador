@@ -20,12 +20,84 @@ class TelaHomeProfissional extends StatefulWidget {
   State<TelaHomeProfissional> createState() => _TelaHomeProfissionalState();
 }
 
+/// Representa um dia da semana no calendário da agenda, com o estado de
+/// disponibilidade e a exceção (se houver).
+class _DiaAgendaCalendario {
+  const _DiaAgendaCalendario({
+    required this.data,
+    required this.disponivel,
+    this.observacaoExcecao,
+    this.horaInicioExcecao,
+    this.horaFimExcecao,
+  });
+
+  final DateTime data;
+  final bool disponivel;
+
+  /// Preenchido quando existe exceção (grade_horario_excecao).
+  final String? observacaoExcecao;
+  final TimeOfDay? horaInicioExcecao;
+  final TimeOfDay? horaFimExcecao;
+
+  bool get isExcecao =>
+      observacaoExcecao != null ||
+      horaInicioExcecao != null ||
+      horaFimExcecao != null;
+
+  /// Exceção parcial: quando hora_ini e hora_fim estão preenchidos.
+  bool get isExcecaoParcial =>
+      horaInicioExcecao != null && horaFimExcecao != null;
+
+  bool get isHoje {
+    final agora = DateTime.now();
+    return data.year == agora.year &&
+        data.month == agora.month &&
+        data.day == agora.day;
+  }
+}
+
 class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   static const Color _primaryBlue = Color(0xFF0FB3FF);
   static const Color _background = Color(0xFFF8FAFC);
   static const Color _titleDark = Color(0xFF1A2B4A);
   static const Color _inputGray = Color(0xFFF0F2F5);
   static const Color _textMuted = Color(0xFF9CA3AF);
+  static const Color _vermelhoExcecao = Color(0xFFCE4257);
+
+  static const List<String> _nomesDiasSemana = [
+    'Domingo',
+    'Segunda-feira',
+    'Terça-feira',
+    'Quarta-feira',
+    'Quinta-feira',
+    'Sexta-feira',
+    'Sábado',
+  ];
+
+  static const List<String> _nomesDiasMinusculo = [
+    'domingo',
+    'segunda-feira',
+    'terça-feira',
+    'quarta-feira',
+    'quinta-feira',
+    'sexta-feira',
+    'sábado',
+  ];
+
+  static const List<String> _mesesExtenso = [
+    'Janeiro',
+    'Fevereiro',
+    'Março',
+    'Abril',
+    'Maio',
+    'Junho',
+    'Julho',
+    'Agosto',
+    'Setembro',
+    'Outubro',
+    'Novembro',
+    'Dezembro',
+  ];
 
   int _currentIndex = 0;
 
@@ -43,6 +115,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   late Future<List<OficioInfo>?> _oficiosFuture;
   late Future<List<PostagemResumo>> _postagensFuture;
   late Future<Map<String, dynamic>?> _informacoesPerfilFuture;
+  late Future<List<_DiaAgendaCalendario>> _agendaSemanaFuture;
 
   // Estado da criação de postagem
   List<XFile> _imagensSelecionadas = [];
@@ -61,6 +134,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     _oficiosFuture = _buscarOficios();
     _postagensFuture = PostagensProfissionalService.buscarPostagens(limit: 10);
     _informacoesPerfilFuture = _buscarInformacoesPerfil();
+    _agendaSemanaFuture = _carregarAgendaSemana();
   }
 
   @override
@@ -452,6 +526,298 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     } catch (e) {
       return null;
     }
+  }
+
+  // ================= AGENDA DA SEMANA =================
+
+  /// Busca o `id_profissional` do usuário logado.
+  Future<int?> _buscarIdProfissional() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user == null) return null;
+
+      final usuario = await supabase
+          .from('usuarios')
+          .select('id_usuario')
+          .eq('auth_id', user.id)
+          .maybeSingle();
+      final usuarioId = usuario?['id_usuario'];
+      if (usuarioId == null) return null;
+
+      final dadosProf = await supabase
+          .from('dados_profissionais')
+          .select('id_profissional')
+          .eq('fk_usuario', usuarioId)
+          .maybeSingle();
+      if (dadosProf == null) return null;
+
+      return (dadosProf['id_profissional'] as num?)?.toInt();
+    } catch (e) {
+      debugPrint('❌ [_buscarIdProfissional] ERRO: $e');
+      return null;
+    }
+  }
+
+  String _formatarDataCompleta(DateTime data) {
+    final mm = data.month.toString().padLeft(2, '0');
+    final dd = data.day.toString().padLeft(2, '0');
+    return '${data.year}-$mm-$dd';
+  }
+
+  /// Converte uma string time (ex: "08:00:00" ou "08:00:00-03") em TimeOfDay.
+  TimeOfDay? _parseHora(Object? raw) {
+    if (raw == null) return null;
+    final match = RegExp(r'^(\d{1,2}):(\d{2})').firstMatch(raw.toString());
+    if (match == null) return null;
+    return TimeOfDay(
+      hour: int.parse(match.group(1)!),
+      minute: int.parse(match.group(2)!),
+    );
+  }
+
+  /// Converte a coluna `date` (formato "YYYY-MM-DD") em DateTime.
+  DateTime? _parseDataExcecao(Object? raw) {
+    if (raw == null) return null;
+    final texto = raw.toString().trim();
+    final match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(texto);
+    if (match == null) return DateTime.tryParse(texto);
+    return DateTime(
+      int.parse(match.group(1)!),
+      int.parse(match.group(2)!),
+      int.parse(match.group(3)!),
+    );
+  }
+
+  /// Carrega os 7 dias da semana atual (segunda a domingo), verificando a
+  /// disponibilidade recorrente (agenda_profissional) e as exceções
+  /// (grade_horario_excecao) de cada dia.
+  Future<List<_DiaAgendaCalendario>> _carregarAgendaSemana() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final idProfissional = await _buscarIdProfissional();
+      if (idProfissional == null) return _gerarSemanaDefault();
+
+      final agora = DateTime.now();
+      final hoje = DateTime(agora.year, agora.month, agora.day);
+
+      // Hoje é o primeiro dia da fila, seguido dos próximos 6 dias.
+      final diasDaSemana = List.generate(7, (i) => hoje.add(Duration(days: i)));
+
+      // 1. Busca a disponibilidade recorrente (fk_solicitacao = 0)
+      final agenda = await supabase
+          .from('agenda_profissional')
+          .select('dias_semana')
+          .eq('fk_profissional', idProfissional)
+          .eq('fk_solicitacao', 0)
+          .limit(1)
+          .maybeSingle();
+
+      final diasDisponiveis = <int>{};
+      final diasRaw = agenda?['dias_semana']?.toString();
+      if (diasRaw != null && diasRaw.trim().isNotEmpty) {
+        for (final nome in diasRaw.split(',')) {
+          final indice = _nomesDiasMinusculo.indexOf(
+            nome.trim().toLowerCase(),
+          );
+          if (indice >= 0) diasDisponiveis.add(indice);
+        }
+      }
+
+      // 2. Busca as exceções dos 7 dias da semana
+      final primeiraData = _formatarDataCompleta(diasDaSemana.first);
+      final ultimaData = _formatarDataCompleta(diasDaSemana.last);
+
+      List<Map<String, dynamic>> excecoes = [];
+      try {
+        final response = await supabase
+            .from('grade_horario_excecao')
+            .select('dia_semana, hora_ini, hora_fim, observacao')
+            .eq('fk_profissional', idProfissional)
+            .gte('dia_semana', primeiraData)
+            .lte('dia_semana', ultimaData);
+        excecoes = response;
+      } catch (e) {
+        debugPrint('❌ [_carregarAgendaSemana] ERRO ao buscar exceções: $e');
+      }
+
+      // 3. Monta a lista de dias
+      final resultado = <_DiaAgendaCalendario>[];
+      for (final dia in diasDaSemana) {
+        final chave = _formatarDataCompleta(dia);
+        final disponivel = diasDisponiveis.contains(dia.weekday % 7);
+
+        String? observacao;
+        TimeOfDay? horaIni;
+        TimeOfDay? horaFim;
+
+        final excecao = excecoes.where(
+          (e) {
+            final dataExcecao = _parseDataExcecao(e['dia_semana']);
+            return dataExcecao != null && _formatarDataCompleta(dataExcecao) == chave;
+          },
+        );
+
+        if (excecao.isNotEmpty) {
+          final row = excecao.first;
+          observacao = row['observacao']?.toString();
+          horaIni = _parseHora(row['hora_ini']);
+          horaFim = _parseHora(row['hora_fim']);
+        }
+
+        resultado.add(
+          _DiaAgendaCalendario(
+            data: dia,
+            disponivel: disponivel,
+            observacaoExcecao: observacao,
+            horaInicioExcecao: horaIni,
+            horaFimExcecao: horaFim,
+          ),
+        );
+      }
+
+      return resultado;
+    } catch (e) {
+      debugPrint('❌ [_carregarAgendaSemana] ERRO GERAL: $e');
+      return _gerarSemanaDefault();
+    }
+  }
+
+  /// Gera a semana atual com todos os dias indisponíveis (usado quando não é
+  /// possível carregar a disponibilidade do banco).
+  List<_DiaAgendaCalendario> _gerarSemanaDefault() {
+    final agora = DateTime.now();
+    final hoje = DateTime(agora.year, agora.month, agora.day);
+    return List.generate(
+      7,
+      (i) => _DiaAgendaCalendario(
+        data: hoje.add(Duration(days: i)),
+        disponivel: false,
+      ),
+    );
+  }
+
+  String _formatarDataExcecaoPopup(DateTime data) {
+    return '${data.day} de ${_mesesExtenso[data.month - 1]} de ${data.year}';
+  }
+
+  String _formatarHoraExibicao(TimeOfDay time) {
+    final hora = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
+    final minuto = time.minute.toString().padLeft(2, '0');
+    final periodo = time.period == DayPeriod.am ? 'AM' : 'PM';
+    return '${hora.toString().padLeft(2, '0')}:$minuto $periodo';
+  }
+
+  void _mostrarPopupExcecao(_DiaAgendaCalendario dia) {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        final observacao = dia.observacaoExcecao?.trim().isNotEmpty == true
+            ? dia.observacaoExcecao!.trim()
+            : 'Indisponível';
+
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.event_busy, color: _vermelhoExcecao, size: 22),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Exceção na agenda',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: _titleDark,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _formatarDataExcecaoPopup(dia.data),
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: _titleDark,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _nomesDiasSemana[dia.data.weekday % 7],
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: _vermelhoExcecao.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: _vermelhoExcecao.withValues(alpha: 0.25),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Motivo',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: _vermelhoExcecao,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      observacao,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: _titleDark,
+                        height: 1.4,
+                      ),
+                    ),
+                    if (dia.horaInicioExcecao != null &&
+                        dia.horaFimExcecao != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Ausência das ${_formatarHoraExibicao(dia.horaInicioExcecao!)} '
+                        'às ${_formatarHoraExibicao(dia.horaFimExcecao!)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: TextButton.styleFrom(
+                foregroundColor: _vermelhoExcecao,
+              ),
+              child: const Text('Fechar'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   PageRouteBuilder _rotaSemAnimacao(Widget page) {
@@ -1345,30 +1711,31 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   }
 
   Widget _buildWeekCalendar() {
-    const diasSemana = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
-    final dias = [
-      {'numero': '3', 'hoje': true, 'agendado': false, 'evento': 'Hoje'},
-      {'numero': '4', 'hoje': false, 'agendado': false, 'evento': ''},
-      {
-        'numero': '5',
-        'hoje': false,
-        'agendado': true,
-        'evento': 'Cons.\ncabo Panela',
-      },
-      {'numero': '6', 'hoje': false, 'agendado': false, 'evento': ''},
-      {'numero': '7', 'hoje': false, 'agendado': false, 'evento': ''},
-      {'numero': '8', 'hoje': false, 'agendado': false, 'evento': ''},
-      {'numero': '9', 'hoje': false, 'agendado': false, 'evento': ''},
-    ];
+    return FutureBuilder<List<_DiaAgendaCalendario>>(
+      future: _agendaSemanaFuture,
+      builder: (context, snapshot) {
+        final dias = snapshot.data ?? <_DiaAgendaCalendario>[];
 
-    return Column(
-      children: [
-        Row(
-          children: diasSemana
-              .map(
-                (dia) => Expanded(
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const SizedBox(
+            height: 72,
+            child: Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: _primaryBlue,
+              ),
+            ),
+          );
+        }
+
+        return Column(
+          children: [
+            Row(
+              children: List.generate(dias.length, (index) {
+                final dia = dias[index];
+                return Expanded(
                   child: Text(
-                    dia,
+                    _abreviacaoDiaSemana(dia.data.weekday % 7),
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 9,
@@ -1377,108 +1744,246 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                       letterSpacing: 0.3,
                     ),
                   ),
-                ),
-              )
-              .toList(),
-        ),
-        const SizedBox(height: 6),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: List.generate(dias.length, (index) {
-            final item = dias[index];
-            final isHoje = item['hoje'] as bool;
-            final isAgendado = item['agendado'] as bool;
-            final diaNumero = item['numero'] as String;
-            final eventoTexto = item['evento'] as String;
+                );
+              }),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: List.generate(dias.length, (index) {
+                final dia = dias[index];
+                return Expanded(
+                  child: _buildCelulaDiaAgenda(dia),
+                );
+              }),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
-            if (isAgendado) {
-              return Expanded(
-                child: Container(
-                  height: 72,
-                  margin: const EdgeInsets.symmetric(horizontal: 1.5),
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 6,
-                    horizontal: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _primaryBlue,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        diaNumero,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      if (eventoTexto.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          eventoTexto,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 7,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                            height: 1.2,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              );
-            }
+  String _abreviacaoDiaSemana(int index) {
+    const abreviaturas = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
+    return abreviaturas[index];
+  }
 
-            return Expanded(
-              child: Container(
-                height: 72,
-                margin: const EdgeInsets.symmetric(horizontal: 1.5),
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: isHoje ? _primaryBlue : Colors.grey.shade200,
-                    width: isHoje ? 1.5 : 1,
+  String _horaCurta(TimeOfDay time) {
+    final hh = time.hour.toString().padLeft(2, '0');
+    final mm = time.minute.toString().padLeft(2, '0');
+    return '$hh:$mm';
+  }
+
+  Widget _buildCelulaDiaAgenda(_DiaAgendaCalendario dia) {
+    final isHoje = dia.isHoje;
+    final isExcecao = dia.isExcecao;
+    final isExcecaoParcial = dia.isExcecaoParcial;
+
+    if (isExcecao) {
+      // Exceção parcial (hora_ini e hora_fim preenchidos): borda vermelha,
+      // fundo claro, e exibe o intervalo de horário em vez do motivo.
+      if (isExcecaoParcial) {
+        final horaIni = _horaCurta(dia.horaInicioExcecao!);
+        final horaFim = _horaCurta(dia.horaFimExcecao!);
+        return GestureDetector(
+          onTap: () => _mostrarPopupExcecao(dia),
+          child: Container(
+            height: 72,
+            margin: const EdgeInsets.symmetric(horizontal: 1.5),
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: isHoje ? _vermelhoExcecao : _vermelhoExcecao,
+                width: isHoje ? 2 : 1.5,
+              ),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '${dia.data.day}',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: _vermelhoExcecao,
                   ),
                 ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      diaNumero,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: isHoje ? _primaryBlue : _titleDark,
-                      ),
+                if (isHoje) ...[
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Hoje',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 8,
+                      fontWeight: FontWeight.w600,
+                      color: _vermelhoExcecao,
                     ),
-                    if (eventoTexto.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        eventoTexto,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 8,
-                          fontWeight: FontWeight.w600,
-                          color: _primaryBlue,
-                        ),
-                      ),
-                    ],
-                  ],
+                  ),
+                ],
+                const SizedBox(height: 2),
+                Text(
+                  '$horaIni\nàs $horaFim',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 7,
+                    fontWeight: FontWeight.w600,
+                    color: _vermelhoExcecao,
+                    height: 1.2,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      // Dia inteiro com exceção: fundo vermelho e mostra a observação
+      // (motivo) no dia.
+      final motivo =
+          dia.observacaoExcecao?.trim().isNotEmpty == true
+              ? dia.observacaoExcecao!.trim()
+              : 'Indisponível';
+
+      return GestureDetector(
+        onTap: () => _mostrarPopupExcecao(dia),
+        child: Container(
+          height: 72,
+          margin: const EdgeInsets.symmetric(horizontal: 1.5),
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+          decoration: BoxDecoration(
+            color: _vermelhoExcecao,
+            borderRadius: BorderRadius.circular(6),
+            border: isHoje
+                ? Border.all(color: Colors.white, width: 2)
+                : null,
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                '${dia.data.day}',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
               ),
-            );
-          }),
+              if (isHoje) ...[
+                const SizedBox(height: 2),
+                const Text(
+                  'Hoje',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 8,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 2),
+              Text(
+                motivo,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 7,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                  height: 1.2,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
-      ],
+      );
+    }
+
+    if (dia.disponivel) {
+      // Dia disponível (agenda_profissional).
+      return Container(
+        height: 72,
+        margin: const EdgeInsets.symmetric(horizontal: 1.5),
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+        decoration: BoxDecoration(
+          color: _primaryBlue.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: isHoje ? _primaryBlue : _primaryBlue.withValues(alpha: 0.4),
+            width: isHoje ? 1.5 : 1,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              '${dia.data.day}',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: isHoje ? _primaryBlue : _primaryBlue,
+              ),
+            ),
+            const SizedBox(height: 2),
+            const Text(
+              'Disponível',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 7,
+                fontWeight: FontWeight.w600,
+                color: _primaryBlue,
+                height: 1.2,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Dia indisponível (padrão) ou hoje sem exceção.
+    return Container(
+      height: 72,
+      margin: const EdgeInsets.symmetric(horizontal: 1.5),
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: isHoje ? _primaryBlue : Colors.grey.shade200,
+          width: isHoje ? 1.5 : 1,
+        ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            '${dia.data.day}',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: isHoje ? _primaryBlue : _titleDark,
+            ),
+          ),
+          if (isHoje) ...[
+            const SizedBox(height: 2),
+            const Text(
+              'Hoje',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 8,
+                fontWeight: FontWeight.w600,
+                color: _primaryBlue,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
