@@ -45,6 +45,7 @@ class _ModificarContaProfissionalPageState
   String _nomeCompleto = 'Profissional';
   String? _anosExperienciaSelecionado;
   _TipoConta _tipoConta = _TipoConta.independente;
+  bool _isPessoaJuridica = false;
 
   int? _idUsuario;
   int? _idProfissional;
@@ -75,7 +76,7 @@ class _ModificarContaProfissionalPageState
 
       final usuario = await _supabase
           .from('usuarios')
-          .select('id_usuario, nome, foto_perfil_url')
+          .select('id_usuario, nome, foto_perfil_url, fk_tipo_pessoa')
           .eq('auth_id', user.id)
           .maybeSingle();
 
@@ -89,6 +90,18 @@ class _ModificarContaProfissionalPageState
           ? usuario['nome'].toString().trim()
           : 'Profissional';
       _fotoPerfilUrl = usuario['foto_perfil_url']?.toString();
+
+      // Verifica se o profissional é pessoa jurídica (possui CNPJ)
+      final tipoPessoaId = usuario['fk_tipo_pessoa'];
+      if (tipoPessoaId != null) {
+        final assTipoPessoa = await _supabase
+            .from('ass_tipo_pessoa')
+            .select('fk_pessoa_fisica, fk_pessoa_juridica')
+            .eq('id_tipo_pessoa', tipoPessoaId)
+            .maybeSingle();
+
+        _isPessoaJuridica = assTipoPessoa?['fk_pessoa_juridica'] != null;
+      }
 
       if (_idUsuario != null) {
         final dadosProf = await _supabase
@@ -108,12 +121,19 @@ class _ModificarContaProfissionalPageState
         if (_idPerfil != null) {
           final perfil = await _supabase
               .from('perfil')
-              .select('descricao_perfil')
+              .select('descricao_perfil, tipo_perfil')
               .eq('id_perfil', _idPerfil!)
               .maybeSingle();
 
           _descricaoController.text =
               perfil?['descricao_perfil']?.toString().trim() ?? '';
+
+          final tipoPerfilRaw = perfil?['tipo_perfil']?.toString();
+          if (tipoPerfilRaw == 'Loja') {
+            _tipoConta = _TipoConta.loja;
+          } else if (tipoPerfilRaw == 'Independente') {
+            _tipoConta = _TipoConta.independente;
+          }
         }
       }
     } catch (e) {
@@ -273,6 +293,17 @@ class _ModificarContaProfissionalPageState
           .from('perfil')
           .update({'descricao_perfil': descricaoFinal})
           .eq('id_perfil', idPerfil);
+
+      // Salva o tipo de perfil (apenas para pessoa jurídica)
+      if (_isPessoaJuridica) {
+        final tipoPerfil = _tipoConta == _TipoConta.loja
+            ? 'Loja'
+            : 'Independente';
+        await _supabase
+            .from('perfil')
+            .update({'tipo_perfil': tipoPerfil})
+            .eq('id_perfil', idPerfil);
+      }
 
       if (_anosExperienciaSelecionado != null) {
         await _supabase
@@ -580,32 +611,34 @@ class _ModificarContaProfissionalPageState
               setState(() => _anosExperienciaSelecionado = value);
             },
           ),
-          const SizedBox(height: 16),
-          const Text(
-            'TIPO DE CONTA',
-            style: TextStyle(
-              color: _textDark,
-              fontSize: 20,
-              fontWeight: FontWeight.w500,
-              letterSpacing: 0.2,
+          if (_isPessoaJuridica) ...[
+            const SizedBox(height: 16),
+            const Text(
+              'TIPO DE CONTA',
+              style: TextStyle(
+                color: _textDark,
+                fontSize: 20,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.2,
+              ),
             ),
-          ),
-          const SizedBox(height: 10),
-          _buildTipoContaCard(
-            tipo: _TipoConta.independente,
-            titulo: 'Profissional Independente',
-            subtitulo: 'Atuo por conta própria.',
-            icon: Icons.person,
-            selecionado: _tipoConta == _TipoConta.independente,
-          ),
-          const SizedBox(height: 8),
-          _buildTipoContaCard(
-            tipo: _TipoConta.loja,
-            titulo: 'Loja / Empresa',
-            subtitulo: 'Possuo CNPJ e equipe.',
-            icon: Icons.storefront_outlined,
-            selecionado: _tipoConta == _TipoConta.loja,
-          ),
+            const SizedBox(height: 10),
+            _buildTipoContaCard(
+              tipo: _TipoConta.independente,
+              titulo: 'Profissional Independente',
+              subtitulo: 'Atuo por conta própria.',
+              icon: Icons.person,
+              selecionado: _tipoConta == _TipoConta.independente,
+            ),
+            const SizedBox(height: 8),
+            _buildTipoContaCard(
+              tipo: _TipoConta.loja,
+              titulo: 'Loja / Empresa',
+              subtitulo: 'Possuo CNPJ e equipe.',
+              icon: Icons.storefront_outlined,
+              selecionado: _tipoConta == _TipoConta.loja,
+            ),
+          ],
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
