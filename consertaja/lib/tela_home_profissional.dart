@@ -32,8 +32,10 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   final TextEditingController _postagemController = TextEditingController();
   final TextEditingController _descricaoPerfilController =
       TextEditingController();
+  final FocusNode _descricaoPerfilFocusNode = FocusNode();
   final ImagePicker _picker = ImagePicker();
   Timer? _descricaoPerfilTimer;
+  bool _descricaoPerfilCarregada = false;
 
   // Futures cacheados para evitar recarregamento ao rolar a tela
   late Future<Map<String, dynamic>?> _dadosProfissionalFuture;
@@ -65,11 +67,63 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   void dispose() {
     _postagemController.dispose();
     _descricaoPerfilController.dispose();
+    _descricaoPerfilFocusNode.dispose();
     _descricaoPerfilTimer?.cancel();
     super.dispose();
   }
 
   Future<Map<String, dynamic>?> _buscarInformacoesPerfil() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      debugPrint('🔎 [_buscarInformacoesPerfil] Inciado. user=${user?.id}');
+      if (user == null) return null;
+
+      final usuario = await supabase
+          .from('usuarios')
+          .select('id_usuario')
+          .eq('auth_id', user.id)
+          .maybeSingle();
+      final usuarioId = usuario?['id_usuario'];
+      debugPrint('🔎 [_buscarInformacoesPerfil] usuarioId=$usuarioId');
+      if (usuarioId == null) return null;
+
+      final dadosProfissional = await supabase
+          .from('dados_profissionais')
+          .select('fk_perfil, anos_experiencia, id_profissional')
+          .eq('fk_usuario', usuarioId)
+          .maybeSingle();
+      debugPrint('🔎 [_buscarInformacoesPerfil] dadosProfissional=$dadosProfissional');
+      if (dadosProfissional == null) return null;
+
+      final idPerfil = await _buscarIdPerfilDireto();
+      debugPrint('🔎 [_buscarInformacoesPerfil] idPerfil=$idPerfil');
+      if (idPerfil == null) return dadosProfissional;
+
+      final perfil = await supabase
+          .from('perfil')
+          .select('id_perfil, descricao_perfil')
+          .eq('id_perfil', idPerfil)
+          .maybeSingle();
+      debugPrint(
+        '🔎 [_buscarInformacoesPerfil] perfil retornado=$perfil',
+      );
+
+      return {
+        ...dadosProfissional,
+        'fk_perfil': idPerfil,
+        'descricao_perfil': perfil?['descricao_perfil'],
+      };
+    } catch (e) {
+      debugPrint('❌ [_buscarInformacoesPerfil] ERRO: $e');
+      return null;
+    }
+  }
+
+  /// Busca o `fk_perfil` direto da tabela `dados_profissionais`, sem passar
+  /// pela verificação extra que o `buscarIdPerfil()` faz (que pode ser
+  /// bloqueada por RLS e criar perfis desnecessariamente).
+  Future<int?> _buscarIdPerfilDireto() async {
     try {
       final supabase = Supabase.instance.client;
       final user = supabase.auth.currentUser;
@@ -83,30 +137,17 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
       final usuarioId = usuario?['id_usuario'];
       if (usuarioId == null) return null;
 
-      final dadosProfissional = await supabase
+      final dadosProf = await supabase
           .from('dados_profissionais')
-          .select('fk_perfil, anos_experiencia')
+          .select('fk_perfil')
           .eq('fk_usuario', usuarioId)
           .maybeSingle();
-      if (dadosProfissional == null) return null;
 
-      final idPerfil =
-          (dadosProfissional['fk_perfil'] as num?)?.toInt() ??
-          await PostagensProfissionalService.buscarIdPerfil();
-      if (idPerfil == null) return dadosProfissional;
-
-      final perfil = await supabase
-          .from('perfil')
-          .select('descricao_perfil')
-          .eq('id_perfil', idPerfil)
-          .maybeSingle();
-
-      return {
-        ...dadosProfissional,
-        'fk_perfil': idPerfil,
-        'descricao_perfil': perfil?['descricao_perfil'],
-      };
+      final fkPerfil = (dadosProf?['fk_perfil'] as num?)?.toInt();
+      debugPrint('🔎 [_buscarIdPerfilDireto] fk_perfil=$fkPerfil');
+      return fkPerfil;
     } catch (e) {
+      debugPrint('❌ [_buscarIdPerfilDireto] ERRO: $e');
       return null;
     }
   }
@@ -131,29 +172,133 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   }
 
   Future<void> _salvarPerfil({String? descricao, String? anos}) async {
+    _descricaoPerfilTimer?.cancel();
+    debugPrint('💾 [_salvarPerfil] Chamado. descricao=$descricao | anos=$anos');
     try {
-      final idPerfil = await PostagensProfissionalService.buscarIdPerfil();
-      if (idPerfil == null) return;
+      var idPerfil = await _buscarIdPerfilDireto();
+      debugPrint('💾 [_salvarPerfil] idPerfil (direto)=$idPerfil');
+      if (idPerfil == null) {
+        // Fallback 1: tenta criar o perfil via serviço
+        idPerfil = await PostagensProfissionalService.buscarIdPerfil();
+        debugPrint('💾 [_salvarPerfil] idPerfil (após buscarIdPerfil)=$idPerfil');
+      }
+      if (idPerfil == null) {
+        // Fallback 2: usa o id_profissional como id_perfil
+        final supabase = Supabase.instance.client;
+        final user = supabase.auth.currentUser;
+        if (user != null) {
+          final usuario = await supabase
+              .from('usuarios')
+              .select('id_usuario')
+              .eq('auth_id', user.id)
+              .maybeSingle();
+          final usuarioId = usuario?['id_usuario'];
+          if (usuarioId != null) {
+            final dadosProf = await supabase
+                .from('dados_profissionais')
+                .select('id_profissional')
+                .eq('fk_usuario', usuarioId)
+                .maybeSingle();
+            final idProfissional =
+                (dadosProf?['id_profissional'] as num?)?.toInt();
+            debugPrint('💾 [_salvarPerfil] Fallback 2: id_profissional=$idProfissional');
+            if (idProfissional != null) {
+              // Tenta usar o id_profissional como id_perfil
+              try {
+                await supabase.from('perfil').insert({
+                  'id_perfil': idProfissional,
+                  'descricao_perfil': descricao?.trim().isEmpty ?? true
+                      ? null
+                      : descricao!.trim(),
+                });
+                await supabase
+                    .from('dados_profissionais')
+                    .update({'fk_perfil': idProfissional})
+                    .eq('id_profissional', idProfissional);
+                idPerfil = idProfissional;
+                debugPrint('✅ [_salvarPerfil] Perfil criado com id_perfil=$idPerfil');
+              } catch (eInsert) {
+                debugPrint('❌ [_salvarPerfil] Falha ao criar perfil com id_profissional: $eInsert');
+              }
+            }
+          }
+        }
+      }
+      if (idPerfil == null) {
+        debugPrint('❌ [_salvarPerfil] idPerfil é null — abortando salvamento');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Perfil não encontrado. Verifique seus dados profissionais.',
+              ),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+      debugPrint('💾 [_salvarPerfil] Salvando com idPerfil=$idPerfil');
       final supabase = Supabase.instance.client;
 
       if (descricao != null) {
-        await supabase
+        final textoLimpo = descricao.trim();
+        final valorFinal = textoLimpo.isEmpty
+            ? null
+            : (textoLimpo.length > 250
+                ? textoLimpo.substring(0, 250)
+                : textoLimpo);
+        debugPrint('💾 [_salvarPerfil] Atualizando perfil $idPerfil com descricao_perfil=$valorFinal (${valorFinal?.length ?? 0} chars)');
+        final resultado = await supabase
             .from('perfil')
             .update({
-              'descricao_perfil': descricao.trim().isEmpty
-                  ? null
-                  : descricao.trim(),
+              'descricao_perfil': valorFinal,
             })
-            .eq('id_perfil', idPerfil);
+            .eq('id_perfil', idPerfil)
+            .select('id_perfil, descricao_perfil');
+        debugPrint('✅ [_salvarPerfil] UPDATE perfil retornou: $resultado');
+        if (resultado.isEmpty) {
+          debugPrint('⚠️ [_salvarPerfil] UPDATE retornou 0 linhas! RLS pode estar bloqueando. Verifique as policies da tabela perfil no Supabase.');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'O Supabase não permitiu atualizar a descrição. Verifique as políticas (RLS) da tabela "perfil".',
+                ),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
       }
       if (anos != null) {
+        debugPrint('💾 [_salvarPerfil] Atualizando dados_profissionais com anos_experiencia=$anos');
         await supabase
             .from('dados_profissionais')
             .update({'anos_experiencia': anos})
             .eq('fk_perfil', idPerfil);
       }
+      if (mounted) {
+        setState(() {
+          _informacoesPerfilFuture = _buscarInformacoesPerfil();
+        });
+        if (descricao != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Descrição salva com sucesso!')),
+          );
+        }
+      }
     } catch (e) {
-      debugPrint('Falha ao salvar informações do perfil: $e');
+      debugPrint('❌ [_salvarPerfil] Falha ao salvar informações do perfil: $e');
+      debugPrint('❌ [_salvarPerfil] StackTrace: ${StackTrace.current}');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Falha ao salvar descrição: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -1088,10 +1233,12 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
               future: _informacoesPerfilFuture,
               builder: (context, snapshot) {
                 final dados = snapshot.data;
-                final descricao = dados?['descricao_perfil']?.toString() ?? '';
                 if (snapshot.connectionState == ConnectionState.done &&
-                    _descricaoPerfilController.text != descricao) {
+                    !_descricaoPerfilCarregada) {
+                  final descricao =
+                      dados?['descricao_perfil']?.toString() ?? '';
                   _descricaoPerfilController.text = descricao;
+                  _descricaoPerfilCarregada = true;
                 }
                 if (snapshot.connectionState == ConnectionState.done &&
                     dados?['anos_experiencia'] != null) {
@@ -1552,9 +1699,16 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
         const SizedBox(height: 12),
         TextField(
           controller: _descricaoPerfilController,
+          focusNode: _descricaoPerfilFocusNode,
           minLines: 4,
           maxLines: 6,
+          maxLength: 250,
           onChanged: _agendarSalvamentoDescricao,
+          onTapOutside: (event) {
+            _descricaoPerfilFocusNode.unfocus();
+            _descricaoPerfilTimer?.cancel();
+            _salvarPerfil(descricao: _descricaoPerfilController.text);
+          },
           style: const TextStyle(fontSize: 16, color: Colors.black87),
           decoration: InputDecoration(
             hintText: 'Conte um pouco sobre sua trajetória\nprofissional...',
