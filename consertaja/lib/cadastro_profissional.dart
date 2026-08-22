@@ -1982,7 +1982,7 @@ class _CadastroProfissionalEtapa3PageState
         final assResponse = await supabase
             .from('ass_tipo_pessoa')
             .insert({
-              'tipo': 'Pessoa Jurídica',
+              'tipo': 'Jurídica',
               'fk_pessoa_fisica': null,
               'fk_pessoa_juridica': pjId,
             })
