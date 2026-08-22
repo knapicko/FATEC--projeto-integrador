@@ -31,6 +31,15 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   static const Color _bannerDark = Color(0xFF1A3A5C);
   static const Color _priceOrange = Color(0xFFE6A817);
   static const double _pinnedHeaderHeight = 52;
+  static const List<String> _ordemDiasSemana = [
+    'domingo',
+    'segunda-feira',
+    'terça-feira',
+    'quarta-feira',
+    'quinta-feira',
+    'sexta-feira',
+    'sábado',
+  ];
 
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _disponibilidadeKey = GlobalKey();
@@ -54,6 +63,8 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   bool _descricaoExpandida = false;
   String _anosExperiencia = '0-1 ano';
   String _descricaoPerfil = '';
+  String _textoDisponibilidade = 'Disponibilidade';
+  String _faixaHorarioDisponibilidade = '--:-- - --:--';
 
   DateTime _mesSelecionado = DateTime(
     DateTime.now().year,
@@ -64,13 +75,15 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   int? _idPerfilProfissional;
   int? _idUsuarioLogado;
   List<OficioInfo> _oficios = [];
-  Future<List<PostagemResumo>> _postagensGaleriaFuture =
-      Future.value(<PostagemResumo>[]);
+  Future<List<PostagemResumo>> _postagensGaleriaFuture = Future.value(
+    <PostagemResumo>[],
+  );
   final Map<int, int> _curtidasPorPostagem = {};
   final Set<int> _postagensCurtidasPorMim = <int>{};
   final Set<int> _curtidasEmAndamento = <int>{};
   final Set<int> _animandoLikeNoCard = <int>{};
   int? _postagemAnimandoLikeTelaCheia;
+
   /// Chave YYYY-MM-DD → observação da exceção de dia inteiro.
   final Map<String, String?> _diasBloqueados = {};
   bool _carregandoExcecoes = false;
@@ -195,8 +208,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
               .select('id_profissional, fk_perfil, anos_experiencia')
               .eq('fk_usuario', fkUsuario)
               .maybeSingle();
-          idProfissional =
-              (dadosProf?['id_profissional'] as num?)?.toInt();
+          idProfissional = (dadosProf?['id_profissional'] as num?)?.toInt();
           fkPerfil = (dadosProf?['fk_perfil'] as num?)?.toInt();
           anosExperiencia = dadosProf?['anos_experiencia']?.toString();
 
@@ -233,6 +245,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
           await Future.wait([
             _carregarExcecoes(),
             _carregarOficios(idProfissional),
+            _carregarAgendaProfissional(idProfissional),
           ]);
         }
       }
@@ -269,10 +282,11 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
     int idPerfil, {
     int? limit,
   }) async {
-    final postagens = await PostagensProfissionalService.buscarPostagensPorPerfil(
-      idPerfil,
-      limit: limit,
-    );
+    final postagens =
+        await PostagensProfissionalService.buscarPostagensPorPerfil(
+          idPerfil,
+          limit: limit,
+        );
 
     if (!mounted) return postagens;
 
@@ -286,7 +300,9 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
     return postagens;
   }
 
-  Future<void> _carregarCurtidasDoUsuario(List<PostagemResumo> postagens) async {
+  Future<void> _carregarCurtidasDoUsuario(
+    List<PostagemResumo> postagens,
+  ) async {
     if (postagens.isEmpty) return;
 
     if (_idUsuarioLogado == null) {
@@ -324,6 +340,101 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   String _formatarAnosExperiencia(String valor) {
     if (valor == 'Mais de 15 anos') return '+15';
     return valor;
+  }
+
+  String _formatarHoraAgenda(Object? raw) {
+    if (raw == null) return '--:--';
+    final match = RegExp(r'^(\d{1,2}):(\d{2})').firstMatch(raw.toString());
+    if (match == null) return '--:--';
+    final hh = int.parse(match.group(1)!).toString().padLeft(2, '0');
+    final mm = match.group(2)!;
+    return '$hh:$mm';
+  }
+
+  String _tituloDia(int index) {
+    const titulos = [
+      'Domingo',
+      'Segunda',
+      'Terça',
+      'Quarta',
+      'Quinta',
+      'Sexta',
+      'Sábado',
+    ];
+    return titulos[index];
+  }
+
+  String _abreviacaoDia(int index) {
+    const abreviacoes = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB'];
+    return abreviacoes[index];
+  }
+
+  String _formatarDiasSemanaAgenda(String diasRaw) {
+    final diasNormalizados = diasRaw
+        .split(',')
+        .map((d) => d.trim().toLowerCase())
+        .where((d) => d.isNotEmpty)
+        .toList();
+
+    final indices =
+        diasNormalizados
+            .map(_ordemDiasSemana.indexOf)
+            .where((i) => i >= 0)
+            .toSet()
+            .toList()
+          ..sort();
+
+    if (indices.isEmpty) return 'Disponibilidade';
+    if (indices.length == 1) return _tituloDia(indices.first);
+
+    final sequencial = List.generate(
+      indices.length - 1,
+      (i) => i,
+    ).every((i) => indices[i + 1] == indices[i] + 1);
+
+    if (sequencial) {
+      return '${_tituloDia(indices.first)} a ${_tituloDia(indices.last)}';
+    }
+
+    return indices.map(_abreviacaoDia).join(', ');
+  }
+
+  Future<void> _carregarAgendaProfissional(int idProfissional) async {
+    try {
+      final supabase = Supabase.instance.client;
+
+      Map<String, dynamic>? agenda;
+      try {
+        agenda = await supabase
+            .from('agenda_profissional')
+            .select('dias_semana, hora_ini, hora_fim')
+            .eq('fk_profissional', idProfissional)
+            .eq('fk_solicitacao', 0)
+            .limit(1)
+            .maybeSingle();
+      } catch (_) {
+        agenda = await supabase
+            .from('agenda_profissional')
+            .select('dias_semana, hora_ini, hora_fim')
+            .eq('fk_profissional', idProfissional)
+            .limit(1)
+            .maybeSingle();
+      }
+
+      final dias = _formatarDiasSemanaAgenda(
+        agenda?['dias_semana']?.toString() ?? '',
+      );
+      final horaIni = _formatarHoraAgenda(agenda?['hora_ini']);
+      final horaFim = _formatarHoraAgenda(agenda?['hora_fim']);
+
+      if (!mounted) return;
+      setState(() {
+        _textoDisponibilidade = dias;
+        _faixaHorarioDisponibilidade = '$horaIni - $horaFim';
+      });
+    } catch (e) {
+      debugPrint('Erro ao carregar agenda_profissional: $e');
+    }
   }
 
   String _formatarDataHora(DateTime data) {
@@ -382,11 +493,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
               color: Colors.black.withValues(alpha: 0.28),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.favorite,
-              color: Colors.white,
-              size: 44,
-            ),
+            child: const Icon(Icons.favorite, color: Colors.white, size: 44),
           ),
         ),
       ),
@@ -534,7 +641,9 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
     if (idPerfil == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Não foi possível curtir esta postagem agora.')),
+        const SnackBar(
+          content: Text('Não foi possível curtir esta postagem agora.'),
+        ),
       );
       return;
     }
@@ -559,8 +668,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
       if (!mounted) return;
       setState(() => _curtidasPorPostagem[idPostagem] = totalReal);
     } catch (e) {
-      final erroDuplicado =
-          e is PostgrestException && _erroDuplicadoCurtida(e);
+      final erroDuplicado = e is PostgrestException && _erroDuplicadoCurtida(e);
       if (!mounted) return;
       if (erroDuplicado) {
         final totalReal = await _buscarTotalCurtidasDaPostagem(idPostagem);
@@ -834,7 +942,9 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                                   ),
                                   const SizedBox(width: 6),
                                   Text(
-                                    _formatarDataHora(postagemAtual.dataPostagem),
+                                    _formatarDataHora(
+                                      postagemAtual.dataPostagem,
+                                    ),
                                     style: const TextStyle(
                                       color: Colors.white70,
                                       fontSize: 12,
@@ -845,7 +955,9 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                                     curtiu
                                         ? Icons.favorite
                                         : Icons.favorite_border,
-                                    color: curtiu ? _primaryBlue : Colors.white70,
+                                    color: curtiu
+                                        ? _primaryBlue
+                                        : Colors.white70,
                                     size: 16,
                                   ),
                                   const SizedBox(width: 4),
@@ -975,8 +1087,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
         if (dataExcecao == null) continue;
         final chave = _formatarDataCompleta(dataExcecao);
         final obs = row['observacao']?.toString().trim();
-        bloqueados[chave] =
-            (obs != null && obs.isNotEmpty) ? obs : null;
+        bloqueados[chave] = (obs != null && obs.isNotEmpty) ? obs : null;
       }
 
       setState(() {
@@ -995,8 +1106,18 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
 
   void _mostrarPopupDiaBloqueado(DateTime data, String? observacao) {
     final meses = [
-      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+      'Janeiro',
+      'Fevereiro',
+      'Março',
+      'Abril',
+      'Maio',
+      'Junho',
+      'Julho',
+      'Agosto',
+      'Setembro',
+      'Outubro',
+      'Novembro',
+      'Dezembro',
     ];
     final dataFormatada = '${data.day} de ${meses[data.month - 1]}';
 
@@ -1011,7 +1132,10 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
             Expanded(
               child: Text(
                 dataFormatada,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],
@@ -1042,7 +1166,10 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
             onPressed: () => Navigator.pop(context),
             child: const Text(
               'Fechar',
-              style: TextStyle(color: _primaryBlue, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: _primaryBlue,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -1205,11 +1332,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
           clipBehavior: Clip.none,
           alignment: Alignment.bottomCenter,
           children: [
-            Container(
-              height: 140,
-              width: double.infinity,
-              color: _bannerDark,
-            ),
+            Container(height: 140, width: double.infinity, color: _bannerDark),
             Positioned(
               top: 0,
               left: 0,
@@ -1306,11 +1429,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                   ),
                 ),
               const SizedBox(width: 8),
-              const Icon(
-                Icons.person_add_alt_1,
-                color: _primaryBlue,
-                size: 20,
-              ),
+              const Icon(Icons.person_add_alt_1, color: _primaryBlue, size: 20),
             ],
           ),
         ),
@@ -1330,6 +1449,8 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
             ),
           ],
         ),
+        const SizedBox(height: 10),
+        _buildCardHorarioTrabalho(),
         if (_oficios.isNotEmpty) ...[
           const SizedBox(height: 10),
           Padding(
@@ -1383,7 +1504,8 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
 
   Widget _buildFotoPerfil() {
     final String imagemParaExibir = _fotoUrl ?? widget.imagemInicial;
-    final bool ehUrl = imagemParaExibir.startsWith('http://') ||
+    final bool ehUrl =
+        imagemParaExibir.startsWith('http://') ||
         imagemParaExibir.startsWith('https://');
 
     if (ehUrl) {
@@ -1406,11 +1528,50 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
       );
     }
     return Image.asset(
-      widget.imagemInicial.isNotEmpty ? widget.imagemInicial : 'assets/images/perfil_caneta_azul.png',
+      widget.imagemInicial.isNotEmpty
+          ? widget.imagemInicial
+          : 'assets/images/perfil_caneta_azul.png',
       fit: BoxFit.cover,
       errorBuilder: (_, _, _) => Container(
         color: Colors.grey.shade100,
         child: const Icon(Icons.person, color: Colors.grey, size: 40),
+      ),
+    );
+  }
+
+  Widget _buildCardHorarioTrabalho() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 28),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFFDCEAF4),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.access_time_rounded,
+              color: _primaryBlue,
+              size: 22,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                '$_textoDisponibilidade: $_faixaHorarioDisponibilidade',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: _primaryBlue,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1489,8 +1650,16 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
       'SÁBADO',
     ];
 
-    final primeiroDia = DateTime(_mesSelecionado.year, _mesSelecionado.month, 1);
-    final ultimoDia = DateTime(_mesSelecionado.year, _mesSelecionado.month + 1, 0);
+    final primeiroDia = DateTime(
+      _mesSelecionado.year,
+      _mesSelecionado.month,
+      1,
+    );
+    final ultimoDia = DateTime(
+      _mesSelecionado.year,
+      _mesSelecionado.month + 1,
+      0,
+    );
     final diaInicioSemana = primeiroDia.weekday % 7;
     final totalCelulas = ((diaInicioSemana + ultimoDia.day) / 7).ceil() * 7;
     final hoje = DateTime.now();
@@ -1541,7 +1710,11 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                       fontSize: 14,
                     ),
                   ),
-                  const Icon(Icons.keyboard_arrow_down, color: _primaryBlue, size: 18),
+                  const Icon(
+                    Icons.keyboard_arrow_down,
+                    color: _primaryBlue,
+                    size: 18,
+                  ),
                   const SizedBox(width: 12),
                   Text(
                     '${_mesSelecionado.year}',
@@ -1551,7 +1724,11 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                       fontSize: 14,
                     ),
                   ),
-                  const Icon(Icons.keyboard_arrow_down, color: _primaryBlue, size: 18),
+                  const Icon(
+                    Icons.keyboard_arrow_down,
+                    color: _primaryBlue,
+                    size: 18,
+                  ),
                 ],
               ),
               const SizedBox(width: 8),
@@ -1614,12 +1791,13 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                   GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 7,
-                      mainAxisSpacing: 4,
-                      crossAxisSpacing: 4,
-                      childAspectRatio: 1.1,
-                    ),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 7,
+                          mainAxisSpacing: 4,
+                          crossAxisSpacing: 4,
+                          childAspectRatio: 1.1,
+                        ),
                     itemCount: totalCelulas,
                     itemBuilder: (context, index) {
                       final diaNumero = index - diaInicioSemana + 1;
@@ -1642,10 +1820,13 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                         diaNumero,
                       );
                       final chaveData = _formatarDataCompleta(dataDia);
-                      final isHoje = dataDia.year == hoje.year &&
+                      final isHoje =
+                          dataDia.year == hoje.year &&
                           dataDia.month == hoje.month &&
                           dataDia.day == hoje.day;
-                      final isBloqueado = _diasBloqueados.containsKey(chaveData);
+                      final isBloqueado = _diasBloqueados.containsKey(
+                        chaveData,
+                      );
                       final observacao = _diasBloqueados[chaveData];
 
                       Color bgColor;
@@ -1668,7 +1849,8 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
 
                       return GestureDetector(
                         onTap: isBloqueado
-                            ? () => _mostrarPopupDiaBloqueado(dataDia, observacao)
+                            ? () =>
+                                  _mostrarPopupDiaBloqueado(dataDia, observacao)
                             : null,
                         child: Container(
                           decoration: BoxDecoration(
@@ -1912,9 +2094,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                   children: [
                     ...List.generate(5, (index) {
                       return Icon(
-                        index < nota.floor()
-                            ? Icons.star
-                            : Icons.star_border,
+                        index < nota.floor() ? Icons.star : Icons.star_border,
                         color: _primaryBlue,
                         size: 12,
                       );
@@ -1932,10 +2112,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                 const SizedBox(height: 4),
                 Text(
                   texto,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade700,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
                 ),
               ],
             ),
@@ -1951,10 +2128,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                 ),
                 Text(
                   '$likes',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
                 ),
               ],
             ),
@@ -2112,7 +2286,10 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
               if (postagens.isEmpty) {
                 return Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 22,
+                    horizontal: 16,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.grey.shade100,
                     borderRadius: BorderRadius.circular(12),
@@ -2121,10 +2298,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                   child: Text(
                     'Este profissional ainda não publicou serviços.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade600,
-                    ),
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                   ),
                 );
               }
@@ -2141,7 +2315,9 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                     final curtiu = _usuarioCurtiuPostagem(postagem.idPostagem);
                     return Container(
                       width: 220,
-                      margin: EdgeInsets.only(right: index < postagens.length - 1 ? 10 : 0),
+                      margin: EdgeInsets.only(
+                        right: index < postagens.length - 1 ? 10 : 0,
+                      ),
                       child: _buildCardGaleriaPostagem(
                         postagem,
                         curtidas: curtidas,
@@ -2195,12 +2371,18 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                             fit: BoxFit.cover,
                             errorBuilder: (_, _, _) => Container(
                               color: Colors.grey.shade200,
-                              child: const Icon(Icons.image_outlined, color: Colors.grey),
+                              child: const Icon(
+                                Icons.image_outlined,
+                                color: Colors.grey,
+                              ),
                             ),
                           )
                         : Container(
                             color: Colors.grey.shade200,
-                            child: const Icon(Icons.image_outlined, color: Colors.grey),
+                            child: const Icon(
+                              Icons.image_outlined,
+                              color: Colors.grey,
+                            ),
                           ),
                   ),
                   _buildAnimacaoCoracao(
@@ -2228,7 +2410,11 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      const Icon(Icons.calendar_today_outlined, size: 12, color: Colors.grey),
+                      const Icon(
+                        Icons.calendar_today_outlined,
+                        size: 12,
+                        color: Colors.grey,
+                      ),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
@@ -2347,7 +2533,8 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
               childAspectRatio: 0.72,
             ),
             itemCount: _servicos.length,
-            itemBuilder: (context, index) => _buildCardServico(_servicos[index]),
+            itemBuilder: (context, index) =>
+                _buildCardServico(_servicos[index]),
           ),
         ],
       ),
