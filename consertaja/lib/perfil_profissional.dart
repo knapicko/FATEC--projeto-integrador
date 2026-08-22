@@ -52,6 +52,8 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   String _filtroComentario = 'Principais';
   String _categoriaServico = 'Todos';
   bool _descricaoExpandida = false;
+  String _anosExperiencia = '0-1 ano';
+  String _descricaoPerfil = '';
 
   DateTime _mesSelecionado = DateTime(
     DateTime.now().year,
@@ -184,16 +186,28 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
       if (response != null && mounted) {
         int? idProfissional;
         int? fkPerfil;
+        String? anosExperiencia;
+        String? descricaoPerfil;
         final fkUsuario = response['id_usuario'];
         if (fkUsuario != null) {
           final dadosProf = await supabase
               .from('dados_profissionais')
-              .select('id_profissional, fk_perfil')
+              .select('id_profissional, fk_perfil, anos_experiencia')
               .eq('fk_usuario', fkUsuario)
               .maybeSingle();
           idProfissional =
               (dadosProf?['id_profissional'] as num?)?.toInt();
           fkPerfil = (dadosProf?['fk_perfil'] as num?)?.toInt();
+          anosExperiencia = dadosProf?['anos_experiencia']?.toString();
+
+          if (fkPerfil != null) {
+            final perfil = await supabase
+                .from('perfil')
+                .select('descricao_perfil')
+                .eq('id_perfil', fkPerfil)
+                .maybeSingle();
+            descricaoPerfil = perfil?['descricao_perfil']?.toString();
+          }
         }
 
         setState(() {
@@ -204,6 +218,12 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
           }
           _idProfissional = idProfissional;
           _idPerfilProfissional = fkPerfil;
+          if (anosExperiencia != null && anosExperiencia.isNotEmpty) {
+            _anosExperiencia = anosExperiencia;
+          }
+          if (descricaoPerfil != null && descricaoPerfil.isNotEmpty) {
+            _descricaoPerfil = descricaoPerfil;
+          }
           _postagensGaleriaFuture = fkPerfil != null
               ? _carregarPostagensGaleria(fkPerfil, limit: 6)
               : Future.value(<PostagemResumo>[]);
@@ -299,6 +319,11 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
     } catch (_) {
       // Em caso de erro, mantém estado local sem marcação de curtidas do usuário.
     }
+  }
+
+  String _formatarAnosExperiencia(String valor) {
+    if (valor == 'Mais de 15 anos') return '+15';
+    return valor;
   }
 
   String _formatarDataHora(DateTime data) {
@@ -1338,8 +1363,8 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
               ),
               _buildMetrica(
                 icone: Icons.work_history_outlined,
-                iconeCor: _primaryBlue,
-                valor: '5+',
+                iconeCor: Colors.black,
+                valor: _formatarAnosExperiencia(_anosExperiencia),
                 label: 'Anos exp.',
               ),
               _buildMetrica(
@@ -1399,15 +1424,24 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
     return Expanded(
       child: Column(
         children: [
-          Icon(icone, color: iconeCor, size: 18),
-          const SizedBox(height: 4),
-          Text(
-            valor,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icone, color: iconeCor, size: 18),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  valor,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+              ),
+            ],
           ),
           Text(
             label,
@@ -1931,10 +1965,11 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   }
 
   Widget _buildSecaoDetalhes() {
-    const descricaoCurta =
-        'Especialista em instalação, manutenção preventiva e corretiva de ar-condicionado (Split, Inverter e Janela) e sistemas de refrigeração comercial. Compromisso com';
-    const descricaoCompleta =
-        'Especialista em instalação, manutenção preventiva e corretiva de ar-condicionado (Split, Inverter e Janela) e sistemas de refrigeração comercial. Compromisso com qualidade, pontualidade e atendimento personalizado. Mais de 5 anos de experiência no mercado.';
+    const limiteDescricao = 120;
+    final descricaoCompleta = _descricaoPerfil;
+    final descricaoCurta = descricaoCompleta.length > limiteDescricao
+        ? '${descricaoCompleta.substring(0, limiteDescricao)}...'
+        : descricaoCompleta;
 
     final tiposServico = [
       {'icone': Icons.build_outlined, 'label': 'Instalação'},
