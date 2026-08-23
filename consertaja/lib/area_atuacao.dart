@@ -26,22 +26,13 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
     Color(0xFF424242),
   ];
 
-  static const List<Color> _coresExtras = [
-    Color(0xFFE53935),
-    Color(0xFF8E24AA),
-    Color(0xFF43A047),
-    Color(0xFFFFB300),
-    Color(0xFF00ACC1),
-    Color(0xFF5E35B1),
-    Color(0xFFD84315),
-    Color(0xFF00897B),
-  ];
-
   bool _carregando = true;
   bool _salvando = false;
   List<Map<String, dynamic>> _oficiosDisponiveis = [];
   final List<Map<String, dynamic>> _oficiosSelecionados = [];
   int? _idProfissional;
+  int? _idPerfil;
+  bool _ehLoja = false;
   Color _corTagSelecionada = _coresPreset.first;
 
   @override
@@ -71,6 +62,9 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
   Color _corFromHex(String? hex) {
     if (hex == null || hex.trim().isEmpty) return _coresPreset.first;
     var value = hex.trim().replaceAll('#', '');
+    if (value.startsWith('0x') || value.startsWith('0X')) {
+      value = value.substring(2);
+    }
     if (value.length == 6) value = 'FF$value';
     final parsed = int.tryParse(value, radix: 16);
     if (parsed == null) return _coresPreset.first;
@@ -78,8 +72,15 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
   }
 
   String _corParaHex(Color color) {
-    return '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
+    return '0xFF${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
   }
+
+  Color _corContraste(Color c) {
+    final lum = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    return lum > 0.55 ? Colors.black : Colors.white;
+  }
+
+  Color get _corTextoTag => _corContraste(_corTagSelecionada);
 
   Future<void> _carregarDados() async {
     setState(() => _carregando = true);
@@ -108,24 +109,71 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
       try {
         dadosProf = await _supabase
             .from('dados_profissionais')
-            .select('id_profissional, tag_personalizada, cor_tag')
+            .select(
+              'id_profissional, fk_perfil, tag_personalizada, cor_tag',
+            )
             .eq('fk_usuario', usuarioId)
             .maybeSingle();
       } catch (_) {
-        dadosProf = await _supabase
-            .from('dados_profissionais')
-            .select('id_profissional')
-            .eq('fk_usuario', usuarioId)
-            .maybeSingle();
+        try {
+          dadosProf = await _supabase
+              .from('dados_profissionais')
+              .select('id_profissional, fk_perfil, tag_loja')
+              .eq('fk_usuario', usuarioId)
+              .maybeSingle();
+        } catch (_) {
+          dadosProf = await _supabase
+              .from('dados_profissionais')
+              .select('id_profissional, fk_perfil')
+              .eq('fk_usuario', usuarioId)
+              .maybeSingle();
+        }
       }
 
       if (dadosProf != null) {
         _idProfissional = (dadosProf['id_profissional'] as num?)?.toInt();
-        final tag = dadosProf['tag_personalizada']?.toString() ?? '';
+        _idPerfil = (dadosProf['fk_perfil'] as num?)?.toInt();
+        final tag = dadosProf['tag_personalizada']?.toString() ?? dadosProf['tag_loja']?.toString() ?? '';
         if (tag.isNotEmpty && tag != 'null') {
           _tagController.text = tag.toUpperCase();
         }
-        _corTagSelecionada = _corFromHex(dadosProf['cor_tag']?.toString());
+        final corTag = dadosProf['cor_tag']?.toString();
+        if (corTag != null && corTag.isNotEmpty && corTag != 'null') {
+          _corTagSelecionada = _corFromHex(corTag);
+        }
+      }
+
+      if (_idPerfil != null) {
+        try {
+          final perfil = await _supabase
+              .from('perfil')
+              .select('tipo_perfil, tag_loja, cor_tag')
+              .eq('id_perfil', _idPerfil!)
+              .maybeSingle();
+          if (perfil != null) {
+            _ehLoja = perfil['tipo_perfil']?.toString() == 'Loja';
+            if (_tagController.text.isEmpty) {
+              final tagPerfil = perfil['tag_loja']?.toString() ?? '';
+              if (tagPerfil.isNotEmpty && tagPerfil != 'null') {
+                _tagController.text = tagPerfil.toUpperCase();
+              }
+            }
+            final corPerfil = perfil['cor_tag']?.toString();
+            if (corPerfil != null && corPerfil.isNotEmpty && corPerfil != 'null') {
+              _corTagSelecionada = _corFromHex(corPerfil);
+            }
+          }
+        } catch (_) {
+          // Colunas tag_loja/cor_tag podem não existir ainda.
+          try {
+            final perfil = await _supabase
+                .from('perfil')
+                .select('tipo_perfil')
+                .eq('id_perfil', _idPerfil!)
+                .maybeSingle();
+            _ehLoja = perfil?['tipo_perfil']?.toString() == 'Loja';
+          } catch (_) {}
+        }
       }
 
       if (_idProfissional != null) {
@@ -277,38 +325,9 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
   Future<void> _abrirSeletorCorCustomizada() async {
     final corEscolhida = await showDialog<Color>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Escolher cor'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: _coresExtras.map((cor) {
-                return GestureDetector(
-                  onTap: () => Navigator.pop(context, cor),
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: cor,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
-          ],
-        );
-      },
+      builder: (context) => _ColorPickerDialog(
+        corInicial: _corTagSelecionada,
+      ),
     );
 
     if (corEscolhida != null) {
@@ -353,6 +372,18 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
       }
 
       final tag = _tagController.text.trim().toUpperCase();
+      // Salva a tag e cor na tabela perfil (colunas tag_loja e cor_tag)
+      if (_ehLoja && _idPerfil != null) {
+        try {
+          await _supabase.from('perfil').update({
+            'tag_loja': tag.isEmpty ? null : tag,
+            'cor_tag': _corParaHex(_corTagSelecionada),
+          }).eq('id_perfil', _idPerfil!);
+        } catch (_) {
+          // Colunas tag_loja/cor_tag podem não existir ainda.
+        }
+      }
+      // Mantém compatibilidade com a coluna antiga em dados_profissionais
       try {
         await _supabase.from('dados_profissionais').update({
           'tag_personalizada': tag.isEmpty ? null : tag,
@@ -653,7 +684,9 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
             ),
           ),
           const SizedBox(height: 10),
+
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               ..._coresPreset.map((cor) => _buildSwatchCor(cor)),
               _buildSwatchCustomizada(),
@@ -690,8 +723,8 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
                   ),
                   child: Text(
                     '#$_textoTagPreview',
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: _corTextoTag,
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 0.5,
@@ -849,6 +882,8 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
     );
   }
 
+  bool get _mostrarTagPersonalizada => _ehLoja;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -865,7 +900,8 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           _buildSecaoEscolha(),
-                          _buildCardTagPersonalizada(),
+                          if (_mostrarTagPersonalizada)
+                            _buildCardTagPersonalizada(),
                           _buildBannerSuporte(),
                         ],
                       ),
@@ -925,5 +961,268 @@ class _DashedBorderPainter extends CustomPainter {
     return oldDelegate.color != color ||
         oldDelegate.strokeWidth != strokeWidth ||
         oldDelegate.radius != radius;
+  }
+}
+
+class _ColorPickerDialog extends StatefulWidget {
+  final Color corInicial;
+
+  const _ColorPickerDialog({required this.corInicial});
+
+  @override
+  State<_ColorPickerDialog> createState() => _ColorPickerDialogState();
+}
+
+class _ColorPickerDialogState extends State<_ColorPickerDialog> {
+  late Color _cor;
+
+  @override
+  void initState() {
+    super.initState();
+    _cor = widget.corInicial;
+  }
+
+  void _atualizarCor(Color nova) {
+    setState(() => _cor = nova);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Escolher cor'),
+      content: SizedBox(
+        width: 280,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                height: 48,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: _cor,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+              ),
+              const SizedBox(height: 16),
+              _ColorizSliderHue(cor: _cor, onChanged: _atualizarCor),
+              const SizedBox(height: 12),
+              _ColorizSliderSaturacao(cor: _cor, onChanged: _atualizarCor),
+              const SizedBox(height: 12),
+              _ColorizSliderBrilho(cor: _cor, onChanged: _atualizarCor),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'HEX: #${_cor.toARGB32().toRadixString(16).substring(2).toUpperCase()}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black54,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, _cor),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _cor,
+            foregroundColor: _cor.computeLuminance() > 0.55
+                ? Colors.black
+                : Colors.white,
+          ),
+          child: const Text('Selecionar'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ColorizSliderHue extends StatefulWidget {
+  final Color cor;
+  final ValueChanged<Color> onChanged;
+
+  const _ColorizSliderHue({required this.cor, required this.onChanged});
+
+  @override
+  State<_ColorizSliderHue> createState() => _ColorizSliderHueState();
+}
+
+class _ColorizSliderHueState extends State<_ColorizSliderHue> {
+  @override
+  Widget build(BuildContext context) {
+    final hsl = HSLColor.fromColor(widget.cor);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'MATIZ',
+          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.black54, letterSpacing: 0.6),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          height: 22,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(6),
+            gradient: const LinearGradient(
+              colors: [
+                Color(0xFFFF0000),
+                Color(0xFFFFFF00),
+                Color(0xFF00FF00),
+                Color(0xFF00FFFF),
+                Color(0xFF0000FF),
+                Color(0xFFFF00FF),
+                Color(0xFFFF0000),
+              ],
+            ),
+          ),
+          child: SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 22,
+              activeTrackColor: Colors.transparent,
+              inactiveTrackColor: Colors.transparent,
+              thumbColor: Colors.white,
+              overlayColor: Colors.transparent,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
+            ),
+            child: Slider(
+              value: (hsl.hue / 360).clamp(0.0, 1.0),
+              onChanged: (v) {
+                widget.onChanged(
+                  HSLColor.fromAHSL(
+                    1.0,
+                    v * 360,
+                    hsl.saturation,
+                    hsl.lightness,
+                  ).toColor(),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ColorizSliderSaturacao extends StatefulWidget {
+  final Color cor;
+  final ValueChanged<Color> onChanged;
+
+  const _ColorizSliderSaturacao({required this.cor, required this.onChanged});
+
+  @override
+  State<_ColorizSliderSaturacao> createState() => _ColorizSliderSaturacaoState();
+}
+
+class _ColorizSliderSaturacaoState extends State<_ColorizSliderSaturacao> {
+  @override
+  Widget build(BuildContext context) {
+    final hsl = HSLColor.fromColor(widget.cor);
+    final base = HSLColor.fromAHSL(hsl.alpha, hsl.hue, 1.0, hsl.lightness);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'SATURAÇÃO',
+          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.black54, letterSpacing: 0.6),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          height: 22,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(6),
+            gradient: LinearGradient(
+              colors: [Colors.grey.shade300, base.toColor()],
+            ),
+          ),
+          child: SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 22,
+              activeTrackColor: Colors.transparent,
+              inactiveTrackColor: Colors.transparent,
+              thumbColor: Colors.white,
+              overlayColor: Colors.transparent,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
+            ),
+            child: Slider(
+              value: hsl.saturation.clamp(0.0, 1.0),
+              onChanged: (v) {
+                widget.onChanged(
+                  HSLColor.fromAHSL(hsl.alpha, hsl.hue, v, hsl.lightness).toColor(),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ColorizSliderBrilho extends StatefulWidget {
+  final Color cor;
+  final ValueChanged<Color> onChanged;
+
+  const _ColorizSliderBrilho({required this.cor, required this.onChanged});
+
+  @override
+  State<_ColorizSliderBrilho> createState() => _ColorizSliderBrilhoState();
+}
+
+class _ColorizSliderBrilhoState extends State<_ColorizSliderBrilho> {
+  @override
+  Widget build(BuildContext context) {
+    final hsl = HSLColor.fromColor(widget.cor);
+    final corHsl = HSLColor.fromAHSL(hsl.alpha, hsl.hue, hsl.saturation, 1.0);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'BRILHO',
+          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.black54, letterSpacing: 0.6),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          height: 22,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(6),
+            gradient: LinearGradient(colors: [Colors.black, corHsl.toColor(), Colors.white]),
+          ),
+          child: SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 22,
+              activeTrackColor: Colors.transparent,
+              inactiveTrackColor: Colors.transparent,
+              thumbColor: Colors.white,
+              overlayColor: Colors.transparent,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
+            ),
+            child: Slider(
+              value: hsl.lightness.clamp(0.0, 1.0),
+              onChanged: (v) {
+                widget.onChanged(
+                  HSLColor.fromAHSL(hsl.alpha, hsl.hue, hsl.saturation, v).toColor(),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
