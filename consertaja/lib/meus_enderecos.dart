@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'tela_home.dart';
 import 'tela_home_profissional.dart';
 import 'tela_meu_perfil_cliente.dart';
+import 'seguindo_cliente.dart';
 import 'tela_meu_perfil_profissional.dart';
 import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
@@ -1076,6 +1077,12 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
           widget.isProfissional
               ? TelaHomeProfissional(isVisitante: widget.isVisitante)
               : TelaHome(isVisitante: widget.isVisitante),
+        ),
+      );
+    } else if (index == 1 && !widget.isProfissional) {
+      Navigator.of(context).pushReplacement(
+        _rotaSemAnimacao(
+          SeguindoClientePage(isVisitante: widget.isVisitante),
         ),
       );
     } else if (index == 4) {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'perfil_profissional.dart';
 import 'tela_meu_perfil_cliente.dart';
+import 'seguindo_cliente.dart';
 import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/iniciais.dart';
@@ -1651,6 +1652,16 @@ class _TelaBuscaState extends State<TelaBusca> {
               onTap: (index) {
                 if (index == 0) {
                   Navigator.pop(context);
+                } else if (index == 1) {
+                  Navigator.of(context).pushReplacement(
+                    PageRouteBuilder(
+                      pageBuilder: (_, _, _) => SeguindoClientePage(
+                        isVisitante: widget.isVisitante,
+                      ),
+                      transitionDuration: Duration.zero,
+                      reverseTransitionDuration: Duration.zero,
+                    ),
+                  );
                 } else if (index == 4) {
                   Navigator.of(context).pushReplacement(
                     PageRouteBuilder(
