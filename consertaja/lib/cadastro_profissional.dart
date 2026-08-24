@@ -26,7 +26,11 @@ import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart
 
 import 'services/google_auth_service.dart';
 import 'services/validacao_telefone.dart';
+import 'services/formatacao_data.dart';
 import 'widgets/seletor_ddi.dart';
+import 'widgets/dialogo_documento.dart';
+import 'termos_de_uso.dart';
+import 'politica_de_privacidade.dart';
 import 'completar_cadastro.dart';
 import 'tela_home.dart';
 
@@ -94,53 +98,55 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
 
   bool _carregandoGoogle = false;
 
-Future<void> _continuarComGoogle() async {
-  setState(() => _carregandoGoogle = true);
-  try {
-    final user = await GoogleAuthService.signInWithGoogle();
-    if (user == null || !mounted) return;
+  Future<void> _continuarComGoogle() async {
+    setState(() => _carregandoGoogle = true);
+    try {
+      final user = await GoogleAuthService.signInWithGoogle();
+      if (user == null || !mounted) return;
 
-    final perfil = await GoogleAuthService.buscarPerfil(user.id);
-    if (!mounted) return;
+      final perfil = await GoogleAuthService.buscarPerfil(user.id);
+      if (!mounted) return;
 
-    if (perfil != null) {
-      final isProfissional = perfil['tipo_conta'] == 'Profissional';
-      Navigator.pushAndRemoveUntil(
+      if (perfil != null) {
+        final isProfissional = perfil['tipo_conta'] == 'Profissional';
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (_) => isProfissional
+                ? TelaHomeProfissional(isVisitante: false)
+                : TelaHome(isVisitante: false),
+          ),
+          (route) => false,
+        );
+        return;
+      }
+
+      final fotoUrl =
+          (user.userMetadata?['avatar_url'] as String?) ??
+          GoogleAuthService.ultimaFotoUrl;
+
+      // >>> AQUI, no lugar do que ia pra CompletarCadastroClientePage <
+      Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => isProfissional
-              ? TelaHomeProfissional(isVisitante: false)
-              : TelaHome(isVisitante: false),
+          builder: (_) => CompletarCadastroProfissionalPage(
+            authId: user.id,
+            emailGoogle: user.email ?? '',
+            nomeGoogle: user.userMetadata?['full_name'] as String?,
+            fotoUrlGoogle: fotoUrl,
+          ),
         ),
-        (route) => false,
       );
-      return;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao entrar com Google: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _carregandoGoogle = false);
     }
-
-    final fotoUrl = (user.userMetadata?['avatar_url'] as String?) ??
-        GoogleAuthService.ultimaFotoUrl;
-
-    // >>> AQUI, no lugar do que ia pra CompletarCadastroClientePage <
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => CompletarCadastroProfissionalPage(
-          authId: user.id,
-          emailGoogle: user.email ?? '',
-          nomeGoogle: user.userMetadata?['full_name'] as String?,
-          fotoUrlGoogle: fotoUrl,
-        ),
-      ),
-    );
-  } catch (e) {
-    if (mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erro ao entrar com Google: $e')));
-    }
-  } finally {
-    if (mounted) setState(() => _carregandoGoogle = false);
   }
-}
 
   // Getters para os requisitos da senha
   bool get _temOitoCaracteres => _senhaController.text.length >= 8;
@@ -414,7 +420,7 @@ Future<void> _continuarComGoogle() async {
       String mes = dataSelecionada.month.toString().padLeft(2, '0');
       String ano = dataSelecionada.year.toString();
       setState(() {
-        _dataFundacaoController.text = '$ano-$mes-$dia';
+        _dataFundacaoController.text = '$dia/$mes/$ano';
         _erroDataFundacao = null;
       });
     }
@@ -523,7 +529,9 @@ Future<void> _continuarComGoogle() async {
           senha: _senhaController.text,
           isPessoaFisica: _isPessoaFisica,
           cnpjDeEmpresa: _cnpjDeEmpresa,
-          dataFundacao: _dataFundacaoController.text.trim(),
+          dataFundacao: converterDataParaIso(
+            _dataFundacaoController.text.trim(),
+          ),
           fotoPerfilUrl: _fotoPerfilUrl,
           idFacial: _idFacial,
         ),
@@ -814,7 +822,7 @@ Future<void> _continuarComGoogle() async {
                 if (!_isPessoaFisica) ...[
                   _InputFieldWithAnimation(
                     label: 'Data de Fundação',
-                    hint: 'AAAA-MM-DD',
+                    hint: 'DD/MM/AAAA',
                     suffixIcon: Icons.calendar_month,
                     controller: _dataFundacaoController,
                     readOnly: true,
@@ -870,7 +878,7 @@ Future<void> _continuarComGoogle() async {
 
               const SizedBox(height: 10),
 
- SizedBox(
+              SizedBox(
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton(
@@ -894,14 +902,19 @@ Future<void> _continuarComGoogle() async {
               ),
 
               const SizedBox(height: 20),
-              Row(children: [
-                Expanded(child: Divider(color: Colors.grey.shade300)),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Text('ou', style: TextStyle(color: Colors.grey.shade500)),
-                ),
-                Expanded(child: Divider(color: Colors.grey.shade300)),
-              ]),
+              Row(
+                children: [
+                  Expanded(child: Divider(color: Colors.grey.shade300)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      'ou',
+                      style: TextStyle(color: Colors.grey.shade500),
+                    ),
+                  ),
+                  Expanded(child: Divider(color: Colors.grey.shade300)),
+                ],
+              ),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
@@ -910,14 +923,30 @@ Future<void> _continuarComGoogle() async {
                   onPressed: _carregandoGoogle ? null : _continuarComGoogle,
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: Color(0xFFDADCE0)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                   ),
                   icon: _carregandoGoogle
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.g_mobiledata, size: 28, color: Colors.black87),
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(
+                          Icons.g_mobiledata,
+                          size: 28,
+                          color: Colors.black87,
+                        ),
                   label: Text(
-                    _carregandoGoogle ? 'Conectando...' : 'Continuar com Google',
-                    style: const TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.w600),
+                    _carregandoGoogle
+                        ? 'Conectando...'
+                        : 'Continuar com Google',
+                    style: const TextStyle(
+                      color: Colors.black87,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
@@ -1208,7 +1237,7 @@ class _CadastroProfissionalEtapa2PageState
       String mes = dataSelecionada.month.toString().padLeft(2, '0');
       String ano = dataSelecionada.year.toString();
       setState(() {
-        _dataNascimentoController.text = '$ano-$mes-$dia';
+        _dataNascimentoController.text = '$dia/$mes/$ano';
         _erroDataNascimento = null;
       });
     }
@@ -1300,7 +1329,8 @@ class _CadastroProfissionalEtapa2PageState
         _erroTelefone = null;
       }
 
-            _erroDataNascimento = (widget.isPessoaFisica &&
+      _erroDataNascimento =
+          (widget.isPessoaFisica &&
               _dataNascimentoController.text.trim().isEmpty)
           ? 'A Data de Nascimento é obrigatória'
           : null;
@@ -1355,10 +1385,14 @@ class _CadastroProfissionalEtapa2PageState
           cnpjDeEmpresa: widget.cnpjDeEmpresa,
           email: _emailController.text.trim(),
           telefone: _telefoneController.text.trim(),
-          dataNascimento: _dataNascimentoController.text.trim(),
+          dataNascimento: converterDataParaIso(
+            _dataNascimentoController.text.trim(),
+          ),
           dataFundacao: widget.dataFundacao,
           areaAtuacao: _atuacaoController.text.trim(),
-          oficiosSelecionados: _oficiosSelecionados.map((e) => (e['id_oficio'] as num).toInt()).toList(),
+          oficiosSelecionados: _oficiosSelecionados
+              .map((e) => (e['id_oficio'] as num).toInt())
+              .toList(),
           fotoPerfilUrl: widget.fotoPerfilUrl,
           idFacial: _idFacial,
         ),
@@ -1487,7 +1521,7 @@ class _CadastroProfissionalEtapa2PageState
               if (widget.isPessoaFisica) ...[
                 _InputFieldWithAnimation(
                   label: 'Data de Nascimento',
-                  hint: 'AAAA-MM-DD',
+                  hint: 'DD/MM/AAAA',
                   suffixIcon: Icons.calendar_month,
                   controller: _dataNascimentoController,
                   readOnly: true,
@@ -1883,6 +1917,7 @@ class _CadastroProfissionalEtapa3PageState
         throw Exception('Falha ao criar conta de autenticação.');
       }
       final authId = authUser.id;
+      final precisaConfirmarEmail = authResponse.session == null;
 
       final emailResponse = await supabase
           .from('emails')
@@ -1947,7 +1982,7 @@ class _CadastroProfissionalEtapa3PageState
         final assResponse = await supabase
             .from('ass_tipo_pessoa')
             .insert({
-              'tipo': 'Pessoa Jurídica',
+              'tipo': 'Jurídica',
               'fk_pessoa_fisica': null,
               'fk_pessoa_juridica': pjId,
             })
@@ -1993,6 +2028,7 @@ class _CadastroProfissionalEtapa3PageState
             'fk_usuario': usuarioId,
             'id_facial': _idFacial,
             'rosto_validado': true,
+            'data_admissao': DateTime.now().toUtc().toIso8601String(),
           })
           .select()
           .single();
@@ -2003,13 +2039,19 @@ class _CadastroProfissionalEtapa3PageState
       if (widget.oficiosSelecionados.isNotEmpty) {
         for (final oficioId in widget.oficiosSelecionados) {
           try {
-            final res = await supabase.from('ass_oficio_profissional').insert({
-              'fk_profissional': profissionalIdCorreto,
-              'fk_oficio': oficioId,
-            }).select().maybeSingle();
+            final res = await supabase
+                .from('ass_oficio_profissional')
+                .insert({
+                  'fk_profissional': profissionalIdCorreto,
+                  'fk_oficio': oficioId,
+                })
+                .select()
+                .maybeSingle();
             debugPrint('ass_oficio_profissional insert res: $res');
           } catch (e) {
-            debugPrint('Falha ao inserir ass_oficio_profissional (oficio $oficioId): $e');
+            debugPrint(
+              'Falha ao inserir ass_oficio_profissional (oficio $oficioId): $e',
+            );
           }
         }
       }
@@ -2025,13 +2067,31 @@ class _CadastroProfissionalEtapa3PageState
       }
 
       if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (context) => TelaHomeProfissional(isVisitante: false),
-          ),
-          (route) => false,
-        );
+        if (precisaConfirmarEmail) {
+          // "Confirmar e-mail" está ativo no Supabase: o usuário já foi criado no
+          // auth, mas ainda precisa confirmar o e-mail antes de conseguir entrar.
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Quase lá! Enviamos um link de confirmação para o seu e-mail. '
+                'Clique nele para ativar sua conta e depois faça login.',
+              ),
+            ),
+          );
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const LoginPage()),
+            (route) => false,
+          );
+        } else {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TelaHomeProfissional(isVisitante: false),
+            ),
+            (route) => false,
+          );
+        }
       }
     } on AuthException catch (e) {
       String mensagemAmigavel = 'Ocorreu um erro ao registrar.';
@@ -2046,8 +2106,17 @@ class _CadastroProfissionalEtapa3PageState
             'Este e-mail já está cadastrado em nossa plataforma.';
       } else if (errorMsg.contains('password should be at least') ||
           errorMsg.contains('weak password')) {
+        // Lê do servidor quantos caracteres ele exige de verdade (o Supabase pode
+        // pedir um mínimo maior do que as regras locais do app).
+        final match = RegExp(
+          r'at least (\d{1,3})',
+          caseSensitive: false,
+        ).firstMatch(e.message);
+        final requerido = match != null ? int.parse(match.group(1)!) : 8;
         mensagemAmigavel =
-            'Senha muito fraca! Garanta que ela possua 6 caracteres, 1 maiúscula, 1 minúscula e 1 símbolo.';
+            'Senha muito fraca para o servidor! Ela precisa ter no mínimo '
+            '$requerido caracteres, combinando letras maiúsculas, minúsculas, '
+            'números e símbolos.';
       } else if (errorMsg.contains('invalid email') ||
           errorMsg.contains('email format')) {
         mensagemAmigavel = 'O e-mail informado não é válido.';
@@ -2266,7 +2335,9 @@ class _CadastroProfissionalEtapa3PageState
                     ),
                   );
 
-                  if (resultado != null && resultado['validado'] == true && mounted) {
+                  if (resultado != null &&
+                      resultado['validado'] == true &&
+                      mounted) {
                     setState(() {
                       _documentoIdentidadeConcluido = true;
                       _documentosValidados = List<Map<String, dynamic>>.from(
@@ -2276,7 +2347,7 @@ class _CadastroProfissionalEtapa3PageState
                   }
                 },
               ),
-              
+
               const SizedBox(height: 20),
 
               _buildCheckboxRow(
@@ -2284,7 +2355,13 @@ class _CadastroProfissionalEtapa3PageState
                 onChanged: (val) => setState(() => _termosDeUso = val ?? false),
                 fullText: 'Li e aceito os Termos de Uso',
                 highlightText: 'Termos de Uso',
-                onTapLink: () {},
+                onTapLink: () {
+                  mostrarDialogoDocumento(
+                    context,
+                    titulo: 'Termos de Uso',
+                    conteudo: TermosDeUsoPage.conteudo,
+                  );
+                },
               ),
               const SizedBox(height: 14),
               _buildCheckboxRow(
@@ -2293,7 +2370,13 @@ class _CadastroProfissionalEtapa3PageState
                     setState(() => _politicaPrivacidade = val ?? false),
                 fullText: 'Li e aceito a Política de Privacidade',
                 highlightText: 'Política de Privacidade',
-                onTapLink: () {},
+                onTapLink: () {
+                  mostrarDialogoDocumento(
+                    context,
+                    titulo: 'Política de Privacidade',
+                    conteudo: PoliticaDePrivacidadePage.conteudo,
+                  );
+                },
               ),
               const SizedBox(height: 40),
 
@@ -3482,6 +3565,7 @@ class ValidacaoDocsPage extends StatefulWidget {
   final String? cnpj;
   final String? dataNascimento;
   final bool isPessoaJuridica;
+  final String? tipoDocumentoInicial;
 
   const ValidacaoDocsPage({
     super.key,
@@ -3489,6 +3573,7 @@ class ValidacaoDocsPage extends StatefulWidget {
     this.cnpj,
     this.dataNascimento,
     this.isPessoaJuridica = false,
+    this.tipoDocumentoInicial,
   });
 
   @override
@@ -3503,15 +3588,21 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
     _DocType(label: 'Registro Geral (RG)', type: 'RG'),
     _DocType(label: 'Carteira de Identidade Nacional (CIN)', type: 'CIN'),
     _DocType(label: 'Carteira Nacional de Habilitação (CNH)', type: 'CNH'),
-    _DocType(label: 'Passaporte', type: 'PASSAPORTE'),
+    _DocType(label: 'Passaporte', type: 'Passaporte'),
   ];
 
   // Tipos de documentos para pessoa jurídica
   static final List<_DocType> _docTypesPJ = [
-    _DocType(label: 'Cartão CNPJ', type: 'CARTAO_CNPJ'),
-    _DocType(label: 'Contrato Social / Estatuto Social / Requerimento Empresário', type: 'CONTRATO_SOCIAL'),
-    _DocType(label: 'Notas Fiscais (DANFE)', type: 'DANFE'),
-    _DocType(label: 'Alvará de Funcionamento', type: 'ALVARA'),
+    _DocType(label: 'Cartão CNPJ', type: 'Cartão CNPJ'),
+    _DocType(
+      label: 'Contrato Social / Estatuto Social / Requerimento Empresário',
+      type: 'Contrato Social / Estatuto Social/ Requerimento Empresário',
+    ),
+    _DocType(
+      label: 'Notas Fiscais (DANFE)',
+      type: 'Notas Fiscais (DANFE)',
+    ),
+    _DocType(label: 'Alvará de Funcionamento', type: 'Alvará de Funcionamento'),
   ];
 
   bool _carregando = false;
@@ -3525,21 +3616,86 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
     } else {
       _docTypes = _docTypesPF;
     }
+
+    // Se um tipo de documento foi pré-selecionado (ex: vindo de "Meus Documentos"),
+    // inicia automaticamente o fluxo de captura frente/verso sem mostrar a lista.
+    if (widget.tipoDocumentoInicial != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final doc = _docTypes
+            .where((d) => d.type == widget.tipoDocumentoInicial)
+            .firstOrNull;
+        if (doc != null) {
+          _selecionarDocumento(doc);
+        }
+      });
+    }
   }
 
   // UFs e Órgãos Emissores válidos do Brasil
   static const List<String> _ufsValidas = [
-    'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO',
-    'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI',
-    'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
+    'AC',
+    'AL',
+    'AP',
+    'AM',
+    'BA',
+    'CE',
+    'DF',
+    'ES',
+    'GO',
+    'MA',
+    'MT',
+    'MS',
+    'MG',
+    'PA',
+    'PB',
+    'PR',
+    'PE',
+    'PI',
+    'RJ',
+    'RN',
+    'RS',
+    'RO',
+    'RR',
+    'SC',
+    'SP',
+    'SE',
+    'TO',
   ];
 
   static const List<String> _orgaosValidos = [
-    'SSP', 'SESP', 'SDS', 'DETRAN', 'POLÍCIA CIVIL', 'PC', 'SECRETARIA DE SEGURANÇA PÚBLICA',
-    'INSTITUTO DE IDENTIFICAÇÃO', 'IFP', 'II', 'DIC', 'DPC', 'MTB', 'CREA', 'CRC',
-    'OAB', 'CRM', 'SSP-SP', 'SSP-RJ', 'SSP-MG', 'SSP-BA', 'SSP-RS', 'SSP-PR',
-    'SSP-PE', 'SSP-CE', 'SSP-PA', 'SSP-MA', 'SSP-SC', 'SSP-GO', 'SSP-DF',
-    'SESP-PI', 'SDS-PE'
+    'SSP',
+    'SESP',
+    'SDS',
+    'DETRAN',
+    'POLÍCIA CIVIL',
+    'PC',
+    'SECRETARIA DE SEGURANÇA PÚBLICA',
+    'INSTITUTO DE IDENTIFICAÇÃO',
+    'IFP',
+    'II',
+    'DIC',
+    'DPC',
+    'MTB',
+    'CREA',
+    'CRC',
+    'OAB',
+    'CRM',
+    'SSP-SP',
+    'SSP-RJ',
+    'SSP-MG',
+    'SSP-BA',
+    'SSP-RS',
+    'SSP-PR',
+    'SSP-PE',
+    'SSP-CE',
+    'SSP-PA',
+    'SSP-MA',
+    'SSP-SC',
+    'SSP-GO',
+    'SSP-DF',
+    'SESP-PI',
+    'SDS-PE',
   ];
 
   String _somenteDigitos(String valor) {
@@ -3576,7 +3732,7 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
   String? _extrairCpf(String texto) {
     // Normaliza o texto para melhorar reconhecimento
     var textoNormalizado = texto.replaceAll(RegExp(r'\s+'), ' ').toUpperCase();
-    
+
     // Tentativa 1: Formato padrão XXX.XXX.XXX-XX ou sem formatação
     final regex1 = RegExp(r'\d{3}\.?\d{3}\.?\d{3}-?\d{2}');
     var match = regex1.firstMatch(textoNormalizado);
@@ -3599,7 +3755,9 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
     }
 
     // Tentativa 4: Padrão com "CPF:" no texto
-    final regex4 = RegExp(r'CPF[:\s]*(\d{3}[\s\.]?\d{3}[\s\.]?\d{3}[\s\-]?\d{2})');
+    final regex4 = RegExp(
+      r'CPF[:\s]*(\d{3}[\s\.]?\d{3}[\s\.]?\d{3}[\s\-]?\d{2})',
+    );
     match = regex4.firstMatch(textoNormalizado);
     if (match != null) {
       return _somenteDigitos(match.group(1)!);
@@ -3643,7 +3801,12 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
       final dia = int.tryParse(partes[0]) ?? 0;
       final mes = int.tryParse(partes[1]) ?? 0;
       final ano = int.tryParse(partes[2]) ?? 0;
-      if (ano >= 1920 && ano <= 2050 && mes >= 1 && mes <= 12 && dia >= 1 && dia <= 31) {
+      if (ano >= 1920 &&
+          ano <= 2050 &&
+          mes >= 1 &&
+          mes <= 12 &&
+          dia >= 1 &&
+          dia <= 31) {
         datas.add(DateTime(ano, mes, dia));
       }
     }
@@ -3653,7 +3816,12 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
       final ano = int.tryParse(partes[0]) ?? 0;
       final mes = int.tryParse(partes[1]) ?? 0;
       final dia = int.tryParse(partes[2]) ?? 0;
-      if (ano >= 1920 && ano <= 2050 && mes >= 1 && mes <= 12 && dia >= 1 && dia <= 31) {
+      if (ano >= 1920 &&
+          ano <= 2050 &&
+          mes >= 1 &&
+          mes <= 12 &&
+          dia >= 1 &&
+          dia <= 31) {
         datas.add(DateTime(ano, mes, dia));
       }
     }
@@ -3696,20 +3864,24 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
   /// Extrai nacionalidade do texto
   bool _verificarNacionalidadeBrasileira(String texto) {
     final textoUp = texto.toUpperCase();
-    return textoUp.contains('BRASILEIRO') || 
-           textoUp.contains('BRASILEIRA') || 
-           textoUp.contains('BRAZIL') ||
-           textoUp.contains('NACIONALIDADE') ||
-           textoUp.contains('REPÚBLICA FEDERATIVA DO BRASIL') ||
-           textoUp.contains('REPUBLICA FEDERATIVA DO BRASIL');
+    return textoUp.contains('BRASILEIRO') ||
+        textoUp.contains('BRASILEIRA') ||
+        textoUp.contains('BRAZIL') ||
+        textoUp.contains('NACIONALIDADE') ||
+        textoUp.contains('REPÚBLICA FEDERATIVA DO BRASIL') ||
+        textoUp.contains('REPUBLICA FEDERATIVA DO BRASIL');
   }
 
   /// Processa OCR da imagem usando Google ML Kit
   Future<String> _processarOcr(File file) async {
     try {
       final inputImage = InputImage.fromFile(file);
-      final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
-      final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
+      final textRecognizer = TextRecognizer(
+        script: TextRecognitionScript.latin,
+      );
+      final RecognizedText recognizedText = await textRecognizer.processImage(
+        inputImage,
+      );
       await textRecognizer.close();
       return recognizedText.text;
     } catch (e) {
@@ -3753,12 +3925,20 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
                           color: const Color(0xFF0FB3FF).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.credit_card, size: 50, color: Color(0xFF0FB3FF)),
+                        child: const Icon(
+                          Icons.credit_card,
+                          size: 50,
+                          color: Color(0xFF0FB3FF),
+                        ),
                       ),
                       const CircleAvatar(
                         radius: 14,
                         backgroundColor: Colors.white,
-                        child: Icon(Icons.check_circle, color: Color(0xFF0FB3FF), size: 26),
+                        child: Icon(
+                          Icons.check_circle,
+                          color: Color(0xFF0FB3FF),
+                          size: 26,
+                        ),
                       ),
                     ],
                   ),
@@ -3802,13 +3982,19 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
                 onPressed: _podeEnviar() ? _enviarDocumentos : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF0FB3FF),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
                 ),
                 child: _carregando
                     ? const CircularProgressIndicator(color: Colors.white)
                     : const Text(
                         'Enviar Documentos',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
               ),
             ),
@@ -3832,7 +4018,11 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               border: Border.all(
-                color: isValid ? Colors.green : isInvalid ? Colors.red : const Color(0xFF0FB3FF),
+                color: isValid
+                    ? Colors.green
+                    : isInvalid
+                    ? Colors.red
+                    : const Color(0xFF0FB3FF),
                 width: 1.5,
               ),
               borderRadius: BorderRadius.circular(12),
@@ -3845,7 +4035,11 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: isValid ? Colors.green : isInvalid ? Colors.red : const Color(0xFF0FB3FF),
+                      color: isValid
+                          ? Colors.green
+                          : isInvalid
+                          ? Colors.red
+                          : const Color(0xFF0FB3FF),
                     ),
                   ),
                 ),
@@ -3854,7 +4048,11 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
                 else if (isInvalid)
                   const Icon(Icons.error_outline, color: Colors.red, size: 28)
                 else
-                  const Icon(Icons.arrow_forward_ios, color: Color(0xFF0FB3FF), size: 20),
+                  const Icon(
+                    Icons.arrow_forward_ios,
+                    color: Color(0xFF0FB3FF),
+                    size: 20,
+                  ),
               ],
             ),
           ),
@@ -3984,7 +4182,13 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(titulo, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(
+                titulo,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 16),
               ListTile(
                 leading: const Icon(Icons.camera_alt, color: Color(0xFF0FB3FF)),
@@ -3992,14 +4196,20 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
                 onTap: () => Navigator.pop(ctx, ImageSource.camera),
               ),
               ListTile(
-                leading: const Icon(Icons.photo_library, color: Color(0xFF0FB3FF)),
+                leading: const Icon(
+                  Icons.photo_library,
+                  color: Color(0xFF0FB3FF),
+                ),
                 title: const Text('Galeria'),
                 onTap: () => Navigator.pop(ctx, ImageSource.gallery),
               ),
               const SizedBox(height: 8),
               TextButton(
                 onPressed: () => Navigator.pop(ctx, null),
-                child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+                child: const Text(
+                  'Cancelar',
+                  style: TextStyle(color: Colors.grey),
+                ),
               ),
             ],
           ),
@@ -4060,7 +4270,9 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
     }
 
     // Tentativa 3: Padrão com "CNPJ:" no texto
-    final regex3 = RegExp(r'CNPJ[:\s]*(\d{2}[\s\.]?\d{3}[\s\.]?\d{3}[\s\/]?\d{4}[\s\-]?\d{2})');
+    final regex3 = RegExp(
+      r'CNPJ[:\s]*(\d{2}[\s\.]?\d{3}[\s\.]?\d{3}[\s\/]?\d{4}[\s\-]?\d{2})',
+    );
     match = regex3.firstMatch(textoNormalizado);
     if (match != null) {
       return _somenteDigitos(match.group(1)!);
@@ -4075,11 +4287,13 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
 
     if (widget.isPessoaJuridica) {
       // Validação para documentos de Pessoa Jurídica
-      final cnpjDigitado = widget.cnpj != null ? _somenteDigitos(widget.cnpj!) : null;
+      final cnpjDigitado = widget.cnpj != null
+          ? _somenteDigitos(widget.cnpj!)
+          : null;
       final cnpjEncontrado = _extrairCnpj(texto);
 
       switch (doc.type) {
-        case 'CARTAO_CNPJ':
+        case 'Cartão CNPJ':
           if (cnpjDigitado == null) {
             erros.add('CNPJ não preenchido na etapa 1.');
             valido = false;
@@ -4092,7 +4306,7 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
           }
           break;
 
-        case 'CONTRATO_SOCIAL':
+        case 'Contrato Social / Estatuto Social/ Requerimento Empresário':
           if (cnpjDigitado == null) {
             erros.add('CNPJ não preenchido na etapa 1.');
             valido = false;
@@ -4106,8 +4320,8 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
 
           // Verificar palavras-chave de contrato social no texto
           final textoUp = texto.toUpperCase();
-          if (!textoUp.contains('CONTRATO SOCIAL') && 
-              !textoUp.contains('ESTATUTO SOCIAL') && 
+          if (!textoUp.contains('CONTRATO SOCIAL') &&
+              !textoUp.contains('ESTATUTO SOCIAL') &&
               !textoUp.contains('REQUERIMENTO') &&
               !textoUp.contains('EMPRESÁRIO') &&
               !textoUp.contains('EMPRESARIO')) {
@@ -4115,7 +4329,7 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
           }
           break;
 
-        case 'DANFE':
+        case 'Notas Fiscais (DANFE)':
           if (cnpjDigitado == null) {
             erros.add('CNPJ não preenchido na etapa 1.');
             valido = false;
@@ -4130,12 +4344,14 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
           // Verificar se tem "DANFE" ou "NOTA FISCAL" no texto
           final textoUp = texto.toUpperCase();
           if (!textoUp.contains('DANFE') && !textoUp.contains('NOTA FISCAL')) {
-            erros.add('Não foi possível identificar como uma DANFE/Nota Fiscal.');
+            erros.add(
+              'Não foi possível identificar como uma DANFE/Nota Fiscal.',
+            );
             valido = false;
           }
           break;
 
-        case 'ALVARA':
+        case 'Alvará de Funcionamento':
           if (cnpjDigitado == null) {
             erros.add('CNPJ não preenchido na etapa 1.');
             valido = false;
@@ -4149,24 +4365,34 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
 
           // Verificar se tem "ALVARÁ" ou "ALVARA" no texto
           final textoUp = texto.toUpperCase();
-          if (!textoUp.contains('ALVARÁ') && !textoUp.contains('ALVARA') && !textoUp.contains('FUNCIONAMENTO')) {
-            erros.add('Não foi possível identificar como um Alvará de Funcionamento.');
+          if (!textoUp.contains('ALVARÁ') &&
+              !textoUp.contains('ALVARA') &&
+              !textoUp.contains('FUNCIONAMENTO')) {
+            erros.add(
+              'Não foi possível identificar como um Alvará de Funcionamento.',
+            );
             valido = false;
           }
           break;
 
         default:
           // Caso não reconhecido, validar pelo menos o CNPJ
-          if (cnpjDigitado != null && cnpjEncontrado != null && cnpjEncontrado == cnpjDigitado) {
+          if (cnpjDigitado != null &&
+              cnpjEncontrado != null &&
+              cnpjEncontrado == cnpjDigitado) {
             valido = true;
           } else {
-            erros.add('Não foi possível validar os dados da empresa no documento.');
+            erros.add(
+              'Não foi possível validar os dados da empresa no documento.',
+            );
             valido = false;
           }
       }
     } else {
       // Validação original para documentos de Pessoa Física
-      final cpfDigitado = widget.cpf != null ? _somenteDigitos(widget.cpf!) : null;
+      final cpfDigitado = widget.cpf != null
+          ? _somenteDigitos(widget.cpf!)
+          : null;
       final cpfEncontrado = _extrairCpf(texto);
       final datas = _extrairDatas(texto);
       final dataNascimentoStr = widget.dataNascimento;
@@ -4189,13 +4415,20 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
           final rg = _extrairRg(texto);
           final uf = _extrairUf(texto);
           if (!_validarFormatoRg(rg, uf)) {
-            erros.add('Número do RG não identificado ou formato inválido para a UF.');
+            erros.add(
+              'Número do RG não identificado ou formato inválido para a UF.',
+            );
             valido = false;
           }
 
           // 3. Validar data de validade (RG não pode estar vencido - maior de idade)
-          final dataNascimentoDoc = _encontrarDataNascimento(datas, dataNascimentoStr);
-          if (dataNascimentoDoc != null && dataNascimentoStr != null && dataNascimentoStr.isNotEmpty) {
+          final dataNascimentoDoc = _encontrarDataNascimento(
+            datas,
+            dataNascimentoStr,
+          );
+          if (dataNascimentoDoc != null &&
+              dataNascimentoStr != null &&
+              dataNascimentoStr.isNotEmpty) {
             final hoje = DateTime.now();
             if (dataNascimentoDoc.isAfter(hoje)) {
               erros.add('Data de nascimento inválida (futura).');
@@ -4207,14 +4440,19 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
           if (dataNascimentoStr != null && dataNascimentoStr.isNotEmpty) {
             final dataNascEsperada = _parseData(dataNascimentoStr);
             if (dataNascEsperada != null) {
-              final dataEncontrada = _encontrarDataNascimento(datas, dataNascimentoStr);
+              final dataEncontrada = _encontrarDataNascimento(
+                datas,
+                dataNascimentoStr,
+              );
               if (dataEncontrada == null) {
                 erros.add('Data de nascimento não encontrada no documento.');
                 valido = false;
               } else if (dataEncontrada.year != dataNascEsperada.year ||
-                         dataEncontrada.month != dataNascEsperada.month ||
-                         dataEncontrada.day != dataNascEsperada.day) {
-                erros.add('Data de nascimento do documento não confere com a cadastrada.');
+                  dataEncontrada.month != dataNascEsperada.month ||
+                  dataEncontrada.day != dataNascEsperada.day) {
+                erros.add(
+                  'Data de nascimento do documento não confere com a cadastrada.',
+                );
                 valido = false;
               }
             }
@@ -4249,14 +4487,19 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
           if (dataNascimentoStr != null && dataNascimentoStr.isNotEmpty) {
             final dataNascEsperada = _parseData(dataNascimentoStr);
             if (dataNascEsperada != null) {
-              final dataEncontrada = _encontrarDataNascimento(datas, dataNascimentoStr);
+              final dataEncontrada = _encontrarDataNascimento(
+                datas,
+                dataNascimentoStr,
+              );
               if (dataEncontrada == null) {
                 erros.add('Data de nascimento não encontrada no documento.');
                 valido = false;
               } else if (dataEncontrada.year != dataNascEsperada.year ||
-                         dataEncontrada.month != dataNascEsperada.month ||
-                         dataEncontrada.day != dataNascEsperada.day) {
-                erros.add('Data de nascimento do documento não confere com a cadastrada.');
+                  dataEncontrada.month != dataNascEsperada.month ||
+                  dataEncontrada.day != dataNascEsperada.day) {
+                erros.add(
+                  'Data de nascimento do documento não confere com a cadastrada.',
+                );
                 valido = false;
               }
             }
@@ -4290,34 +4533,43 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
           final hojeCNH = DateTime.now();
           bool temDataValida = false;
           for (final data in datas) {
-            if (data.isAfter(hojeCNH) || 
-                (data.year == hojeCNH.year && data.month == hojeCNH.month && data.day == hojeCNH.day)) {
+            if (data.isAfter(hojeCNH) ||
+                (data.year == hojeCNH.year &&
+                    data.month == hojeCNH.month &&
+                    data.day == hojeCNH.day)) {
               temDataValida = true;
               break;
             }
           }
           if (!temDataValida && datas.isNotEmpty) {
-            erros.add('Documento parece estar vencido (data de validade expirada).');
+            erros.add(
+              'Documento parece estar vencido (data de validade expirada).',
+            );
             valido = false;
           }
           if (dataNascimentoStr != null && dataNascimentoStr.isNotEmpty) {
             final dataNascEsperada = _parseData(dataNascimentoStr);
             if (dataNascEsperada != null) {
-              final dataEncontrada = _encontrarDataNascimento(datas, dataNascimentoStr);
+              final dataEncontrada = _encontrarDataNascimento(
+                datas,
+                dataNascimentoStr,
+              );
               if (dataEncontrada == null) {
                 erros.add('Data de nascimento não encontrada no documento.');
                 valido = false;
               } else if (dataEncontrada.year != dataNascEsperada.year ||
-                         dataEncontrada.month != dataNascEsperada.month ||
-                         dataEncontrada.day != dataNascEsperada.day) {
-                erros.add('Data de nascimento do documento não confere com a cadastrada.');
+                  dataEncontrada.month != dataNascEsperada.month ||
+                  dataEncontrada.day != dataNascEsperada.day) {
+                erros.add(
+                  'Data de nascimento do documento não confere com a cadastrada.',
+                );
                 valido = false;
               }
             }
           }
           break;
 
-        case 'PASSAPORTE':
+        case 'Passaporte':
           final hojePass = DateTime.now();
           bool temDataValidaPass = false;
           for (final data in datas) {
@@ -4327,30 +4579,41 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
             }
           }
           if (!temDataValidaPass) {
-            erros.add('Passaporte parece estar vencido ou data de validade não identificada.');
+            erros.add(
+              'Passaporte parece estar vencido ou data de validade não identificada.',
+            );
             valido = false;
           }
           if (dataNascimentoStr != null && dataNascimentoStr.isNotEmpty) {
             final dataNascEsperada = _parseData(dataNascimentoStr);
             if (dataNascEsperada != null) {
-              final dataEncontrada = _encontrarDataNascimento(datas, dataNascimentoStr);
+              final dataEncontrada = _encontrarDataNascimento(
+                datas,
+                dataNascimentoStr,
+              );
               if (dataEncontrada == null) {
                 erros.add('Data de nascimento não encontrada no passaporte.');
                 valido = false;
               } else if (dataEncontrada.year != dataNascEsperada.year ||
-                         dataEncontrada.month != dataNascEsperada.month ||
-                         dataEncontrada.day != dataNascEsperada.day) {
-                erros.add('Data de nascimento do passaporte não confere com a cadastrada.');
+                  dataEncontrada.month != dataNascEsperada.month ||
+                  dataEncontrada.day != dataNascEsperada.day) {
+                erros.add(
+                  'Data de nascimento do passaporte não confere com a cadastrada.',
+                );
                 valido = false;
               }
             }
           }
           if (!_verificarNacionalidadeBrasileira(texto)) {
-            erros.add('Nacionalidade brasileira não identificada no passaporte.');
+            erros.add(
+              'Nacionalidade brasileira não identificada no passaporte.',
+            );
             valido = false;
           }
           for (final data in datas) {
-            final dataFuturaLimite = hojePass.add(const Duration(days: 365 * 15));
+            final dataFuturaLimite = hojePass.add(
+              const Duration(days: 365 * 15),
+            );
             if (data.isAfter(dataFuturaLimite)) {
               erros.add('Data de emissão inválida (futura demais).');
               valido = false;
@@ -4364,30 +4627,37 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
     setState(() {
       doc.isValid = valido;
       doc.isInvalid = !valido;
-      doc.errorMessage = valido ? null : erros.isNotEmpty ? erros.join('\n') : 'Não foi possível identificar seus dados no documento anexado. Tente novamente com outro anexo.';
+      doc.errorMessage = valido
+          ? null
+          : erros.isNotEmpty
+          ? erros.join('\n')
+          : 'Não foi possível identificar seus dados no documento anexado. Tente novamente com outro anexo.';
     });
   }
 
   /// Tenta encontrar a data de nascimento no documento comparando com a esperada
-  DateTime? _encontrarDataNascimento(List<DateTime> datas, String? dataNascimentoEsperada) {
+  DateTime? _encontrarDataNascimento(
+    List<DateTime> datas,
+    String? dataNascimentoEsperada,
+  ) {
     if (datas.isEmpty) return null;
-    
+
     final dataEsperada = _parseData(dataNascimentoEsperada);
     if (dataEsperada != null) {
       // Tenta encontrar data igual à esperada
       for (final data in datas) {
-        if (data.year == dataEsperada.year && 
-            data.month == dataEsperada.month && 
+        if (data.year == dataEsperada.year &&
+            data.month == dataEsperada.month &&
             data.day == dataEsperada.day) {
           return data;
         }
       }
     }
-    
+
     // Se não encontrou pela data exata, retorna a primeira data que parece de nascimento
     // (geralmente a mais antiga)
     if (datas.length == 1) return datas.first;
-    
+
     datas.sort((a, b) => a.compareTo(b));
     return datas.first;
   }
@@ -4398,12 +4668,20 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
       // Formato AAAA-MM-DD
       if (dataStr.contains('-')) {
         final partes = dataStr.split('-');
-        return DateTime(int.parse(partes[0]), int.parse(partes[1]), int.parse(partes[2]));
+        return DateTime(
+          int.parse(partes[0]),
+          int.parse(partes[1]),
+          int.parse(partes[2]),
+        );
       }
       // Formato DD/MM/AAAA
       if (dataStr.contains('/')) {
         final partes = dataStr.split('/');
-        return DateTime(int.parse(partes[2]), int.parse(partes[1]), int.parse(partes[0]));
+        return DateTime(
+          int.parse(partes[2]),
+          int.parse(partes[1]),
+          int.parse(partes[0]),
+        );
       }
     } catch (_) {}
     return null;
@@ -4413,7 +4691,10 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(doc.label, style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(
+          doc.label,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -4426,8 +4707,16 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: doc.filePathFrente!.toLowerCase().endsWith('.pdf')
-                    ? const Icon(Icons.picture_as_pdf, size: 100, color: Colors.red)
-                    : Image.file(File(doc.filePathFrente!), height: 150, fit: BoxFit.contain),
+                    ? const Icon(
+                        Icons.picture_as_pdf,
+                        size: 100,
+                        color: Colors.red,
+                      )
+                    : Image.file(
+                        File(doc.filePathFrente!),
+                        height: 150,
+                        fit: BoxFit.contain,
+                      ),
               ),
             ],
             if (doc.filePathVerso != null) ...[
@@ -4440,8 +4729,16 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: doc.filePathVerso!.toLowerCase().endsWith('.pdf')
-                    ? const Icon(Icons.picture_as_pdf, size: 100, color: Colors.red)
-                    : Image.file(File(doc.filePathVerso!), height: 150, fit: BoxFit.contain),
+                    ? const Icon(
+                        Icons.picture_as_pdf,
+                        size: 100,
+                        color: Colors.red,
+                      )
+                    : Image.file(
+                        File(doc.filePathVerso!),
+                        height: 150,
+                        fit: BoxFit.contain,
+                      ),
               ),
             ],
             const SizedBox(height: 16),
@@ -4452,7 +4749,10 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
                 SizedBox(width: 8),
                 Text(
                   'Documento validado com sucesso.',
-                  style: TextStyle(color: Colors.green, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: Colors.green,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
@@ -4496,7 +4796,9 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('É necessário enviar pelo menos 1 documento anexado e validado.'),
+            content: Text(
+              'É necessário enviar pelo menos 1 documento anexado e validado.',
+            ),
             backgroundColor: Colors.orange,
           ),
         );
@@ -4507,16 +4809,11 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
     // Coletar tipos dos documentos validados
     final docsData = _docTypes
         .where((d) => d.isValid)
-        .map((d) => {
-              'tipo': d.type,
-            })
+        .map((d) => {'tipo': d.type})
         .toList();
 
     if (mounted) {
-      Navigator.pop(context, {
-        'validado': true,
-        'docsData': docsData,
-      });
+      Navigator.pop(context, {'validado': true, 'docsData': docsData});
     }
   }
 }

@@ -175,7 +175,7 @@ class TelaEscolhaConta extends StatelessWidget {
               SizedBox(height: alturaDaTela * 0.03),
 
               BotaoSelecaoConta(
-                titulo: 'Sou um Cliente',
+                titulo: 'Criar conta de Cliente',
                 subtitulo: 'Procuro profissionais para resolverem meus problemas domésticos',
                 corBorda: const Color(0xFF00A2FF),
                 icone: Icons.people_alt_outlined, 
@@ -191,7 +191,7 @@ class TelaEscolhaConta extends StatelessWidget {
               SizedBox(height: alturaDaTela * 0.015),
 
               BotaoSelecaoConta(
-                titulo: 'Sou um Profissional',
+                titulo: 'Criar conta de Profissional',
                 subtitulo: 'Ofereço meus serviços e quero receber pedidos de cliente',
                 corBorda: const Color(0xFFF2994A),
                 icone: Icons.handyman_outlined, 

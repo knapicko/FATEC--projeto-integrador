@@ -9,7 +9,11 @@ import 'package:http/http.dart' as http;
 import 'tela_home.dart';
 import 'services/google_auth_service.dart';
 import 'services/validacao_telefone.dart';
+import 'services/formatacao_data.dart';
 import 'widgets/seletor_ddi.dart';
+import 'widgets/dialogo_documento.dart';
+import 'termos_de_uso.dart';
+import 'politica_de_privacidade.dart';
 import 'completar_cadastro.dart';
 import 'tela_home_profissional.dart';
 import 'login.dart';
@@ -77,52 +81,54 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
 
   bool _carregandoGoogle = false;
 
-Future<void> _continuarComGoogle() async {
-  setState(() => _carregandoGoogle = true);
-  try {
-    final user = await GoogleAuthService.signInWithGoogle();
-    if (user == null || !mounted) return;
+  Future<void> _continuarComGoogle() async {
+    setState(() => _carregandoGoogle = true);
+    try {
+      final user = await GoogleAuthService.signInWithGoogle();
+      if (user == null || !mounted) return;
 
-    final perfil = await GoogleAuthService.buscarPerfil(user.id);
-    if (!mounted) return;
+      final perfil = await GoogleAuthService.buscarPerfil(user.id);
+      if (!mounted) return;
 
-    if (perfil != null) {
-      final isProfissional = perfil['tipo_conta'] == 'Profissional';
-      Navigator.pushAndRemoveUntil(
+      if (perfil != null) {
+        final isProfissional = perfil['tipo_conta'] == 'Profissional';
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (_) => isProfissional
+                ? TelaHomeProfissional(isVisitante: false)
+                : TelaHome(isVisitante: false),
+          ),
+          (route) => false,
+        );
+        return;
+      }
+
+      final fotoUrl =
+          (user.userMetadata?['avatar_url'] as String?) ??
+          GoogleAuthService.ultimaFotoUrl;
+
+      Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => isProfissional
-              ? TelaHomeProfissional(isVisitante: false)
-              : TelaHome(isVisitante: false),
+          builder: (_) => CompletarCadastroClientePage(
+            authId: user.id,
+            emailGoogle: user.email ?? '',
+            nomeGoogle: user.userMetadata?['full_name'] as String?,
+            fotoUrlGoogle: fotoUrl,
+          ),
         ),
-        (route) => false,
       );
-      return;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao entrar com Google: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _carregandoGoogle = false);
     }
-
-    final fotoUrl = (user.userMetadata?['avatar_url'] as String?) ??
-        GoogleAuthService.ultimaFotoUrl;
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => CompletarCadastroClientePage(
-          authId: user.id,
-          emailGoogle: user.email ?? '',
-          nomeGoogle: user.userMetadata?['full_name'] as String?,
-          fotoUrlGoogle: fotoUrl,
-        ),
-      ),
-    );
-  } catch (e) {
-    if (mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erro ao entrar com Google: $e')));
-    }
-  } finally {
-    if (mounted) setState(() => _carregandoGoogle = false);
   }
-}
 
   @override
   void initState() {
@@ -134,8 +140,12 @@ Future<void> _continuarComGoogle() async {
     _nomeController = TextEditingController(text: widget.nome ?? '');
     _cpfController = TextEditingController(text: widget.cpf ?? '');
     _cnpjController = TextEditingController(text: widget.cnpj ?? '');
-    _razaoSocialController = TextEditingController(text: widget.razaoSocial ?? '');
-    _nomeFantasiaController = TextEditingController(text: widget.nomeFantasia ?? '');
+    _razaoSocialController = TextEditingController(
+      text: widget.razaoSocial ?? '',
+    );
+    _nomeFantasiaController = TextEditingController(
+      text: widget.nomeFantasia ?? '',
+    );
     _emailController = TextEditingController();
     _telefoneController = TextEditingController();
     _dataNascimentoController = TextEditingController();
@@ -163,7 +173,8 @@ Future<void> _continuarComGoogle() async {
       }
     });
     _nomeFantasiaController.addListener(() {
-      if (_nomeFantasiaController.text.isNotEmpty && _erroNomeFantasia != null) {
+      if (_nomeFantasiaController.text.isNotEmpty &&
+          _erroNomeFantasia != null) {
         setState(() => _erroNomeFantasia = null);
       }
     });
@@ -391,7 +402,10 @@ Future<void> _continuarComGoogle() async {
   }
 
   Future<void> _verificarTelefoneDuplicado() async {
-    final apenasNumeros = _telefoneController.text.replaceAll(RegExp(r'\D'), '');
+    final apenasNumeros = _telefoneController.text.replaceAll(
+      RegExp(r'\D'),
+      '',
+    );
     if (apenasNumeros.length < 10) return;
 
     // Valida estrutura do telefone antes de verificar duplicidade
@@ -488,7 +502,7 @@ Future<void> _continuarComGoogle() async {
       String ano = dataSelecionada.year.toString();
 
       setState(() {
-        _dataNascimentoController.text = '$ano-$mes-$dia';
+        _dataNascimentoController.text = '$dia/$mes/$ano';
         _erroDataNascimento = null;
       });
     }
@@ -519,7 +533,7 @@ Future<void> _continuarComGoogle() async {
       String ano = dataSelecionada.year.toString();
 
       setState(() {
-        _dataFundacaoController.text = '$ano-$mes-$dia';
+        _dataFundacaoController.text = '$dia/$mes/$ano';
         _erroDataFundacao = null;
       });
     }
@@ -589,9 +603,7 @@ Future<void> _continuarComGoogle() async {
         _erroDataFundacao != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Por favor, preencha todos os campos obrigatórios.',
-          ),
+          content: Text('Por favor, preencha todos os campos obrigatórios.'),
         ),
       );
       return;
@@ -613,14 +625,22 @@ Future<void> _continuarComGoogle() async {
               : _nomeFantasiaController.text.trim(),
           cpf: _isPessoaFisica ? _cpfController.text.trim() : null,
           cnpj: !_isPessoaFisica ? _cnpjController.text.trim() : null,
-          razaoSocial: !_isPessoaFisica ? _razaoSocialController.text.trim() : null,
-          nomeFantasia: !_isPessoaFisica ? _nomeFantasiaController.text.trim() : null,
+          razaoSocial: !_isPessoaFisica
+              ? _razaoSocialController.text.trim()
+              : null,
+          nomeFantasia: !_isPessoaFisica
+              ? _nomeFantasiaController.text.trim()
+              : null,
           isPessoaFisica: _isPessoaFisica,
           cnpjDeEmpresa: _cnpjDeEmpresa,
           email: _emailController.text.trim(),
           telefone: _telefoneController.text.trim(),
-          dataNascimento: _dataNascimentoController.text.trim(),
-          dataFundacao: _dataFundacaoController.text.trim(),
+          dataNascimento: converterDataParaIso(
+            _dataNascimentoController.text.trim(),
+          ),
+          dataFundacao: converterDataParaIso(
+            _dataFundacaoController.text.trim(),
+          ),
           fotoPerfilUrl: widget.fotoPerfilUrl ?? 'null',
         ),
       ),
@@ -822,7 +842,7 @@ Future<void> _continuarComGoogle() async {
             if (!_isPessoaFisica) ...[
               _InputFieldWithAnimation(
                 label: 'Data de Fundação',
-                hint: 'AAAA-MM-DD',
+                hint: 'DD/MM/AAAA',
                 suffixIcon: Icons.calendar_month,
                 controller: _dataFundacaoController,
                 readOnly: true,
@@ -859,11 +879,11 @@ Future<void> _continuarComGoogle() async {
                 },
               ),
             ),
-            
+
             if (_isPessoaFisica) ...[
               _InputFieldWithAnimation(
                 label: 'Data de Nascimento',
-                hint: 'DD-MM-AAAA',
+                hint: 'DD/MM/AAAA',
                 suffixIcon: Icons.calendar_month,
                 controller: _dataNascimentoController,
                 readOnly: true,
@@ -898,15 +918,20 @@ Future<void> _continuarComGoogle() async {
               ),
             ),
 
-                        const SizedBox(height: 20),
-            Row(children: [
-              Expanded(child: Divider(color: Colors.grey.shade300)),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Text('ou', style: TextStyle(color: Colors.grey.shade500)),
-              ),
-              Expanded(child: Divider(color: Colors.grey.shade300)),
-            ]),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(child: Divider(color: Colors.grey.shade300)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    'ou',
+                    style: TextStyle(color: Colors.grey.shade500),
+                  ),
+                ),
+                Expanded(child: Divider(color: Colors.grey.shade300)),
+              ],
+            ),
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
@@ -915,14 +940,28 @@ Future<void> _continuarComGoogle() async {
                 onPressed: _carregandoGoogle ? null : _continuarComGoogle,
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: Color(0xFFDADCE0)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                 ),
                 icon: _carregandoGoogle
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.g_mobiledata, size: 28, color: Colors.black87),
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(
+                        Icons.g_mobiledata,
+                        size: 28,
+                        color: Colors.black87,
+                      ),
                 label: Text(
                   _carregandoGoogle ? 'Conectando...' : 'Continuar com Google',
-                  style: const TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    color: Colors.black87,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
@@ -1239,7 +1278,9 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                             hintStyle: TextStyle(
                               color: hasError
                                   ? Colors.red.withValues(alpha: 0.4)
-                                  : const Color(0xFF00A2FF).withValues(alpha: 0.4),
+                                  : const Color(
+                                      0xFF00A2FF,
+                                    ).withValues(alpha: 0.4),
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
                             ),
@@ -1272,8 +1313,8 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                         color: hasError
                             ? Colors.red
                             : (_isFocused
-                                ? const Color(0xFF00A2FF)
-                                : Colors.grey.shade400),
+                                  ? const Color(0xFF00A2FF)
+                                  : Colors.grey.shade400),
                         size: 22,
                       ),
                     ),
@@ -1375,7 +1416,8 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
   bool get _temOitoCaracteres => _senhaController.text.length >= 8;
   bool get _temMaiuscula => _senhaController.text.contains(RegExp(r'[A-Z]'));
   bool get _temMinuscula => _senhaController.text.contains(RegExp(r'[a-z]'));
-  bool get _temSimbolo => _senhaController.text.contains(RegExp(r'[^A-Za-z0-9\s]'));
+  bool get _temSimbolo =>
+      _senhaController.text.contains(RegExp(r'[^A-Za-z0-9\s]'));
   bool get _temNumero => _senhaController.text.contains(RegExp(r'[0-9]'));
 
   @override
@@ -1432,6 +1474,7 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
       }
 
       final authId = authUser.id;
+      final precisaConfirmarEmail = authResponse.session == null;
 
       int? emailId;
       if (widget.email.isNotEmpty) {
@@ -1502,7 +1545,7 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
         final assResponse = await supabase
             .from('ass_tipo_pessoa')
             .insert({
-              'tipo': 'Pessoa Jurídica',
+              'tipo': 'Jurídica',
               'fk_pessoa_fisica': null,
               'fk_pessoa_juridica': pjId,
             })
@@ -1526,14 +1569,34 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Cadastro finalizado com sucesso!')),
-        );
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => TelaHome(isVisitante: false)),
-          (route) => false,
-        );
+        if (precisaConfirmarEmail) {
+          // "Confirmar e-mail" está ativo no Supabase: o usuário já foi criado no
+          // auth, mas ainda precisa confirmar o e-mail antes de conseguir entrar.
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Quase lá! Enviamos um link de confirmação para o seu e-mail. '
+                'Clique nele para ativar sua conta e depois faça login.',
+              ),
+            ),
+          );
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const LoginPage()),
+            (route) => false,
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Cadastro finalizado com sucesso!')),
+          );
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TelaHome(isVisitante: false),
+            ),
+            (route) => false,
+          );
+        }
       }
     } on AuthException catch (e) {
       String mensagemAmigavel = 'Ocorreu um erro ao registrar.';
@@ -1541,8 +1604,17 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
       if (e.toString().contains('AuthWeakPasswordException') ||
           e.message.toLowerCase().contains('password should be at least') ||
           e.statusCode == '422') {
+        // Lê do servidor quantos caracteres ele exige de verdade (o Supabase pode
+        // pedir um mínimo maior do que as regras locais do app).
+        final match = RegExp(
+          r'at least (\d{1,3})',
+          caseSensitive: false,
+        ).firstMatch(e.message);
+        final requerido = match != null ? int.parse(match.group(1)!) : 8;
         mensagemAmigavel =
-            'Senha muito fraca! Garanta que ela possua no mínimo 8 caracteres, 1 maiúscula, 1 minúscula e 1 símbolo.';
+            'Senha muito fraca para o servidor! Ela precisa ter no mínimo '
+            '$requerido caracteres, combinando letras maiúsculas, minúsculas, '
+            'números e símbolos.';
       } else if (e.message.toLowerCase().contains('already registered') ||
           e.message.toLowerCase().contains('already exists')) {
         mensagemAmigavel =
@@ -1649,10 +1721,7 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
                     'Pelo menos 1 símbolo (ex: @, #, \$, %)',
                     _temSimbolo,
                   ),
-                  _buildRequisitoItem(
-                    'Pelo menos 1 número',
-                    _temNumero,
-                  ),
+                  _buildRequisitoItem('Pelo menos 1 número', _temNumero),
                 ],
               ),
             ),
@@ -1673,7 +1742,13 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
               value: _aceitouTermos,
               onTapCheckbox: () =>
                   setState(() => _aceitouTermos = !_aceitouTermos),
-              onTapLink: () {},
+              onTapLink: () {
+                mostrarDialogoDocumento(
+                  context,
+                  titulo: 'Termos de Uso',
+                  conteudo: TermosDeUsoPage.conteudo,
+                );
+              },
             ),
             const SizedBox(height: 14),
             _buildCheckboxRow(
@@ -1682,7 +1757,13 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
               value: _aceitouPrivacidade,
               onTapCheckbox: () =>
                   setState(() => _aceitouPrivacidade = !_aceitouPrivacidade),
-              onTapLink: () {},
+              onTapLink: () {
+                mostrarDialogoDocumento(
+                  context,
+                  titulo: 'Política de Privacidade',
+                  conteudo: PoliticaDePrivacidadePage.conteudo,
+                );
+              },
             ),
 
             const SizedBox(height: 35),
@@ -1693,8 +1774,8 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
               child: ElevatedButton(
                 onPressed:
                     (_aceitouTermos && _aceitouPrivacidade && !_carregando)
-                        ? _finalizarCadastroBanco
-                        : null,
+                    ? _finalizarCadastroBanco
+                    : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF00A2FF),
                   disabledBackgroundColor: const Color(
@@ -1785,9 +1866,7 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
         Expanded(
           child: RichText(
             text: TextSpan(
-              style: TextStyle(
-                color: Colors.grey.shade700,
-              ),
+              style: TextStyle(color: Colors.grey.shade700),
               children: [
                 TextSpan(text: prefixText),
                 TextSpan(
