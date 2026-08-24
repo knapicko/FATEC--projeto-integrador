@@ -6,6 +6,7 @@ import 'perfil_profissional.dart';
 import 'meus_enderecos.dart';
 import 'tela_meu_perfil_cliente.dart';
 import 'tela_busca.dart';
+import 'seguindo_cliente.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/iniciais.dart';
@@ -1383,7 +1384,15 @@ class _TelaHomeState extends State<TelaHome> {
       bottomNavigationBar: BottomNavigationBarCliente(
         currentIndex: 0,
         onTap: (index) {
-          if (index == 4) _navegarParaPerfil(context);
+          if (index == 1) {
+            Navigator.of(context).pushReplacement(
+              _rotaSemAnimacao(
+                SeguindoClientePage(isVisitante: widget.isVisitante),
+              ),
+            );
+          } else if (index == 4) {
+            _navegarParaPerfil(context);
+          }
         },
       ),
     );
