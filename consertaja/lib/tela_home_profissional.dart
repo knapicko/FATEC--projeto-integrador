@@ -11,6 +11,7 @@ import 'models/postagem_resumo.dart';
 import 'services/postagens_profissional_service.dart';
 import 'tela_meu_perfil_profissional.dart';
 import 'utils/cor_oficio.dart';
+import 'utils/iniciais.dart';
 import 'widgets/tag_oficio.dart';
 
 class TelaHomeProfissional extends StatefulWidget {
@@ -648,7 +649,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                             : null,
                         child: fotoUrl == null
                             ? Text(
-                                nome.isNotEmpty ? nome[0].toUpperCase() : 'P',
+                                obterIniciais(nome),
                                 style: const TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.bold,
@@ -990,10 +991,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                             : null,
                                         child: fotoUrl == null
                                             ? Text(
-                                                nomeCompleto.isNotEmpty
-                                                    ? nomeCompleto[0]
-                                                          .toUpperCase()
-                                                    : 'P',
+                                                obterIniciais(nomeCompleto),
                                                 style: const TextStyle(
                                                   fontSize: 26,
                                                   fontWeight: FontWeight.bold,
@@ -1137,7 +1135,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
               future: _dadosProfissionalFuture,
               builder: (context, snapshot) {
                 final nomeCompleto =
-                    snapshot.data?['nome'] as String? ?? 'Profissional';
+                    snapshot.data?['nome'] as String? ?? 'Nome não encontrado';
                 final fotoUrl = snapshot.data?['foto_perfil_url'] as String?;
                 return _buildCaixaCriacaoPostagem(
                   fotoUrl: fotoUrl,
@@ -1774,7 +1772,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
             backgroundImage: fotoUrl != null ? NetworkImage(fotoUrl) : null,
             child: fotoUrl == null
                 ? Text(
-                    nome.isNotEmpty ? nome[0].toUpperCase() : 'P',
+                    obterIniciais(nome),
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,

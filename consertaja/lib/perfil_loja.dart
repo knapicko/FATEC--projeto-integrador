@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'utils/iniciais.dart';
 
 class PerfilLoja extends StatefulWidget {
   const PerfilLoja({super.key});
@@ -21,31 +22,31 @@ class _PerfilLojaState extends State<PerfilLoja> {
   // Lista mockada de profissionais locais seguindo o design solicitado
   final List<Map<String, dynamic>> listaProfissionais = [
     {
-      'nome': 'Caneta Azul',
+      'nome': 'Nome não encontrado',
       'avaliacao': 4.9,
       'totalAvaliacoes': 423,
       'tag': 'Chaveiro',
       'tagBgColor': const Color(0xFFE1F5FE),
       'tagTextColor': const Color(0xFF0288D1),
-      'caminhoImagem': 'assets/images/perfil_caneta_azul.png',
+      'caminhoImagem': '',
     },
     {
-      'nome': 'Caneta Azul',
+      'nome': 'Nome não encontrado',
       'avaliacao': 4.9,
       'totalAvaliacoes': 423,
       'tag': 'Costura',
       'tagBgColor': const Color(0xFFE8F5E9),
       'tagTextColor': const Color(0xFF2E7D32),
-      'caminhoImagem': 'assets/images/perfil_caneta_azul.png',
+      'caminhoImagem': '',
     },
     {
-      'nome': 'Caneta Azul',
+      'nome': 'Nome não encontrado',
       'avaliacao': 4.9,
       'totalAvaliacoes': 423,
       'tag': 'Chaveiro',
       'tagBgColor': const Color(0xFFE1F5FE),
       'tagTextColor': const Color(0xFF0288D1),
-      'caminhoImagem': 'assets/images/perfil_caneta_azul.png',
+      'caminhoImagem': '',
     },
   ];
 
@@ -466,8 +467,15 @@ class _PerfilLojaState extends State<PerfilLoja> {
           Center(
             child: CircleAvatar(
               radius: 26,
-              backgroundColor: Colors.grey.shade100,
-              backgroundImage: AssetImage(perfil['caminhoImagem']),
+              backgroundColor: const Color(0xFFE1F5FE),
+              child: Text(
+                obterIniciais(perfil['nome']),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF00A3FF),
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 8),

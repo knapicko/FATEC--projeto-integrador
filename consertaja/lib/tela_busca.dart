@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'perfil_profissional.dart';
 import 'tela_meu_perfil_cliente.dart';
 import 'utils/cor_oficio.dart';
+import 'utils/iniciais.dart';
 import 'widgets/tag_oficio.dart';
 
 enum _AbaResultado { todos, servicos, profissionais }
@@ -193,7 +194,7 @@ class _TelaBuscaState extends State<TelaBusca> {
           'Especialista em conserto de panelas elétricas e cabos em geral. Atendimento rápido e garantia.',
       localizacao: 'Vila Mariana',
       distancia: '2.5km',
-      caminhoImagem: 'assets/images/perfil_caneta_azul.png',
+      caminhoImagem: '',
       termosBusca: [
         'joão',
         'joao',
@@ -213,7 +214,7 @@ class _TelaBuscaState extends State<TelaBusca> {
           'Profissional experiente em restauração e conserto de utensílios domésticos e panelas.',
       localizacao: 'Moema',
       distancia: '4.1km',
-      caminhoImagem: 'assets/images/perfil_caneta_azul.png',
+      caminhoImagem: '',
       termosBusca: [
         'maria',
         'oliveira',
@@ -628,7 +629,7 @@ class _TelaBuscaState extends State<TelaBusca> {
         final foto = usuario['foto_perfil_url']?.toString() ?? '';
         final caminhoImagem = (foto.isNotEmpty && foto.toLowerCase() != 'null')
             ? foto
-            : 'assets/images/perfil_caneta_azul.png';
+            : '';
 
         resultados.add(
           _ProfissionalBusca(
@@ -1165,20 +1166,30 @@ class _TelaBuscaState extends State<TelaBusca> {
                                   errorBuilder: (_, __, ___) => Container(
                                     width: 56,
                                     height: 56,
-                                    color: Colors.grey.shade200,
-                                    child: Icon(Icons.person, color: Colors.grey.shade500),
+                                    color: const Color(0xFFE1F5FE),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      obterIniciais(profissional.nome),
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: _primaryBlue,
+                                      ),
+                                    ),
                                   ),
                                 )
-                              : Image.asset(
-                                  profissional.caminhoImagem!,
+                              : Container(
                                   width: 56,
                                   height: 56,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => Container(
-                                    width: 56,
-                                    height: 56,
-                                    color: Colors.grey.shade200,
-                                    child: Icon(Icons.person, color: Colors.grey.shade500),
+                                  color: const Color(0xFFE1F5FE),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    obterIniciais(profissional.nome),
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: _primaryBlue,
+                                    ),
                                   ),
                                 ),
                         ),

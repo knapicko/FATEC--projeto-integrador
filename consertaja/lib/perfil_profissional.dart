@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'models/postagem_resumo.dart';
 import 'services/postagens_profissional_service.dart';
 import 'utils/cor_oficio.dart';
+import 'utils/iniciais.dart';
 import 'widgets/tag_oficio.dart';
 
 class PerfilProfissionalPage extends StatefulWidget {
@@ -169,7 +170,9 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   @override
   void initState() {
     super.initState();
-    _nome = widget.nomeInicial;
+    _nome = widget.nomeInicial.isNotEmpty
+        ? widget.nomeInicial
+        : 'Nome não encontrado';
     if (widget.imagemInicial.startsWith('http://') ||
         widget.imagemInicial.startsWith('https://')) {
       _fotoUrl = widget.imagemInicial;
@@ -223,7 +226,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
         }
 
         setState(() {
-          _nome = response['nome']?.toString() ?? widget.nomeInicial;
+          _nome = response['nome']?.toString() ?? 'Nome não encontrado';
           final foto = response['foto_perfil_url']?.toString();
           if (foto != null && foto.isNotEmpty && foto != 'null') {
             _fotoUrl = foto;
@@ -1512,10 +1515,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
       return Image.network(
         imagemParaExibir,
         fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => Container(
-          color: Colors.grey.shade200,
-          child: const Icon(Icons.person, color: Colors.grey, size: 40),
-        ),
+        errorBuilder: (_, _, _) => _buildIniciaisPerfil(),
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
           return const Center(
@@ -1527,14 +1527,21 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
         },
       );
     }
-    return Image.asset(
-      widget.imagemInicial.isNotEmpty
-          ? widget.imagemInicial
-          : 'assets/images/perfil_caneta_azul.png',
-      fit: BoxFit.cover,
-      errorBuilder: (_, _, _) => Container(
-        color: Colors.grey.shade100,
-        child: const Icon(Icons.person, color: Colors.grey, size: 40),
+    return _buildIniciaisPerfil();
+  }
+
+  Widget _buildIniciaisPerfil() {
+    final nomeExibicao = _nome.isNotEmpty ? _nome : 'Nome não encontrado';
+    return Container(
+      color: const Color(0xFFE1F5FE),
+      alignment: Alignment.center,
+      child: Text(
+        obterIniciais(nomeExibicao),
+        style: const TextStyle(
+          fontSize: 32,
+          fontWeight: FontWeight.bold,
+          color: _primaryBlue,
+        ),
       ),
     );
   }

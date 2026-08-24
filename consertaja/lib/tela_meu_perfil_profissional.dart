@@ -12,6 +12,7 @@ import 'politica_de_privacidade.dart';
 import 'sobre_conserta_ja.dart';
 import 'tela_home_profissional.dart';
 import 'main.dart';
+import 'utils/iniciais.dart';
 
 class TelaMeuPerfilProfissionalPage extends StatefulWidget {
   final bool isVisitante;
@@ -35,7 +36,7 @@ class _TelaMeuPerfilProfissionalPageState
   final SupabaseClient _supabase = Supabase.instance.client;
 
   bool _isLoading = true;
-  String _nomeCompleto = 'Carregando...';
+  String _nomeCompleto = 'Nome não encontrado';
   String _email = '';
   String? _fotoPerfilUrl;
 
@@ -51,7 +52,7 @@ class _TelaMeuPerfilProfissionalPageState
 
     if (widget.isVisitante) {
       _isLoading = false;
-      _nomeCompleto = 'Visitante';
+      _nomeCompleto = 'Nome não encontrado';
       _email = '';
       _fotoPerfilUrl = null;
       return;
@@ -96,7 +97,7 @@ class _TelaMeuPerfilProfissionalPageState
         _avisosAtivos.clear();
 
         _nomeCompleto =
-            (data?['nome'] ?? user.userMetadata?['nome'] ?? 'Usuário')
+            (data?['nome'] ?? user.userMetadata?['nome'] ?? 'Nome não encontrado')
                 .toString();
         _email = (data?['email'] ?? user.email ?? '').toString();
         _fotoPerfilUrl = data?['foto_perfil_url']?.toString();
@@ -119,7 +120,7 @@ class _TelaMeuPerfilProfissionalPageState
     } catch (_) {
       if (mounted) {
         setState(() {
-          _nomeCompleto = 'Erro ao carregar';
+          _nomeCompleto = 'Nome não encontrado';
           _isLoading = false;
         });
       }
@@ -151,28 +152,8 @@ class _TelaMeuPerfilProfissionalPageState
     });
   }
 
-  String _obterIniciais(String? nome) {
-    if (nome == null || nome.trim().isEmpty) {
-      return 'U';
-    }
-
-    final partes = nome.trim().split(' ');
-
-    if (partes.length > 1) {
-      final sobrenome = partes.last.trim();
-
-      if (sobrenome.length >= 2) {
-        return sobrenome.substring(0, 2).toUpperCase();
-      }
-
-      return sobrenome.toUpperCase();
-    }
-
-    return nome.substring(0, 1).toUpperCase();
-  }
-
   Widget _buildAvatar() {
-    final initials = _obterIniciais(_nomeCompleto);
+    final initials = obterIniciais(_nomeCompleto);
 
     final Widget avatar =
         _fotoPerfilUrl != null && _fotoPerfilUrl!.trim().isNotEmpty

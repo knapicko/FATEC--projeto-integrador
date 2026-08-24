@@ -7,6 +7,7 @@ import 'meus_enderecos.dart';
 import 'tela_meu_perfil_cliente.dart';
 import 'tela_busca.dart';
 import 'utils/cor_oficio.dart';
+import 'utils/iniciais.dart';
 import 'widgets/foto_perfil_google.dart';
 import 'widgets/tag_oficio.dart';
 
@@ -255,7 +256,7 @@ class _TelaHomeState extends State<TelaHome> {
       tag: 'Eletricista',
       tagBgColor: const Color(0xFFE1F5FE),
       tagTextColor: _primaryBlue,
-      caminhoImagem: 'assets/images/perfil_caneta_azul.png',
+      caminhoImagem: '',
     ),
     PerfilPopular(
       nome: 'Carlos Mendes',
@@ -264,7 +265,7 @@ class _TelaHomeState extends State<TelaHome> {
       tag: 'Eletricista',
       tagBgColor: const Color(0xFFE1F5FE),
       tagTextColor: _primaryBlue,
-      caminhoImagem: 'assets/images/perfil_caneta_azul.png',
+      caminhoImagem: '',
     ),
     PerfilPopular(
       nome: 'Carlos Mendes',
@@ -273,16 +274,16 @@ class _TelaHomeState extends State<TelaHome> {
       tag: 'Eletricista',
       tagBgColor: const Color(0xFFE1F5FE),
       tagTextColor: _primaryBlue,
-      caminhoImagem: 'assets/images/perfil_caneta_azul.png',
+      caminhoImagem: '',
     ),
     PerfilPopular(
-      nome: 'Caneta Azul',
+      nome: 'Nome não encontrado',
       avaliacao: 4.9,
       totalAvaliacoes: 423,
       tag: 'Chaveiro',
       tagBgColor: const Color(0xFFE1F5FE),
       tagTextColor: _primaryBlue,
-      caminhoImagem: 'assets/images/perfil_caneta_azul.png',
+      caminhoImagem: '',
       profissao: 'Chaveiro',
     ),
   ];
@@ -544,7 +545,7 @@ class _TelaHomeState extends State<TelaHome> {
 
         if (usuarioResponse == null) continue;
 
-        final nome = usuarioResponse['nome']?.toString() ?? 'Profissional';
+        final nome = usuarioResponse['nome']?.toString() ?? 'Nome não encontrado';
         final fotoUrl =
             usuarioResponse['foto_perfil_url']?.toString() ?? '';
 
@@ -1437,6 +1438,49 @@ class _TelaHomeState extends State<TelaHome> {
   }
 
   Widget _buildCardProfissional(PerfilPopular perfil, {double? largura}) {
+    final bool usaImagemRede =
+        perfil.caminhoImagem.startsWith('http') ||
+        perfil.caminhoImagem.startsWith('https');
+
+    Widget imagem;
+    if (usaImagemRede) {
+      imagem = Image.network(
+        perfil.caminhoImagem,
+        width: 64,
+        height: 64,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+          width: 64,
+          height: 64,
+          color: const Color(0xFFE1F5FE),
+          alignment: Alignment.center,
+          child: Text(
+            obterIniciais(perfil.nome),
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: _primaryBlue,
+            ),
+          ),
+        ),
+      );
+    } else {
+      imagem = Container(
+        width: 64,
+        height: 64,
+        color: const Color(0xFFE1F5FE),
+        alignment: Alignment.center,
+        child: Text(
+          obterIniciais(perfil.nome),
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: _primaryBlue,
+          ),
+        ),
+      );
+    }
+
     return Container(
       width: largura,
       padding: const EdgeInsets.all(12),
@@ -1449,18 +1493,7 @@ class _TelaHomeState extends State<TelaHome> {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
-                child: Image.asset(
-                  perfil.caminhoImagem,
-                  width: 64,
-                  height: 64,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    width: 64,
-                    height: 64,
-                    color: Colors.grey.shade200,
-                    child: Icon(Icons.person, color: Colors.grey.shade500),
-                  ),
-                ),
+                child: imagem,
               ),
               if (perfil.isVerified)
                 Positioned(right: -2, bottom: -2, child: _buildVerifiedBadge()),
@@ -1531,21 +1564,31 @@ class _TelaHomeState extends State<TelaHome> {
         errorBuilder: (_, __, ___) => Container(
           width: 64,
           height: 64,
-          color: Colors.grey.shade200,
-          child: Icon(Icons.person, color: Colors.grey.shade500),
+          color: const Color(0xFFE1F5FE),
+          alignment: Alignment.center,
+          child: Text(
+            obterIniciais(perfil.nome),
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: _primaryBlue,
+            ),
+          ),
         ),
       );
     } else {
-      imagem = Image.asset(
-        perfil.caminhoImagem,
+      imagem = Container(
         width: 64,
         height: 64,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => Container(
-          width: 64,
-          height: 64,
-          color: Colors.grey.shade200,
-          child: Icon(Icons.person, color: Colors.grey.shade500),
+        color: const Color(0xFFE1F5FE),
+        alignment: Alignment.center,
+        child: Text(
+          obterIniciais(perfil.nome),
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: _primaryBlue,
+          ),
         ),
       );
     }

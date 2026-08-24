@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'services/validacao_telefone.dart';
 import 'services/formatacao_data.dart';
+import 'utils/iniciais.dart';
 import 'widgets/seletor_ddi.dart';
 
 class EditarInformacoesPage extends StatefulWidget {
@@ -24,7 +25,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
 
   bool _isLoading = true;
   bool _isUploading = false;
-  String _nomeCompleto = 'Carregando...';
+  String _nomeCompleto = 'Nome não encontrado';
   String _cpf = '';
   String _email = '';
   String _telefone = '';
@@ -44,29 +45,6 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
   void initState() {
     super.initState();
     _carregarDados();
-  }
-
-  String _obterIniciais(String? nome) {
-    if (nome == null || nome.trim().isEmpty) {
-      return 'U';
-    }
-    final partes = nome.trim().split(' ');
-    if (partes.length > 1) {
-      // Nome + Sobrenome: pega primeira letra do primeiro nome e primeira letra do sobrenome
-      final primeiroNome = partes.first.trim();
-      final sobrenome = partes.last.trim();
-      final primeiraLetraNome = primeiroNome.isNotEmpty
-          ? primeiroNome.substring(0, 1)
-          : '';
-      final primeiraLetraSobrenome = sobrenome.isNotEmpty
-          ? sobrenome.substring(0, 1)
-          : '';
-      return (primeiraLetraNome + primeiraLetraSobrenome).toUpperCase();
-    }
-    // Apenas nome: pega as primeiras 2 letras
-    return nome.length >= 2
-        ? nome.substring(0, 2).toUpperCase()
-        : nome.substring(0, 1).toUpperCase();
   }
 
   Future<void> _carregarDados() async {
@@ -95,7 +73,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
       if (!mounted) return;
 
       _usuarioId = usuarioResponse?['id_usuario'] as int?;
-      String nome = usuarioResponse?['nome']?.toString() ?? 'Usuário';
+      String nome = usuarioResponse?['nome']?.toString() ?? 'Nome não encontrado';
       String dataNascimento =
           usuarioResponse?['data_nascimento']?.toString() ?? '';
       String? fotoUrl = usuarioResponse?['foto_perfil_url']?.toString();
@@ -983,7 +961,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                             _fotoPerfilUrl == null ||
                                 _fotoPerfilUrl!.trim().isEmpty
                             ? Text(
-                                _obterIniciais(_nomeCompleto),
+                                obterIniciais(_nomeCompleto),
                                 style: const TextStyle(
                                   fontSize: 36,
                                   fontWeight: FontWeight.bold,
