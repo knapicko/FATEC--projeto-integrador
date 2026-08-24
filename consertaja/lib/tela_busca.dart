@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'perfil_profissional.dart';
 import 'tela_meu_perfil_cliente.dart';
+import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/iniciais.dart';
 import 'widgets/tag_oficio.dart';
@@ -256,7 +257,15 @@ class _TelaBuscaState extends State<TelaBusca> {
       categoriaTag: 'Panelas',
       seguidores: 324,
       caminhoImagem: 'assets/images/loja_mundo_loucas.png',
-      termosBusca: ['mundo', 'louças', 'loucas', 'panela', 'panelas', 'cabo', 'conserto'],
+      termosBusca: [
+        'mundo',
+        'louças',
+        'loucas',
+        'panela',
+        'panelas',
+        'cabo',
+        'conserto',
+      ],
     ),
     _PerfilVerificado(
       nome: 'Caedss - Estrada das Lágrimas',
@@ -264,7 +273,15 @@ class _TelaBuscaState extends State<TelaBusca> {
       categoriaTag: 'Panelas',
       seguidores: 923,
       caminhoImagem: 'assets/images/loja_caedss.png',
-      termosBusca: ['caedss', 'panela', 'panelas', 'cabo', 'conserto', 'lágrimas', 'lagrimas'],
+      termosBusca: [
+        'caedss',
+        'panela',
+        'panelas',
+        'cabo',
+        'conserto',
+        'lágrimas',
+        'lagrimas',
+      ],
     ),
     _PerfilVerificado(
       nome: 'Chaveiro - Ipiranga',
@@ -500,7 +517,9 @@ class _TelaBuscaState extends State<TelaBusca> {
             // Busca endereços
             final enderecosResp = await supabase
                 .from('enderecos')
-                .select('id_endereco, logradouro, numero, complemento, fk_cidade')
+                .select(
+                  'id_endereco, logradouro, numero, complemento, fk_cidade',
+                )
                 .inFilter('id_endereco', idEnderecos);
 
             // Busca cidades
@@ -525,7 +544,8 @@ class _TelaBuscaState extends State<TelaBusca> {
             for (final e in estadosResp) {
               final fk = e['id_estado'];
               final id = fk is int ? fk : int.tryParse(fk?.toString() ?? '');
-              if (id != null) estadosMap[id] = e['sigla_estado']?.toString() ?? '';
+              if (id != null)
+                estadosMap[id] = e['sigla_estado']?.toString() ?? '';
             }
 
             // Mapa de id_endereco -> dados do endereço
@@ -562,7 +582,9 @@ class _TelaBuscaState extends State<TelaBusca> {
 
               final partes = <String>[];
               if (logradouro.isNotEmpty) {
-                partes.add(numero.isNotEmpty ? '$logradouro, $numero' : logradouro);
+                partes.add(
+                  numero.isNotEmpty ? '$logradouro, $numero' : logradouro,
+                );
               }
               if (complemento.isNotEmpty) {
                 partes.add(complemento);
@@ -585,7 +607,8 @@ class _TelaBuscaState extends State<TelaBusca> {
         final nome = usuario['nome']?.toString() ?? '';
         if (nome.trim().isEmpty) continue;
 
-        final String localizacao = localizacaoPorUsuario[usuarioId] ?? 'Localização não informada';
+        final String localizacao =
+            localizacaoPorUsuario[usuarioId] ?? 'Localização não informada';
 
         // Ofícios do profissional (via dados_profissionais + ass_oficio_profissional + oficios)
         final idProfissional = usuarioParaProfissional[usuarioId];
@@ -795,11 +818,7 @@ class _TelaBuscaState extends State<TelaBusca> {
       ),
       child: Text(
         texto,
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-          color: fg,
-        ),
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: fg),
       ),
     );
   }
@@ -817,7 +836,10 @@ class _TelaBuscaState extends State<TelaBusca> {
                   onPressed: () => Navigator.pop(context),
                   icon: const Icon(Icons.arrow_back, color: Colors.white),
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                  constraints: const BoxConstraints(
+                    minWidth: 40,
+                    minHeight: 40,
+                  ),
                 ),
                 Expanded(
                   child: GestureDetector(
@@ -841,7 +863,11 @@ class _TelaBuscaState extends State<TelaBusca> {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          Icon(Icons.search, color: Colors.grey.shade500, size: 22),
+                          Icon(
+                            Icons.search,
+                            color: Colors.grey.shade500,
+                            size: 22,
+                          ),
                         ],
                       ),
                     ),
@@ -851,7 +877,10 @@ class _TelaBuscaState extends State<TelaBusca> {
                   onPressed: () {},
                   icon: const Icon(Icons.radar, color: Colors.white),
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                  constraints: const BoxConstraints(
+                    minWidth: 40,
+                    minHeight: 40,
+                  ),
                 ),
               ],
             ),
@@ -862,13 +891,21 @@ class _TelaBuscaState extends State<TelaBusca> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.location_on_outlined, color: Colors.white, size: 18),
+                    const Icon(
+                      Icons.location_on_outlined,
+                      color: Colors.white,
+                      size: 18,
+                    ),
                     const SizedBox(width: 4),
                     const Text(
                       'Adicionar Localização',
                       style: TextStyle(color: Colors.white, fontSize: 13),
                     ),
-                    Icon(Icons.keyboard_arrow_down, color: Colors.white.withValues(alpha: 0.9), size: 18),
+                    Icon(
+                      Icons.keyboard_arrow_down,
+                      color: Colors.white.withValues(alpha: 0.9),
+                      size: 18,
+                    ),
                   ],
                 ),
                 const Spacer(),
@@ -880,7 +917,11 @@ class _TelaBuscaState extends State<TelaBusca> {
                       'Filtros',
                       style: TextStyle(color: Colors.white, fontSize: 13),
                     ),
-                    Icon(Icons.keyboard_arrow_down, color: Colors.white.withValues(alpha: 0.9), size: 18),
+                    Icon(
+                      Icons.keyboard_arrow_down,
+                      color: Colors.white.withValues(alpha: 0.9),
+                      size: 18,
+                    ),
                   ],
                 ),
               ],
@@ -923,7 +964,8 @@ class _TelaBuscaState extends State<TelaBusca> {
             physics: const BouncingScrollPhysics(),
             itemCount: perfis.length,
             separatorBuilder: (_, __) => const SizedBox(width: 12),
-            itemBuilder: (context, index) => _buildCardPerfilVerificado(perfis[index]),
+            itemBuilder: (context, index) =>
+                _buildCardPerfilVerificado(perfis[index]),
           ),
         ),
       ],
@@ -1021,7 +1063,9 @@ class _TelaBuscaState extends State<TelaBusca> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
-            color: ativa ? _primaryBlue.withValues(alpha: 0.12) : Colors.transparent,
+            color: ativa
+                ? _primaryBlue.withValues(alpha: 0.12)
+                : Colors.transparent,
             border: Border(
               bottom: BorderSide(
                 color: ativa ? _primaryBlue : Colors.grey.shade200,
@@ -1097,10 +1141,17 @@ class _TelaBuscaState extends State<TelaBusca> {
                     Expanded(
                       child: Text(
                         servico.logistica,
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
                       ),
                     ),
-                    const Icon(Icons.local_shipping_outlined, color: _primaryBlue, size: 18),
+                    const Icon(
+                      Icons.local_shipping_outlined,
+                      color: _primaryBlue,
+                      size: 18,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 10),
@@ -1115,11 +1166,18 @@ class _TelaBuscaState extends State<TelaBusca> {
                       ),
                     ),
                     const Spacer(),
-                    Icon(Icons.location_on_outlined, color: Colors.grey.shade500, size: 14),
+                    Icon(
+                      Icons.location_on_outlined,
+                      color: Colors.grey.shade500,
+                      size: 14,
+                    ),
                     const SizedBox(width: 2),
                     Text(
                       servico.localizacao,
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
                     ),
                   ],
                 ),
@@ -1153,7 +1211,11 @@ class _TelaBuscaState extends State<TelaBusca> {
                             color: Colors.grey.shade200,
                             borderRadius: BorderRadius.circular(28),
                           ),
-                          child: Icon(Icons.store, color: Colors.grey.shade600, size: 28),
+                          child: Icon(
+                            Icons.store,
+                            color: Colors.grey.shade600,
+                            size: 28,
+                          ),
                         )
                       : ClipRRect(
                           borderRadius: BorderRadius.circular(28),
@@ -1194,7 +1256,11 @@ class _TelaBuscaState extends State<TelaBusca> {
                                 ),
                         ),
                   if (profissional.verificado)
-                    Positioned(right: -2, bottom: -2, child: _buildVerifiedBadge()),
+                    Positioned(
+                      right: -2,
+                      bottom: -2,
+                      child: _buildVerifiedBadge(),
+                    ),
                 ],
               ),
               const SizedBox(width: 12),
@@ -1218,7 +1284,11 @@ class _TelaBuscaState extends State<TelaBusca> {
                         ),
                         if (profissional.verificado) ...[
                           const SizedBox(width: 4),
-                          const Icon(Icons.verified, color: _primaryBlue, size: 18),
+                          const Icon(
+                            Icons.verified,
+                            color: _primaryBlue,
+                            size: 18,
+                          ),
                         ],
                       ],
                     ),
@@ -1228,15 +1298,17 @@ class _TelaBuscaState extends State<TelaBusca> {
                         spacing: 6,
                         runSpacing: 4,
                         children: profissional.oficios
-                            .map((oficio) => TagOficio(
-                                  oficio: oficio,
-                                  fontSize: 10,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 3,
-                                  ),
-                                  borderRadius: 20,
-                                ))
+                            .map(
+                              (oficio) => TagOficio(
+                                oficio: oficio,
+                                fontSize: 10,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                borderRadius: 20,
+                              ),
+                            )
                             .toList(),
                       )
                     else
@@ -1266,14 +1338,22 @@ class _TelaBuscaState extends State<TelaBusca> {
           const SizedBox(height: 10),
           Text(
             profissional.descricao,
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade700, height: 1.4),
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey.shade700,
+              height: 1.4,
+            ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 8),
           Row(
             children: [
-              Icon(Icons.location_on_outlined, color: Colors.grey.shade500, size: 14),
+              Icon(
+                Icons.location_on_outlined,
+                color: Colors.grey.shade500,
+                size: 14,
+              ),
               const SizedBox(width: 2),
               Expanded(
                 child: Text(
@@ -1346,7 +1426,9 @@ class _TelaBuscaState extends State<TelaBusca> {
     switch (_abaAtiva) {
       case _AbaResultado.servicos:
         if (servicos.isEmpty) {
-          return _buildSemResultados('Nenhum serviço encontrado para "$_termoBusca"');
+          return _buildSemResultados(
+            'Nenhum serviço encontrado para "$_termoBusca"',
+          );
         }
         return ListView(
           padding: const EdgeInsets.all(16),
@@ -1355,7 +1437,9 @@ class _TelaBuscaState extends State<TelaBusca> {
 
       case _AbaResultado.profissionais:
         if (profissionais.isEmpty) {
-          return _buildSemResultados('Nenhum profissional encontrado para "$_termoBusca"');
+          return _buildSemResultados(
+            'Nenhum profissional encontrado para "$_termoBusca"',
+          );
         }
         return ListView(
           padding: const EdgeInsets.all(16),
@@ -1385,25 +1469,27 @@ class _TelaBuscaState extends State<TelaBusca> {
 
       case _AbaResultado.todos:
         if (servicos.isEmpty && profissionais.isEmpty) {
-          return _buildSemResultados('Nenhum resultado encontrado para "$_termoBusca"');
+          return _buildSemResultados(
+            'Nenhum resultado encontrado para "$_termoBusca"',
+          );
         }
         final itens = <Widget>[];
         var indiceServico = 0;
         var indiceProfissional = 0;
-        while (indiceServico < servicos.length || indiceProfissional < profissionais.length) {
+        while (indiceServico < servicos.length ||
+            indiceProfissional < profissionais.length) {
           if (indiceServico < servicos.length) {
             itens.add(_buildCardServico(servicos[indiceServico]));
             indiceServico++;
           }
           if (indiceProfissional < profissionais.length) {
-            itens.add(_buildCardProfissional(profissionais[indiceProfissional]));
+            itens.add(
+              _buildCardProfissional(profissionais[indiceProfissional]),
+            );
             indiceProfissional++;
           }
         }
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: itens,
-        );
+        return ListView(padding: const EdgeInsets.all(16), children: itens);
     }
   }
 
@@ -1439,7 +1525,10 @@ class _TelaBuscaState extends State<TelaBusca> {
                       onPressed: () => Navigator.pop(context),
                       icon: Icon(Icons.arrow_back, color: Colors.grey.shade700),
                       padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                      constraints: const BoxConstraints(
+                        minWidth: 40,
+                        minHeight: 40,
+                      ),
                     ),
                     Expanded(
                       child: TextField(
@@ -1449,19 +1538,30 @@ class _TelaBuscaState extends State<TelaBusca> {
                         onSubmitted: _executarBusca,
                         decoration: InputDecoration(
                           hintText: 'Buscar no ConsertaJá',
-                          hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 15),
+                          hintStyle: TextStyle(
+                            color: Colors.grey.shade500,
+                            fontSize: 15,
+                          ),
                           border: InputBorder.none,
                           isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 10,
+                          ),
                         ),
-                        style: const TextStyle(fontSize: 15, color: Colors.black87),
+                        style: const TextStyle(
+                          fontSize: 15,
+                          color: Colors.black87,
+                        ),
                       ),
                     ),
                     IconButton(
                       onPressed: () => _executarBusca(),
                       icon: Icon(Icons.search, color: Colors.grey.shade700),
                       padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                      constraints: const BoxConstraints(
+                        minWidth: 40,
+                        minHeight: 40,
+                      ),
                     ),
                   ],
                 ),
@@ -1478,7 +1578,9 @@ class _TelaBuscaState extends State<TelaBusca> {
               ),
               TextButton(
                 onPressed: () {
-                  setState(() => _mostrarMaisCategorias = !_mostrarMaisCategorias);
+                  setState(
+                    () => _mostrarMaisCategorias = !_mostrarMaisCategorias,
+                  );
                 },
                 style: TextButton.styleFrom(
                   foregroundColor: Colors.grey.shade700,
@@ -1489,7 +1591,10 @@ class _TelaBuscaState extends State<TelaBusca> {
                   children: [
                     Text(
                       _mostrarMaisCategorias ? 'Ver menos' : 'Ver mais',
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                     Icon(
                       _mostrarMaisCategorias
@@ -1537,15 +1642,11 @@ class _TelaBuscaState extends State<TelaBusca> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
-      body: _mostrandoResultados ? _buildTelaResultados() : _buildTelaBuscaInicial(),
+      body: _mostrandoResultados
+          ? _buildTelaResultados()
+          : _buildTelaBuscaInicial(),
       bottomNavigationBar: _mostrandoResultados
-          ? BottomNavigationBar(
-              type: BottomNavigationBarType.fixed,
-              backgroundColor: Colors.white,
-              selectedItemColor: _primaryBlue,
-              unselectedItemColor: Colors.grey,
-              selectedFontSize: 11,
-              unselectedFontSize: 11,
+          ? BottomNavigationBarCliente(
               currentIndex: 0,
               onTap: (index) {
                 if (index == 0) {
@@ -1553,33 +1654,15 @@ class _TelaBuscaState extends State<TelaBusca> {
                 } else if (index == 4) {
                   Navigator.of(context).pushReplacement(
                     PageRouteBuilder(
-                      pageBuilder: (_, _, _) =>
-                          TelaMeuPerfilClientePage(isVisitante: widget.isVisitante),
+                      pageBuilder: (_, _, _) => TelaMeuPerfilClientePage(
+                        isVisitante: widget.isVisitante,
+                      ),
                       transitionDuration: Duration.zero,
                       reverseTransitionDuration: Duration.zero,
                     ),
                   );
                 }
               },
-              items: const [
-                BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.people_outline),
-                  label: 'Seguindo',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.chat_bubble_outline),
-                  label: 'Mensagens',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.inventory_2_outlined),
-                  label: 'Pedidos',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.account_circle_outlined),
-                  label: 'Perfil',
-                ),
-              ],
             )
           : null,
     );
