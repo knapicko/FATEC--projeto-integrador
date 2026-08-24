@@ -1,25 +1,30 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'tela_home.dart';
+import 'alterar_disponibilidade.dart';
+import 'area_atuacao.dart';
 import 'editar_informacoes.dart';
+import 'meus_documentos.dart';
 import 'meus_enderecos.dart';
 import 'perguntas_frequentes.dart';
 import 'termos_de_uso.dart';
 import 'politica_de_privacidade.dart';
 import 'sobre_conserta_ja.dart';
+import 'tela_home_profissional.dart';
 import 'main.dart';
 
-class TelaMeuPerfilClientePage extends StatefulWidget {
+class TelaMeuPerfilProfissionalPage extends StatefulWidget {
   final bool isVisitante;
 
-  const TelaMeuPerfilClientePage({super.key, this.isVisitante = false});
+  const TelaMeuPerfilProfissionalPage({super.key, this.isVisitante = false});
 
   @override
-  State<TelaMeuPerfilClientePage> createState() =>
-      _TelaMeuPerfilClientePageState();
+  State<TelaMeuPerfilProfissionalPage> createState() =>
+      _TelaMeuPerfilProfissionalPageState();
 }
 
-class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
+class _TelaMeuPerfilProfissionalPageState
+    extends State<TelaMeuPerfilProfissionalPage> {
   static const Color _blue = Color(0xFF0FB3FF);
   static const Color _blueBorder = Color(0xFF048DF8);
   static const Color _background = Color(0xFFF8F9FA);
@@ -31,11 +36,11 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
 
   bool _isLoading = true;
   String _nomeCompleto = 'Carregando...';
+  String _email = '';
   String? _fotoPerfilUrl;
 
   final double _avaliacao = 4.9;
   final int _totalAvaliacoes = 423;
-  final int _seguindo = 0;
   final bool _perfilVerificado = true;
 
   final List<String> _avisosAtivos = [];
@@ -47,6 +52,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
     if (widget.isVisitante) {
       _isLoading = false;
       _nomeCompleto = 'Visitante';
+      _email = '';
       _fotoPerfilUrl = null;
       return;
     }
@@ -92,6 +98,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
         _nomeCompleto =
             (data?['nome'] ?? user.userMetadata?['nome'] ?? 'Usuário')
                 .toString();
+        _email = (data?['email'] ?? user.email ?? '').toString();
         _fotoPerfilUrl = data?['foto_perfil_url']?.toString();
 
         final bool dadosFaltando =
@@ -133,6 +140,17 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
     );
   }
 
+  void _abrirEditarInformacoes() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const EditarInformacoesPage()),
+    ).then((_) {
+      if (!widget.isVisitante) {
+        _carregarDadosPerfil();
+      }
+    });
+  }
+
   String _obterIniciais(String? nome) {
     if (nome == null || nome.trim().isEmpty) {
       return 'U';
@@ -171,6 +189,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
 
     return Stack(
       clipBehavior: Clip.none,
+      alignment: Alignment.center,
       children: [
         Container(
           width: 76,
@@ -184,11 +203,10 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
           ),
           child: Center(child: avatar),
         ),
-
-        if (!widget.isVisitante)
+        if (!widget.isVisitante && _perfilVerificado)
           Positioned(
-            left: 29,
-            bottom: -4,
+            right: 0,
+            bottom: -2,
             child: Stack(
               alignment: Alignment.center,
               children: [
@@ -245,12 +263,17 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
         : Icons.phone_outlined;
 
     final TextSpan message = tipo == 'dados'
-        ? const TextSpan(
+        ? TextSpan(
             text: 'Por favor, informe o restante das suas informações. ',
             children: [
               TextSpan(
                 text: 'Defina agora',
-                style: TextStyle(color: _blue, fontWeight: FontWeight.w500),
+                style: const TextStyle(
+                  color: _blue,
+                  fontWeight: FontWeight.w500,
+                ),
+                recognizer: TapGestureRecognizer()
+                  ..onTap = _abrirEditarInformacoes,
               ),
             ],
           )
@@ -282,6 +305,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE0E0E0)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -315,22 +339,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
     );
   }
 
-  Widget _buildChipsTopo() {
-    if (widget.isVisitante) return const SizedBox.shrink();
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: Row(
-        children: [
-          Expanded(child: _buildRatingButton()),
-          const SizedBox(width: 8),
-          Expanded(child: _buildVerifiedButton()),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRatingButton() {
+  Widget _buildRatingPill() {
     return Container(
       height: 30,
       padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -344,9 +353,9 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
         children: [
           const Icon(Icons.star_rounded, color: _blue, size: 18),
           const SizedBox(width: 4),
-          const Text(
-            '4.9',
-            style: TextStyle(
+          Text(
+            _avaliacao.toStringAsFixed(1),
+            style: const TextStyle(
               color: Color(0xFF1F1F1F),
               fontSize: 14,
               fontWeight: FontWeight.w700,
@@ -354,7 +363,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
           ),
           const SizedBox(width: 2),
           Text(
-            '(423)',
+            '($_totalAvaliacoes)',
             style: TextStyle(
               color: Colors.grey.shade500,
               fontSize: 12,
@@ -366,7 +375,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
     );
   }
 
-  Widget _buildVerifiedButton() {
+  Widget _buildVerifiedPill() {
     return Container(
       height: 30,
       padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -415,8 +424,26 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
     String? imageAsset,
     IconData? fallbackIcon,
     bool useRoundedIcon = false,
+    bool semIcone = false,
     VoidCallback? onTap,
   }) {
+    if (semIcone) {
+      return InkWell(
+        onTap: onTap ?? () {},
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: _textGray,
+              fontSize: 16,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+        ),
+      );
+    }
+
     Widget leading;
 
     if (imageAsset != null) {
@@ -470,69 +497,85 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
     return Container(
       width: double.infinity,
       color: _blue,
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 18),
+      child: Column(
         children: [
           _buildAvatar(),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
+          const SizedBox(height: 12),
+          Text(
+            _nomeCompleto,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 19,
+              height: 1.05,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (_email.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              _email,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                height: 1.0,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+          ],
+          if (!widget.isVisitante) ...[
+            const SizedBox(height: 12),
+            Row(
               children: [
-                Text(
-                  _nomeCompleto,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 19,
-                    height: 1.05,
-                    fontWeight: FontWeight.w600,
+                Expanded(child: _buildRatingPill()),
+                const SizedBox(width: 8),
+                Expanded(child: _buildVerifiedPill()),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEditarMeusDados() {
+    return Column(
+      children: [
+        InkWell(
+          onTap: _abrirEditarInformacoes,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: const [
+                SizedBox(
+                  width: 28,
+                  child: Center(
+                    child: Icon(Icons.edit_outlined, color: _iconGray, size: 24),
                   ),
                 ),
-                const SizedBox(height: 4),
-                InkWell(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const EditarInformacoesPage(),
-                      ),
-                    );
-                  },
-                  child: const Text(
-                    'Editar Informações >',
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Editar Meus Dados',
                     style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      height: 1.0,
+                      color: _textGray,
+                      fontSize: 16,
                       fontWeight: FontWeight.w400,
                     ),
                   ),
                 ),
-                if (!widget.isVisitante) ...[
-                  const SizedBox(height: 4),
-                  InkWell(
-                    onTap: () {},
-                    child: Text(
-                      'Seguindo : $_seguindo',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        height: 1.0,
-                        decoration: TextDecoration.underline,
-                        decorationColor: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
+                Icon(Icons.chevron_right, color: Color(0xFFB0B0B0), size: 20),
               ],
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -551,12 +594,14 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
       backgroundColor: Colors.white,
       selectedItemColor: _blue,
       unselectedItemColor: const Color(0xFF8F8F8F),
-      currentIndex: 4, // Perfil selecionado
+      currentIndex: 4,
       onTap: (index) async {
         switch (index) {
           case 0:
             Navigator.of(context).pushReplacement(
-              _rotaSemAnimacao(TelaHome(isVisitante: widget.isVisitante)),
+              _rotaSemAnimacao(
+                TelaHomeProfissional(isVisitante: widget.isVisitante),
+              ),
             );
             break;
 
@@ -572,22 +617,16 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
       },
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people_outline),
-            label: 'Seguindo',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.chat_bubble_outline),
-            label: 'Mensagens',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.inventory_2_outlined),
-            label: 'Pedidos',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.account_circle_outlined),
-            label: 'Perfil',
+        BottomNavigationBarItem(icon: Icon(Icons.sensors), label: 'Radar'),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.chat_bubble_outline),
+          label: 'Mensagens',
         ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.archive_outlined),
+          label: 'Pedidos',
+        ),
+        BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Perfil'),
       ],
     );
   }
@@ -614,10 +653,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                   _buildTopHeader(),
                   if (!widget.isVisitante && _avisosAtivos.isNotEmpty)
                     _buildAvisoAtual(),
-                  if (!widget.isVisitante) _buildChipsTopo(),
-                  const SizedBox(height: 10),
-                  const Divider(height: 1, thickness: 1, color: _divider),
-
+                  if (!widget.isVisitante) _buildEditarMeusDados(),
                   _buildSectionTitle('Sua Atividade'),
                   _buildProfileItem(
                     label: 'Meus Endereços',
@@ -629,6 +665,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                         MaterialPageRoute(
                           builder: (context) => MeusEnderecosPage(
                             isVisitante: widget.isVisitante,
+                            isProfissional: true,
                           ),
                         ),
                       );
@@ -640,17 +677,50 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                     fallbackIcon: Icons.inventory_2_outlined,
                   ),
                   _buildProfileItem(
-                    label: 'Avaliações de Serviços',
+                    label: 'Minhas Avaliações',
                     fallbackIcon: Icons.star_rounded,
                     useRoundedIcon: true,
                   ),
                   _buildProfileItem(
-                    label: 'Notificações',
-                    fallbackIcon: Icons.notifications_none_rounded,
+                    label: 'Minha Área de Atuação',
+                    fallbackIcon: Icons.work_outline,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const AreaAtuacaoPage(),
+                        ),
+                      );
+                    },
                   ),
                   _buildProfileItem(
-                    label: 'Serviços Favoritados',
-                    fallbackIcon: Icons.favorite_border_rounded,
+                    label: 'Meus Documentos',
+                    fallbackIcon: Icons.description_outlined,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const MeusDocumentosPage(),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildProfileItem(
+                    label: 'Ajustar Disponibilidade',
+                    fallbackIcon: Icons.event_available_outlined,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const AlterarDisponibilidadePage(),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildProfileItem(
+                    label: 'Notificações',
+                    fallbackIcon: Icons.notifications_none_rounded,
                   ),
 
                   const Divider(height: 1, thickness: 1, color: _divider),
@@ -674,6 +744,9 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                     imageAsset: 'assets/images/Suporte_Cinza.png',
                     fallbackIcon: Icons.support_agent_rounded,
                   ),
+
+                  const Divider(height: 1, thickness: 1, color: _divider),
+
                   _buildProfileItem(
                     label: 'Sobre a ConsertaJá',
                     imageAsset: 'assets/images/ConsertaJa_Cinza.png',
@@ -687,9 +760,6 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                       );
                     },
                   ),
-
-                  const Divider(height: 1, thickness: 1, color: _divider),
-
                   _buildProfileItem(
                     label: 'Configurações',
                     imageAsset: 'assets/images/Configuracoes_Cinza.png',
@@ -697,7 +767,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                   ),
                   _buildProfileItem(
                     label: 'Termos de Uso',
-                    fallbackIcon: Icons.description_outlined,
+                    semIcone: true,
                     onTap: () {
                       Navigator.push(
                         context,
@@ -709,7 +779,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                   ),
                   _buildProfileItem(
                     label: 'Política de Privacidade',
-                    fallbackIcon: Icons.privacy_tip_outlined,
+                    semIcone: true,
                     onTap: () {
                       Navigator.push(
                         context,
