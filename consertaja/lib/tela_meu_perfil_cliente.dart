@@ -8,6 +8,7 @@ import 'termos_de_uso.dart';
 import 'politica_de_privacidade.dart';
 import 'sobre_conserta_ja.dart';
 import 'main.dart';
+import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/iniciais.dart';
 
 class TelaMeuPerfilClientePage extends StatefulWidget {
@@ -91,7 +92,9 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
         _avisosAtivos.clear();
 
         _nomeCompleto =
-            (data?['nome'] ?? user.userMetadata?['nome'] ?? 'Nome não encontrado')
+            (data?['nome'] ??
+                    user.userMetadata?['nome'] ??
+                    'Nome não encontrado')
                 .toString();
         _fotoPerfilUrl = data?['foto_perfil_url']?.toString();
 
@@ -527,49 +530,18 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
   }
 
   Widget _buildBottomNav() {
-    return BottomNavigationBar(
-      type: BottomNavigationBarType.fixed,
-      backgroundColor: Colors.white,
-      selectedItemColor: _blue,
-      unselectedItemColor: const Color(0xFF8F8F8F),
-      currentIndex: 4, // Perfil selecionado
+    return BottomNavigationBarCliente(
+      currentIndex: 4,
       onTap: (index) async {
-        switch (index) {
-          case 0:
-            Navigator.of(context).pushReplacement(
-              _rotaSemAnimacao(TelaHome(isVisitante: widget.isVisitante)),
-            );
-            break;
-
-          case 4:
-            if (!widget.isVisitante) {
-              await _carregarDadosPerfil();
-              if (mounted) {
-                setState(() {});
-              }
-            }
-            break;
+        if (index == 0) {
+          Navigator.of(context).pushReplacement(
+            _rotaSemAnimacao(TelaHome(isVisitante: widget.isVisitante)),
+          );
+        } else if (index == 4 && !widget.isVisitante) {
+          await _carregarDadosPerfil();
+          if (mounted) setState(() {});
         }
       },
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people_outline),
-            label: 'Seguindo',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.chat_bubble_outline),
-            label: 'Mensagens',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.inventory_2_outlined),
-            label: 'Pedidos',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.account_circle_outlined),
-            label: 'Perfil',
-        ),
-      ],
     );
   }
 
@@ -644,8 +616,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) =>
-                              const PerguntasFrequentesPage(),
+                          builder: (context) => const PerguntasFrequentesPage(),
                         ),
                       );
                     },
@@ -695,55 +666,56 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const PoliticaDePrivacidadePage(),
+                          builder: (context) =>
+                              const PoliticaDePrivacidadePage(),
                         ),
                       );
                     },
                   ),
 
-                   const Divider(height: 1, thickness: 1, color: _divider),
+                  const Divider(height: 1, thickness: 1, color: _divider),
 
-                   InkWell(
-                     onTap: _sairDaConta,
-                     child: Padding(
-                       padding: const EdgeInsets.symmetric(
-                         horizontal: 16,
-                         vertical: 14,
-                       ),
-                       child: Row(
-                         children: [
-                           const SizedBox(
-                             width: 28,
-                             child: Center(
-                               child: Icon(
-                                 Icons.logout,
-                                 color: Colors.red,
-                                 size: 24,
-                               ),
-                             ),
-                           ),
-                           const SizedBox(width: 12),
-                           const Expanded(
-                             child: Text(
-                               'Sair da conta',
-                               style: TextStyle(
-                                 color: Colors.red,
-                                 fontSize: 16,
-                                 fontWeight: FontWeight.w400,
-                               ),
-                             ),
-                           ),
-                           const Icon(
-                             Icons.chevron_right,
-                             color: Colors.red,
-                             size: 20,
-                           ),
-                         ],
-                       ),
-                     ),
-                   ),
+                  InkWell(
+                    onTap: _sairDaConta,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      child: Row(
+                        children: [
+                          const SizedBox(
+                            width: 28,
+                            child: Center(
+                              child: Icon(
+                                Icons.logout,
+                                color: Colors.red,
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Text(
+                              'Sair da conta',
+                              style: TextStyle(
+                                color: Colors.red,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
+                          ),
+                          const Icon(
+                            Icons.chevron_right,
+                            color: Colors.red,
+                            size: 20,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
 
-                   const SizedBox(height: 20),
+                  const SizedBox(height: 20),
                 ],
               ),
             ),

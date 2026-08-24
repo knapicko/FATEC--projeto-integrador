@@ -11,6 +11,7 @@ import 'models/postagem_resumo.dart';
 import 'services/postagens_profissional_service.dart';
 import 'tela_meu_perfil_profissional.dart';
 import 'utils/cor_oficio.dart';
+import 'utils/bottom_navigation_bar_profissional.dart';
 import 'utils/iniciais.dart';
 import 'widgets/tag_oficio.dart';
 
@@ -1395,59 +1396,19 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           ],
         ),
       ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 8,
-              offset: const Offset(0, -2),
-            ),
-          ],
-        ),
-        child: BottomNavigationBar(
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: Colors.white,
-          elevation: 0,
-          selectedItemColor: _primaryBlue,
-          unselectedItemColor: Colors.grey,
-          currentIndex: _currentIndex,
-          selectedLabelStyle: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 11,
-          ),
-          unselectedLabelStyle: const TextStyle(fontSize: 11),
-          onTap: (index) {
-            if (index == 4) {
-              Navigator.of(context).pushReplacement(
-                _rotaSemAnimacao(
-                  TelaMeuPerfilProfissionalPage(
-                    isVisitante: widget.isVisitante,
-                  ),
-                ),
-              );
-              return;
-            }
-            setState(() => _currentIndex = index);
-          },
-          items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-            BottomNavigationBarItem(icon: Icon(Icons.sensors), label: 'Radar'),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.chat_bubble_outline),
-              label: 'Mensagens',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.assignment_outlined),
-              label: 'Pedidos',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              label: 'Perfil',
-            ),
-          ],
-        ),
+      bottomNavigationBar: BottomNavigationBarProfissional(
+        currentIndex: _currentIndex,
+        onTap: (index) {
+          if (index == 4) {
+            Navigator.of(context).pushReplacement(
+              _rotaSemAnimacao(
+                TelaMeuPerfilProfissionalPage(isVisitante: widget.isVisitante),
+              ),
+            );
+            return;
+          }
+          setState(() => _currentIndex = index);
+        },
       ),
     );
   }

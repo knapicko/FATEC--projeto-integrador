@@ -75,7 +75,6 @@ class DocumentoMarkdown extends StatelessWidget {
     return MarkdownBody(
       data: data,
       styleSheet: styleSheet,
-      selectable: true,
     );
   }
 }
