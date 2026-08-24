@@ -75,6 +75,10 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   int? _idProfissional;
   int? _idPerfilProfissional;
   int? _idUsuarioLogado;
+  bool _seguindoProfissional = false;
+  bool _carregandoSeguimento = false;
+  bool _alterandoSeguimento = false;
+  int _totalSeguidores = 0;
   List<OficioInfo> _oficios = [];
   Future<List<PostagemResumo>> _postagensGaleriaFuture = Future.value(
     <PostagemResumo>[],
@@ -251,6 +255,9 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
             _carregarAgendaProfissional(idProfissional),
           ]);
         }
+        if (fkPerfil != null) {
+          await _carregarSeguimento(fkPerfil);
+        }
       }
     } catch (_) {
       // Mantém dados iniciais em caso de falha
@@ -279,6 +286,120 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
     } catch (_) {
       // Se não conseguir identificar o usuário, mantém como null.
     }
+  }
+
+  Future<void> _carregarSeguimento(int idPerfil) async {
+    if (_carregandoSeguimento) return;
+    _carregandoSeguimento = true;
+
+    try {
+      if (_idUsuarioLogado == null) {
+        await _carregarUsuarioLogado();
+      }
+
+      final supabase = Supabase.instance.client;
+      final seguidores = await supabase
+          .from('seguidores_profissional')
+          .select('id_seguidor_profissional')
+          .eq('fk_perfil', idPerfil);
+
+      var seguindo = false;
+      final idUsuario = _idUsuarioLogado;
+      if (idUsuario != null) {
+        final vinculo = await supabase
+            .from('seguidores_profissional')
+            .select('id_seguidor_profissional')
+            .eq('fk_perfil', idPerfil)
+            .eq('fk_usuario', idUsuario)
+            .maybeSingle();
+        seguindo = vinculo != null;
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _totalSeguidores = seguidores.length;
+        _seguindoProfissional = seguindo;
+      });
+    } catch (_) {
+      // Mantém o estado inicial se a consulta de seguidores falhar.
+    } finally {
+      _carregandoSeguimento = false;
+    }
+  }
+
+  Future<void> _alternarSeguimento() async {
+    final idPerfil = _idPerfilProfissional;
+    if (_alterandoSeguimento || idPerfil == null) return;
+
+    if (_idUsuarioLogado == null) {
+      await _carregarUsuarioLogado();
+    }
+
+    final idUsuario = _idUsuarioLogado;
+    if (idUsuario == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Faça login para seguir profissionais.')),
+      );
+      return;
+    }
+
+    final seguindoAntes = _seguindoProfissional;
+    final totalAntes = _totalSeguidores;
+    setState(() {
+      _alterandoSeguimento = true;
+      _seguindoProfissional = !seguindoAntes;
+      _totalSeguidores = totalAntes + (seguindoAntes ? -1 : 1);
+    });
+
+    try {
+      final supabase = Supabase.instance.client;
+      if (seguindoAntes) {
+        await supabase
+            .from('seguidores_profissional')
+            .delete()
+            .eq('fk_perfil', idPerfil)
+            .eq('fk_usuario', idUsuario);
+      } else {
+        await supabase.from('seguidores_profissional').insert({
+          'seguido_em': DateTime.now().toUtc().toIso8601String(),
+          'fk_perfil': idPerfil,
+          'fk_usuario': idUsuario,
+        });
+      }
+
+      await _carregarSeguimento(idPerfil);
+    } catch (erro) {
+      if (!mounted) return;
+      setState(() {
+        _seguindoProfissional = seguindoAntes;
+        _totalSeguidores = totalAntes;
+      });
+      final mensagem = erro is PostgrestException && _erroPermissaoRls(erro)
+          ? 'Sem permissão para seguir. Crie as políticas RLS da tabela seguidores_profissional no Supabase.'
+          : _tabelaSeguidoresIndisponivel(erro)
+          ? 'A tabela seguidores_profissional não está disponível no schema public do Supabase.'
+          : 'Não foi possível atualizar o seguimento.';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(mensagem)));
+    } finally {
+      if (mounted) {
+        setState(() => _alterandoSeguimento = false);
+      }
+    }
+  }
+
+  bool _tabelaSeguidoresIndisponivel(Object erro) {
+    if (erro is! PostgrestException) return false;
+    final texto = '${erro.message} ${erro.details ?? ''} ${erro.hint ?? ''}'
+        .toLowerCase();
+    return erro.code == '42P01' ||
+        texto.contains('seguidores_profissional') &&
+            (texto.contains('not found') ||
+                texto.contains('does not exist') ||
+                texto.contains('schema cache') ||
+                texto.contains('relation'));
   }
 
   Future<List<PostagemResumo>> _carregarPostagensGaleria(
@@ -1432,7 +1553,50 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                   ),
                 ),
               const SizedBox(width: 8),
-              const Icon(Icons.person_add_alt_1, color: _primaryBlue, size: 20),
+              InkWell(
+                onTap: _carregandoSeguimento || _alterandoSeguimento
+                    ? null
+                    : _alternarSeguimento,
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 4,
+                  ),
+                  child: _alterandoSeguimento
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: _primaryBlue,
+                          ),
+                        )
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _seguindoProfissional
+                                  ? Icons.person
+                                  : Icons.person_add_alt_1,
+                              color: _primaryBlue,
+                              size: 20,
+                            ),
+                            if (_seguindoProfissional) ...[
+                              const SizedBox(width: 4),
+                              const Text(
+                                'seguindo',
+                                style: TextStyle(
+                                  color: _primaryBlue,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                ),
+              ),
             ],
           ),
         ),
@@ -1494,7 +1658,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
               _buildMetrica(
                 icone: Icons.person_outline,
                 iconeCor: _primaryBlue,
-                valor: '200',
+                valor: '$_totalSeguidores',
                 label: 'Seguidores',
               ),
             ],
