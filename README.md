@@ -84,6 +84,8 @@ Para executar e modificar o projeto, certifique-se de ter os seguintes requisito
 **Passo a passo:**
 
 1. Clone o repositório e abra o projeto no **VS Code** ou **Android Studio**.
+   ```bash
+   git clone [https://github.com/knapicko/FATEC--projeto-integrador.git](https://github.com/knapicko/FATEC--projeto-integrador.git)
 2. Abra o terminal integrado e atualize as dependências:
    ```bash
    flutter pub get
