@@ -54,6 +54,9 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   double _lastScrollOffset = 0;
   bool _isScrollingProgrammatically = false;
   DateTime _ultimaAtualizacaoAba = DateTime.fromMillisecondsSinceEpoch(0);
+  double? _offsetDisponibilidade;
+  double? _offsetAvaliacoes;
+  double? _offsetDetalhes;
 
   String _nome = '';
   String? _fotoUrl;
@@ -182,6 +185,9 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
       _fotoUrl = widget.imagemInicial;
     }
     _scrollController.addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _atualizarOffsetsSecoes();
+    });
     _carregarUsuarioLogado();
     _carregarDadosProfissional();
   }
@@ -997,6 +1003,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                                         child: Image.network(
                                           postagem.imagemUrl!,
                                           fit: BoxFit.contain,
+                                          cacheWidth: 1080,
                                           errorBuilder: (_, _, _) => const Icon(
                                             Icons.broken_image_outlined,
                                             color: Colors.white54,
@@ -1301,6 +1308,12 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
     );
   }
 
+  void _atualizarOffsetsSecoes() {
+    _offsetDisponibilidade = _offsetDaSecao(_disponibilidadeKey);
+    _offsetAvaliacoes = _offsetDaSecao(_avaliacoesKey);
+    _offsetDetalhes = _offsetDaSecao(_detalhesKey);
+  }
+
   void _onScroll() {
     if (!_scrollController.hasClients) return;
 
@@ -1352,10 +1365,10 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
 
   int _calcularAbaAtiva(double scrollOffset) {
     final scrollTop = scrollOffset + _pinnedHeaderHeight;
-    final keys = [_disponibilidadeKey, _avaliacoesKey, _detalhesKey];
+    final offsets = [_offsetDisponibilidade, _offsetAvaliacoes, _offsetDetalhes];
     var aba = 0;
-    for (var i = 0; i < keys.length; i++) {
-      final sectionOffset = _offsetDaSecao(keys[i]);
+    for (var i = 0; i < offsets.length; i++) {
+      final sectionOffset = offsets[i];
       if (sectionOffset != null && scrollTop >= sectionOffset - 20) {
         aba = i;
       }
@@ -1417,17 +1430,19 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
               ),
               SliverToBoxAdapter(
                 key: _disponibilidadeKey,
-                child: _buildSecaoDisponibilidade(),
+                child: RepaintBoundary(child: _buildSecaoDisponibilidade()),
               ),
               SliverToBoxAdapter(
                 key: _avaliacoesKey,
-                child: _buildSecaoAvaliacoes(),
+                child: RepaintBoundary(child: _buildSecaoAvaliacoes()),
               ),
               SliverToBoxAdapter(
                 key: _detalhesKey,
-                child: _buildSecaoDetalhes(),
+                child: RepaintBoundary(child: _buildSecaoDetalhes()),
               ),
-              SliverToBoxAdapter(child: _buildCatalogoServicos()),
+              SliverToBoxAdapter(
+                child: RepaintBoundary(child: _buildCatalogoServicos()),
+              ),
               SliverToBoxAdapter(
                 key: _footerButtonKey,
                 child: Padding(
@@ -1585,7 +1600,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                             if (_seguindoProfissional) ...[
                               const SizedBox(width: 4),
                               const Text(
-                                'seguindo',
+                                'Seguindo',
                                 style: TextStyle(
                                   color: _primaryBlue,
                                   fontSize: 12,
@@ -1679,6 +1694,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
       return Image.network(
         imagemParaExibir,
         fit: BoxFit.cover,
+        cacheWidth: 200,
         errorBuilder: (_, _, _) => _buildIniciaisPerfil(),
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
@@ -2540,6 +2556,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                         ? Image.network(
                             postagem.imagemUrl!,
                             fit: BoxFit.cover,
+                            cacheWidth: 440,
                             errorBuilder: (_, _, _) => Container(
                               color: Colors.grey.shade200,
                               child: const Icon(

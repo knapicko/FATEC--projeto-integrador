@@ -673,9 +673,7 @@ class _TelaHomeState extends State<TelaHome> {
 
   void _navegarParaBusca(BuildContext context) {
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => TelaBusca(isVisitante: widget.isVisitante),
-      ),
+      _rotaSemAnimacao(TelaBusca(isVisitante: widget.isVisitante)),
     );
   }
 
