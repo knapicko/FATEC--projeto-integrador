@@ -70,6 +70,8 @@ Para executar e modificar o projeto, certifique-se de ter os seguintes requisito
 * **Visual Studio Code** (ou Android Studio)
 * **Google Chrome** (para rodar a versão Web)
 
+> **Atenção!** Ao executar `flutter build apk` no seu terminal para buildar o apk, o cadastro e login com o Google não ficará disponível por conta do SHA-1 cadastrado no computador.
+
 > **Dica:** Antes de começar, execute `flutter doctor` no seu terminal para verificar se o seu ambiente está configurado corretamente.
 
 **Passo a passo:**
