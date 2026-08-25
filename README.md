@@ -52,9 +52,9 @@ O projeto foi desenvolvido por uma equipe multidisciplinar:
 
 ## APIs e Ferramentas Utilizadas
 
-* **[JusBrasil](https://www.jusbrasil.com.br/)**
-* **[AwesomeAPI](https://docs.awesomeapi.com.br/)**
-* **[Leaflet](https://leafletjs.com/)** — Mapeamento e geolocalização interativa
+* **[JusBrasil](https://www.jusbrasil.com.br/)** — Validação de documentos, CNPJs e CPFs
+* **[AwesomeAPI](https://docs.awesomeapi.com.br/)** — Serviço de geolocalização
+* **[Leaflet](https://leafletjs.com/)** — Exibição do mapa interativo
 
 ---
 
