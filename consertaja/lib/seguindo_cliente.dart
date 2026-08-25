@@ -127,18 +127,23 @@ class _SeguindoClientePageState extends State<SeguindoClientePage> {
     return profissionais;
   }
 
+  PageRouteBuilder _rotaSemAnimacao(Widget page) {
+    return PageRouteBuilder(
+      pageBuilder: (_, _, _) => page,
+      transitionDuration: Duration.zero,
+      reverseTransitionDuration: Duration.zero,
+    );
+  }
+
   void _navegar(int index) {
     if (index == 0) {
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => TelaHome(isVisitante: widget.isVisitante),
-        ),
+        _rotaSemAnimacao(TelaHome(isVisitante: widget.isVisitante)),
       );
     } else if (index == 4) {
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) =>
-              TelaMeuPerfilClientePage(isVisitante: widget.isVisitante),
+        _rotaSemAnimacao(
+          TelaMeuPerfilClientePage(isVisitante: widget.isVisitante),
         ),
       );
     }
