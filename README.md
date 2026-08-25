@@ -22,11 +22,11 @@
 ## Telas do Aplicativo
 
 <p align="center">
-  <img src="caminho/para/imagem1.png" alt="Tela 1" width="30%">
+  <img src="docs/Imagens Projeto/home.png" alt="Tela 1" width="30%">
   &nbsp;&nbsp;&nbsp;
-  <img src="caminho/para/imagem2.png" alt="Tela 2" width="30%">
+  <img src="docs/Imagens Projeto/perfil_profissional.png" alt="Tela 2" width="30%">
   &nbsp;&nbsp;&nbsp;
-  <img src="caminho/para/imagem3.png" alt="Tela 3" width="30%">
+  <img src="docs/Imagens Projeto/servicos.png" alt="Tela 3" width="30%">
 </p>
 
 ---
