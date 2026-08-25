@@ -1,64 +1,69 @@
-## Projeto - Conserta Já
+# Conserta Já
 
-| **Equipe** | **Tecnologias Utilizadas** | **APIs** |
-|------------|---------------------------|------------|
-| • Flávio Henrique (Project Owner) <br> • Gabriel Santos (Desenvolvedor Back-end) <br> • Gustavo Almeida (Desenvolvedor Full-Stack e Designer) <br> • Leandro Oliveira (Designer e Analista) <br> • Lucas Eiji (Scrum Master e Analista) <br> • Luiz Knapick (Analista e Desenvolvedor Full-Stack) | • Dart <br> • Flutter <br> • Supabase <br> • Google Cloud | • JusBrasil <br> • AwesomeAPI
-### Sobre o Projeto:
+<p align="center">
+ <a href="https://flutter.dev/" target="_blank">
+    <img src="https://img.shields.io/badge/Flutter-%2302569B.svg?style=for-the-badge&logo=Flutter&logoColor=white" alt="Flutter">
+  </a>
+  <a href="https://dart.dev/" target="_blank">
+    <img src="https://img.shields.io/badge/dart-%230175C2.svg?style=for-the-badge&logo=dart&logoColor=white" alt="Dart">
+  </a>
+  <a href="https://supabase.com/" target="_blank">
+    <img src="https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white" alt="Supabase">
+  </a>
+  <a href="https://cloud.google.com/" target="_blank">
+    <img src="https://img.shields.io/badge/GoogleCloud-%234285F4.svg?style=for-the-badge&logo=google-cloud&logoColor=white" alt="Google Cloud">
+  </a>
+</p>
 
-A Conserta Já é uma plataforma de integração mobile voltada para a conexão entre prestadores de serviços especializados em manutenção e seus clientes. O foco central reside em profissionais de ocupações tradicionais e pouco mercantilizados, como paneleiros, afiadores e técnicos de eletrodomésticos, que frequentemente operam na informalidade e com baixa visibilidade de mercado.
+> A **Conserta Já** é uma plataforma de integração mobile voltada para a conexão entre prestadores de serviços especializados em manutenção e seus clientes. O foco central reside em profissionais de ocupações tradicionais e pouco mercantilizados (como paneleiros, afiadores e técnicos de eletrodomésticos), que frequentemente operam na informalidade e com baixa visibilidade de mercado.
 
-### Como executar o projeto
+---
 
-Existem duas formas de utilizar o projeto: **baixando o APK pronto** ou **abrindo o projeto pelo VS Code**.
+## Nossa Equipe
 
-#### Opção 1 — Baixar o APK
+O projeto foi desenvolvido por uma equipe multidisciplinar:
 
-Para utilizar o aplicativo sem precisar configurar o projeto:
+* **Flávio Henrique** — *Product Owner*
+* **Gabriel Santos** — *Desenvolvedor Back-end*
+* **Gustavo Almeida** — *Desenvolvedor Full-Stack e Designer*
+* **Leandro Oliveira** — *Designer e Analista*
+* **Lucas Eiji** — *Scrum Master e Analista*
+* **Luiz Knapick** — *Analista e Desenvolvedor Full-Stack*
 
-1. Acesse a área de **Releases** deste repositório no GitHub.
-2. Baixe o arquivo **`app-release.apk`**.
-3. Execute o arquivo no seu dispositivo Android para instalar o aplicativo.
+---
 
-#### Opção 2 — Abrir o projeto no VS Code
+## APIs Utilizadas
 
-Para executar e modificar o projeto, é necessário ter instalado:
+* **[JusBrasil](https://www.jusbrasil.com.br/)**
+* **[AwesomeAPI](https://docs.awesomeapi.com.br/)**
 
-* **Flutter**
-* **Dart**
-* **Visual Studio Code**
-* **Google Chrome (para executar a versão Web)**
+---
 
-Para **gerar o APK Android**, também é necessário ter o **Android Studio**, com o Android SDK configurado.
+## Como executar o projeto
 
-> Se você só quiser utilizar o aplicativo, não é necessário instalar nada disso. Basta baixar o arquivo `latest-release.apk` na área de Releases.
+Você pode testar a **Conserta Já** de duas maneiras: utilizando o aplicativo pronto ou executando o código-fonte na sua máquina.
 
-Depois de instalar os requisitos:
+### Opção 1 — Baixar o APK (Instalação Rápida)
 
-1. Abra o projeto no **Visual Studio Code**.
-2. Abra o terminal dentro do VS Code.
-3. Execute os comandos abaixo:
+Se você deseja apenas testar o aplicativo sem precisar configurar um ambiente de desenvolvimento:
 
-```bash
-flutter pub get
-flutter pub upgrade
-```
+1. Acesse a área de **[Releases](../../releases)** deste repositório.
+2. Baixe o arquivo `app-release.apk`.
+3. Transfira para o seu dispositivo Android e execute-o para instalar.
 
-Depois, escolha como deseja executar o projeto.
+### Opção 2 — Executar pelo VS Code (Para Desenvolvedores)
 
-**Para gerar um APK:**
+Para executar e modificar o projeto, certifique-se de ter os seguintes requisitos instalados:
+* **[Flutter SDK](https://flutter.dev/docs/get-started/install)** e **Dart**
+* **Visual Studio Code** (ou Android Studio)
+* **Google Chrome** (para rodar a versão Web)
 
-```bash
-flutter build apk --release
-```
+> **Dica:** Antes de começar, execute `flutter doctor` no seu terminal para verificar se o seu ambiente está configurado corretamente.
 
-O APK será gerado na pasta de build do projeto.
+**Passo a passo:**
 
-**Para executar a versão Web:**
-
-```bash
-flutter run -d chrome --web-port 8080
-```
-
-O projeto será aberto no navegador Chrome utilizando a porta **8080**.
-
-> **Observação:** verifique se o Flutter está configurado corretamente executando `flutter doctor` no terminal antes de iniciar o projeto.
+1. Clone o repositório e abra o projeto no **VS Code**.
+2. Abra o terminal integrado e atualize as dependências:
+   ```bash
+   flutter pub get
+   flutter pub upgrade
