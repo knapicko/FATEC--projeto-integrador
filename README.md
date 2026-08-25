@@ -1,7 +1,7 @@
 # Conserta Já
 
 <p align="center">
- <a href="https://flutter.dev/" target="_blank">
+  <a href="https://flutter.dev/" target="_blank">
     <img src="https://img.shields.io/badge/Flutter-%2302569B.svg?style=for-the-badge&logo=Flutter&logoColor=white" alt="Flutter">
   </a>
   <a href="https://dart.dev/" target="_blank">
@@ -16,6 +16,18 @@
 </p>
 
 > A **Conserta Já** é uma plataforma de integração mobile voltada para a conexão entre prestadores de serviços especializados em manutenção e seus clientes. O foco central reside em profissionais de ocupações tradicionais e pouco mercantilizados (como paneleiros, afiadores e técnicos de eletrodomésticos), que frequentemente operam na informalidade e com baixa visibilidade de mercado.
+
+---
+
+## Telas do Aplicativo
+
+<p align="center">
+  <img src="docs/Imagens Projeto/home.png" alt="Tela 1" width="30%">
+  &nbsp;&nbsp;&nbsp;
+  <img src="docs/Imagens Projeto/perfil_profissional.png" alt="Tela 2" width="30%">
+  &nbsp;&nbsp;&nbsp;
+  <img src="docs/Imagens Projeto/servicos.png" alt="Tela 3" width="30%">
+</p>
 
 ---
 
