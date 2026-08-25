@@ -533,7 +533,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
   Widget _buildBottomNav() {
     return BottomNavigationBarCliente(
       currentIndex: 4,
-      onTap: (index) async {
+      onTap: (index) {
         if (index == 0) {
           Navigator.of(context).pushReplacement(
             _rotaSemAnimacao(TelaHome(isVisitante: widget.isVisitante)),
@@ -544,191 +544,186 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
               SeguindoClientePage(isVisitante: widget.isVisitante),
             ),
           );
-        } else if (index == 4 && !widget.isVisitante) {
-          await _carregarDadosPerfil();
-          if (mounted) setState(() {});
         }
+        // index == 4: already on the profile page, do nothing to avoid blinking
       },
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: _background,
-        body: Center(child: CircularProgressIndicator(color: _blue)),
-      );
-    }
-
     return Scaffold(
       backgroundColor: _background,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.zero,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: _blue))
+          : SafeArea(
+              bottom: false,
+              child: Column(
                 children: [
-                  _buildTopHeader(),
-                  if (!widget.isVisitante && _avisosAtivos.isNotEmpty)
-                    _buildAvisoAtual(),
-                  if (!widget.isVisitante) _buildChipsTopo(),
-                  const SizedBox(height: 10),
-                  const Divider(height: 1, thickness: 1, color: _divider),
+                  Expanded(
+                    child: ListView(
+                      padding: EdgeInsets.zero,
+                      children: [
+                        _buildTopHeader(),
+                        if (!widget.isVisitante && _avisosAtivos.isNotEmpty)
+                          _buildAvisoAtual(),
+                        if (!widget.isVisitante) _buildChipsTopo(),
+                        const SizedBox(height: 10),
+                        const Divider(height: 1, thickness: 1, color: _divider),
 
-                  _buildSectionTitle('Sua Atividade'),
-                  _buildProfileItem(
-                    label: 'Meus Endereços',
-                    imageAsset: 'assets/images/Endereço_Cinza.png',
-                    fallbackIcon: Icons.location_on_outlined,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => MeusEnderecosPage(
-                            isVisitante: widget.isVisitante,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildProfileItem(
-                    label: 'Histórico de Pedidos',
-                    imageAsset: 'assets/images/CaixaPedido_Cinza.png',
-                    fallbackIcon: Icons.inventory_2_outlined,
-                  ),
-                  _buildProfileItem(
-                    label: 'Avaliações de Serviços',
-                    fallbackIcon: Icons.star_rounded,
-                    useRoundedIcon: true,
-                  ),
-                  _buildProfileItem(
-                    label: 'Notificações',
-                    fallbackIcon: Icons.notifications_none_rounded,
-                  ),
-                  _buildProfileItem(
-                    label: 'Serviços Favoritados',
-                    fallbackIcon: Icons.favorite_border_rounded,
-                  ),
-
-                  const Divider(height: 1, thickness: 1, color: _divider),
-
-                  _buildSectionTitle('Suporte'),
-                  _buildProfileItem(
-                    label: 'Perguntas Frequentes',
-                    fallbackIcon: Icons.help_outline_rounded,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const PerguntasFrequentesPage(),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildProfileItem(
-                    label: 'Fale Conosco',
-                    imageAsset: 'assets/images/Suporte_Cinza.png',
-                    fallbackIcon: Icons.support_agent_rounded,
-                  ),
-                  _buildProfileItem(
-                    label: 'Sobre a ConsertaJá',
-                    imageAsset: 'assets/images/ConsertaJa_Cinza.png',
-                    fallbackIcon: Icons.info_outline_rounded,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const SobreConsertaJaPage(),
-                        ),
-                      );
-                    },
-                  ),
-
-                  const Divider(height: 1, thickness: 1, color: _divider),
-
-                  _buildProfileItem(
-                    label: 'Configurações',
-                    imageAsset: 'assets/images/Configuracoes_Cinza.png',
-                    fallbackIcon: Icons.settings_outlined,
-                  ),
-                  _buildProfileItem(
-                    label: 'Termos de Uso',
-                    fallbackIcon: Icons.description_outlined,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const TermosDeUsoPage(),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildProfileItem(
-                    label: 'Política de Privacidade',
-                    fallbackIcon: Icons.privacy_tip_outlined,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const PoliticaDePrivacidadePage(),
-                        ),
-                      );
-                    },
-                  ),
-
-                  const Divider(height: 1, thickness: 1, color: _divider),
-
-                  InkWell(
-                    onTap: _sairDaConta,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                      child: Row(
-                        children: [
-                          const SizedBox(
-                            width: 28,
-                            child: Center(
-                              child: Icon(
-                                Icons.logout,
-                                color: Colors.red,
-                                size: 24,
+                        _buildSectionTitle('Sua Atividade'),
+                        _buildProfileItem(
+                          label: 'Meus Endereços',
+                          imageAsset: 'assets/images/Endereço_Cinza.png',
+                          fallbackIcon: Icons.location_on_outlined,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => MeusEnderecosPage(
+                                  isVisitante: widget.isVisitante,
+                                ),
                               ),
+                            );
+                          },
+                        ),
+                        _buildProfileItem(
+                          label: 'Histórico de Pedidos',
+                          imageAsset: 'assets/images/CaixaPedido_Cinza.png',
+                          fallbackIcon: Icons.inventory_2_outlined,
+                        ),
+                        _buildProfileItem(
+                          label: 'Avaliações de Serviços',
+                          fallbackIcon: Icons.star_rounded,
+                          useRoundedIcon: true,
+                        ),
+                        _buildProfileItem(
+                          label: 'Notificações',
+                          fallbackIcon: Icons.notifications_none_rounded,
+                        ),
+                        _buildProfileItem(
+                          label: 'Serviços Favoritados',
+                          fallbackIcon: Icons.favorite_border_rounded,
+                        ),
+
+                        const Divider(height: 1, thickness: 1, color: _divider),
+
+                        _buildSectionTitle('Suporte'),
+                        _buildProfileItem(
+                          label: 'Perguntas Frequentes',
+                          fallbackIcon: Icons.help_outline_rounded,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const PerguntasFrequentesPage(),
+                              ),
+                            );
+                          },
+                        ),
+                        _buildProfileItem(
+                          label: 'Fale Conosco',
+                          imageAsset: 'assets/images/Suporte_Cinza.png',
+                          fallbackIcon: Icons.support_agent_rounded,
+                        ),
+                        _buildProfileItem(
+                          label: 'Sobre a ConsertaJá',
+                          imageAsset: 'assets/images/ConsertaJa_Cinza.png',
+                          fallbackIcon: Icons.info_outline_rounded,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const SobreConsertaJaPage(),
+                              ),
+                            );
+                          },
+                        ),
+
+                        const Divider(height: 1, thickness: 1, color: _divider),
+
+                        _buildProfileItem(
+                          label: 'Configurações',
+                          imageAsset: 'assets/images/Configuracoes_Cinza.png',
+                          fallbackIcon: Icons.settings_outlined,
+                        ),
+                        _buildProfileItem(
+                          label: 'Termos de Uso',
+                          fallbackIcon: Icons.description_outlined,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const TermosDeUsoPage(),
+                              ),
+                            );
+                          },
+                        ),
+                        _buildProfileItem(
+                          label: 'Política de Privacidade',
+                          fallbackIcon: Icons.privacy_tip_outlined,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const PoliticaDePrivacidadePage(),
+                              ),
+                            );
+                          },
+                        ),
+
+                        const Divider(height: 1, thickness: 1, color: _divider),
+
+                        InkWell(
+                          onTap: _sairDaConta,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                            child: Row(
+                              children: [
+                                const SizedBox(
+                                  width: 28,
+                                  child: Center(
+                                    child: Icon(
+                                      Icons.logout,
+                                      color: Colors.red,
+                                      size: 24,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                const Expanded(
+                                  child: Text(
+                                    'Sair da conta',
+                                    style: TextStyle(
+                                      color: Colors.red,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w400,
+                                    ),
+                                  ),
+                                ),
+                                const Icon(
+                                  Icons.chevron_right,
+                                  color: Colors.red,
+                                  size: 20,
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          const Expanded(
-                            child: Text(
-                              'Sair da conta',
-                              style: TextStyle(
-                                color: Colors.red,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w400,
-                              ),
-                            ),
-                          ),
-                          const Icon(
-                            Icons.chevron_right,
-                            color: Colors.red,
-                            size: 20,
-                          ),
-                        ],
-                      ),
+                        ),
+
+                        const SizedBox(height: 20),
+                      ],
                     ),
                   ),
-
-                  const SizedBox(height: 20),
                 ],
               ),
             ),
-          ],
-        ),
-      ),
       bottomNavigationBar: _buildBottomNav(),
     );
   }
