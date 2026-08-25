@@ -1,15 +1,21 @@
 # Documentação - Conserta Já
 
-Esta pasta centraliza toda a documentação técnica, de negócios e de arquitetura da plataforma **Conserta Já**.
+Este diretório centraliza toda a documentação técnica, de negócios e de arquitetura da plataforma Conserta Já.
 
-## Estrutura desta pasta
+## Estrutura de Pastas
 
-Para manter a organização, a documentação está dividida nas seguintes áreas:
+Abaixo está a descrição de cada subdiretório contido nesta seção, organizado para facilitar a localização dos artefatos do projeto:
 
-* **`/diagramas`**: Contém os arquivos visuais da estrutura do sistema, incluindo o Modelo Entidade-Relacionamento (MER) do banco de dados e o mapeamento das tabelas associativas para o gerenciamento de prestadores.
-* **`/requisitos`**: Documentação das regras de negócio, casos de uso e análise detalhada dos stakeholders (com foco no público-alvo como paneleiros, afiadores e técnicos de eletrodomésticos).
-* **`/planejamento`**: Definição dos objetivos do projeto utilizando a metodologia SMART, cronogramas e atas de reuniões da equipe.
-* **`/api`**: Contratos e exemplos de uso das integrações com JusBrasil, AwesomeAPI e Supabase.
+* **/Diagrama de Classe**: Contém os diagramas estruturais que detalham as classes, atributos, métodos e relacionamentos orientados a objetos adotados na aplicação.
+* **/Documento de Visão**: Armazena o documento principal de planejamento do produto, definindo objetivos, escopo, aplicação da metodologia SMART e análise dos stakeholders.
+* **/Imagens Projeto**: Diretório destinado a armazenar recursos visuais, como capturas de tela (screenshots) e fluxos de navegação que complementam a documentação.
+* **/MER**: Contém o Modelo Entidade-Relacionamento lógico e físico do banco de dados (Supabase), mapeando as entidades centrais e as tabelas associativas do sistema.
+* **/Planilhas**: Reúne artefatos tabulares do projeto, como cronogramas, estimativas, controle de tarefas e outras matrizes de acompanhamento.
 
-## Padrão de Atualização
-Sempre que o banco de dados (Supabase) sofrer alterações ou novas regras de negócio forem implementadas, o analista responsável deve garantir que os diagramas nesta pasta sejam atualizados em conformidade.
+## Documentos Principais
+
+Na raiz deste repositório, estão disponíveis os documentos fundamentais para o entendimento do sistema e de suas regras:
+
+* **Introdução do Projeto.pdf**: Visão geral, justificativa do sistema e o problema de mercado que a plataforma visa solucionar.
+* **Política de Privacidade.pdf**: Diretrizes de proteção de dados, tratamento de informações pessoais e segurança aplicada a clientes e prestadores.
+* **Termos de Uso.pdf**: Regras, responsabilidades e condições contratuais para a utilização da plataforma Conserta Já.
