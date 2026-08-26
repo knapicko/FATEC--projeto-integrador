@@ -115,6 +115,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   late Future<String?> _tipoPerfilFuture;
   late Future<List<PostagemResumo>> _postagensFuture;
   late Future<List<_DiaAgendaCalendario>> _agendaSemanaFuture;
+  late Future<List<Map<String, dynamic>>> _convitesEmpresaFuture;
 
   // Estado da criação de postagem
   List<XFile> _imagensSelecionadas = [];
@@ -133,12 +134,285 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     _tipoPerfilFuture = _buscarTipoPerfil();
     _postagensFuture = PostagensProfissionalService.buscarPostagens(limit: 10);
     _agendaSemanaFuture = _carregarAgendaSemana();
+    _convitesEmpresaFuture = _buscarConvitesEmpresa();
   }
 
   @override
   void dispose() {
     _postagemController.dispose();
     super.dispose();
+  }
+
+  Color _corFromHex(String? hex) {
+    if (hex == null || hex.trim().isEmpty) return const Color(0xFF0FB3FF);
+    var value = hex.trim().replaceAll('#', '');
+    if (value.startsWith('0x') || value.startsWith('0X')) {
+      value = value.substring(2);
+    }
+    if (value.length == 6) value = 'FF$value';
+    final parsed = int.tryParse(value, radix: 16);
+    if (parsed == null) return const Color(0xFF0FB3FF);
+    return Color(parsed);
+  }
+
+  Color _corContraste(Color c) {
+    final lum = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    return lum > 0.55 ? Colors.black : Colors.white;
+  }
+
+  Future<List<Map<String, dynamic>>> _buscarConvitesEmpresa() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user == null) return [];
+
+      final usuario = await supabase
+          .from('usuarios')
+          .select('id_usuario')
+          .eq('auth_id', user.id)
+          .maybeSingle();
+
+      final usuarioId = (usuario?['id_usuario'] as num?)?.toInt();
+      if (usuarioId == null) return [];
+
+      final dadosProf = await supabase
+          .from('dados_profissionais')
+          .select('id_profissional, fk_grupo_empresa')
+          .eq('fk_usuario', usuarioId)
+          .maybeSingle();
+
+      final idProf = (dadosProf?['id_profissional'] as num?)?.toInt();
+      if (idProf == null) return [];
+
+      List<dynamic>? convites;
+      try {
+        convites = await supabase
+            .from('convites_empresa')
+            .select('*, grupo_empresa(*)')
+            .eq('fk_dados_profissionais', idProf);
+      } catch (_) {
+        try {
+          convites = await supabase
+              .from('convites_empresa')
+              .select('*, grupo_empresa(*)')
+              .eq('fk_profissional', idProf);
+        } catch (_) {}
+      }
+
+      if (convites == null || convites.isEmpty) return [];
+
+      return List<Map<String, dynamic>>.from(convites);
+    } catch (e) {
+      debugPrint('Erro ao buscar convites de empresa: $e');
+      return [];
+    }
+  }
+
+  Future<bool> _aceitarConviteEmpresa(Map<String, dynamic> convite) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final idGrupo = (convite['fk_grupo_empresa'] as num?)?.toInt();
+      final idProf = (convite['fk_dados_profissionais'] ?? convite['fk_profissional'] as num?)?.toInt();
+      final idConvite = (convite['id_convite_empresa'] ?? convite['id_convite'] ?? convite['id'] as num?)?.toInt();
+
+      if (idProf == null) return false;
+
+      // Regra: cada profissional só pode participar de uma empresa.
+      final profAtual = await supabase
+          .from('dados_profissionais')
+          .select('fk_grupo_empresa')
+          .eq('id_profissional', idProf)
+          .maybeSingle();
+      final empresaAtual = (profAtual?['fk_grupo_empresa'] as num?)?.toInt();
+
+      if (empresaAtual != null && empresaAtual != idGrupo) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Você já faz parte de outra empresa e só pode participar de uma.',
+              ),
+              backgroundColor: Colors.orangeAccent,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return false;
+      }
+
+      if (idGrupo != null && idProf != null) {
+        await supabase
+            .from('dados_profissionais')
+            .update({'fk_grupo_empresa': idGrupo})
+            .eq('id_profissional', idProf);
+      }
+
+      if (idConvite != null) {
+        try {
+          await supabase.from('convites_empresa').delete().eq('id_convite_empresa', idConvite);
+        } catch (_) {
+          await supabase.from('convites_empresa').delete().eq('id_convite', idConvite);
+        }
+      } else if (idGrupo != null && idProf != null) {
+        try {
+          await supabase.from('convites_empresa').delete().match({
+            'fk_grupo_empresa': idGrupo,
+            'fk_dados_profissionais': idProf,
+          });
+        } catch (_) {
+          await supabase.from('convites_empresa').delete().match({
+            'fk_grupo_empresa': idGrupo,
+            'fk_profissional': idProf,
+          });
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _convitesEmpresaFuture = _buscarConvitesEmpresa();
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Convite aceito com sucesso! Agora você faz parte da equipe.'),
+            backgroundColor: Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return true;
+    } catch (e) {
+      debugPrint('Erro ao aceitar convite: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao aceitar convite: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return false;
+    }
+  }
+
+  Future<bool> _recusarConviteEmpresa(Map<String, dynamic> convite) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final idGrupo = (convite['fk_grupo_empresa'] as num?)?.toInt();
+      final idProf = (convite['fk_dados_profissionais'] ?? convite['fk_profissional'] as num?)?.toInt();
+      final idConvite = (convite['id_convite_empresa'] ?? convite['id_convite'] ?? convite['id'] as num?)?.toInt();
+
+      if (idConvite != null) {
+        try {
+          await supabase.from('convites_empresa').delete().eq('id_convite_empresa', idConvite);
+        } catch (_) {
+          await supabase.from('convites_empresa').delete().eq('id_convite', idConvite);
+        }
+      } else if (idGrupo != null && idProf != null) {
+        try {
+          await supabase.from('convites_empresa').delete().match({
+            'fk_grupo_empresa': idGrupo,
+            'fk_dados_profissionais': idProf,
+          });
+        } catch (_) {
+          await supabase.from('convites_empresa').delete().match({
+            'fk_grupo_empresa': idGrupo,
+            'fk_profissional': idProf,
+          });
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _convitesEmpresaFuture = _buscarConvitesEmpresa();
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Convite recusado.'),
+            backgroundColor: Color(0xFF1A2B4A),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return true;
+    } catch (e) {
+      debugPrint('Erro ao recusar convite: $e');
+      return false;
+    }
+  }
+
+  Widget _buildBotaoNotificacao() {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _convitesEmpresaFuture,
+      builder: (context, snapshot) {
+        final convites = snapshot.data ?? const <Map<String, dynamic>>[];
+        final total = convites.length;
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            IconButton(
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              icon: const Icon(
+                Icons.notifications_none_outlined,
+                color: _primaryBlue,
+                size: 26,
+              ),
+              onPressed: _abrirPainelConvites,
+            ),
+            if (total > 0)
+              Positioned(
+                right: -2,
+                top: -2,
+                child: Container(
+                  width: 18,
+                  height: 18,
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(
+                    color: _primaryBlue,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    total > 9 ? '9+' : '$total',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _abrirPainelConvites() async {
+    final convites = await _buscarConvitesEmpresa();
+    if (!mounted) return;
+
+    if (convites.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Você não possui convites para empresas no momento.'),
+          backgroundColor: Color(0xFF1A2B4A),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _PainelConvitesEmpresa(
+        convites: convites,
+        onAceitar: _aceitarConviteEmpresa,
+        onRecusar: _recusarConviteEmpresa,
+      ),
+    );
   }
 
   Future<String?> _buscarTipoPerfil() async {
@@ -1109,42 +1383,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                       ],
                                     ),
                                   ),
-                                  Stack(
-                                    clipBehavior: Clip.none,
-                                    children: [
-                                      IconButton(
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(),
-                                        icon: const Icon(
-                                          Icons.notifications_none_outlined,
-                                          color: _primaryBlue,
-                                          size: 26,
-                                        ),
-                                        onPressed: () {},
-                                      ),
-                                      Positioned(
-                                        right: -2,
-                                        top: -2,
-                                        child: Container(
-                                          width: 18,
-                                          height: 18,
-                                          alignment: Alignment.center,
-                                          decoration: const BoxDecoration(
-                                            color: _primaryBlue,
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: const Text(
-                                            '2',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                  _buildBotaoNotificacao(),
                                 ],
                               ),
                               if (oficios.isNotEmpty) ...[
@@ -1345,20 +1584,25 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                       color: Colors.transparent,
                       child: InkWell(
                         borderRadius: BorderRadius.circular(16),
-                        onTap: () {
-                          Navigator.of(context).push(
+                        onTap: () async {
+                          await Navigator.of(context).push(
                             _rotaSemAnimacao(const GestaoEquipePage()),
                           );
+                          if (mounted) {
+                            setState(() {
+                              _tipoPerfilFuture = _buscarTipoPerfil();
+                            });
+                          }
                         },
                         child: const Padding(
                           padding: EdgeInsets.symmetric(vertical: 14, horizontal: 16),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.groups_rounded, color: Colors.white, size: 22),
+                              Icon(Icons.storefront_rounded, color: Colors.white, size: 22),
                               SizedBox(width: 10),
                               Text(
-                                'Gerenciar Equipe',
+                                'Gerenciar Empresa',
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 16,
@@ -1451,12 +1695,17 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                         child: _buildQuickOption(
                           Icons.manage_accounts_outlined,
                           'Modificar\nconta',
-                          onTap: () {
-                            Navigator.of(context).push(
+                          onTap: () async {
+                            await Navigator.of(context).push(
                               _rotaSemAnimacao(
                                 const ModificarContaProfissionalPage(),
                               ),
                             );
+                            if (mounted) {
+                              setState(() {
+                                _tipoPerfilFuture = _buscarTipoPerfil();
+                              });
+                            }
                           },
                         ),
                       ),
@@ -2129,6 +2378,239 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     );
   }
 }
+class _PainelConvitesEmpresa extends StatefulWidget {
+  const _PainelConvitesEmpresa({
+    required this.convites,
+    required this.onAceitar,
+    required this.onRecusar,
+  });
+
+  final List<Map<String, dynamic>> convites;
+  final Future<bool> Function(Map<String, dynamic> convite) onAceitar;
+  final Future<bool> Function(Map<String, dynamic> convite) onRecusar;
+
+  @override
+  State<_PainelConvitesEmpresa> createState() => _PainelConvitesEmpresaState();
+}
+
+class _PainelConvitesEmpresaState extends State<_PainelConvitesEmpresa> {
+  static const Color _primaryBlue = Color(0xFF0FB3FF);
+  static const Color _titleDark = Color(0xFF1A2B4A);
+
+  late List<Map<String, dynamic>> _convites;
+  bool _processando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _convites = List.of(widget.convites);
+  }
+
+  String _nomeEmpresa(Map<String, dynamic> convite) {
+    final grupo = convite['grupo_empresa'];
+    if (grupo is Map) {
+      final valor = grupo['nome_empresa'];
+      final nome = valor?.toString().trim();
+      if (nome != null && nome.isNotEmpty) return nome;
+    }
+    return 'Empresa';
+  }
+
+  String _tagEmpresa(Map<String, dynamic> convite) {
+    final grupo = convite['grupo_empresa'];
+    if (grupo is Map) {
+      final valor = grupo['tag_empresa'];
+      final tag = valor?.toString().trim();
+      if (tag != null && tag.isNotEmpty) return tag;
+    }
+    return '';
+  }
+
+  String _dataConvite(Map<String, dynamic> convite) {
+    final data = convite['data_convite']?.toString();
+    if (data == null || data.isEmpty) return '';
+    final diaMesAno = data.split('T').first.split(' ').first;
+    final partes = diaMesAno.split('-');
+    if (partes.length == 3) {
+      return '${partes[2]}/${partes[1]}/${partes[0]}';
+    }
+    return diaMesAno;
+  }
+
+  Future<void> _agir(Map<String, dynamic> convite, bool aceitar) async {
+    if (_processando) return;
+    setState(() => _processando = true);
+
+    final ok = aceitar
+        ? await widget.onAceitar(convite)
+        : await widget.onRecusar(convite);
+
+    if (!mounted) return;
+
+    setState(() {
+      _processando = false;
+      if (ok) {
+        _convites = _convites.where((c) => c != convite).toList();
+      }
+    });
+
+    if (ok && _convites.isEmpty) {
+      Navigator.of(context).pop();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+        ),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Align(
+                alignment: Alignment.topCenter,
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  const Icon(Icons.groups_outlined, color: _primaryBlue),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Convites de Empresa',
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: _titleDark,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Você tem ${_convites.length} convite(s) pendente(s) para entrar em uma equipe.',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 12),
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: _convites.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final convite = _convites[index];
+                    return _buildConviteCard(convite);
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildConviteCard(Map<String, dynamic> convite) {
+    final tag = _tagEmpresa(convite);
+    final data = _dataConvite(convite);
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: _primaryBlue,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  tag.isEmpty ? 'EMPRESA' : tag.toUpperCase(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              if (data.isNotEmpty)
+                Text(
+                  'Convite: $data',
+                  style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _nomeEmpresa(convite),
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: _titleDark,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Você foi convidado(a) para fazer parte desta equipe.',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              OutlinedButton(
+                onPressed: _processando ? null : () => _agir(convite, false),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.redAccent,
+                  side: const BorderSide(color: Color(0xFFFECACA)),
+                ),
+                child: const Text('Recusar'),
+              ),
+              const SizedBox(width: 10),
+              ElevatedButton(
+                onPressed: _processando ? null : () => _agir(convite, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF10B981),
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Aceitar'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 
 class _MapPatternPainter extends CustomPainter {
   @override
