@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'alterar_disponibilidade.dart';
+import 'gestao_equipe.dart';
 import 'modificar_conta_profissional.dart';
 import 'minhas_postagens_profissional.dart';
 import 'models/postagem_resumo.dart';
@@ -111,6 +112,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   late Future<Map<String, dynamic>?> _dadosProfissionalFuture;
   late Future<String?> _enderecoFuture;
   late Future<List<OficioInfo>?> _oficiosFuture;
+  late Future<String?> _tipoPerfilFuture;
   late Future<List<PostagemResumo>> _postagensFuture;
   late Future<List<_DiaAgendaCalendario>> _agendaSemanaFuture;
 
@@ -128,6 +130,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     _dadosProfissionalFuture = _buscarDadosProfissional();
     _enderecoFuture = _buscarEndereco();
     _oficiosFuture = _buscarOficios();
+    _tipoPerfilFuture = _buscarTipoPerfil();
     _postagensFuture = PostagensProfissionalService.buscarPostagens(limit: 10);
     _agendaSemanaFuture = _carregarAgendaSemana();
   }
@@ -136,6 +139,43 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   void dispose() {
     _postagemController.dispose();
     super.dispose();
+  }
+
+  Future<String?> _buscarTipoPerfil() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user == null) return null;
+
+      final usuario = await supabase
+          .from('usuarios')
+          .select('id_usuario')
+          .eq('auth_id', user.id)
+          .maybeSingle();
+
+      final usuarioId = usuario?['id_usuario'];
+      if (usuarioId == null) return null;
+
+      final dadosProf = await supabase
+          .from('dados_profissionais')
+          .select('fk_perfil')
+          .eq('fk_usuario', usuarioId)
+          .maybeSingle();
+
+      final fkPerfil = dadosProf?['fk_perfil'];
+      if (fkPerfil == null) return null;
+
+      final perfil = await supabase
+          .from('perfil')
+          .select('tipo_perfil')
+          .eq('id_perfil', fkPerfil)
+          .maybeSingle();
+
+      return perfil?['tipo_perfil']?.toString();
+    } catch (e) {
+      debugPrint('Erro ao buscar tipo_perfil: $e');
+      return null;
+    }
   }
 
   Future<Map<String, dynamic>?> _buscarDadosProfissional() async {
@@ -1278,6 +1318,64 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
               ),
             ),
             const SizedBox(height: 20),
+
+            // ================= BOTÃO GERENCIAR EQUIPE (APENAS PARA 'Loja') =================
+            FutureBuilder<String?>(
+              future: _tipoPerfilFuture,
+              builder: (context, snapshot) {
+                if (snapshot.data != 'Loja') {
+                  return const SizedBox.shrink();
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 20),
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: _primaryBlue,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _primaryBlue.withValues(alpha: 0.3),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () {
+                          Navigator.of(context).push(
+                            _rotaSemAnimacao(const GestaoEquipePage()),
+                          );
+                        },
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.groups_rounded, color: Colors.white, size: 22),
+                              SizedBox(width: 10),
+                              Text(
+                                'Gerenciar Equipe',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 14),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
 
             // ================= ATALHOS / PAINEL DE AÇÕES =================
             Container(
