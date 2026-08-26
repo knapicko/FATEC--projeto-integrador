@@ -117,7 +117,9 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
     final partes = nome.trim().split(RegExp(r'\s+'));
     if (partes.isEmpty || partes.first.isEmpty) return 'EM';
     if (partes.length == 1) {
-      return partes.first.substring(0, math.min(2, partes.first.length)).toUpperCase();
+      return partes.first
+          .substring(0, math.min(2, partes.first.length))
+          .toUpperCase();
     }
     return '${partes.first[0]}${partes[1][0]}'.toUpperCase();
   }
@@ -184,7 +186,9 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
         if (_idGrupoEmpresa != null) {
           final grupo = await supabase
               .from('grupo_empresa')
-              .select('id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa')
+              .select(
+                'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa',
+              )
               .eq('id_grupo_empresa', _idGrupoEmpresa!)
               .maybeSingle();
 
@@ -197,9 +201,12 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
 
             if (mounted) {
               setState(() {
-                if (nomeGrupo != null && nomeGrupo.isNotEmpty) _nomeEmpresa = nomeGrupo;
-                if (tagGrupo != null && tagGrupo.isNotEmpty) _tagEmpresa = tagGrupo.toUpperCase();
-                if (corGrupo != null && corGrupo.isNotEmpty) _corTagEmpresa = _corFromHex(corGrupo);
+                if (nomeGrupo != null && nomeGrupo.isNotEmpty)
+                  _nomeEmpresa = nomeGrupo;
+                if (tagGrupo != null && tagGrupo.isNotEmpty)
+                  _tagEmpresa = tagGrupo.toUpperCase();
+                if (corGrupo != null && corGrupo.isNotEmpty)
+                  _corTagEmpresa = _corFromHex(corGrupo);
                 _fotoUrlEmpresa = fotoGrupo;
                 _bannerUrlEmpresa = bannerGrupo;
                 _carregandoEmpresa = false;
@@ -213,7 +220,9 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
         if (_idPerfil != null) {
           final grupo = await supabase
               .from('grupo_empresa')
-              .select('id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa')
+              .select(
+                'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa',
+              )
               .eq('fk_perfil', _idPerfil!)
               .maybeSingle();
 
@@ -234,9 +243,12 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
 
             if (mounted) {
               setState(() {
-                if (nomeGrupo != null && nomeGrupo.isNotEmpty) _nomeEmpresa = nomeGrupo;
-                if (tagGrupo != null && tagGrupo.isNotEmpty) _tagEmpresa = tagGrupo.toUpperCase();
-                if (corGrupo != null && corGrupo.isNotEmpty) _corTagEmpresa = _corFromHex(corGrupo);
+                if (nomeGrupo != null && nomeGrupo.isNotEmpty)
+                  _nomeEmpresa = nomeGrupo;
+                if (tagGrupo != null && tagGrupo.isNotEmpty)
+                  _tagEmpresa = tagGrupo.toUpperCase();
+                if (corGrupo != null && corGrupo.isNotEmpty)
+                  _corTagEmpresa = _corFromHex(corGrupo);
                 _fotoUrlEmpresa = fotoGrupo;
                 _bannerUrlEmpresa = bannerGrupo;
                 _carregandoEmpresa = false;
@@ -294,7 +306,9 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
         try {
           final membrosAtivos = await supabase
               .from('dados_profissionais')
-              .select('id_profissional, fk_usuario, usuarios(nome, foto_perfil_url)')
+              .select(
+                'id_profissional, fk_usuario, usuarios(nome, foto_perfil_url)',
+              )
               .eq('fk_grupo_empresa', _idGrupoEmpresa!);
 
           for (final m in membrosAtivos) {
@@ -331,7 +345,9 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
           try {
             convites = await supabase
                 .from('convites_empresa')
-                .select('*, dados_profissionais(id_profissional, fk_usuario, usuarios(nome, foto_perfil_url))')
+                .select(
+                  '*, dados_profissionais(id_profissional, fk_usuario, usuarios(nome, foto_perfil_url))',
+                )
                 .eq('fk_grupo_empresa', _idGrupoEmpresa!);
           } catch (_) {
             convites = await supabase
@@ -342,8 +358,15 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
 
           if (convites != null) {
             for (final c in convites) {
-              final idConvite = (c['id_convite_empresa'] ?? c['id_convite'] ?? c['id'] as num?)?.toInt();
-              final idProf = (c['fk_dados_profissionais'] ?? c['fk_profissional'] as num?)?.toInt();
+              final idConvite =
+                  (c['id_convite_empresa'] ??
+                          c['id_convite'] ??
+                          c['id'] as num?)
+                      ?.toInt();
+              final idProf =
+                  (c['fk_dados_profissionais'] ??
+                          c['fk_dados_profissionais'] as num?)
+                      ?.toInt();
               String nome = 'Profissional Convidado';
               String? foto;
 
@@ -498,7 +521,10 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.photo_library_outlined, color: _primaryBlue),
+                leading: const Icon(
+                  Icons.photo_library_outlined,
+                  color: _primaryBlue,
+                ),
                 title: const Text('Alterar foto da empresa'),
                 onTap: () {
                   Navigator.pop(ctx);
@@ -506,8 +532,14 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                title: const Text('Remover foto da empresa', style: TextStyle(color: Colors.redAccent)),
+                leading: const Icon(
+                  Icons.delete_outline,
+                  color: Colors.redAccent,
+                ),
+                title: const Text(
+                  'Remover foto da empresa',
+                  style: TextStyle(color: Colors.redAccent),
+                ),
                 onTap: () {
                   Navigator.pop(ctx);
                   _removerFotoEmpresa();
@@ -536,29 +568,43 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
       setState(() => _enviandoFotoEmpresa = true);
 
       final idGrupo = await _obterOuCriarGrupoEmpresa();
-      if (idGrupo == null) throw Exception('Não foi possível identificar a empresa.');
+      if (idGrupo == null)
+        throw Exception('Não foi possível identificar a empresa.');
 
       final supabase = Supabase.instance.client;
-      final fileName = 'empresa_foto_${idGrupo}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final fileName =
+          'empresa_foto_${idGrupo}_${DateTime.now().millisecondsSinceEpoch}.jpg';
       const bucketName = 'Foto Perfil';
 
       if (kIsWeb) {
         final Uint8List bytes = await pickedFile.readAsBytes();
-        await supabase.storage.from(bucketName).uploadBinary(
+        await supabase.storage
+            .from(bucketName)
+            .uploadBinary(
               fileName,
               bytes,
-              fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
+              fileOptions: const FileOptions(
+                contentType: 'image/jpeg',
+                upsert: true,
+              ),
             );
       } else {
         final file = File(pickedFile.path);
-        await supabase.storage.from(bucketName).upload(
+        await supabase.storage
+            .from(bucketName)
+            .upload(
               fileName,
               file,
-              fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
+              fileOptions: const FileOptions(
+                contentType: 'image/jpeg',
+                upsert: true,
+              ),
             );
       }
 
-      final publicUrl = supabase.storage.from(bucketName).getPublicUrl(fileName);
+      final publicUrl = supabase.storage
+          .from(bucketName)
+          .getPublicUrl(fileName);
 
       await supabase
           .from('grupo_empresa')
@@ -620,7 +666,10 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
       debugPrint('Erro ao remover foto da empresa: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao remover foto: $e'), backgroundColor: Colors.redAccent),
+          SnackBar(
+            content: Text('Erro ao remover foto: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
         );
       }
     }
@@ -638,7 +687,10 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.add_photo_alternate_outlined, color: _primaryBlue),
+                leading: const Icon(
+                  Icons.add_photo_alternate_outlined,
+                  color: _primaryBlue,
+                ),
                 title: const Text('Alterar banner da empresa'),
                 onTap: () {
                   Navigator.pop(ctx);
@@ -646,8 +698,14 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                title: const Text('Remover banner da empresa', style: TextStyle(color: Colors.redAccent)),
+                leading: const Icon(
+                  Icons.delete_outline,
+                  color: Colors.redAccent,
+                ),
+                title: const Text(
+                  'Remover banner da empresa',
+                  style: TextStyle(color: Colors.redAccent),
+                ),
                 onTap: () {
                   Navigator.pop(ctx);
                   _removerBannerEmpresa();
@@ -676,29 +734,43 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
       setState(() => _enviandoBannerEmpresa = true);
 
       final idGrupo = await _obterOuCriarGrupoEmpresa();
-      if (idGrupo == null) throw Exception('Não foi possível identificar a empresa.');
+      if (idGrupo == null)
+        throw Exception('Não foi possível identificar a empresa.');
 
       final supabase = Supabase.instance.client;
-      final fileName = 'empresa_banner_${idGrupo}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final fileName =
+          'empresa_banner_${idGrupo}_${DateTime.now().millisecondsSinceEpoch}.jpg';
       const bucketName = 'Foto Perfil';
 
       if (kIsWeb) {
         final Uint8List bytes = await pickedFile.readAsBytes();
-        await supabase.storage.from(bucketName).uploadBinary(
+        await supabase.storage
+            .from(bucketName)
+            .uploadBinary(
               fileName,
               bytes,
-              fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
+              fileOptions: const FileOptions(
+                contentType: 'image/jpeg',
+                upsert: true,
+              ),
             );
       } else {
         final file = File(pickedFile.path);
-        await supabase.storage.from(bucketName).upload(
+        await supabase.storage
+            .from(bucketName)
+            .upload(
               fileName,
               file,
-              fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
+              fileOptions: const FileOptions(
+                contentType: 'image/jpeg',
+                upsert: true,
+              ),
             );
       }
 
-      final publicUrl = supabase.storage.from(bucketName).getPublicUrl(fileName);
+      final publicUrl = supabase.storage
+          .from(bucketName)
+          .getPublicUrl(fileName);
 
       await supabase
           .from('grupo_empresa')
@@ -760,7 +832,10 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
       debugPrint('Erro ao remover banner da empresa: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao remover banner: $e'), backgroundColor: Colors.redAccent),
+          SnackBar(
+            content: Text('Erro ao remover banner: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
         );
       }
     }
@@ -816,7 +891,8 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                   left: 0,
                   right: 0,
                   height: 120,
-                  child: _bannerUrlEmpresa != null && _bannerUrlEmpresa!.isNotEmpty
+                  child:
+                      _bannerUrlEmpresa != null && _bannerUrlEmpresa!.isNotEmpty
                       ? Image.network(
                           _bannerUrlEmpresa!,
                           fit: BoxFit.cover,
@@ -846,20 +922,29 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                     borderRadius: BorderRadius.circular(20),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(20),
-                      onTap: _enviandoBannerEmpresa ? null : _escolherOuRemoverBannerEmpresa,
+                      onTap: _enviandoBannerEmpresa
+                          ? null
+                          : _escolherOuRemoverBannerEmpresa,
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              _bannerUrlEmpresa != null ? Icons.edit_outlined : Icons.add_photo_alternate_outlined,
+                              _bannerUrlEmpresa != null
+                                  ? Icons.edit_outlined
+                                  : Icons.add_photo_alternate_outlined,
                               size: 16,
                               color: _primaryBlue,
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              _bannerUrlEmpresa != null ? 'Banner' : 'Adicionar Banner',
+                              _bannerUrlEmpresa != null
+                                  ? 'Banner'
+                                  : 'Adicionar Banner',
                               style: const TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
@@ -878,7 +963,9 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                   top: 80,
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: _enviandoFotoEmpresa ? null : _escolherOuRemoverFotoEmpresa,
+                    onTap: _enviandoFotoEmpresa
+                        ? null
+                        : _escolherOuRemoverFotoEmpresa,
                     child: Stack(
                       clipBehavior: Clip.none,
                       children: [
@@ -899,10 +986,14 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                           ),
                           child: CircleAvatar(
                             backgroundColor: const Color(0xFFEFF6FF),
-                            backgroundImage: _fotoUrlEmpresa != null && _fotoUrlEmpresa!.isNotEmpty
+                            backgroundImage:
+                                _fotoUrlEmpresa != null &&
+                                    _fotoUrlEmpresa!.isNotEmpty
                                 ? NetworkImage(_fotoUrlEmpresa!)
                                 : null,
-                            child: _fotoUrlEmpresa == null || _fotoUrlEmpresa!.isEmpty
+                            child:
+                                _fotoUrlEmpresa == null ||
+                                    _fotoUrlEmpresa!.isEmpty
                                 ? Text(
                                     _obterIniciaisEmpresa(_nomeEmpresa),
                                     style: const TextStyle(
@@ -934,7 +1025,9 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                                     ),
                                   )
                                 : Icon(
-                                    _fotoUrlEmpresa != null ? Icons.edit : Icons.camera_alt,
+                                    _fotoUrlEmpresa != null
+                                        ? Icons.edit
+                                        : Icons.camera_alt,
                                     size: 13,
                                     color: Colors.white,
                                   ),
@@ -968,10 +1061,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                             SizedBox(width: 8),
                             Text(
                               'Carregando...',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: _textMuted,
-                              ),
+                              style: TextStyle(fontSize: 14, color: _textMuted),
                             ),
                           ],
                         )
@@ -992,7 +1082,10 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                             Row(
                               children: [
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 3,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: _corTagEmpresa,
                                     borderRadius: BorderRadius.circular(6),
@@ -1013,7 +1106,9 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                         ),
                 ),
                 OutlinedButton.icon(
-                  onPressed: _carregandoEmpresa ? null : _abrirDialogEditarNomeEmpresa,
+                  onPressed: _carregandoEmpresa
+                      ? null
+                      : _abrirDialogEditarNomeEmpresa,
                   icon: const Icon(Icons.edit_outlined, size: 16),
                   label: const Text('Editar'),
                   style: OutlinedButton.styleFrom(
@@ -1022,7 +1117,10 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
                   ),
                 ),
               ],
@@ -1198,13 +1296,13 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                                   onChanged: (v) {
                                     final upper = v.toUpperCase();
                                     if (upper != v) {
-                                      tagController.value =
-                                          tagController.value.copyWith(
-                                        text: upper,
-                                        selection: TextSelection.collapsed(
-                                          offset: upper.length,
-                                        ),
-                                      );
+                                      tagController.value = tagController.value
+                                          .copyWith(
+                                            text: upper,
+                                            selection: TextSelection.collapsed(
+                                              offset: upper.length,
+                                            ),
+                                          );
                                     }
                                     setDialogState(() {});
                                   },
@@ -1236,8 +1334,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                             children: [
                               ..._coresPreset.map((cor) {
                                 final selecionada =
-                                    corSelecionada.toARGB32() ==
-                                        cor.toARGB32();
+                                    corSelecionada.toARGB32() == cor.toARGB32();
                                 return GestureDetector(
                                   onTap: () {
                                     setDialogState(() {
@@ -1274,8 +1371,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                                 onTap: () async {
                                   final cor = await showDialog<Color>(
                                     context: context,
-                                    builder: (context) =>
-                                        _ColorPickerDialog(
+                                    builder: (context) => _ColorPickerDialog(
                                       corInicial: corSelecionada,
                                     ),
                                   );
@@ -1380,7 +1476,9 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                       : () async {
                           if (!formKey.currentState!.validate()) return;
                           final novoNome = nomeController.text.trim();
-                          final novaTag = tagController.text.trim().toUpperCase();
+                          final novaTag = tagController.text
+                              .trim()
+                              .toUpperCase();
                           setDialogState(() => salvando = true);
 
                           final scaffold = ScaffoldMessenger.of(context);
@@ -1477,9 +1575,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
         try {
           final novoPerfil = await supabase
               .from('perfil')
-              .insert({
-                'tipo_perfil': 'Loja',
-              })
+              .insert({'tipo_perfil': 'Loja'})
               .select('id_perfil')
               .single();
 
@@ -1600,7 +1696,8 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
     try {
       final supabase = Supabase.instance.client;
       final idGrupo = await _obterOuCriarGrupoEmpresa();
-      if (idGrupo == null) throw Exception('Não foi possível identificar a empresa.');
+      if (idGrupo == null)
+        throw Exception('Não foi possível identificar a empresa.');
 
       int? idProfissionalAlvo;
       String? nomeAlvo;
@@ -1655,7 +1752,9 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
             setState(() => _carregandoEmpresa = false);
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('CPF inválido. Digite os 11 dígitos ou um e-mail válido.'),
+                content: Text(
+                  'CPF inválido. Digite os 11 dígitos ou um e-mail válido.',
+                ),
                 backgroundColor: Colors.redAccent,
                 behavior: SnackBarBehavior.floating,
               ),
@@ -1707,7 +1806,9 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
           setState(() => _carregandoEmpresa = false);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Nenhum profissional cadastrado encontrado com este e-mail ou CPF.'),
+              content: Text(
+                'Nenhum profissional cadastrado encontrado com este e-mail ou CPF.',
+              ),
               backgroundColor: Colors.redAccent,
               behavior: SnackBarBehavior.floating,
             ),
@@ -1783,7 +1884,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
             .from('convites_empresa')
             .select('id_convite_empresa')
             .eq('fk_grupo_empresa', idGrupo)
-            .eq('fk_profissional', idProfissionalAlvo)
+            .eq('fk_dados_profissionais', idProfissionalAlvo)
             .maybeSingle();
       }
 
@@ -1792,7 +1893,9 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
           setState(() => _carregandoEmpresa = false);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Já existe um convite pendente para este profissional.'),
+              content: Text(
+                'Já existe um convite pendente para este profissional.',
+              ),
               backgroundColor: Colors.orangeAccent,
               behavior: SnackBarBehavior.floating,
             ),
@@ -1812,7 +1915,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
       } catch (_) {
         await supabase.from('convites_empresa').insert({
           'fk_grupo_empresa': idGrupo,
-          'fk_profissional': idProfissionalAlvo,
+          'fk_dados_profissionais': idProfissionalAlvo,
           'data_convite': agora,
         });
       }
@@ -1824,7 +1927,9 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
         setState(() => _carregandoEmpresa = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Convite enviado com sucesso para ${nomeAlvo ?? 'o profissional'}!'),
+            content: Text(
+              'Convite enviado com sucesso para ${nomeAlvo ?? 'o profissional'}!',
+            ),
             backgroundColor: const Color(0xFF10B981),
             behavior: SnackBarBehavior.floating,
           ),
@@ -1859,7 +1964,10 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
   }
 
   void _removerMembro(String id, String nome) {
-    final membro = _membros.firstWhere((m) => m.id == id, orElse: () => _membros.first);
+    final membro = _membros.firstWhere(
+      (m) => m.id == id,
+      orElse: () => _membros.first,
+    );
 
     showDialog(
       context: context,
@@ -1884,11 +1992,18 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                 if (membro.isPendente) {
                   if (membro.idConvite != null) {
                     try {
-                      await supabase.from('convites_empresa').delete().eq('id_convite_empresa', membro.idConvite!);
+                      await supabase
+                          .from('convites_empresa')
+                          .delete()
+                          .eq('id_convite_empresa', membro.idConvite!);
                     } catch (_) {
-                      await supabase.from('convites_empresa').delete().eq('id_convite', membro.idConvite!);
+                      await supabase
+                          .from('convites_empresa')
+                          .delete()
+                          .eq('id_convite', membro.idConvite!);
                     }
-                  } else if (membro.idProfissional != null && _idGrupoEmpresa != null) {
+                  } else if (membro.idProfissional != null &&
+                      _idGrupoEmpresa != null) {
                     try {
                       await supabase.from('convites_empresa').delete().match({
                         'fk_grupo_empresa': _idGrupoEmpresa!,
@@ -1897,7 +2012,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                     } catch (_) {
                       await supabase.from('convites_empresa').delete().match({
                         'fk_grupo_empresa': _idGrupoEmpresa!,
-                        'fk_profissional': membro.idProfissional!,
+                        'fk_dados_profissionais': membro.idProfissional!,
                       });
                     }
                   }
@@ -1930,7 +2045,9 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.redAccent,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
             child: Text(membro.isPendente ? 'Cancelar Convite' : 'Remover'),
           ),
@@ -2094,7 +2211,11 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                       child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.send_rounded, size: 18, color: Colors.white),
+                          Icon(
+                            Icons.send_rounded,
+                            size: 18,
+                            color: Colors.white,
+                          ),
                           SizedBox(width: 8),
                           Text(
                             'Convidar Profissional',
@@ -2109,16 +2230,17 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                     ),
                   ),
                   const SizedBox(height: 18),
-                  const Divider(color: Color(0xFFF1F5F9), height: 1, thickness: 1),
+                  const Divider(
+                    color: Color(0xFFF1F5F9),
+                    height: 1,
+                    thickness: 1,
+                  ),
                   const SizedBox(height: 14),
                   Row(
                     children: [
                       const Text(
                         'Compartilhe o acesso',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: _textMuted,
-                        ),
+                        style: TextStyle(fontSize: 14, color: _textMuted),
                       ),
                       const Spacer(),
                       Material(
@@ -2128,7 +2250,10 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                           borderRadius: BorderRadius.circular(20),
                           onTap: _copiarLink,
                           child: const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -2167,7 +2292,10 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                 ),
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 5,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFE2E8F0),
                     borderRadius: BorderRadius.circular(14),
@@ -2232,14 +2360,14 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                 const SizedBox(height: 3),
                 Text(
                   membro.cargo,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: _textMuted,
-                  ),
+                  style: const TextStyle(fontSize: 13, color: _textMuted),
                 ),
                 const SizedBox(height: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: membro.corTagBg,
                     borderRadius: BorderRadius.circular(6),
@@ -2360,11 +2488,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
             onPressed: () => _reenviarConvite(membro.nome),
           ),
           IconButton(
-            icon: const Icon(
-              Icons.close_rounded,
-              color: _textMuted,
-              size: 20,
-            ),
+            icon: const Icon(Icons.close_rounded, color: _textMuted, size: 20),
             tooltip: 'Cancelar convite',
             splashRadius: 20,
             onPressed: () => _removerMembro(membro.id, membro.nome),
@@ -2487,7 +2611,10 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: const Text('Escolher cor da Tag', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+      title: const Text(
+        'Escolher cor da Tag',
+        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      ),
       content: SizedBox(
         width: 280,
         child: SingleChildScrollView(
@@ -2527,7 +2654,10 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancelar', style: TextStyle(color: Color(0xFF64748B))),
+          child: const Text(
+            'Cancelar',
+            style: TextStyle(color: Color(0xFF64748B)),
+          ),
         ),
         ElevatedButton(
           onPressed: () => Navigator.pop(context, _cor),
@@ -2536,9 +2666,14 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
             foregroundColor: _cor.computeLuminance() > 0.55
                 ? Colors.black
                 : Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
-          child: const Text('Selecionar', style: TextStyle(fontWeight: FontWeight.bold)),
+          child: const Text(
+            'Selecionar',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
         ),
       ],
     );
@@ -2559,7 +2694,12 @@ class _ColorizSliderHue extends StatelessWidget {
       children: [
         const Text(
           'MATIZ',
-          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.black54, letterSpacing: 0.6),
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: Colors.black54,
+            letterSpacing: 0.6,
+          ),
         ),
         const SizedBox(height: 4),
         Container(
@@ -2622,7 +2762,12 @@ class _ColorizSliderSaturacao extends StatelessWidget {
       children: [
         const Text(
           'SATURAÇÃO',
-          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.black54, letterSpacing: 0.6),
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: Colors.black54,
+            letterSpacing: 0.6,
+          ),
         ),
         const SizedBox(height: 4),
         Container(
@@ -2646,7 +2791,12 @@ class _ColorizSliderSaturacao extends StatelessWidget {
               value: hsl.saturation.clamp(0.0, 1.0),
               onChanged: (v) {
                 onChanged(
-                  HSLColor.fromAHSL(hsl.alpha, hsl.hue, v, hsl.lightness).toColor(),
+                  HSLColor.fromAHSL(
+                    hsl.alpha,
+                    hsl.hue,
+                    v,
+                    hsl.lightness,
+                  ).toColor(),
                 );
               },
             ),
@@ -2672,14 +2822,21 @@ class _ColorizSliderBrilho extends StatelessWidget {
       children: [
         const Text(
           'BRILHO',
-          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.black54, letterSpacing: 0.6),
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: Colors.black54,
+            letterSpacing: 0.6,
+          ),
         ),
         const SizedBox(height: 4),
         Container(
           height: 22,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(6),
-            gradient: LinearGradient(colors: [Colors.black, corHsl.toColor(), Colors.white]),
+            gradient: LinearGradient(
+              colors: [Colors.black, corHsl.toColor(), Colors.white],
+            ),
           ),
           child: SliderTheme(
             data: SliderTheme.of(context).copyWith(
@@ -2694,7 +2851,12 @@ class _ColorizSliderBrilho extends StatelessWidget {
               value: hsl.lightness.clamp(0.0, 1.0),
               onChanged: (v) {
                 onChanged(
-                  HSLColor.fromAHSL(hsl.alpha, hsl.hue, hsl.saturation, v).toColor(),
+                  HSLColor.fromAHSL(
+                    hsl.alpha,
+                    hsl.hue,
+                    hsl.saturation,
+                    v,
+                  ).toColor(),
                 );
               },
             ),
@@ -2704,4 +2866,3 @@ class _ColorizSliderBrilho extends StatelessWidget {
     );
   }
 }
-
