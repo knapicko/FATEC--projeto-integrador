@@ -212,6 +212,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                 _carregandoEmpresa = false;
               });
             }
+            await _carregarMembrosEConvites();
             return;
           }
         }
