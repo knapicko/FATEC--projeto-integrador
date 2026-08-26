@@ -11,21 +11,24 @@ class BottomNavigationBarCliente extends StatelessWidget {
   });
 
   static const _items = [
-    BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
     BottomNavigationBarItem(
-      icon: Icon(Icons.people_outline),
+      icon: Icon(Icons.home_outlined),
+      label: 'Home',
+    ),
+    BottomNavigationBarItem(
+      icon: Icon(Icons.people_alt_outlined),
       label: 'Seguindo',
     ),
     BottomNavigationBarItem(
-      icon: Icon(Icons.chat_bubble_outline),
+      icon: Icon(Icons.message_outlined),
       label: 'Mensagens',
     ),
     BottomNavigationBarItem(
-      icon: Icon(Icons.inventory_2_outlined),
+      icon: Icon(Icons.assignment_outlined),
       label: 'Pedidos',
     ),
     BottomNavigationBarItem(
-      icon: Icon(Icons.account_circle_outlined),
+      icon: Icon(Icons.person_outline),
       label: 'Perfil',
     ),
   ];
