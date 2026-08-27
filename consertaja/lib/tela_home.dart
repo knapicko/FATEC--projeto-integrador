@@ -46,6 +46,7 @@ class ServicoProximo {
 }
 
 class LojaPopular {
+  final int? idGrupoEmpresa;
   final String titulo;
   final double avaliacao;
   final int totalAvaliacoes;
@@ -57,10 +58,15 @@ class LojaPopular {
   final Color tag2BgColor;
   final Color tag2TextColor;
   final String caminhoImagem;
+  final String bannerUrl;
+  final String? tagEmpresa;
+  final String? corTagEmpresaHex;
+  final List<OficioInfo> oficios;
   final bool isVerified;
   final String descricao;
 
   LojaPopular({
+    this.idGrupoEmpresa,
     required this.titulo,
     required this.avaliacao,
     required this.totalAvaliacoes,
@@ -72,8 +78,12 @@ class LojaPopular {
     required this.tag2BgColor,
     required this.tag2TextColor,
     required this.caminhoImagem,
+    this.bannerUrl = '',
+    this.tagEmpresa,
+    this.corTagEmpresaHex,
+    this.oficios = const [],
     this.isVerified = false,
-    this.descricao = 'Eletricista Residencial | 120+ serviços concluídos',
+    this.descricao = 'Especialistas em reparos e serviços',
   });
 }
 
@@ -606,6 +616,136 @@ class _TelaHomeState extends State<TelaHome> {
 
       return perfis;
     } catch (e) {
+      return [];
+    }
+  }
+
+  Future<List<LojaPopular>> _buscarLojasDestaque() async {
+    try {
+      final supabase = Supabase.instance.client;
+
+      // 1. Busca grupos de empresa cadastrados
+      final empresasData = await supabase.from('grupo_empresa').select(
+            'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, fk_perfil',
+          );
+
+      final List<LojaPopular> lista = [];
+
+      for (final empresa in empresasData) {
+        final idGrupo = (empresa['id_grupo_empresa'] as num?)?.toInt();
+        final fkPerfil = (empresa['fk_perfil'] as num?)?.toInt();
+        if (idGrupo == null) continue;
+
+        final nome = empresa['nome_empresa']?.toString().trim();
+        final tag = empresa['tag_empresa']?.toString().trim();
+        final corHex = empresa['cor_tag_empresa']?.toString().trim();
+        final fotoUrl = empresa['foto_url_empresa']?.toString().trim() ?? '';
+        final bannerUrl =
+            empresa['banner_url_empresa']?.toString().trim() ?? '';
+
+        // Identificar todos os profissionais pertencentes à empresa (proprietário + membros)
+        final Set<int> idsProfissionais = {};
+
+        if (fkPerfil != null) {
+          try {
+            final dono = await supabase
+                .from('dados_profissionais')
+                .select('id_profissional')
+                .eq('fk_perfil', fkPerfil)
+                .maybeSingle();
+            final idProfDono = (dono?['id_profissional'] as num?)?.toInt();
+            if (idProfDono != null) idsProfissionais.add(idProfDono);
+          } catch (_) {}
+        }
+
+        try {
+          final membros = await supabase
+              .from('dados_profissionais')
+              .select('id_profissional')
+              .eq('fk_grupo_empresa', idGrupo);
+
+          for (final m in membros) {
+            final idProf = (m['id_profissional'] as num?)?.toInt();
+            if (idProf != null) idsProfissionais.add(idProf);
+          }
+        } catch (_) {}
+
+        // Buscar ofícios herdados dos profissionais da empresa
+        final List<OficioInfo> oficiosLoja = [];
+        if (idsProfissionais.isNotEmpty) {
+          try {
+            final assOficios = await supabase
+                .from('ass_oficio_profissional')
+                .select('fk_oficio')
+                .inFilter('fk_profissional', idsProfissionais.toList());
+
+            final idsOficios = assOficios
+                .map((e) => e['fk_oficio'])
+                .whereType<num>()
+                .map((e) => e.toInt())
+                .toSet()
+                .toList();
+
+            if (idsOficios.isNotEmpty) {
+              final oficiosData = await supabase
+                  .from('oficios')
+                  .select('funcao, cor')
+                  .inFilter('id_oficio', idsOficios);
+
+              final Set<String> funcoesVistas = {};
+              for (final row in oficiosData) {
+                final info = OficioInfo.fromMap(row);
+                final chave = info.funcao.trim().toLowerCase();
+                if (info.funcao.trim().isNotEmpty &&
+                    !funcoesVistas.contains(chave)) {
+                  funcoesVistas.add(chave);
+                  oficiosLoja.add(info);
+                }
+              }
+            }
+          } catch (_) {}
+        }
+
+        final corBase = CorOficio.parse(corHex);
+        final tagEmpresaFormatada = (tag != null && tag.isNotEmpty)
+            ? (tag.startsWith('#') ? tag : '#$tag')
+            : '#EMPRESA';
+
+        final oficiosFormatados = oficiosLoja
+            .take(3)
+            .map((o) => o.funcao)
+            .join(' • ');
+
+        lista.add(
+          LojaPopular(
+            idGrupoEmpresa: idGrupo,
+            titulo:
+                (nome != null && nome.isNotEmpty) ? nome : 'Empresa Parceira',
+            avaliacao: 4.9,
+            totalAvaliacoes: 923,
+            distancia: '1.2 km',
+            tag1: tagEmpresaFormatada,
+            tag2: oficiosLoja.isNotEmpty ? oficiosLoja.first.funcao : 'Serviços',
+            tag1BgColor: CorOficio.corFundo(corBase),
+            tag1TextColor: CorOficio.corTexto(corBase),
+            tag2BgColor: const Color(0xFFEEEEEE),
+            tag2TextColor: const Color(0xFF616161),
+            caminhoImagem: fotoUrl,
+            bannerUrl: bannerUrl,
+            tagEmpresa: tagEmpresaFormatada,
+            corTagEmpresaHex: corHex,
+            oficios: oficiosLoja,
+            isVerified: true,
+            descricao: oficiosFormatados.isNotEmpty
+                ? oficiosFormatados
+                : 'Especialistas em reparos e serviços',
+          ),
+        );
+      }
+
+      return lista;
+    } catch (e) {
+      debugPrint('Erro ao buscar lojas em destaque: $e');
       return [];
     }
   }
@@ -1333,29 +1473,59 @@ class _TelaHomeState extends State<TelaHome> {
             SizedBox(height: alturaDaTela * 0.03),
 
             // Lojas em destaque
-            _buildSectionHeader(titulo: 'Lojas em destaque'),
-            const SizedBox(height: 12),
-            ...listaLojas
-                .take(3)
-                .map(
-                  (loja) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: GestureDetector(
-                      onTap: () {
-                        if (loja.titulo == 'Caedss - Estrada das Lágrimas') {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const PerfilLoja(),
-                            ),
-                          );
-                        }
-                      },
-                      child: _buildCardLojaVertical(loja),
+            FutureBuilder<List<LojaPopular>>(
+              future: _buscarLojasDestaque(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: CircularProgressIndicator(color: _primaryBlue),
                     ),
-                  ),
-                ),
-            _buildOutlineButton('Ver todos os profissionais'),
+                  );
+                }
+
+                final lojas = snapshot.data ?? <LojaPopular>[];
+
+                if (lojas.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildSectionHeader(titulo: 'Lojas em destaque'),
+                    const SizedBox(height: 12),
+                    ...lojas
+                        .take(3)
+                        .map(
+                          (loja) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => PerfilLoja(
+                                      idGrupoEmpresa: loja.idGrupoEmpresa,
+                                      nomeEmpresa: loja.titulo,
+                                      fotoUrlEmpresa: loja.caminhoImagem,
+                                      bannerUrlEmpresa: loja.bannerUrl,
+                                      tagEmpresa: loja.tagEmpresa,
+                                      corTagEmpresa: loja.corTagEmpresaHex,
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: _buildCardLojaVertical(loja),
+                            ),
+                          ),
+                        ),
+                    _buildOutlineButton('Ver todos os profissionais'),
+                  ],
+                );
+              },
+            ),
 
             SizedBox(height: alturaDaTela * 0.03),
 
@@ -1715,6 +1885,71 @@ class _TelaHomeState extends State<TelaHome> {
   }
 
   Widget _buildCardLojaVertical(LojaPopular loja) {
+    final bool usaImagemRede =
+        loja.caminhoImagem.startsWith('http://') ||
+        loja.caminhoImagem.startsWith('https://');
+
+    Widget imagem;
+    if (usaImagemRede) {
+      imagem = Image.network(
+        loja.caminhoImagem,
+        width: 64,
+        height: 64,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => Container(
+          width: 64,
+          height: 64,
+          color: const Color(0xFFE1F5FE),
+          alignment: Alignment.center,
+          child: Text(
+            obterIniciais(loja.titulo),
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: _primaryBlue,
+            ),
+          ),
+        ),
+      );
+    } else if (loja.caminhoImagem.isNotEmpty &&
+        loja.caminhoImagem.startsWith('assets/')) {
+      imagem = Image.asset(
+        loja.caminhoImagem,
+        width: 64,
+        height: 64,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => Container(
+          width: 64,
+          height: 64,
+          color: const Color(0xFFE1F5FE),
+          alignment: Alignment.center,
+          child: Text(
+            obterIniciais(loja.titulo),
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: _primaryBlue,
+            ),
+          ),
+        ),
+      );
+    } else {
+      imagem = Container(
+        width: 64,
+        height: 64,
+        color: const Color(0xFFE1F5FE),
+        alignment: Alignment.center,
+        child: Text(
+          obterIniciais(loja.titulo),
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: _primaryBlue,
+          ),
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: _cardDecoration(),
@@ -1724,17 +1959,9 @@ class _TelaHomeState extends State<TelaHome> {
           Stack(
             clipBehavior: Clip.none,
             children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: _primaryBlue,
-                  borderRadius: BorderRadius.circular(10),
-                  image: DecorationImage(
-                    image: AssetImage(loja.caminhoImagem),
-                    fit: BoxFit.cover,
-                  ),
-                ),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: imagem,
               ),
               if (loja.isVerified)
                 Positioned(right: -2, bottom: -2, child: _buildVerifiedBadge()),
@@ -1771,11 +1998,30 @@ class _TelaHomeState extends State<TelaHome> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 8),
-                Row(
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
                   children: [
-                    _buildTag(loja.tag1, loja.tag1BgColor, loja.tag1TextColor),
-                    const SizedBox(width: 6),
-                    _buildTag(loja.tag2, loja.tag2BgColor, loja.tag2TextColor),
+                    if (loja.tagEmpresa != null &&
+                        loja.tagEmpresa!.isNotEmpty)
+                      _buildTag(
+                        loja.tagEmpresa!,
+                        loja.tag1BgColor,
+                        loja.tag1TextColor,
+                      ),
+                    ...loja.oficios
+                        .take(3)
+                        .map(
+                          (oficio) => TagOficio(
+                            oficio: oficio,
+                            fontSize: 10,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            borderRadius: 4,
+                          ),
+                        ),
                   ],
                 ),
               ],
