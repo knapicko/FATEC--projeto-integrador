@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'modificar_conta_profissional.dart';
+import 'utils/cor_oficio.dart';
+import 'widgets/tag_oficio.dart';
 
 class GestaoEquipePage extends StatefulWidget {
   const GestaoEquipePage({super.key});
@@ -68,6 +70,9 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
   Color _corTagEmpresa = const Color(0xFF0FB3FF);
   String? _fotoUrlEmpresa;
   String? _bannerUrlEmpresa;
+  String? _fotoPerfilProprietario;
+  String? _nomeProprietario;
+  List<OficioInfo> _oficiosEquipe = [];
 
   bool _carregandoEmpresa = false;
   bool _enviandoFotoEmpresa = false;
@@ -136,7 +141,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
 
       final usuario = await supabase
           .from('usuarios')
-          .select('id_usuario, nome, fk_tipo_pessoa')
+          .select('id_usuario, nome, foto_perfil_url, fk_tipo_pessoa')
           .eq('auth_id', user.id)
           .maybeSingle();
 
@@ -147,6 +152,9 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
 
       _idUsuario = (usuario['id_usuario'] as num?)?.toInt();
       final nomeUsuario = usuario['nome']?.toString().trim();
+      final fotoUsuario = usuario['foto_perfil_url']?.toString();
+      _nomeProprietario = nomeUsuario;
+      _fotoPerfilProprietario = fotoUsuario;
       final fkTipoPessoa = usuario['fk_tipo_pessoa'];
 
       String? nomeFantasiaPj;
@@ -284,8 +292,24 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
       final supabase = Supabase.instance.client;
       final List<_MembroEquipe> lista = [];
 
-      // 1. Membro proprietário / nós mesmos
-      final meuNome = _nomeEmpresa;
+      // Garante foto do profissional proprietário a partir da tabela 'usuarios'
+      if (_fotoPerfilProprietario == null) {
+        final user = supabase.auth.currentUser;
+        if (user != null) {
+          final u = await supabase
+              .from('usuarios')
+              .select('foto_perfil_url, nome')
+              .eq('auth_id', user.id)
+              .maybeSingle();
+          _fotoPerfilProprietario = u?['foto_perfil_url']?.toString();
+          if (u?['nome'] != null) {
+            _nomeProprietario = u!['nome'].toString().trim();
+          }
+        }
+      }
+
+      // 1. Membro proprietário / nós mesmos (usa a foto do profissional da tabela 'usuarios')
+      final meuNome = _nomeProprietario ?? _nomeEmpresa;
       lista.add(
         _MembroEquipe(
           id: 'prop_${_idProfissional ?? 0}',
@@ -297,7 +321,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
           corTagTexto: const Color(0xFF0284C7),
           isOnline: true,
           isPendente: false,
-          fotoUrl: _fotoUrlEmpresa,
+          fotoUrl: _fotoPerfilProprietario,
           iniciais: _obterIniciaisEmpresa(meuNome),
         ),
       );
@@ -416,9 +440,57 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
         }
       }
 
+      // 4. Carregar Ofícios herdados dos profissionais membros da equipe (sem repetições)
+      List<OficioInfo> oficiosEquipe = [];
+      final Set<int> idsProfissionais = {};
+      if (_idProfissional != null) {
+        idsProfissionais.add(_idProfissional!);
+      }
+      for (final m in lista) {
+        if (!m.isPendente && m.idProfissional != null) {
+          idsProfissionais.add(m.idProfissional!);
+        }
+      }
+
+      if (idsProfissionais.isNotEmpty) {
+        try {
+          final assOficios = await supabase
+              .from('ass_oficio_profissional')
+              .select('fk_oficio')
+              .inFilter('fk_profissional', idsProfissionais.toList());
+
+          final idsOficios = assOficios
+              .map((e) => e['fk_oficio'])
+              .whereType<num>()
+              .map((e) => e.toInt())
+              .toSet()
+              .toList();
+
+          if (idsOficios.isNotEmpty) {
+            final oficiosData = await supabase
+                .from('oficios')
+                .select('funcao, cor')
+                .inFilter('id_oficio', idsOficios);
+
+            final Set<String> funcoesVistas = {};
+            for (final row in oficiosData) {
+              final info = OficioInfo.fromMap(row);
+              final chave = info.funcao.trim().toLowerCase();
+              if (info.funcao.trim().isNotEmpty && !funcoesVistas.contains(chave)) {
+                funcoesVistas.add(chave);
+                oficiosEquipe.add(info);
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('Erro ao carregar ofícios da equipe: $e');
+        }
+      }
+
       if (mounted) {
         setState(() {
           _membros = lista;
+          _oficiosEquipe = oficiosEquipe;
         });
       }
     } catch (e) {
@@ -1080,7 +1152,10 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                               overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 5),
-                            Row(
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
                                 Container(
                                   padding: const EdgeInsets.symmetric(
@@ -1101,6 +1176,17 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                                     ),
                                   ),
                                 ),
+                                ..._oficiosEquipe.map(
+                                  (oficio) => TagOficio(
+                                    oficio: oficio,
+                                    fontSize: 11,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 3,
+                                    ),
+                                    borderRadius: 6,
+                                  ),
+                                ),
                               ],
                             ),
                           ],
@@ -1109,7 +1195,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                 OutlinedButton.icon(
                   onPressed: _carregandoEmpresa
                       ? null
-                      : _abrirDialogEditarNomeEmpresa,
+                      : _abrirBottomSheetEditarNomeEmpresa,
                   icon: const Icon(Icons.edit_outlined, size: 16),
                   label: const Text('Editar'),
                   style: OutlinedButton.styleFrom(
@@ -1132,404 +1218,508 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
     );
   }
 
-  Future<void> _abrirDialogEditarNomeEmpresa() async {
+  Future<void> _abrirBottomSheetEditarNomeEmpresa() async {
     final nomeController = TextEditingController(text: _nomeEmpresa);
     final tagController = TextEditingController(text: _tagEmpresa);
     Color corSelecionada = _corTagEmpresa;
     final formKey = GlobalKey<FormState>();
     bool salvando = false;
 
-    await showDialog(
+    await showModalBottomSheet(
       context: context,
-      barrierDismissible: false,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (ctx) {
         return StatefulBuilder(
-          builder: (context, setDialogState) {
+          builder: (context, setSheetState) {
             final corTextoTag = _corContraste(corSelecionada);
             final tagPreview = tagController.text.trim().isEmpty
                 ? 'TAG'
                 : tagController.text.trim().toUpperCase();
+            final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
-            return AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-              contentPadding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
-              actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              title: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEFF6FF),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.storefront_outlined,
-                      color: _primaryBlue,
-                      size: 22,
-                    ),
+            return Padding(
+              padding: EdgeInsets.only(bottom: bottomInset),
+              child: SafeArea(
+                child: Container(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.85,
                   ),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Text(
-                      'Perfil da Empresa',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: _titleDark,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              content: SizedBox(
-                width: double.maxFinite,
-                child: SingleChildScrollView(
-                  child: Form(
-                    key: formKey,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'NOME DA EMPRESA',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: _textMuted,
-                            letterSpacing: 0.8,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Handle de arraste
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          margin: const EdgeInsets.only(top: 12, bottom: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade300,
+                            borderRadius: BorderRadius.circular(2),
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        TextFormField(
-                          controller: nomeController,
-                          textCapitalization: TextCapitalization.words,
-                          decoration: InputDecoration(
-                            hintText: 'Ex: Assistência Express',
-                            filled: true,
-                            fillColor: const Color(0xFFF8FAFC),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: _cardBorder),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: _cardBorder),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
+                      ),
+
+                      // Cabeçalho da ActionSheet
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 8, 12, 12),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEFF6FF),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.storefront_rounded,
                                 color: _primaryBlue,
-                                width: 1.5,
+                                size: 22,
                               ),
                             ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Perfil da Empresa',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: _titleDark,
+                                    ),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    'Altere o nome, a tag e a cor identificadora',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: _textMuted,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Informe o nome da empresa.';
-                            }
-                            if (value.trim().length < 2) {
-                              return 'Mínimo de 2 caracteres.';
-                            }
-                            return null;
-                          },
+                            IconButton(
+                              icon: const Icon(
+                                Icons.close_rounded,
+                                color: _textMuted,
+                              ),
+                              splashRadius: 20,
+                              onPressed: () => Navigator.pop(ctx),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'TAG DA EMPRESA (MÁX. 5 LETRAS)',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: _textMuted,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: _cardBorder),
-                          ),
-                          child: Row(
-                            children: [
-                              const Padding(
-                                padding: EdgeInsets.only(left: 14, right: 4),
-                                child: Text(
-                                  '#',
+                      ),
+                      const Divider(height: 1, color: _cardBorder),
+
+                      // Conteúdo rolável com o formulário
+                      Flexible(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+                          child: Form(
+                            key: formKey,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'NOME DA EMPRESA',
                                   style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
                                     color: _textMuted,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.8,
                                   ),
                                 ),
-                              ),
-                              Expanded(
-                                child: TextFormField(
-                                  controller: tagController,
-                                  maxLength: 5,
-                                  textCapitalization:
-                                      TextCapitalization.characters,
-                                  inputFormatters: [
-                                    FilteringTextInputFormatter.allow(
-                                      RegExp(r'[a-zA-Z0-9]'),
+                                const SizedBox(height: 6),
+                                TextFormField(
+                                  controller: nomeController,
+                                  textCapitalization: TextCapitalization.words,
+                                  decoration: InputDecoration(
+                                    hintText: 'Ex: Assistência Express',
+                                    filled: true,
+                                    fillColor: const Color(0xFFF8FAFC),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(
+                                        color: _cardBorder,
+                                      ),
                                     ),
-                                    LengthLimitingTextInputFormatter(5),
-                                  ],
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 1,
-                                  ),
-                                  decoration: const InputDecoration(
-                                    hintText: 'LOJA',
-                                    border: InputBorder.none,
-                                    counterText: '',
-                                    contentPadding: EdgeInsets.symmetric(
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(
+                                        color: _cardBorder,
+                                      ),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(
+                                        color: _primaryBlue,
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
                                       vertical: 12,
                                     ),
                                   ),
-                                  onChanged: (v) {
-                                    final upper = v.toUpperCase();
-                                    if (upper != v) {
-                                      tagController.value = tagController.value
-                                          .copyWith(
-                                            text: upper,
-                                            selection: TextSelection.collapsed(
-                                              offset: upper.length,
-                                            ),
-                                          );
-                                    }
-                                    setDialogState(() {});
-                                  },
                                   validator: (value) {
                                     if (value == null || value.trim().isEmpty) {
-                                      return 'Informe a tag da empresa.';
+                                      return 'Informe o nome da empresa.';
+                                    }
+                                    if (value.trim().length < 2) {
+                                      return 'Mínimo de 2 caracteres.';
                                     }
                                     return null;
                                   },
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'COR DA TAG',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: _textMuted,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: [
-                              ..._coresPreset.map((cor) {
-                                final selecionada =
-                                    corSelecionada.toARGB32() == cor.toARGB32();
-                                return GestureDetector(
-                                  onTap: () {
-                                    setDialogState(() {
-                                      corSelecionada = cor;
-                                    });
-                                  },
-                                  child: Container(
-                                    margin: const EdgeInsets.only(right: 8),
-                                    width: 32,
-                                    height: 32,
-                                    decoration: BoxDecoration(
-                                      color: cor,
-                                      shape: BoxShape.circle,
-                                      border: selecionada
-                                          ? Border.all(
-                                              color: _titleDark,
-                                              width: 2.5,
-                                            )
-                                          : Border.all(
+                                const SizedBox(height: 16),
+                                const Text(
+                                  'TAG DA EMPRESA (MÁX. 5 LETRAS)',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: _textMuted,
+                                    letterSpacing: 0.8,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Container(
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF8FAFC),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: _cardBorder),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Padding(
+                                        padding: EdgeInsets.only(
+                                          left: 14,
+                                          right: 4,
+                                        ),
+                                        child: Text(
+                                          '#',
+                                          style: TextStyle(
+                                            color: _textMuted,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: TextFormField(
+                                          controller: tagController,
+                                          maxLength: 5,
+                                          textCapitalization:
+                                              TextCapitalization.characters,
+                                          inputFormatters: [
+                                            FilteringTextInputFormatter.allow(
+                                              RegExp(r'[a-zA-Z0-9]'),
+                                            ),
+                                            LengthLimitingTextInputFormatter(5),
+                                          ],
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 1,
+                                          ),
+                                          decoration: const InputDecoration(
+                                            hintText: 'LOJA',
+                                            border: InputBorder.none,
+                                            counterText: '',
+                                            contentPadding:
+                                                EdgeInsets.symmetric(
+                                                  vertical: 12,
+                                                ),
+                                          ),
+                                          onChanged: (v) {
+                                            final upper = v.toUpperCase();
+                                            if (upper != v) {
+                                              tagController.value = tagController
+                                                  .value
+                                                  .copyWith(
+                                                    text: upper,
+                                                    selection:
+                                                        TextSelection.collapsed(
+                                                          offset: upper.length,
+                                                        ),
+                                                  );
+                                            }
+                                            setSheetState(() {});
+                                          },
+                                          validator: (value) {
+                                            if (value == null ||
+                                                value.trim().isEmpty) {
+                                              return 'Informe a tag da empresa.';
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                const Text(
+                                  'COR DA TAG',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: _textMuted,
+                                    letterSpacing: 0.8,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(
+                                    children: [
+                                      ..._coresPreset.map((cor) {
+                                        final selecionada =
+                                            corSelecionada.toARGB32() ==
+                                            cor.toARGB32();
+                                        return GestureDetector(
+                                          onTap: () {
+                                            setSheetState(() {
+                                              corSelecionada = cor;
+                                            });
+                                          },
+                                          child: Container(
+                                            margin: const EdgeInsets.only(
+                                              right: 8,
+                                            ),
+                                            width: 34,
+                                            height: 34,
+                                            decoration: BoxDecoration(
+                                              color: cor,
+                                              shape: BoxShape.circle,
+                                              border: selecionada
+                                                  ? Border.all(
+                                                      color: _titleDark,
+                                                      width: 2.5,
+                                                    )
+                                                  : Border.all(
+                                                      color:
+                                                          Colors.grey.shade300,
+                                                    ),
+                                            ),
+                                            child: selecionada
+                                                ? const Icon(
+                                                    Icons.check,
+                                                    color: Colors.white,
+                                                    size: 16,
+                                                  )
+                                                : null,
+                                          ),
+                                        );
+                                      }),
+                                      GestureDetector(
+                                        onTap: () async {
+                                          final cor = await showDialog<Color>(
+                                            context: context,
+                                            builder: (context) =>
+                                                _ColorPickerDialog(
+                                                  corInicial: corSelecionada,
+                                                ),
+                                          );
+                                          if (cor != null) {
+                                            setSheetState(() {
+                                              corSelecionada = cor;
+                                            });
+                                          }
+                                        },
+                                        child: Container(
+                                          width: 34,
+                                          height: 34,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            gradient: const SweepGradient(
+                                              colors: [
+                                                Colors.red,
+                                                Colors.orange,
+                                                Colors.yellow,
+                                                Colors.green,
+                                                Colors.blue,
+                                                Colors.purple,
+                                                Colors.red,
+                                              ],
+                                            ),
+                                            border: Border.all(
                                               color: Colors.grey.shade300,
                                             ),
-                                    ),
-                                    child: selecionada
-                                        ? const Icon(
-                                            Icons.check,
-                                            color: Colors.white,
-                                            size: 16,
-                                          )
-                                        : null,
+                                          ),
+                                          child: const Center(
+                                            child: Icon(
+                                              Icons.colorize_rounded,
+                                              color: Colors.white,
+                                              size: 16,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                );
-                              }),
-                              GestureDetector(
-                                onTap: () async {
-                                  final cor = await showDialog<Color>(
-                                    context: context,
-                                    builder: (context) => _ColorPickerDialog(
-                                      corInicial: corSelecionada,
-                                    ),
-                                  );
-                                  if (cor != null) {
-                                    setDialogState(() {
-                                      corSelecionada = cor;
-                                    });
-                                  }
-                                },
-                                child: Container(
-                                  width: 32,
-                                  height: 32,
+                                ),
+                                const SizedBox(height: 16),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    gradient: const SweepGradient(
-                                      colors: [
-                                        Colors.red,
-                                        Colors.orange,
-                                        Colors.yellow,
-                                        Colors.green,
-                                        Colors.blue,
-                                        Colors.purple,
-                                        Colors.red,
-                                      ],
-                                    ),
-                                    border: Border.all(
-                                      color: Colors.grey.shade300,
-                                    ),
+                                    color: const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
-                                  child: const Center(
-                                    child: Icon(
-                                      Icons.colorize_rounded,
-                                      color: Colors.white,
-                                      size: 16,
-                                    ),
+                                  child: Row(
+                                    children: [
+                                      const Text(
+                                        'Prévia:',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: _textMuted,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: corSelecionada,
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          '#$tagPreview',
+                                          style: TextStyle(
+                                            color: corTextoTag,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 0.5,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              const Text(
-                                'Prévia:',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: _textMuted,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: corSelecionada,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  '#$tagPreview',
-                                  style: TextStyle(
-                                    color: corTextoTag,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 0.5,
+                      ),
+
+                      // Botões de Ação na base
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: salvando
+                                    ? null
+                                    : () => Navigator.pop(ctx),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: _textMuted,
+                                  side: const BorderSide(color: _cardBorder),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
                                   ),
                                 ),
+                                child: const Text(
+                                  'Cancelar',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
                               ),
-                            ],
-                          ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 2,
+                              child: ElevatedButton(
+                                onPressed: salvando
+                                    ? null
+                                    : () async {
+                                        if (!formKey.currentState!.validate()) {
+                                          return;
+                                        }
+                                        final novoNome = nomeController.text
+                                            .trim();
+                                        final novaTag = tagController.text
+                                            .trim()
+                                            .toUpperCase();
+                                        setSheetState(() => salvando = true);
+
+                                        final scaffold = ScaffoldMessenger.of(
+                                          context,
+                                        );
+                                        final sucesso =
+                                            await _salvarDadosEmpresaNoBanco(
+                                              novoNome,
+                                              novaTag,
+                                              corSelecionada,
+                                            );
+                                        if (ctx.mounted) {
+                                          Navigator.pop(ctx);
+                                        }
+                                        if (sucesso && mounted) {
+                                          scaffold.showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                'Perfil da empresa atualizado com sucesso!',
+                                              ),
+                                              backgroundColor: Color(
+                                                0xFF10B981,
+                                              ),
+                                              behavior:
+                                                  SnackBarBehavior.floating,
+                                            ),
+                                          );
+                                        }
+                                      },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _primaryBlue,
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                ),
+                                child: salvando
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Text(
+                                        'Salvar Alterações',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: salvando ? null : () => Navigator.pop(ctx),
-                  child: const Text(
-                    'Cancelar',
-                    style: TextStyle(
-                      color: _textMuted,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: salvando
-                      ? null
-                      : () async {
-                          if (!formKey.currentState!.validate()) return;
-                          final novoNome = nomeController.text.trim();
-                          final novaTag = tagController.text
-                              .trim()
-                              .toUpperCase();
-                          setDialogState(() => salvando = true);
-
-                          final scaffold = ScaffoldMessenger.of(context);
-                          final sucesso = await _salvarDadosEmpresaNoBanco(
-                            novoNome,
-                            novaTag,
-                            corSelecionada,
-                          );
-                          if (ctx.mounted) {
-                            Navigator.pop(ctx);
-                          }
-                          if (sucesso && mounted) {
-                            scaffold.showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Perfil da empresa atualizado com sucesso!',
-                                ),
-                                backgroundColor: Color(0xFF10B981),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          }
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _primaryBlue,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
-                    ),
-                  ),
-                  child: salvando
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text(
-                          'Salvar',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                ),
-              ],
             );
           },
         );
@@ -2509,7 +2699,9 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
               MaterialPageRoute(
                 builder: (context) => const ModificarContaProfissionalPage(),
               ),
-            );
+            ).then((_) {
+              _carregarDadosEmpresa();
+            });
           }
         },
         itemBuilder: (context) => [
