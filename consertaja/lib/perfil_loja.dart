@@ -851,7 +851,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
       return Wrap(
         spacing: 4,
         runSpacing: 4,
-        children: (oficios as List).map((o) {
+        children: oficios.map((o) {
           final OficioInfo info = o is OficioInfo
               ? o
               : OficioInfo.fromMap(Map<String, dynamic>.from(o));
