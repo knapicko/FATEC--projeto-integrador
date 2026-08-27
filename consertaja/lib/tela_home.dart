@@ -99,6 +99,9 @@ class PerfilPopular {
   final String metrica;
   final bool isVerified;
   final List<OficioInfo> oficios;
+  final String? tagEmpresa;
+  final Color? tagEmpresaBgColor;
+  final Color? tagEmpresaTextColor;
 
   PerfilPopular({
     required this.nome,
@@ -112,6 +115,9 @@ class PerfilPopular {
     this.metrica = '120+ serviços concluídos',
     this.isVerified = true,
     this.oficios = const [],
+    this.tagEmpresa,
+    this.tagEmpresaBgColor,
+    this.tagEmpresaTextColor,
   });
 }
 
@@ -546,10 +552,24 @@ class _TelaHomeState extends State<TelaHome> {
     try {
       final supabase = Supabase.instance.client;
 
+      final empresasData = await supabase.from('grupo_empresa').select(
+            'id_grupo_empresa, tag_empresa, cor_tag_empresa, fk_perfil',
+          );
+      final empresasPorId = <int, Map<String, dynamic>>{};
+      final empresasPorPerfil = <int, Map<String, dynamic>>{};
+      for (final empresa in empresasData) {
+        final idGrupo = (empresa['id_grupo_empresa'] as num?)?.toInt();
+        if (idGrupo == null) continue;
+        final dados = Map<String, dynamic>.from(empresa);
+        empresasPorId[idGrupo] = dados;
+        final fkPerfil = (empresa['fk_perfil'] as num?)?.toInt();
+        if (fkPerfil != null) empresasPorPerfil[fkPerfil] = dados;
+      }
+
       // 1. Busca todos os profissionais cadastrados (com dados do usuário)
       final dadosProfissionais = await supabase
           .from('dados_profissionais')
-          .select('id_profissional, fk_usuario');
+          .select('id_profissional, fk_usuario, fk_grupo_empresa, fk_perfil');
 
       final perfis = <PerfilPopular>[];
 
@@ -571,6 +591,16 @@ class _TelaHomeState extends State<TelaHome> {
         final nome =
             usuarioResponse['nome']?.toString() ?? 'Nome não encontrado';
         final fotoUrl = usuarioResponse['foto_perfil_url']?.toString() ?? '';
+
+        final idGrupoEmpresa = (dados['fk_grupo_empresa'] as num?)?.toInt();
+        final fkPerfil = (dados['fk_perfil'] as num?)?.toInt();
+        final empresa = idGrupoEmpresa != null
+            ? empresasPorId[idGrupoEmpresa]
+            : (fkPerfil != null ? empresasPorPerfil[fkPerfil] : null);
+        final tagEmpresaRaw = empresa?['tag_empresa']?.toString().trim() ?? '';
+        final corEmpresa = CorOficio.parse(
+          empresa?['cor_tag_empresa']?.toString(),
+        );
 
         // 3. Busca os ofícios associados ao profissional
         final assOficios = await supabase
@@ -610,6 +640,17 @@ class _TelaHomeState extends State<TelaHome> {
                 ? oficios.first.funcao
                 : 'Profissional',
             oficios: oficios,
+            tagEmpresa: tagEmpresaRaw.isEmpty
+              ? null
+              : (tagEmpresaRaw.startsWith('#')
+                  ? tagEmpresaRaw
+                  : '#$tagEmpresaRaw'),
+            tagEmpresaBgColor: tagEmpresaRaw.isEmpty
+              ? null
+              : CorOficio.corFundo(corEmpresa),
+            tagEmpresaTextColor: tagEmpresaRaw.isEmpty
+              ? null
+              : CorOficio.corTexto(corEmpresa),
           ),
         );
       }
@@ -1686,6 +1727,14 @@ class _TelaHomeState extends State<TelaHome> {
                   ],
                 ),
                 const SizedBox(height: 4),
+                if (perfil.tagEmpresa != null) ...[
+                  _buildTag(
+                    perfil.tagEmpresa!,
+                    perfil.tagEmpresaBgColor ?? const Color(0xFFE1F5FE),
+                    perfil.tagEmpresaTextColor ?? _primaryBlue,
+                  ),
+                  const SizedBox(height: 4),
+                ],
                 Text(
                   perfil.profissao,
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
@@ -1795,23 +1844,30 @@ class _TelaHomeState extends State<TelaHome> {
                   ],
                 ),
                 const SizedBox(height: 6),
-                if (perfil.oficios.isNotEmpty)
+                if (perfil.tagEmpresa != null || perfil.oficios.isNotEmpty)
                   Wrap(
                     spacing: 6,
                     runSpacing: 4,
-                    children: perfil.oficios
-                        .map(
-                          (oficio) => TagOficio(
-                            oficio: oficio,
-                            fontSize: 10,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            borderRadius: 20,
+                    children: [
+                      if (perfil.tagEmpresa != null)
+                        _buildTag(
+                          perfil.tagEmpresa!,
+                          perfil.tagEmpresaBgColor ??
+                              const Color(0xFFE1F5FE),
+                          perfil.tagEmpresaTextColor ?? _primaryBlue,
+                        ),
+                      ...perfil.oficios.map(
+                        (oficio) => TagOficio(
+                          oficio: oficio,
+                          fontSize: 10,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
                           ),
-                        )
-                        .toList(),
+                          borderRadius: 20,
+                        ),
+                      ),
+                    ],
                   )
                 else
                   Text(
