@@ -2028,7 +2028,7 @@ class _CadastroProfissionalEtapa3PageState
             'fk_usuario': usuarioId,
             'id_facial': _idFacial,
             'rosto_validado': true,
-            'data_admissao': DateTime.now().toUtc().toIso8601String(),
+            'data_admissao': DateTime.now().toIso8601String().split('T').first,
           })
           .select()
           .single();
