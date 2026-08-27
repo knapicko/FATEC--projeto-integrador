@@ -7,8 +7,14 @@
   <a href="https://dart.dev/" target="_blank">
     <img src="https://img.shields.io/badge/dart-%230175C2.svg?style=for-the-badge&logo=dart&logoColor=white" alt="Dart">
   </a>
+  <a href="https://developer.android.com/studio" target="_blank">
+    <img src="https://img.shields.io/badge/Android%20Studio-3DDC84?style=for-the-badge&logo=android-studio&logoColor=white" alt="Android Studio">
+  </a>
   <a href="https://supabase.com/" target="_blank">
     <img src="https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white" alt="Supabase">
+  </a>
+  <a href="https://leafletjs.com/" target="_blank">
+    <img src="https://img.shields.io/badge/Leaflet-199900?style=for-the-badge&logo=leaflet&logoColor=white" alt="Leaflet">
   </a>
   <a href="https://cloud.google.com/" target="_blank">
     <img src="https://img.shields.io/badge/GoogleCloud-%234285F4.svg?style=for-the-badge&logo=google-cloud&logoColor=white" alt="Google Cloud">
@@ -44,10 +50,11 @@ O projeto foi desenvolvido por uma equipe multidisciplinar:
 
 ---
 
-## APIs Utilizadas
+## APIs e Ferramentas Utilizadas
 
-* **[JusBrasil](https://www.jusbrasil.com.br/)**
-* **[AwesomeAPI](https://docs.awesomeapi.com.br/)**
+* **[JusBrasil](https://www.jusbrasil.com.br/)** — Validação de documentos, CNPJs e CPFs
+* **[AwesomeAPI](https://docs.awesomeapi.com.br/)** — Serviço de geolocalização
+* **[Leaflet](https://leafletjs.com/)** — Exibição do mapa interativo
 
 ---
 
@@ -63,11 +70,11 @@ Se você deseja apenas testar o aplicativo sem precisar configurar um ambiente d
 2. Baixe o arquivo `app-release.apk`.
 3. Transfira para o seu dispositivo Android e execute-o para instalar.
 
-### Opção 2 — Executar pelo VS Code (Para Desenvolvedores)
+### Opção 2 — Executar pelo VS Code ou Android Studio (Para Desenvolvedores)
 
 Para executar e modificar o projeto, certifique-se de ter os seguintes requisitos instalados:
 * **[Flutter SDK](https://flutter.dev/docs/get-started/install)** e **Dart**
-* **Visual Studio Code** (ou Android Studio)
+* **Visual Studio Code** ou **[Android Studio](https://developer.android.com/studio)**
 * **Google Chrome** (para rodar a versão Web)
 
 > **Atenção!** Ao executar `flutter build apk` no seu terminal para buildar o apk, o cadastro e login com o Google não ficará disponível por conta do SHA-1 cadastrado no computador.
@@ -76,7 +83,9 @@ Para executar e modificar o projeto, certifique-se de ter os seguintes requisito
 
 **Passo a passo:**
 
-1. Clone o repositório e abra o projeto no **VS Code**.
+1. Clone o repositório e abra o projeto no **VS Code** ou **Android Studio**.
+   ```bash
+   git clone [https://github.com/knapicko/FATEC--projeto-integrador.git](https://github.com/knapicko/FATEC--projeto-integrador.git)
 2. Abra o terminal integrado e atualize as dependências:
    ```bash
    flutter pub get
