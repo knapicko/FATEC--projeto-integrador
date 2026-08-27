@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'perfil_profissional.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/iniciais.dart';
+import 'widgets/tag_oficio.dart';
 
 class PerfilLoja extends StatefulWidget {
   final int? idGrupoEmpresa;
@@ -137,7 +138,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
               final fotoDono =
                   usuarioDono?['foto_perfil_url']?.toString().trim() ?? '';
 
-              // Ofícios do proprietário
+              // Ofícios do proprietário (todos)
               final assOficios = await supabase
                   .from('ass_oficio_profissional')
                   .select('fk_oficio')
@@ -149,16 +150,20 @@ class _PerfilLojaState extends State<PerfilLoja> {
                   .map((e) => e.toInt())
                   .toList();
 
-              OficioInfo? oficioPrincipal;
+              final List<OficioInfo> oficiosDono = [];
               if (idsOficios.isNotEmpty) {
                 final oficiosData = await supabase
                     .from('oficios')
                     .select('funcao, cor')
                     .inFilter('id_oficio', idsOficios);
-                if (oficiosData.isNotEmpty) {
-                  oficioPrincipal = OficioInfo.fromMap(oficiosData.first);
+                for (final row in oficiosData) {
+                  final info = OficioInfo.fromMap(row);
+                  if (info.funcao.isNotEmpty) oficiosDono.add(info);
                 }
               }
+
+              final oficioPrincipal =
+                  oficiosDono.isNotEmpty ? oficiosDono.first : null;
 
               final corBase = oficioPrincipal != null
                   ? CorOficio.parse(oficioPrincipal.cor)
@@ -169,6 +174,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
                 'nome': nomeDono,
                 'avaliacao': 5.0,
                 'totalAvaliacoes': 120,
+                'oficios': oficiosDono,
                 'tag': oficioPrincipal?.funcao.isNotEmpty == true
                     ? oficioPrincipal!.funcao
                     : 'Proprietário',
@@ -208,7 +214,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
                 u?['nome']?.toString().trim() ?? 'Profissional da Equipe';
             final foto = u?['foto_perfil_url']?.toString().trim() ?? '';
 
-            // Ofícios do membro
+            // Ofícios do membro (todos)
             final assOficios = await supabase
                 .from('ass_oficio_profissional')
                 .select('fk_oficio')
@@ -220,16 +226,20 @@ class _PerfilLojaState extends State<PerfilLoja> {
                 .map((e) => e.toInt())
                 .toList();
 
-            OficioInfo? oficioPrincipal;
+            final List<OficioInfo> oficiosMembro = [];
             if (idsOficios.isNotEmpty) {
               final oficiosData = await supabase
                   .from('oficios')
                   .select('funcao, cor')
                   .inFilter('id_oficio', idsOficios);
-              if (oficiosData.isNotEmpty) {
-                oficioPrincipal = OficioInfo.fromMap(oficiosData.first);
+              for (final row in oficiosData) {
+                final info = OficioInfo.fromMap(row);
+                if (info.funcao.isNotEmpty) oficiosMembro.add(info);
               }
             }
+
+            final oficioPrincipal =
+                oficiosMembro.isNotEmpty ? oficiosMembro.first : null;
 
             final corBase = oficioPrincipal != null
                 ? CorOficio.parse(oficioPrincipal.cor)
@@ -240,6 +250,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
               'nome': nome,
               'avaliacao': 4.9,
               'totalAvaliacoes': 120,
+              'oficios': oficiosMembro,
               'tag': oficioPrincipal?.funcao.isNotEmpty == true
                   ? oficioPrincipal!.funcao
                   : 'Profissional',
@@ -372,7 +383,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
                             ),
                             decoration: BoxDecoration(
                               color: _corTagEmpresa != null
-                                  ? CorOficio.corFundo(_corTagEmpresa!)
+                                  ? _corTagEmpresa!
                                   : const Color(0xFFE1F5FE),
                               borderRadius: BorderRadius.circular(4),
                             ),
@@ -382,7 +393,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
                                 fontSize: 8,
                                 fontWeight: FontWeight.bold,
                                 color: _corTagEmpresa != null
-                                    ? CorOficio.corTexto(_corTagEmpresa!)
+                                    ? CorOficio.corTextoContraste(_corTagEmpresa!)
                                     : const Color(0xFF0288D1),
                               ),
                             ),
@@ -834,6 +845,44 @@ class _PerfilLojaState extends State<PerfilLoja> {
     );
   }
 
+  Widget _buildChipsOficios(Map<String, dynamic> perfil) {
+    final oficios = perfil['oficios'];
+    if (oficios is List && oficios.isNotEmpty) {
+      return Wrap(
+        spacing: 4,
+        runSpacing: 4,
+        children: (oficios as List).map((o) {
+          final OficioInfo info = o is OficioInfo
+              ? o
+              : OficioInfo.fromMap(Map<String, dynamic>.from(o));
+          return TagOficio(
+            oficio: info,
+            fontSize: 9,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            borderRadius: 12,
+          );
+        }).toList(),
+      );
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      decoration: BoxDecoration(
+        color: perfil['tagBgColor'] ?? const Color(0xFFE1F5FE),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        perfil['tag']?.toString() ?? 'Profissional',
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+          color: perfil['tagTextColor'] ?? const Color(0xFF0288D1),
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+
   Widget _buildCardProfissional(Map<String, dynamic> perfil) {
     final nome = perfil['nome']?.toString().trim() ?? 'Nome não encontrado';
     final foto =
@@ -924,23 +973,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
               ],
             ),
             const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-              decoration: BoxDecoration(
-                color: perfil['tagBgColor'] ?? const Color(0xFFE1F5FE),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                perfil['tag']?.toString() ?? 'Profissional',
-                style: TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.bold,
-                  color: perfil['tagTextColor'] ?? const Color(0xFF0288D1),
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
+            _buildChipsOficios(perfil),
           ],
         ),
       ),

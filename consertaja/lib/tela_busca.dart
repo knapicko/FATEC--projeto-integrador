@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'perfil_profissional.dart';
+import 'perfil_loja.dart';
 import 'tela_meu_perfil_cliente.dart';
 import 'seguindo_cliente.dart';
 import 'utils/bottom_navigation_bar_cliente.dart';
@@ -44,6 +45,7 @@ class _ProfissionalBusca {
   final String? caminhoImagem;
   final bool verificado;
   final bool isLoja;
+  final int? idGrupoEmpresa;
   final String? tagEmpresa;
   final Color? tagEmpresaBgColor;
   final Color? tagEmpresaTextColor;
@@ -61,6 +63,7 @@ class _ProfissionalBusca {
     this.caminhoImagem,
     this.verificado = true,
     this.isLoja = false,
+    this.idGrupoEmpresa,
     this.tagEmpresa,
     this.tagEmpresaBgColor,
     this.tagEmpresaTextColor,
@@ -488,7 +491,7 @@ class _TelaBuscaState extends State<TelaBusca> {
         }
       }
 
-      empresasEncontradas = empresasData.where((empresa) {
+      final empresasFiltradas = empresasData.where((empresa) {
         final idGrupo = (empresa['id_grupo_empresa'] as num?)?.toInt();
         return _correspondeBusca(
               [
@@ -498,26 +501,97 @@ class _TelaBuscaState extends State<TelaBusca> {
               termo,
             ) ||
             (idGrupo != null && gruposPorOficio.contains(idGrupo));
-      }).map((empresa) {
+      }).toList();
+
+      // Para cada empresa encontrada, carrega a foto e todos os oficios
+      // herdados dos profissionais vinculados (proprietario + membros).
+      for (final empresa in empresasFiltradas) {
+        final idGrupo = (empresa['id_grupo_empresa'] as num?)?.toInt();
+        final fkPerfil = (empresa['fk_perfil'] as num?)?.toInt();
         final tag = empresa['tag_empresa']?.toString().trim() ?? '';
         final cor = CorOficio.parse(empresa['cor_tag_empresa']?.toString());
         final nome = empresa['nome_empresa']?.toString().trim() ?? '';
-        return _ProfissionalBusca(
-          nome: nome.isEmpty ? 'Empresa Parceira' : nome,
-          avaliacao: 4.9,
-          tag1: 'Empresa',
-          descricao: 'Empresa parceira na plataforma ConsertaJá.',
-          localizacao: 'Localização não informada',
-          distancia: '',
-          caminhoImagem: empresa['foto_url_empresa']?.toString().trim() ?? '',
-          verificado: true,
-          isLoja: true,
-          tagEmpresa: tag.isEmpty ? null : (tag.startsWith('#') ? tag : '#$tag'),
-          tagEmpresaBgColor: CorOficio.corFundo(cor),
-          tagEmpresaTextColor: CorOficio.corTexto(cor),
-          termosBusca: [nome, tag],
+
+        final List<OficioInfo> oficiosEmpresa = [];
+        if (idGrupo != null) {
+          try {
+            final Set<int> idsProfissional = <int>{};
+            if (fkPerfil != null) {
+              final dono = await supabase
+                  .from('dados_profissionais')
+                  .select('id_profissional')
+                  .eq('fk_perfil', fkPerfil)
+                  .maybeSingle();
+              final idProfDono = (dono?['id_profissional'] as num?)?.toInt();
+              if (idProfDono != null) idsProfissional.add(idProfDono);
+            }
+
+            final membros = await supabase
+                .from('dados_profissionais')
+                .select('id_profissional')
+                .eq('fk_grupo_empresa', idGrupo);
+
+            for (final m in membros) {
+              final idProf = (m['id_profissional'] as num?)?.toInt();
+              if (idProf != null) idsProfissional.add(idProf);
+            }
+
+            if (idsProfissional.isNotEmpty) {
+              final ass = await supabase
+                  .from('ass_oficio_profissional')
+                  .select('fk_oficio')
+                  .inFilter('fk_profissional', idsProfissional.toList());
+
+              final idsOficios = ass
+                  .map((e) => e['fk_oficio'])
+                  .whereType<num>()
+                  .map((e) => e.toInt())
+                  .toSet()
+                  .toList();
+
+              if (idsOficios.isNotEmpty) {
+                final oficiosData = await supabase
+                    .from('oficios')
+                    .select('funcao, cor')
+                    .inFilter('id_oficio', idsOficios);
+
+                final funcoesVistas = <String>{};
+                for (final row in oficiosData) {
+                  final info = OficioInfo.fromMap(row);
+                  final chave = info.funcao.trim().toLowerCase();
+                  if (info.funcao.trim().isNotEmpty &&
+                      !funcoesVistas.contains(chave)) {
+                    funcoesVistas.add(chave);
+                    oficiosEmpresa.add(info);
+                  }
+                }
+              }
+            }
+          } catch (_) {}
+        }
+
+        empresasEncontradas.add(
+          _ProfissionalBusca(
+            nome: nome.isEmpty ? 'Empresa Parceira' : nome,
+            avaliacao: 4.9,
+            tag1: 'Empresa',
+            descricao: oficiosEmpresa.isNotEmpty
+                ? 'Especialistas em ${oficiosEmpresa.map((o) => o.funcao).join(', ')}'
+                : 'Empresa parceira na plataforma ConsertaJa.',
+            localizacao: 'Localizacao nao informada',
+            distancia: '',
+            caminhoImagem: empresa['foto_url_empresa']?.toString().trim() ?? '',
+            verificado: true,
+            isLoja: true,
+            idGrupoEmpresa: idGrupo,
+            oficios: oficiosEmpresa,
+            tagEmpresa: tag.isEmpty ? null : (tag.startsWith('#') ? tag : '#$tag'),
+            tagEmpresaBgColor: cor,
+            tagEmpresaTextColor: CorOficio.corTextoContraste(cor),
+            termosBusca: [nome, tag],
+          ),
         );
-      }).toList();
+      }
 
       // Combinar usuários por nome + usuários por ofício
       Map<int, Map<String, dynamic>> usuariosEncontrados = {};
@@ -758,10 +832,10 @@ class _TelaBuscaState extends State<TelaBusca> {
                   : '#$tagEmpresaRaw'),
             tagEmpresaBgColor: tagEmpresaRaw.isEmpty
               ? null
-              : CorOficio.corFundo(corEmpresa),
+              : corEmpresa,
             tagEmpresaTextColor: tagEmpresaRaw.isEmpty
               ? null
-              : CorOficio.corTexto(corEmpresa),
+              : CorOficio.corTextoContraste(corEmpresa),
             termosBusca: termosBusca,
           ),
         );
@@ -1283,6 +1357,22 @@ class _TelaBuscaState extends State<TelaBusca> {
     );
   }
 
+  Widget _buildLojaPlaceholder() {
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: Icon(
+        Icons.store,
+        color: Colors.grey.shade600,
+        size: 28,
+      ),
+    );
+  }
+
   Widget _buildCardProfissional(_ProfissionalBusca profissional) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1298,19 +1388,20 @@ class _TelaBuscaState extends State<TelaBusca> {
                 clipBehavior: Clip.none,
                 children: [
                   profissional.isLoja
-                      ? Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade200,
-                            borderRadius: BorderRadius.circular(28),
-                          ),
-                          child: Icon(
-                            Icons.store,
-                            color: Colors.grey.shade600,
-                            size: 28,
-                          ),
-                        )
+                      ? (profissional.caminhoImagem != null &&
+                              _imagemEhUrl(profissional.caminhoImagem))
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(28),
+                              child: Image.network(
+                                profissional.caminhoImagem!,
+                                width: 56,
+                                height: 56,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) =>
+                                    _buildLojaPlaceholder(),
+                              ),
+                            )
+                          : _buildLojaPlaceholder()
                       : ClipRRect(
                           borderRadius: BorderRadius.circular(28),
                           child: _imagemEhUrl(profissional.caminhoImagem)
@@ -1474,7 +1565,19 @@ class _TelaBuscaState extends State<TelaBusca> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () {
-                if (!profissional.isLoja) {
+                if (profissional.isLoja) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => PerfilLoja(
+                        idGrupoEmpresa: profissional.idGrupoEmpresa,
+                        nomeEmpresa: profissional.nome,
+                        fotoUrlEmpresa: profissional.caminhoImagem,
+                        tagEmpresa: profissional.tagEmpresa,
+                      ),
+                    ),
+                  );
+                } else {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
