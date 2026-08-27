@@ -44,6 +44,9 @@ class _ProfissionalBusca {
   final String? caminhoImagem;
   final bool verificado;
   final bool isLoja;
+  final String? tagEmpresa;
+  final Color? tagEmpresaBgColor;
+  final Color? tagEmpresaTextColor;
   final List<String> termosBusca;
 
   const _ProfissionalBusca({
@@ -58,6 +61,9 @@ class _ProfissionalBusca {
     this.caminhoImagem,
     this.verificado = true,
     this.isLoja = false,
+    this.tagEmpresa,
+    this.tagEmpresaBgColor,
+    this.tagEmpresaTextColor,
     required this.termosBusca,
   });
 }
@@ -105,6 +111,7 @@ class _TelaBuscaState extends State<TelaBusca> {
   _AbaResultado _abaAtiva = _AbaResultado.todos;
 
   List<_ProfissionalBusca> _profissionaisSupabase = [];
+  List<_ProfissionalBusca> _empresasSupabase = [];
   bool _carregandoProfissionais = false;
   bool _erroNaBusca = false;
 
@@ -369,6 +376,23 @@ class _TelaBuscaState extends State<TelaBusca> {
     try {
       final supabase = Supabase.instance.client;
 
+      final empresasData = await supabase.from('grupo_empresa').select(
+            'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, fk_perfil',
+          );
+      final empresasPorId = <int, Map<String, dynamic>>{};
+      final empresasPorPerfil = <int, Map<String, dynamic>>{};
+      final gruposPorOficio = <int>{};
+      for (final empresa in empresasData) {
+        final idGrupo = (empresa['id_grupo_empresa'] as num?)?.toInt();
+        if (idGrupo == null) continue;
+        final dados = Map<String, dynamic>.from(empresa);
+        empresasPorId[idGrupo] = dados;
+        final fkPerfil = (empresa['fk_perfil'] as num?)?.toInt();
+        if (fkPerfil != null) empresasPorPerfil[fkPerfil] = dados;
+      }
+
+      List<_ProfissionalBusca> empresasEncontradas = [];
+
       // 1) Busca profissionais por NOME na tabela usuarios (sem joins)
       final usuariosPorNome = await supabase
           .from('usuarios')
@@ -412,6 +436,7 @@ class _TelaBuscaState extends State<TelaBusca> {
 
       // 4) Busca ids_profissional por fk_usuario (para todos os usuários encontrados)
       Map<int, int> usuarioParaProfissional = {};
+      final dadosPorProfissional = <int, Map<String, dynamic>>{};
 
       // Combina todos os ids de usuários relevantes: por nome e por ofício
       final idsUsuariosRelevantes = usuariosPorNome
@@ -424,11 +449,16 @@ class _TelaBuscaState extends State<TelaBusca> {
       if (oficiosPorProfissional.isNotEmpty) {
         final dadosProfPorOficio = await supabase
             .from('dados_profissionais')
-            .select('id_profissional, fk_usuario')
+            .select('id_profissional, fk_usuario, fk_grupo_empresa, fk_perfil')
             .inFilter('id_profissional', oficiosPorProfissional.keys.toList());
 
         for (final dp in dadosProfPorOficio) {
           final idProf = (dp['id_profissional'] as num?)?.toInt();
+          if (idProf != null) {
+            dadosPorProfissional[idProf] = Map<String, dynamic>.from(dp);
+          }
+          final idGrupo = (dp['fk_grupo_empresa'] as num?)?.toInt();
+          if (idGrupo != null) gruposPorOficio.add(idGrupo);
           final idUsuario = (dp['fk_usuario'] as num?)?.toInt();
           if (idProf != null && idUsuario != null) {
             usuarioParaProfissional[idUsuario] = idProf;
@@ -443,17 +473,51 @@ class _TelaBuscaState extends State<TelaBusca> {
       if (idsUsuariosRelevantes.isNotEmpty) {
         final dadosProfissionais = await supabase
             .from('dados_profissionais')
-            .select('id_profissional, fk_usuario')
+            .select('id_profissional, fk_usuario, fk_grupo_empresa, fk_perfil')
             .inFilter('fk_usuario', idsUsuariosRelevantes.toList());
 
         for (final dp in dadosProfissionais) {
           final idProf = (dp['id_profissional'] as num?)?.toInt();
+          if (idProf != null) {
+            dadosPorProfissional[idProf] = Map<String, dynamic>.from(dp);
+          }
           final idUsuario = (dp['fk_usuario'] as num?)?.toInt();
           if (idProf != null && idUsuario != null) {
             usuarioParaProfissional[idUsuario] = idProf;
           }
         }
       }
+
+      empresasEncontradas = empresasData.where((empresa) {
+        final idGrupo = (empresa['id_grupo_empresa'] as num?)?.toInt();
+        return _correspondeBusca(
+              [
+                empresa['nome_empresa']?.toString() ?? '',
+                empresa['tag_empresa']?.toString() ?? '',
+              ],
+              termo,
+            ) ||
+            (idGrupo != null && gruposPorOficio.contains(idGrupo));
+      }).map((empresa) {
+        final tag = empresa['tag_empresa']?.toString().trim() ?? '';
+        final cor = CorOficio.parse(empresa['cor_tag_empresa']?.toString());
+        final nome = empresa['nome_empresa']?.toString().trim() ?? '';
+        return _ProfissionalBusca(
+          nome: nome.isEmpty ? 'Empresa Parceira' : nome,
+          avaliacao: 4.9,
+          tag1: 'Empresa',
+          descricao: 'Empresa parceira na plataforma ConsertaJá.',
+          localizacao: 'Localização não informada',
+          distancia: '',
+          caminhoImagem: empresa['foto_url_empresa']?.toString().trim() ?? '',
+          verificado: true,
+          isLoja: true,
+          tagEmpresa: tag.isEmpty ? null : (tag.startsWith('#') ? tag : '#$tag'),
+          tagEmpresaBgColor: CorOficio.corFundo(cor),
+          tagEmpresaTextColor: CorOficio.corTexto(cor),
+          termosBusca: [nome, tag],
+        );
+      }).toList();
 
       // Combinar usuários por nome + usuários por ofício
       Map<int, Map<String, dynamic>> usuariosEncontrados = {};
@@ -613,6 +677,19 @@ class _TelaBuscaState extends State<TelaBusca> {
 
         // Ofícios do profissional (via dados_profissionais + ass_oficio_profissional + oficios)
         final idProfissional = usuarioParaProfissional[usuarioId];
+        final dadosProfissional = idProfissional == null
+          ? null
+          : dadosPorProfissional[idProfissional];
+        final idGrupoEmpresa =
+          (dadosProfissional?['fk_grupo_empresa'] as num?)?.toInt();
+        final fkPerfil = (dadosProfissional?['fk_perfil'] as num?)?.toInt();
+        final empresa = idGrupoEmpresa != null
+          ? empresasPorId[idGrupoEmpresa]
+          : (fkPerfil != null ? empresasPorPerfil[fkPerfil] : null);
+        final tagEmpresaRaw = empresa?['tag_empresa']?.toString().trim() ?? '';
+        final corEmpresa = CorOficio.parse(
+          empresa?['cor_tag_empresa']?.toString(),
+        );
 
         List<OficioInfo> oficiosDoUsuario = [];
         if (idProfissional != null) {
@@ -674,6 +751,17 @@ class _TelaBuscaState extends State<TelaBusca> {
             caminhoImagem: caminhoImagem,
             verificado: true,
             isLoja: false,
+            tagEmpresa: tagEmpresaRaw.isEmpty
+              ? null
+              : (tagEmpresaRaw.startsWith('#')
+                  ? tagEmpresaRaw
+                  : '#$tagEmpresaRaw'),
+            tagEmpresaBgColor: tagEmpresaRaw.isEmpty
+              ? null
+              : CorOficio.corFundo(corEmpresa),
+            tagEmpresaTextColor: tagEmpresaRaw.isEmpty
+              ? null
+              : CorOficio.corTexto(corEmpresa),
             termosBusca: termosBusca,
           ),
         );
@@ -682,6 +770,7 @@ class _TelaBuscaState extends State<TelaBusca> {
       if (!mounted) return;
       setState(() {
         _profissionaisSupabase = resultados;
+        _empresasSupabase = empresasEncontradas;
         _carregandoProfissionais = false;
       });
     } catch (_) {
@@ -701,11 +790,14 @@ class _TelaBuscaState extends State<TelaBusca> {
 
   List<_ProfissionalBusca> get _profissionaisFiltrados {
     if (_profissionaisSupabase.isNotEmpty) {
-      return _profissionaisSupabase;
+      return [..._profissionaisSupabase, ..._empresasSupabase];
     }
-    return _todosProfissionais
-        .where((p) => _correspondeBusca(p.termosBusca, _termoBusca))
-        .toList();
+    return [
+      ..._todosProfissionais.where(
+        (p) => _correspondeBusca(p.termosBusca, _termoBusca),
+      ),
+      ..._empresasSupabase,
+    ];
   }
 
   List<_PerfilVerificado> get _perfisVerificadosFiltrados {
@@ -723,6 +815,7 @@ class _TelaBuscaState extends State<TelaBusca> {
       _mostrandoResultados = true;
       _abaAtiva = _AbaResultado.todos;
       _profissionaisSupabase = [];
+      _empresasSupabase = [];
     });
     _focusBusca.unfocus();
     await _buscarProfissionaisNoSupabase(texto);
@@ -1294,23 +1387,31 @@ class _TelaBuscaState extends State<TelaBusca> {
                       ],
                     ),
                     const SizedBox(height: 6),
-                    if (profissional.oficios.isNotEmpty)
+                    if (profissional.tagEmpresa != null ||
+                        profissional.oficios.isNotEmpty)
                       Wrap(
                         spacing: 6,
                         runSpacing: 4,
-                        children: profissional.oficios
-                            .map(
-                              (oficio) => TagOficio(
-                                oficio: oficio,
-                                fontSize: 10,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 3,
-                                ),
-                                borderRadius: 20,
+                        children: [
+                          if (profissional.tagEmpresa != null)
+                            _buildTag(
+                              profissional.tagEmpresa!,
+                              profissional.tagEmpresaBgColor ??
+                                  const Color(0xFFE1F5FE),
+                              profissional.tagEmpresaTextColor ?? _primaryBlue,
+                            ),
+                          ...profissional.oficios.map(
+                            (oficio) => TagOficio(
+                              oficio: oficio,
+                              fontSize: 10,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
                               ),
-                            )
-                            .toList(),
+                              borderRadius: 20,
+                            ),
+                          ),
+                        ],
                       )
                     else
                       Row(
