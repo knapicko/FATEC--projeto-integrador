@@ -647,10 +647,10 @@ class _TelaHomeState extends State<TelaHome> {
                   : '#$tagEmpresaRaw'),
             tagEmpresaBgColor: tagEmpresaRaw.isEmpty
               ? null
-              : CorOficio.corFundo(corEmpresa),
+              : corEmpresa,
             tagEmpresaTextColor: tagEmpresaRaw.isEmpty
               ? null
-              : CorOficio.corTexto(corEmpresa),
+              : CorOficio.corTextoContraste(corEmpresa),
           ),
         );
       }
@@ -767,8 +767,8 @@ class _TelaHomeState extends State<TelaHome> {
             distancia: '1.2 km',
             tag1: tagEmpresaFormatada,
             tag2: oficiosLoja.isNotEmpty ? oficiosLoja.first.funcao : 'Serviços',
-            tag1BgColor: CorOficio.corFundo(corBase),
-            tag1TextColor: CorOficio.corTexto(corBase),
+            tag1BgColor: corBase,
+            tag1TextColor: CorOficio.corTextoContraste(corBase),
             tag2BgColor: const Color(0xFFEEEEEE),
             tag2TextColor: const Color(0xFF616161),
             caminhoImagem: fotoUrl,
