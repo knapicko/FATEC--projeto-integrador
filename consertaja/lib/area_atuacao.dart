@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'utils/icone_oficio.dart';
 
 class AreaAtuacaoPage extends StatefulWidget {
   const AreaAtuacaoPage({super.key});
@@ -21,12 +22,20 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
   bool _salvando = false;
   List<Map<String, dynamic>> _oficiosDisponiveis = [];
   final List<Map<String, dynamic>> _oficiosSelecionados = [];
+  final PageController _detalhesController = PageController();
   int? _idProfissional;
+  int _detalheAtual = 0;
 
   @override
   void initState() {
     super.initState();
     _carregarDados();
+  }
+
+  @override
+  void dispose() {
+    _detalhesController.dispose();
+    super.dispose();
   }
 
   Future<int?> _buscarIdUsuario(String authId) async {
@@ -52,7 +61,7 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
 
       final oficiosResponse = await _supabase
           .from('oficios')
-          .select('id_oficio, funcao')
+          .select('id_oficio, funcao, categoria, descricao')
           .order('funcao');
 
       _oficiosDisponiveis = List<Map<String, dynamic>>.from(oficiosResponse);
@@ -105,23 +114,23 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
     }
   }
 
-  IconData _iconeParaOficio(String funcao) {
-    final f = funcao.toLowerCase();
-    if (f.contains('elétric') || f.contains('eletric')) {
-      return Icons.bolt;
-    }
-    if (f.contains('hidrául') || f.contains('hidraul')) {
-      return Icons.plumbing;
-    }
-    if (f.contains('pint')) return Icons.format_paint_outlined;
-    if (f.contains('marcen') || f.contains('madeir')) {
-      return Icons.carpenter_outlined;
-    }
-    if (f.contains('chave')) return Icons.vpn_key_outlined;
-    if (f.contains('inform') || f.contains('ti')) {
-      return Icons.computer_outlined;
-    }
-    return Icons.handyman_outlined;
+  String _caminhoImagemOficio(String nome) {
+    return 'assets/images/oficios_imgs/$nome.jpg';
+  }
+
+  Widget _imagemDetalheOficio(String nome) {
+    return Image.asset(
+      _caminhoImagemOficio(nome),
+      width: double.infinity,
+      height: 194,
+      fit: BoxFit.cover,
+      errorBuilder: (_, _, _) => Container(
+        height: 194,
+        color: _cardBlueBg,
+        alignment: Alignment.center,
+        child: IconeOficio.imagem(null, tamanho: 54),
+      ),
+    );
   }
 
   void _abrirSeletorOficio(int slotIndex) {
@@ -181,9 +190,18 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
                       final oficio = opcoes[index];
                       final nome = oficio['funcao']?.toString() ?? '';
                       return ListTile(
-                        leading: Icon(
-                          _iconeParaOficio(nome),
-                          color: _blue,
+                        leading: Container(
+                          width: 40,
+                          height: 40,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: _blue,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: IconeOficio.imagem(
+                            oficio['categoria']?.toString(),
+                            tamanho: 24,
+                          ),
                         ),
                         title: Text(nome),
                         onTap: () {
@@ -377,7 +395,13 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
           Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(_iconeParaOficio(nome), color: _blue, size: 30),
+              IconeOficio.imagem(
+                _oficiosSelecionados.firstWhere(
+                  (oficio) => oficio['funcao']?.toString() == nome,
+                  orElse: () => <String, dynamic>{},
+                )['categoria']?.toString(),
+                tamanho: 30,
+              ),
               const SizedBox(height: 8),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -429,6 +453,141 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildDetalhesAreas() {
+    if (_oficiosSelecionados.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(11, 28, 11, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Detalhes das Áreas Selecionadas',
+            style: TextStyle(
+              color: _textDark,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            height: 360,
+            child: PageView.builder(
+              controller: _detalhesController,
+              itemCount: _oficiosSelecionados.length,
+              onPageChanged: (index) => setState(() => _detalheAtual = index),
+              itemBuilder: (context, index) {
+                final oficio = _oficiosSelecionados[index];
+                final nome = oficio['funcao']?.toString() ?? '';
+                final descricao = oficio['descricao']?.toString().trim() ?? '';
+                return Container(
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF7F5F5),
+                    border: Border.all(color: const Color(0xFFE0DEDE)),
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(22),
+                            ),
+                            child: _imagemDetalheOficio(nome),
+                          ),
+                          if (index > 0)
+                            Positioned(
+                              left: 8,
+                              top: 78,
+                              child: _buildSetaDetalhe(Icons.chevron_left, () {
+                                _detalhesController.previousPage(
+                                  duration: const Duration(milliseconds: 250),
+                                  curve: Curves.easeOut,
+                                );
+                              }),
+                            ),
+                          if (index < _oficiosSelecionados.length - 1)
+                            Positioned(
+                              right: 8,
+                              top: 78,
+                              child: _buildSetaDetalhe(Icons.chevron_right, () {
+                                _detalhesController.nextPage(
+                                  duration: const Duration(milliseconds: 250),
+                                  curve: Curves.easeOut,
+                                );
+                              }),
+                            ),
+                        ],
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+                        child: Text(
+                          nome,
+                          style: const TextStyle(
+                            color: Color(0xFF005477),
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                        child: Text(
+                          descricao,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFF50515A),
+                            fontSize: 16,
+                            height: 1.45,
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(
+                          _oficiosSelecionados.length,
+                          (dotIndex) => Container(
+                            width: 8,
+                            height: 8,
+                            margin: const EdgeInsets.only(right: 8),
+                            decoration: BoxDecoration(
+                              color: dotIndex == _detalheAtual
+                                  ? _blue
+                                  : const Color(0xFFC5C9D5),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSetaDetalhe(IconData icone, VoidCallback onPressed) {
+    return Material(
+      color: Colors.white.withOpacity(0.9),
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: onPressed,
+        customBorder: const CircleBorder(),
+        child: Icon(icone, color: _textDark, size: 24),
       ),
     );
   }
@@ -542,6 +701,7 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           _buildSecaoEscolha(),
+                          _buildDetalhesAreas(),
                           _buildBannerSuporte(),
                         ],
                       ),
