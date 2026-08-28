@@ -61,6 +61,18 @@ class _DiaAgendaCalendario {
   }
 }
 
+class _OficiosPerfil {
+  const _OficiosPerfil({
+    this.tagEmpresa,
+    this.corTagEmpresa,
+    required this.oficios,
+  });
+
+  final String? tagEmpresa;
+  final String? corTagEmpresa;
+  final List<OficioInfo> oficios;
+}
+
 class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   static const Color _primaryBlue = Color(0xFF0FB3FF);
   static const Color _background = Color(0xFFF8FAFC);
@@ -112,7 +124,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   // Futures cacheados para evitar recarregamento ao rolar a tela
   late Future<Map<String, dynamic>?> _dadosProfissionalFuture;
   late Future<String?> _enderecoFuture;
-  late Future<List<OficioInfo>?> _oficiosFuture;
+  late Future<_OficiosPerfil?> _oficiosFuture;
   late Future<String?> _tipoPerfilFuture;
   late Future<List<PostagemResumo>> _postagensFuture;
   late Future<List<_DiaAgendaCalendario>> _agendaSemanaFuture;
@@ -576,7 +588,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     }
   }
 
-  Future<List<OficioInfo>?> _buscarOficios() async {
+  Future<_OficiosPerfil?> _buscarOficios() async {
     try {
       final supabase = Supabase.instance.client;
       final user = supabase.auth.currentUser;
@@ -594,12 +606,25 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
       // 2. Busca dados profissionais para obter o id_profissional
       final dadosProf = await supabase
           .from('dados_profissionais')
-          .select('id_profissional')
+          .select('id_profissional, fk_grupo_empresa')
           .eq('fk_usuario', usuarioId)
           .maybeSingle();
       if (dadosProf == null) return null;
 
       final idProfissional = dadosProf['id_profissional'];
+      String? tagEmpresa;
+      String? corTagEmpresa;
+      final idGrupoEmpresa = (dadosProf['fk_grupo_empresa'] as num?)?.toInt();
+
+      if (idGrupoEmpresa != null) {
+        final grupo = await supabase
+            .from('grupo_empresa')
+            .select('tag_empresa, cor_tag_empresa')
+            .eq('id_grupo_empresa', idGrupoEmpresa)
+            .maybeSingle();
+        tagEmpresa = grupo?['tag_empresa']?.toString().trim();
+        corTagEmpresa = grupo?['cor_tag_empresa']?.toString().trim();
+      }
 
       // 3. Busca os ofícios associados ao profissional
       final assOficios = await supabase
@@ -613,7 +638,13 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           .map((e) => e.toInt())
           .toList();
 
-      if (idsOficios.isEmpty) return [];
+      if (idsOficios.isEmpty) {
+        return _OficiosPerfil(
+          tagEmpresa: tagEmpresa,
+          corTagEmpresa: corTagEmpresa,
+          oficios: const [],
+        );
+      }
 
       // 4. Busca os nomes e cores dos ofícios
       final oficiosData = await supabase
@@ -627,7 +658,11 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
         if (info.funcao.isNotEmpty) oficios.add(info);
       }
 
-      return oficios;
+      return _OficiosPerfil(
+        tagEmpresa: tagEmpresa,
+        corTagEmpresa: corTagEmpresa,
+        oficios: oficios,
+      );
     } catch (e) {
       return null;
     }
@@ -1308,10 +1343,21 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                     final enderecoTexto =
                         enderecoSnapshot.data ?? 'Nenhum endereço cadastrado';
 
-                    return FutureBuilder<List<OficioInfo>?>(
+                    return FutureBuilder<_OficiosPerfil?>(
                       future: _oficiosFuture,
                       builder: (context, oficiosSnapshot) {
-                        final oficios = oficiosSnapshot.data ?? <OficioInfo>[];
+                        final dadosOficios = oficiosSnapshot.data;
+                        final oficios = dadosOficios?.oficios ?? <OficioInfo>[];
+                        final tagEmpresa = dadosOficios?.tagEmpresa;
+                        final corTagEmpresa = _corFromHex(
+                          dadosOficios?.corTagEmpresa,
+                        );
+                        final tagEmpresaTexto =
+                            tagEmpresa == null || tagEmpresa.isEmpty
+                            ? null
+                            : tagEmpresa.startsWith('#')
+                            ? tagEmpresa
+                            : '#$tagEmpresa';
 
                         return Container(
                           padding: const EdgeInsets.all(16),
@@ -1421,11 +1467,32 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                   spacing: 8,
                                   runSpacing: 8,
                                   alignment: WrapAlignment.end,
-                                  children: oficios
-                                      .map(
-                                        (oficio) => TagOficio(oficio: oficio),
-                                      )
-                                      .toList(),
+                                  children: [
+                                    if (tagEmpresaTexto != null)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 5,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: corTagEmpresa,
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          tagEmpresaTexto,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: _corContraste(corTagEmpresa),
+                                          ),
+                                        ),
+                                      ),
+                                    ...oficios.map(
+                                      (oficio) => TagOficio(oficio: oficio),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ],

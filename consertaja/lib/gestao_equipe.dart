@@ -476,7 +476,8 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
             for (final row in oficiosData) {
               final info = OficioInfo.fromMap(row);
               final chave = info.funcao.trim().toLowerCase();
-              if (info.funcao.trim().isNotEmpty && !funcoesVistas.contains(chave)) {
+              if (info.funcao.trim().isNotEmpty &&
+                  !funcoesVistas.contains(chave)) {
                 funcoesVistas.add(chave);
                 oficiosEquipe.add(info);
               }
@@ -1440,9 +1441,8 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                                           onChanged: (v) {
                                             final upper = v.toUpperCase();
                                             if (upper != v) {
-                                              tagController.value = tagController
-                                                  .value
-                                                  .copyWith(
+                                              tagController.value =
+                                                  tagController.value.copyWith(
                                                     text: upper,
                                                     selection:
                                                         TextSelection.collapsed(
@@ -1874,7 +1874,9 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
     if (input.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Por favor, informe o e-mail ou CPF do profissional.'),
+          content: Text(
+            'Por favor, informe o e-mail, CPF ou CNPJ do profissional.',
+          ),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
         ),
@@ -1892,6 +1894,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
 
       int? idProfissionalAlvo;
       String? nomeAlvo;
+      var convitePorCnpj = false;
 
       if (input.contains('@')) {
         // 1. Busca por e-mail na tabela emails
@@ -1936,56 +1939,98 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
           }
         }
       } else {
-        // 2. Busca por CPF
-        final cpfDigits = input.replaceAll(RegExp(r'\D'), '');
-        if (cpfDigits.length != 11) {
-          if (mounted) {
-            setState(() => _carregandoEmpresa = false);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'CPF inválido. Digite os 11 dígitos ou um e-mail válido.',
-                ),
-                backgroundColor: Colors.redAccent,
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          }
-          return;
-        }
+        final documentoDigits = input.replaceAll(RegExp(r'\D'), '');
+        convitePorCnpj = documentoDigits.length == 14;
 
-        final pf = await supabase
-            .from('pessoa_fisica')
-            .select('id_pessoa_fisica')
-            .eq('cpf', cpfDigits)
-            .maybeSingle();
-
-        final pfId = (pf?['id_pessoa_fisica'] as num?)?.toInt();
-        if (pfId != null) {
-          final ass = await supabase
-              .from('ass_tipo_pessoa')
-              .select('id_tipo_pessoa')
-              .eq('fk_pessoa_fisica', pfId)
+        if (convitePorCnpj) {
+          // Busca o usuário empresarial por CNPJ.
+          final pj = await supabase
+              .from('pessoa_juridica')
+              .select('id_pessoa_juridica')
+              .eq('cnpj', documentoDigits)
               .maybeSingle();
+          final pjId = (pj?['id_pessoa_juridica'] as num?)?.toInt();
 
-          final idTipo = (ass?['id_tipo_pessoa'] as num?)?.toInt();
-          if (idTipo != null) {
-            final usuario = await supabase
-                .from('usuarios')
-                .select('id_usuario, nome')
-                .eq('fk_tipo_pessoa', idTipo)
+          if (pjId != null) {
+            final ass = await supabase
+                .from('ass_tipo_pessoa')
+                .select('id_tipo_pessoa')
+                .eq('fk_pessoa_juridica', pjId)
                 .maybeSingle();
+            final idTipo = (ass?['id_tipo_pessoa'] as num?)?.toInt();
 
-            if (usuario != null) {
-              final idUser = (usuario['id_usuario'] as num?)?.toInt();
-              nomeAlvo = usuario['nome']?.toString();
+            if (idTipo != null) {
+              final usuario = await supabase
+                  .from('usuarios')
+                  .select('id_usuario, nome')
+                  .eq('fk_tipo_pessoa', idTipo)
+                  .maybeSingle();
+              final idUser = (usuario?['id_usuario'] as num?)?.toInt();
+              nomeAlvo = usuario?['nome']?.toString();
+
               if (idUser != null) {
                 final dp = await supabase
                     .from('dados_profissionais')
-                    .select('id_profissional, fk_grupo_empresa')
+                    .select('id_profissional, fk_grupo_empresa, fk_perfil')
                     .eq('fk_usuario', idUser)
                     .maybeSingle();
                 idProfissionalAlvo = (dp?['id_profissional'] as num?)?.toInt();
+              }
+            }
+          }
+        } else {
+          // Busca por CPF.
+          final cpfDigits = documentoDigits;
+          if (cpfDigits.length != 11) {
+            if (mounted) {
+              setState(() => _carregandoEmpresa = false);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Documento inválido. Digite um CPF (11 dígitos), CNPJ (14 dígitos) ou e-mail válido.',
+                  ),
+                  backgroundColor: Colors.redAccent,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
+            return;
+          }
+
+          final pf = await supabase
+              .from('pessoa_fisica')
+              .select('id_pessoa_fisica')
+              .eq('cpf', cpfDigits)
+              .maybeSingle();
+
+          final pfId = (pf?['id_pessoa_fisica'] as num?)?.toInt();
+          if (pfId != null) {
+            final ass = await supabase
+                .from('ass_tipo_pessoa')
+                .select('id_tipo_pessoa')
+                .eq('fk_pessoa_fisica', pfId)
+                .maybeSingle();
+
+            final idTipo = (ass?['id_tipo_pessoa'] as num?)?.toInt();
+            if (idTipo != null) {
+              final usuario = await supabase
+                  .from('usuarios')
+                  .select('id_usuario, nome')
+                  .eq('fk_tipo_pessoa', idTipo)
+                  .maybeSingle();
+
+              if (usuario != null) {
+                final idUser = (usuario['id_usuario'] as num?)?.toInt();
+                nomeAlvo = usuario['nome']?.toString();
+                if (idUser != null) {
+                  final dp = await supabase
+                      .from('dados_profissionais')
+                      .select('id_profissional, fk_grupo_empresa')
+                      .eq('fk_usuario', idUser)
+                      .maybeSingle();
+                  idProfissionalAlvo = (dp?['id_profissional'] as num?)
+                      ?.toInt();
+                }
               }
             }
           }
@@ -2020,6 +2065,55 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
           );
         }
         return;
+      }
+
+      if (convitePorCnpj) {
+        final dadosProfissional = await supabase
+            .from('dados_profissionais')
+            .select('fk_perfil')
+            .eq('id_profissional', idProfissionalAlvo)
+            .maybeSingle();
+        final fkPerfil = (dadosProfissional?['fk_perfil'] as num?)?.toInt();
+        final perfil = fkPerfil == null
+            ? null
+            : await supabase
+                  .from('perfil')
+                  .select('tipo_perfil')
+                  .eq('id_perfil', fkPerfil)
+                  .maybeSingle();
+        final tipoPerfil = perfil?['tipo_perfil']?.toString().trim();
+
+        if (tipoPerfil == 'Loja') {
+          if (mounted) {
+            setState(() => _carregandoEmpresa = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Este profissional é proprietário de uma loja e não pode entrar como membro da equipe.',
+                ),
+                backgroundColor: Colors.orangeAccent,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+          return;
+        }
+
+        if (tipoPerfil != 'Independente') {
+          if (mounted) {
+            setState(() => _carregandoEmpresa = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'O profissional informado precisa ter o perfil Independente.',
+                ),
+                backgroundColor: Colors.redAccent,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+          return;
+        }
       }
 
       // Verifica se já faz parte da empresa
@@ -2373,7 +2467,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                     child: TextField(
                       controller: _emailController,
                       decoration: const InputDecoration(
-                        hintText: 'E-mail ou CPF do profissional',
+                        hintText: 'E-mail, CPF ou CNPJ do profissional.',
                         hintStyle: TextStyle(
                           color: Color(0xFF94A3B8),
                           fontSize: 14,
