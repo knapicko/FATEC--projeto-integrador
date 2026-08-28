@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'alterar_disponibilidade.dart';
+import 'empresa_associada.dart';
 import 'gestao_equipe.dart';
 import 'modificar_conta_profissional.dart';
 import 'minhas_postagens_profissional.dart';
@@ -212,8 +213,15 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     try {
       final supabase = Supabase.instance.client;
       final idGrupo = (convite['fk_grupo_empresa'] as num?)?.toInt();
-      final idProf = (convite['fk_dados_profissionais'] ?? convite['fk_profissional'] as num?)?.toInt();
-      final idConvite = (convite['id_convite_empresa'] ?? convite['id_convite'] ?? convite['id'] as num?)?.toInt();
+      final idProf =
+          (convite['fk_dados_profissionais'] ??
+                  convite['fk_profissional'] as num?)
+              ?.toInt();
+      final idConvite =
+          (convite['id_convite_empresa'] ??
+                  convite['id_convite'] ??
+                  convite['id'] as num?)
+              ?.toInt();
 
       if (idProf == null) return false;
 
@@ -249,9 +257,15 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
 
       if (idConvite != null) {
         try {
-          await supabase.from('convites_empresa').delete().eq('id_convite_empresa', idConvite);
+          await supabase
+              .from('convites_empresa')
+              .delete()
+              .eq('id_convite_empresa', idConvite);
         } catch (_) {
-          await supabase.from('convites_empresa').delete().eq('id_convite', idConvite);
+          await supabase
+              .from('convites_empresa')
+              .delete()
+              .eq('id_convite', idConvite);
         }
       } else if (idGrupo != null && idProf != null) {
         try {
@@ -273,7 +287,9 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Convite aceito com sucesso! Agora você faz parte da equipe.'),
+            content: Text(
+              'Convite aceito com sucesso! Agora você faz parte da equipe.',
+            ),
             backgroundColor: Color(0xFF10B981),
             behavior: SnackBarBehavior.floating,
           ),
@@ -299,14 +315,27 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     try {
       final supabase = Supabase.instance.client;
       final idGrupo = (convite['fk_grupo_empresa'] as num?)?.toInt();
-      final idProf = (convite['fk_dados_profissionais'] ?? convite['fk_profissional'] as num?)?.toInt();
-      final idConvite = (convite['id_convite_empresa'] ?? convite['id_convite'] ?? convite['id'] as num?)?.toInt();
+      final idProf =
+          (convite['fk_dados_profissionais'] ??
+                  convite['fk_profissional'] as num?)
+              ?.toInt();
+      final idConvite =
+          (convite['id_convite_empresa'] ??
+                  convite['id_convite'] ??
+                  convite['id'] as num?)
+              ?.toInt();
 
       if (idConvite != null) {
         try {
-          await supabase.from('convites_empresa').delete().eq('id_convite_empresa', idConvite);
+          await supabase
+              .from('convites_empresa')
+              .delete()
+              .eq('id_convite_empresa', idConvite);
         } catch (_) {
-          await supabase.from('convites_empresa').delete().eq('id_convite', idConvite);
+          await supabase
+              .from('convites_empresa')
+              .delete()
+              .eq('id_convite', idConvite);
         }
       } else if (idGrupo != null && idProf != null) {
         try {
@@ -1585,9 +1614,9 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                       child: InkWell(
                         borderRadius: BorderRadius.circular(16),
                         onTap: () async {
-                          await Navigator.of(context).push(
-                            _rotaSemAnimacao(const GestaoEquipePage()),
-                          );
+                          await Navigator.of(
+                            context,
+                          ).push(_rotaSemAnimacao(const GestaoEquipePage()));
                           if (mounted) {
                             setState(() {
                               _tipoPerfilFuture = _buscarTipoPerfil();
@@ -1595,11 +1624,18 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                           }
                         },
                         child: const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                          padding: EdgeInsets.symmetric(
+                            vertical: 14,
+                            horizontal: 16,
+                          ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.storefront_rounded, color: Colors.white, size: 22),
+                              Icon(
+                                Icons.storefront_rounded,
+                                color: Colors.white,
+                                size: 22,
+                              ),
                               SizedBox(width: 10),
                               Text(
                                 'Gerenciar Empresa',
@@ -1610,7 +1646,11 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                 ),
                               ),
                               SizedBox(width: 8),
-                              Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 14),
+                              Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                color: Colors.white,
+                                size: 14,
+                              ),
                             ],
                           ),
                         ),
@@ -1710,16 +1750,29 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                         ),
                       ),
                       Expanded(
-                        child: _buildQuickOption(
-                          Icons.remove_red_eye_outlined,
-                          'Visualizar\nperfil',
-                          onTap: () {
-                            Navigator.of(context).push(
-                              _rotaSemAnimacao(
-                                TelaMeuPerfilProfissionalPage(
-                                  isVisitante: widget.isVisitante,
-                                ),
-                              ),
+                        child: FutureBuilder<String?>(
+                          future: _tipoPerfilFuture,
+                          builder: (context, snapshot) {
+                            final isIndependente =
+                                snapshot.data == 'Independente';
+                            return _buildQuickOption(
+                              isIndependente
+                                  ? Icons.storefront_outlined
+                                  : Icons.remove_red_eye_outlined,
+                              isIndependente
+                                  ? 'Empresa\nassociada'
+                                  : 'Visualizar\nperfil',
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  _rotaSemAnimacao(
+                                    isIndependente
+                                        ? const EmpresaAssociadaPage()
+                                        : TelaMeuPerfilProfissionalPage(
+                                            isVisitante: widget.isVisitante,
+                                          ),
+                                  ),
+                                );
+                              },
                             );
                           },
                         ),
@@ -2378,6 +2431,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     );
   }
 }
+
 class _PainelConvitesEmpresa extends StatefulWidget {
   const _PainelConvitesEmpresa({
     required this.convites,
@@ -2610,7 +2664,6 @@ class _PainelConvitesEmpresaState extends State<_PainelConvitesEmpresa> {
     );
   }
 }
-
 
 class _MapPatternPainter extends CustomPainter {
   @override
