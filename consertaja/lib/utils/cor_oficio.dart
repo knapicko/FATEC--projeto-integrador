@@ -2,16 +2,24 @@ import 'package:flutter/material.dart';
 
 class OficioInfo {
   final String funcao;
+  final String? categoria;
   final String? cor;
 
-  const OficioInfo({required this.funcao, this.cor});
+  const OficioInfo({required this.funcao, this.categoria, this.cor});
 
   factory OficioInfo.fromMap(Map<String, dynamic> map) {
     final funcao = map['funcao']?.toString().trim() ?? '';
+    final categoriaRaw = map['categoria']?.toString().trim();
     final corRaw = map['cor'] ?? map['Cor'];
     final cor = corRaw?.toString().trim();
     return OficioInfo(
       funcao: funcao,
+      categoria:
+          categoriaRaw != null &&
+              categoriaRaw.isNotEmpty &&
+              categoriaRaw.toLowerCase() != 'null'
+          ? categoriaRaw
+          : null,
       cor: (cor != null && cor.isNotEmpty && cor.toLowerCase() != 'null')
           ? cor
           : null,

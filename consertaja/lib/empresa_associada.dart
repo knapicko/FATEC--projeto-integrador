@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'utils/cor_oficio.dart';
+import 'utils/icone_oficio.dart';
 import 'utils/iniciais.dart';
 
 class EmpresaAssociadaPage extends StatefulWidget {
@@ -66,7 +67,7 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
       final perfilId = (profissional['fk_perfil'] as num?)?.toInt();
       Map<String, dynamic>? grupo;
       const campos =
-          'id_grupo_empresa, nome_empresa, tag_empresa, foto_url_empresa, banner_url_empresa, fk_perfil';
+          'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, fk_perfil';
       if (grupoId != null) {
         grupo = await client
             .from('grupo_empresa')
@@ -111,7 +112,7 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
             ? <OficioInfo>[]
             : (await client
                       .from('oficios')
-                      .select('funcao, cor')
+                      .select('funcao, categoria, cor')
                       .inFilter('id_oficio', oficioIds))
                   .map<OficioInfo>(OficioInfo.fromMap)
                   .where((item) => item.funcao.isNotEmpty)
@@ -169,6 +170,122 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
     }
   }
 
+  Future<void> _abrirOpcoesEmpresa() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(top: 12, bottom: 8),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.logout_rounded,
+                  color: Colors.redAccent,
+                ),
+                title: const Text(
+                  'Sair da empresa',
+                  style: TextStyle(
+                    color: Colors.redAccent,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _confirmarSaidaEmpresa();
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmarSaidaEmpresa() async {
+    final confirmou = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text('Sair da empresa?'),
+          content: const Text(
+            'Tem certeza de que deseja sair desta empresa? Você deixará de fazer parte da equipe.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+              child: const Text('Sair'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmou == true) await _sairDaEmpresa();
+  }
+
+  Future<void> _sairDaEmpresa() async {
+    try {
+      final client = Supabase.instance.client;
+      final usuario = client.auth.currentUser;
+      if (usuario == null) throw Exception('Usuário não autenticado.');
+
+      final usuarioRow = await client
+          .from('usuarios')
+          .select('id_usuario')
+          .eq('auth_id', usuario.id)
+          .maybeSingle();
+      final usuarioId = (usuarioRow?['id_usuario'] as num?)?.toInt();
+      if (usuarioId == null) throw Exception('Usuário não encontrado.');
+
+      await client
+          .from('dados_profissionais')
+          .update({'fk_grupo_empresa': null})
+          .eq('fk_usuario', usuarioId);
+
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Você saiu da empresa com sucesso.'),
+          backgroundColor: Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Não foi possível sair da empresa: $e'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -185,12 +302,14 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
           'Empresa associada',
           style: TextStyle(color: _blue, fontWeight: FontWeight.bold),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_outlined, color: _blue),
-            onPressed: () {},
-          ),
-        ],
+        actions: _empresa == null
+            ? const []
+            : [
+                IconButton(
+                  icon: const Icon(Icons.settings_outlined, color: _blue),
+                  onPressed: _abrirOpcoesEmpresa,
+                ),
+              ],
       ),
       body: _carregando
           ? const Center(child: CircularProgressIndicator(color: _blue))
@@ -235,7 +354,7 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
                         _buildEquipe(),
                         const SizedBox(height: 25),
                         const Text(
-                          'Serviços Disponibilizados',
+                          'Ofícios Disponibilizados',
                           style: TextStyle(fontSize: 16, color: _dark),
                         ),
                         const SizedBox(height: 12),
@@ -330,14 +449,16 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
   Widget _buildTags() {
     final tag = _empresa!['tag_empresa']?.toString().trim();
     final tags = <Widget>[];
-    if (tag != null && tag.isNotEmpty)
+    if (tag != null && tag.isNotEmpty) {
+      final corTag = CorOficio.parse(_empresa!['cor_tag_empresa']?.toString());
       tags.add(
         _pill(
           tag.startsWith('#') ? tag : '#$tag',
-          const Color(0xFF07518C),
-          Colors.white,
+          corTag,
+          CorOficio.corTextoContraste(corTag),
         ),
       );
+    }
     for (final oficio in _oficios.take(3)) {
       final cor = CorOficio.parse(oficio.cor);
       tags.add(_pill(oficio.funcao, cor, CorOficio.corTextoContraste(cor)));
@@ -434,24 +555,30 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
   }
 
   List<Widget> _buildServicos() {
-    const servicos = [
-      (
-        'Instalação Elétrica Residencial',
-        'Manutenção, troca de fiação e instalação de quadros de distribuição com segurança certificada.',
-        Icons.bolt,
-      ),
-      (
-        'Reparos Hidráulicos',
-        'Caça-vazamentos, desentupimentos e instalação de metais sanitários em geral.',
-        Icons.water_drop_outlined,
-      ),
-      (
-        'Manutenção de Ar Condicionado',
-        'Limpeza, higienização, recarga de gás e instalação de aparelhos split.',
-        Icons.ac_unit,
-      ),
-    ];
-    return servicos.map((servico) {
+    final grupos = <String, List<String>>{};
+    for (final oficio in _oficios) {
+      final categoria = oficio.categoria?.trim();
+      if (categoria == null || categoria.isEmpty) continue;
+      final chave = categoria.toLowerCase();
+      grupos.putIfAbsent(chave, () => []);
+      if (!grupos[chave]!.any(
+        (funcao) => funcao.toLowerCase() == oficio.funcao.toLowerCase(),
+      )) {
+        grupos[chave]!.add(oficio.funcao);
+      }
+    }
+
+    final categorias = <String, String>{};
+    for (final oficio in _oficios) {
+      final categoria = oficio.categoria?.trim();
+      if (categoria != null && categoria.isNotEmpty) {
+        categorias.putIfAbsent(categoria.toLowerCase(), () => categoria);
+      }
+    }
+
+    return grupos.entries.map((grupo) {
+      final categoria = categorias[grupo.key] ?? grupo.key;
+      final funcoes = grupo.value.join(', ');
       return Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(15),
@@ -469,7 +596,7 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
                 color: _blue,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(servico.$3, color: Colors.white, size: 27),
+              child: IconeOficio.imagem(categoria, tamanho: 30),
             ),
             const SizedBox(width: 15),
             Expanded(
@@ -477,12 +604,12 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    servico.$1,
+                    categoria,
                     style: const TextStyle(fontSize: 15, color: _dark),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    servico.$2,
+                    funcoes,
                     style: const TextStyle(
                       fontSize: 14,
                       color: Color(0xFF52525B),
