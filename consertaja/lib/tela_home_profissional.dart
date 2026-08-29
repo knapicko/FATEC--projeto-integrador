@@ -9,6 +9,7 @@ import 'empresa_associada.dart';
 import 'gestao_equipe.dart';
 import 'modificar_conta_profissional.dart';
 import 'metodo_entrega_profissional.dart';
+import 'meus_servicos_profissional.dart';
 import 'minhas_postagens_profissional.dart';
 import 'models/postagem_resumo.dart';
 import 'services/postagens_profissional_service.dart';
@@ -1754,6 +1755,13 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                         child: _buildQuickOption(
                           Icons.work_outline,
                           'Meus\nServiços',
+                          onTap: () {
+                            Navigator.of(context).push(
+                              _rotaSemAnimacao(
+                                const MeusServicosProfissionalPage(),
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ],
