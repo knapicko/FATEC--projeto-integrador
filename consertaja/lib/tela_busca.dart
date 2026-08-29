@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'perfil_profissional.dart';
+import 'perfil_loja.dart';
 import 'tela_meu_perfil_cliente.dart';
+import 'seguindo_cliente.dart';
+import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/cor_oficio.dart';
+import 'utils/iniciais.dart';
 import 'widgets/tag_oficio.dart';
 
 enum _AbaResultado { todos, servicos, profissionais }
@@ -41,6 +45,10 @@ class _ProfissionalBusca {
   final String? caminhoImagem;
   final bool verificado;
   final bool isLoja;
+  final int? idGrupoEmpresa;
+  final String? tagEmpresa;
+  final Color? tagEmpresaBgColor;
+  final Color? tagEmpresaTextColor;
   final List<String> termosBusca;
 
   const _ProfissionalBusca({
@@ -55,6 +63,10 @@ class _ProfissionalBusca {
     this.caminhoImagem,
     this.verificado = true,
     this.isLoja = false,
+    this.idGrupoEmpresa,
+    this.tagEmpresa,
+    this.tagEmpresaBgColor,
+    this.tagEmpresaTextColor,
     required this.termosBusca,
   });
 }
@@ -102,6 +114,7 @@ class _TelaBuscaState extends State<TelaBusca> {
   _AbaResultado _abaAtiva = _AbaResultado.todos;
 
   List<_ProfissionalBusca> _profissionaisSupabase = [];
+  List<_ProfissionalBusca> _empresasSupabase = [];
   bool _carregandoProfissionais = false;
   bool _erroNaBusca = false;
 
@@ -193,7 +206,7 @@ class _TelaBuscaState extends State<TelaBusca> {
           'Especialista em conserto de panelas elétricas e cabos em geral. Atendimento rápido e garantia.',
       localizacao: 'Vila Mariana',
       distancia: '2.5km',
-      caminhoImagem: 'assets/images/perfil_caneta_azul.png',
+      caminhoImagem: '',
       termosBusca: [
         'joão',
         'joao',
@@ -213,7 +226,7 @@ class _TelaBuscaState extends State<TelaBusca> {
           'Profissional experiente em restauração e conserto de utensílios domésticos e panelas.',
       localizacao: 'Moema',
       distancia: '4.1km',
-      caminhoImagem: 'assets/images/perfil_caneta_azul.png',
+      caminhoImagem: '',
       termosBusca: [
         'maria',
         'oliveira',
@@ -255,7 +268,15 @@ class _TelaBuscaState extends State<TelaBusca> {
       categoriaTag: 'Panelas',
       seguidores: 324,
       caminhoImagem: 'assets/images/loja_mundo_loucas.png',
-      termosBusca: ['mundo', 'louças', 'loucas', 'panela', 'panelas', 'cabo', 'conserto'],
+      termosBusca: [
+        'mundo',
+        'louças',
+        'loucas',
+        'panela',
+        'panelas',
+        'cabo',
+        'conserto',
+      ],
     ),
     _PerfilVerificado(
       nome: 'Caedss - Estrada das Lágrimas',
@@ -263,7 +284,15 @@ class _TelaBuscaState extends State<TelaBusca> {
       categoriaTag: 'Panelas',
       seguidores: 923,
       caminhoImagem: 'assets/images/loja_caedss.png',
-      termosBusca: ['caedss', 'panela', 'panelas', 'cabo', 'conserto', 'lágrimas', 'lagrimas'],
+      termosBusca: [
+        'caedss',
+        'panela',
+        'panelas',
+        'cabo',
+        'conserto',
+        'lágrimas',
+        'lagrimas',
+      ],
     ),
     _PerfilVerificado(
       nome: 'Chaveiro - Ipiranga',
@@ -350,6 +379,23 @@ class _TelaBuscaState extends State<TelaBusca> {
     try {
       final supabase = Supabase.instance.client;
 
+      final empresasData = await supabase.from('grupo_empresa').select(
+            'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, fk_perfil',
+          );
+      final empresasPorId = <int, Map<String, dynamic>>{};
+      final empresasPorPerfil = <int, Map<String, dynamic>>{};
+      final gruposPorOficio = <int>{};
+      for (final empresa in empresasData) {
+        final idGrupo = (empresa['id_grupo_empresa'] as num?)?.toInt();
+        if (idGrupo == null) continue;
+        final dados = Map<String, dynamic>.from(empresa);
+        empresasPorId[idGrupo] = dados;
+        final fkPerfil = (empresa['fk_perfil'] as num?)?.toInt();
+        if (fkPerfil != null) empresasPorPerfil[fkPerfil] = dados;
+      }
+
+      List<_ProfissionalBusca> empresasEncontradas = [];
+
       // 1) Busca profissionais por NOME na tabela usuarios (sem joins)
       final usuariosPorNome = await supabase
           .from('usuarios')
@@ -393,6 +439,7 @@ class _TelaBuscaState extends State<TelaBusca> {
 
       // 4) Busca ids_profissional por fk_usuario (para todos os usuários encontrados)
       Map<int, int> usuarioParaProfissional = {};
+      final dadosPorProfissional = <int, Map<String, dynamic>>{};
 
       // Combina todos os ids de usuários relevantes: por nome e por ofício
       final idsUsuariosRelevantes = usuariosPorNome
@@ -405,11 +452,16 @@ class _TelaBuscaState extends State<TelaBusca> {
       if (oficiosPorProfissional.isNotEmpty) {
         final dadosProfPorOficio = await supabase
             .from('dados_profissionais')
-            .select('id_profissional, fk_usuario')
+            .select('id_profissional, fk_usuario, fk_grupo_empresa, fk_perfil')
             .inFilter('id_profissional', oficiosPorProfissional.keys.toList());
 
         for (final dp in dadosProfPorOficio) {
           final idProf = (dp['id_profissional'] as num?)?.toInt();
+          if (idProf != null) {
+            dadosPorProfissional[idProf] = Map<String, dynamic>.from(dp);
+          }
+          final idGrupo = (dp['fk_grupo_empresa'] as num?)?.toInt();
+          if (idGrupo != null) gruposPorOficio.add(idGrupo);
           final idUsuario = (dp['fk_usuario'] as num?)?.toInt();
           if (idProf != null && idUsuario != null) {
             usuarioParaProfissional[idUsuario] = idProf;
@@ -424,16 +476,121 @@ class _TelaBuscaState extends State<TelaBusca> {
       if (idsUsuariosRelevantes.isNotEmpty) {
         final dadosProfissionais = await supabase
             .from('dados_profissionais')
-            .select('id_profissional, fk_usuario')
+            .select('id_profissional, fk_usuario, fk_grupo_empresa, fk_perfil')
             .inFilter('fk_usuario', idsUsuariosRelevantes.toList());
 
         for (final dp in dadosProfissionais) {
           final idProf = (dp['id_profissional'] as num?)?.toInt();
+          if (idProf != null) {
+            dadosPorProfissional[idProf] = Map<String, dynamic>.from(dp);
+          }
           final idUsuario = (dp['fk_usuario'] as num?)?.toInt();
           if (idProf != null && idUsuario != null) {
             usuarioParaProfissional[idUsuario] = idProf;
           }
         }
+      }
+
+      final empresasFiltradas = empresasData.where((empresa) {
+        final idGrupo = (empresa['id_grupo_empresa'] as num?)?.toInt();
+        return _correspondeBusca(
+              [
+                empresa['nome_empresa']?.toString() ?? '',
+                empresa['tag_empresa']?.toString() ?? '',
+              ],
+              termo,
+            ) ||
+            (idGrupo != null && gruposPorOficio.contains(idGrupo));
+      }).toList();
+
+      // Para cada empresa encontrada, carrega a foto e todos os oficios
+      // herdados dos profissionais vinculados (proprietario + membros).
+      for (final empresa in empresasFiltradas) {
+        final idGrupo = (empresa['id_grupo_empresa'] as num?)?.toInt();
+        final fkPerfil = (empresa['fk_perfil'] as num?)?.toInt();
+        final tag = empresa['tag_empresa']?.toString().trim() ?? '';
+        final cor = CorOficio.parse(empresa['cor_tag_empresa']?.toString());
+        final nome = empresa['nome_empresa']?.toString().trim() ?? '';
+
+        final List<OficioInfo> oficiosEmpresa = [];
+        if (idGrupo != null) {
+          try {
+            final Set<int> idsProfissional = <int>{};
+            if (fkPerfil != null) {
+              final dono = await supabase
+                  .from('dados_profissionais')
+                  .select('id_profissional')
+                  .eq('fk_perfil', fkPerfil)
+                  .maybeSingle();
+              final idProfDono = (dono?['id_profissional'] as num?)?.toInt();
+              if (idProfDono != null) idsProfissional.add(idProfDono);
+            }
+
+            final membros = await supabase
+                .from('dados_profissionais')
+                .select('id_profissional')
+                .eq('fk_grupo_empresa', idGrupo);
+
+            for (final m in membros) {
+              final idProf = (m['id_profissional'] as num?)?.toInt();
+              if (idProf != null) idsProfissional.add(idProf);
+            }
+
+            if (idsProfissional.isNotEmpty) {
+              final ass = await supabase
+                  .from('ass_oficio_profissional')
+                  .select('fk_oficio')
+                  .inFilter('fk_profissional', idsProfissional.toList());
+
+              final idsOficios = ass
+                  .map((e) => e['fk_oficio'])
+                  .whereType<num>()
+                  .map((e) => e.toInt())
+                  .toSet()
+                  .toList();
+
+              if (idsOficios.isNotEmpty) {
+                final oficiosData = await supabase
+                    .from('oficios')
+                    .select('funcao, cor')
+                    .inFilter('id_oficio', idsOficios);
+
+                final funcoesVistas = <String>{};
+                for (final row in oficiosData) {
+                  final info = OficioInfo.fromMap(row);
+                  final chave = info.funcao.trim().toLowerCase();
+                  if (info.funcao.trim().isNotEmpty &&
+                      !funcoesVistas.contains(chave)) {
+                    funcoesVistas.add(chave);
+                    oficiosEmpresa.add(info);
+                  }
+                }
+              }
+            }
+          } catch (_) {}
+        }
+
+        empresasEncontradas.add(
+          _ProfissionalBusca(
+            nome: nome.isEmpty ? 'Empresa Parceira' : nome,
+            avaliacao: 4.9,
+            tag1: 'Empresa',
+            descricao: oficiosEmpresa.isNotEmpty
+                ? 'Especialistas em ${oficiosEmpresa.map((o) => o.funcao).join(', ')}'
+                : 'Empresa parceira na plataforma ConsertaJa.',
+            localizacao: 'Localizacao nao informada',
+            distancia: '',
+            caminhoImagem: empresa['foto_url_empresa']?.toString().trim() ?? '',
+            verificado: true,
+            isLoja: true,
+            idGrupoEmpresa: idGrupo,
+            oficios: oficiosEmpresa,
+            tagEmpresa: tag.isEmpty ? null : (tag.startsWith('#') ? tag : '#$tag'),
+            tagEmpresaBgColor: cor,
+            tagEmpresaTextColor: CorOficio.corTextoContraste(cor),
+            termosBusca: [nome, tag],
+          ),
+        );
       }
 
       // Combinar usuários por nome + usuários por ofício
@@ -499,7 +656,9 @@ class _TelaBuscaState extends State<TelaBusca> {
             // Busca endereços
             final enderecosResp = await supabase
                 .from('enderecos')
-                .select('id_endereco, logradouro, numero, complemento, fk_cidade')
+                .select(
+                  'id_endereco, logradouro, numero, complemento, fk_cidade',
+                )
                 .inFilter('id_endereco', idEnderecos);
 
             // Busca cidades
@@ -524,7 +683,8 @@ class _TelaBuscaState extends State<TelaBusca> {
             for (final e in estadosResp) {
               final fk = e['id_estado'];
               final id = fk is int ? fk : int.tryParse(fk?.toString() ?? '');
-              if (id != null) estadosMap[id] = e['sigla_estado']?.toString() ?? '';
+              if (id != null)
+                estadosMap[id] = e['sigla_estado']?.toString() ?? '';
             }
 
             // Mapa de id_endereco -> dados do endereço
@@ -561,7 +721,9 @@ class _TelaBuscaState extends State<TelaBusca> {
 
               final partes = <String>[];
               if (logradouro.isNotEmpty) {
-                partes.add(numero.isNotEmpty ? '$logradouro, $numero' : logradouro);
+                partes.add(
+                  numero.isNotEmpty ? '$logradouro, $numero' : logradouro,
+                );
               }
               if (complemento.isNotEmpty) {
                 partes.add(complemento);
@@ -584,10 +746,24 @@ class _TelaBuscaState extends State<TelaBusca> {
         final nome = usuario['nome']?.toString() ?? '';
         if (nome.trim().isEmpty) continue;
 
-        final String localizacao = localizacaoPorUsuario[usuarioId] ?? 'Localização não informada';
+        final String localizacao =
+            localizacaoPorUsuario[usuarioId] ?? 'Localização não informada';
 
         // Ofícios do profissional (via dados_profissionais + ass_oficio_profissional + oficios)
         final idProfissional = usuarioParaProfissional[usuarioId];
+        final dadosProfissional = idProfissional == null
+          ? null
+          : dadosPorProfissional[idProfissional];
+        final idGrupoEmpresa =
+          (dadosProfissional?['fk_grupo_empresa'] as num?)?.toInt();
+        final fkPerfil = (dadosProfissional?['fk_perfil'] as num?)?.toInt();
+        final empresa = idGrupoEmpresa != null
+          ? empresasPorId[idGrupoEmpresa]
+          : (fkPerfil != null ? empresasPorPerfil[fkPerfil] : null);
+        final tagEmpresaRaw = empresa?['tag_empresa']?.toString().trim() ?? '';
+        final corEmpresa = CorOficio.parse(
+          empresa?['cor_tag_empresa']?.toString(),
+        );
 
         List<OficioInfo> oficiosDoUsuario = [];
         if (idProfissional != null) {
@@ -628,7 +804,7 @@ class _TelaBuscaState extends State<TelaBusca> {
         final foto = usuario['foto_perfil_url']?.toString() ?? '';
         final caminhoImagem = (foto.isNotEmpty && foto.toLowerCase() != 'null')
             ? foto
-            : 'assets/images/perfil_caneta_azul.png';
+            : '';
 
         resultados.add(
           _ProfissionalBusca(
@@ -649,6 +825,17 @@ class _TelaBuscaState extends State<TelaBusca> {
             caminhoImagem: caminhoImagem,
             verificado: true,
             isLoja: false,
+            tagEmpresa: tagEmpresaRaw.isEmpty
+              ? null
+              : (tagEmpresaRaw.startsWith('#')
+                  ? tagEmpresaRaw
+                  : '#$tagEmpresaRaw'),
+            tagEmpresaBgColor: tagEmpresaRaw.isEmpty
+              ? null
+              : corEmpresa,
+            tagEmpresaTextColor: tagEmpresaRaw.isEmpty
+              ? null
+              : CorOficio.corTextoContraste(corEmpresa),
             termosBusca: termosBusca,
           ),
         );
@@ -657,6 +844,7 @@ class _TelaBuscaState extends State<TelaBusca> {
       if (!mounted) return;
       setState(() {
         _profissionaisSupabase = resultados;
+        _empresasSupabase = empresasEncontradas;
         _carregandoProfissionais = false;
       });
     } catch (_) {
@@ -676,11 +864,14 @@ class _TelaBuscaState extends State<TelaBusca> {
 
   List<_ProfissionalBusca> get _profissionaisFiltrados {
     if (_profissionaisSupabase.isNotEmpty) {
-      return _profissionaisSupabase;
+      return [..._profissionaisSupabase, ..._empresasSupabase];
     }
-    return _todosProfissionais
-        .where((p) => _correspondeBusca(p.termosBusca, _termoBusca))
-        .toList();
+    return [
+      ..._todosProfissionais.where(
+        (p) => _correspondeBusca(p.termosBusca, _termoBusca),
+      ),
+      ..._empresasSupabase,
+    ];
   }
 
   List<_PerfilVerificado> get _perfisVerificadosFiltrados {
@@ -698,6 +889,7 @@ class _TelaBuscaState extends State<TelaBusca> {
       _mostrandoResultados = true;
       _abaAtiva = _AbaResultado.todos;
       _profissionaisSupabase = [];
+      _empresasSupabase = [];
     });
     _focusBusca.unfocus();
     await _buscarProfissionaisNoSupabase(texto);
@@ -794,11 +986,7 @@ class _TelaBuscaState extends State<TelaBusca> {
       ),
       child: Text(
         texto,
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-          color: fg,
-        ),
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: fg),
       ),
     );
   }
@@ -816,7 +1004,10 @@ class _TelaBuscaState extends State<TelaBusca> {
                   onPressed: () => Navigator.pop(context),
                   icon: const Icon(Icons.arrow_back, color: Colors.white),
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                  constraints: const BoxConstraints(
+                    minWidth: 40,
+                    minHeight: 40,
+                  ),
                 ),
                 Expanded(
                   child: GestureDetector(
@@ -840,7 +1031,11 @@ class _TelaBuscaState extends State<TelaBusca> {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          Icon(Icons.search, color: Colors.grey.shade500, size: 22),
+                          Icon(
+                            Icons.search,
+                            color: Colors.grey.shade500,
+                            size: 22,
+                          ),
                         ],
                       ),
                     ),
@@ -850,7 +1045,10 @@ class _TelaBuscaState extends State<TelaBusca> {
                   onPressed: () {},
                   icon: const Icon(Icons.radar, color: Colors.white),
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                  constraints: const BoxConstraints(
+                    minWidth: 40,
+                    minHeight: 40,
+                  ),
                 ),
               ],
             ),
@@ -861,13 +1059,21 @@ class _TelaBuscaState extends State<TelaBusca> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.location_on_outlined, color: Colors.white, size: 18),
+                    const Icon(
+                      Icons.location_on_outlined,
+                      color: Colors.white,
+                      size: 18,
+                    ),
                     const SizedBox(width: 4),
                     const Text(
                       'Adicionar Localização',
                       style: TextStyle(color: Colors.white, fontSize: 13),
                     ),
-                    Icon(Icons.keyboard_arrow_down, color: Colors.white.withValues(alpha: 0.9), size: 18),
+                    Icon(
+                      Icons.keyboard_arrow_down,
+                      color: Colors.white.withValues(alpha: 0.9),
+                      size: 18,
+                    ),
                   ],
                 ),
                 const Spacer(),
@@ -879,7 +1085,11 @@ class _TelaBuscaState extends State<TelaBusca> {
                       'Filtros',
                       style: TextStyle(color: Colors.white, fontSize: 13),
                     ),
-                    Icon(Icons.keyboard_arrow_down, color: Colors.white.withValues(alpha: 0.9), size: 18),
+                    Icon(
+                      Icons.keyboard_arrow_down,
+                      color: Colors.white.withValues(alpha: 0.9),
+                      size: 18,
+                    ),
                   ],
                 ),
               ],
@@ -922,7 +1132,8 @@ class _TelaBuscaState extends State<TelaBusca> {
             physics: const BouncingScrollPhysics(),
             itemCount: perfis.length,
             separatorBuilder: (_, __) => const SizedBox(width: 12),
-            itemBuilder: (context, index) => _buildCardPerfilVerificado(perfis[index]),
+            itemBuilder: (context, index) =>
+                _buildCardPerfilVerificado(perfis[index]),
           ),
         ),
       ],
@@ -1020,7 +1231,9 @@ class _TelaBuscaState extends State<TelaBusca> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
-            color: ativa ? _primaryBlue.withValues(alpha: 0.12) : Colors.transparent,
+            color: ativa
+                ? _primaryBlue.withValues(alpha: 0.12)
+                : Colors.transparent,
             border: Border(
               bottom: BorderSide(
                 color: ativa ? _primaryBlue : Colors.grey.shade200,
@@ -1096,10 +1309,17 @@ class _TelaBuscaState extends State<TelaBusca> {
                     Expanded(
                       child: Text(
                         servico.logistica,
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
                       ),
                     ),
-                    const Icon(Icons.local_shipping_outlined, color: _primaryBlue, size: 18),
+                    const Icon(
+                      Icons.local_shipping_outlined,
+                      color: _primaryBlue,
+                      size: 18,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 10),
@@ -1114,11 +1334,18 @@ class _TelaBuscaState extends State<TelaBusca> {
                       ),
                     ),
                     const Spacer(),
-                    Icon(Icons.location_on_outlined, color: Colors.grey.shade500, size: 14),
+                    Icon(
+                      Icons.location_on_outlined,
+                      color: Colors.grey.shade500,
+                      size: 14,
+                    ),
                     const SizedBox(width: 2),
                     Text(
                       servico.localizacao,
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
                     ),
                   ],
                 ),
@@ -1126,6 +1353,22 @@ class _TelaBuscaState extends State<TelaBusca> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLojaPlaceholder() {
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: Icon(
+        Icons.store,
+        color: Colors.grey.shade600,
+        size: 28,
       ),
     );
   }
@@ -1145,15 +1388,20 @@ class _TelaBuscaState extends State<TelaBusca> {
                 clipBehavior: Clip.none,
                 children: [
                   profissional.isLoja
-                      ? Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade200,
-                            borderRadius: BorderRadius.circular(28),
-                          ),
-                          child: Icon(Icons.store, color: Colors.grey.shade600, size: 28),
-                        )
+                      ? (profissional.caminhoImagem != null &&
+                              _imagemEhUrl(profissional.caminhoImagem))
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(28),
+                              child: Image.network(
+                                profissional.caminhoImagem!,
+                                width: 56,
+                                height: 56,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) =>
+                                    _buildLojaPlaceholder(),
+                              ),
+                            )
+                          : _buildLojaPlaceholder()
                       : ClipRRect(
                           borderRadius: BorderRadius.circular(28),
                           child: _imagemEhUrl(profissional.caminhoImagem)
@@ -1165,25 +1413,39 @@ class _TelaBuscaState extends State<TelaBusca> {
                                   errorBuilder: (_, __, ___) => Container(
                                     width: 56,
                                     height: 56,
-                                    color: Colors.grey.shade200,
-                                    child: Icon(Icons.person, color: Colors.grey.shade500),
+                                    color: const Color(0xFFE1F5FE),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      obterIniciais(profissional.nome),
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: _primaryBlue,
+                                      ),
+                                    ),
                                   ),
                                 )
-                              : Image.asset(
-                                  profissional.caminhoImagem!,
+                              : Container(
                                   width: 56,
                                   height: 56,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => Container(
-                                    width: 56,
-                                    height: 56,
-                                    color: Colors.grey.shade200,
-                                    child: Icon(Icons.person, color: Colors.grey.shade500),
+                                  color: const Color(0xFFE1F5FE),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    obterIniciais(profissional.nome),
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: _primaryBlue,
+                                    ),
                                   ),
                                 ),
                         ),
                   if (profissional.verificado)
-                    Positioned(right: -2, bottom: -2, child: _buildVerifiedBadge()),
+                    Positioned(
+                      right: -2,
+                      bottom: -2,
+                      child: _buildVerifiedBadge(),
+                    ),
                 ],
               ),
               const SizedBox(width: 12),
@@ -1207,26 +1469,40 @@ class _TelaBuscaState extends State<TelaBusca> {
                         ),
                         if (profissional.verificado) ...[
                           const SizedBox(width: 4),
-                          const Icon(Icons.verified, color: _primaryBlue, size: 18),
+                          const Icon(
+                            Icons.verified,
+                            color: _primaryBlue,
+                            size: 18,
+                          ),
                         ],
                       ],
                     ),
                     const SizedBox(height: 6),
-                    if (profissional.oficios.isNotEmpty)
+                    if (profissional.tagEmpresa != null ||
+                        profissional.oficios.isNotEmpty)
                       Wrap(
                         spacing: 6,
                         runSpacing: 4,
-                        children: profissional.oficios
-                            .map((oficio) => TagOficio(
-                                  oficio: oficio,
-                                  fontSize: 10,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 3,
-                                  ),
-                                  borderRadius: 20,
-                                ))
-                            .toList(),
+                        children: [
+                          if (profissional.tagEmpresa != null)
+                            _buildTag(
+                              profissional.tagEmpresa!,
+                              profissional.tagEmpresaBgColor ??
+                                  const Color(0xFFE1F5FE),
+                              profissional.tagEmpresaTextColor ?? _primaryBlue,
+                            ),
+                          ...profissional.oficios.map(
+                            (oficio) => TagOficio(
+                              oficio: oficio,
+                              fontSize: 10,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              borderRadius: 20,
+                            ),
+                          ),
+                        ],
                       )
                     else
                       Row(
@@ -1255,14 +1531,22 @@ class _TelaBuscaState extends State<TelaBusca> {
           const SizedBox(height: 10),
           Text(
             profissional.descricao,
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade700, height: 1.4),
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey.shade700,
+              height: 1.4,
+            ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 8),
           Row(
             children: [
-              Icon(Icons.location_on_outlined, color: Colors.grey.shade500, size: 14),
+              Icon(
+                Icons.location_on_outlined,
+                color: Colors.grey.shade500,
+                size: 14,
+              ),
               const SizedBox(width: 2),
               Expanded(
                 child: Text(
@@ -1281,7 +1565,19 @@ class _TelaBuscaState extends State<TelaBusca> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () {
-                if (!profissional.isLoja) {
+                if (profissional.isLoja) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => PerfilLoja(
+                        idGrupoEmpresa: profissional.idGrupoEmpresa,
+                        nomeEmpresa: profissional.nome,
+                        fotoUrlEmpresa: profissional.caminhoImagem,
+                        tagEmpresa: profissional.tagEmpresa,
+                      ),
+                    ),
+                  );
+                } else {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -1335,7 +1631,9 @@ class _TelaBuscaState extends State<TelaBusca> {
     switch (_abaAtiva) {
       case _AbaResultado.servicos:
         if (servicos.isEmpty) {
-          return _buildSemResultados('Nenhum serviço encontrado para "$_termoBusca"');
+          return _buildSemResultados(
+            'Nenhum serviço encontrado para "$_termoBusca"',
+          );
         }
         return ListView(
           padding: const EdgeInsets.all(16),
@@ -1344,7 +1642,9 @@ class _TelaBuscaState extends State<TelaBusca> {
 
       case _AbaResultado.profissionais:
         if (profissionais.isEmpty) {
-          return _buildSemResultados('Nenhum profissional encontrado para "$_termoBusca"');
+          return _buildSemResultados(
+            'Nenhum profissional encontrado para "$_termoBusca"',
+          );
         }
         return ListView(
           padding: const EdgeInsets.all(16),
@@ -1374,25 +1674,27 @@ class _TelaBuscaState extends State<TelaBusca> {
 
       case _AbaResultado.todos:
         if (servicos.isEmpty && profissionais.isEmpty) {
-          return _buildSemResultados('Nenhum resultado encontrado para "$_termoBusca"');
+          return _buildSemResultados(
+            'Nenhum resultado encontrado para "$_termoBusca"',
+          );
         }
         final itens = <Widget>[];
         var indiceServico = 0;
         var indiceProfissional = 0;
-        while (indiceServico < servicos.length || indiceProfissional < profissionais.length) {
+        while (indiceServico < servicos.length ||
+            indiceProfissional < profissionais.length) {
           if (indiceServico < servicos.length) {
             itens.add(_buildCardServico(servicos[indiceServico]));
             indiceServico++;
           }
           if (indiceProfissional < profissionais.length) {
-            itens.add(_buildCardProfissional(profissionais[indiceProfissional]));
+            itens.add(
+              _buildCardProfissional(profissionais[indiceProfissional]),
+            );
             indiceProfissional++;
           }
         }
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: itens,
-        );
+        return ListView(padding: const EdgeInsets.all(16), children: itens);
     }
   }
 
@@ -1428,7 +1730,10 @@ class _TelaBuscaState extends State<TelaBusca> {
                       onPressed: () => Navigator.pop(context),
                       icon: Icon(Icons.arrow_back, color: Colors.grey.shade700),
                       padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                      constraints: const BoxConstraints(
+                        minWidth: 40,
+                        minHeight: 40,
+                      ),
                     ),
                     Expanded(
                       child: TextField(
@@ -1438,19 +1743,30 @@ class _TelaBuscaState extends State<TelaBusca> {
                         onSubmitted: _executarBusca,
                         decoration: InputDecoration(
                           hintText: 'Buscar no ConsertaJá',
-                          hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 15),
+                          hintStyle: TextStyle(
+                            color: Colors.grey.shade500,
+                            fontSize: 15,
+                          ),
                           border: InputBorder.none,
                           isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 10,
+                          ),
                         ),
-                        style: const TextStyle(fontSize: 15, color: Colors.black87),
+                        style: const TextStyle(
+                          fontSize: 15,
+                          color: Colors.black87,
+                        ),
                       ),
                     ),
                     IconButton(
                       onPressed: () => _executarBusca(),
                       icon: Icon(Icons.search, color: Colors.grey.shade700),
                       padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                      constraints: const BoxConstraints(
+                        minWidth: 40,
+                        minHeight: 40,
+                      ),
                     ),
                   ],
                 ),
@@ -1467,7 +1783,9 @@ class _TelaBuscaState extends State<TelaBusca> {
               ),
               TextButton(
                 onPressed: () {
-                  setState(() => _mostrarMaisCategorias = !_mostrarMaisCategorias);
+                  setState(
+                    () => _mostrarMaisCategorias = !_mostrarMaisCategorias,
+                  );
                 },
                 style: TextButton.styleFrom(
                   foregroundColor: Colors.grey.shade700,
@@ -1478,7 +1796,10 @@ class _TelaBuscaState extends State<TelaBusca> {
                   children: [
                     Text(
                       _mostrarMaisCategorias ? 'Ver menos' : 'Ver mais',
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                     Icon(
                       _mostrarMaisCategorias
@@ -1526,49 +1847,37 @@ class _TelaBuscaState extends State<TelaBusca> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
-      body: _mostrandoResultados ? _buildTelaResultados() : _buildTelaBuscaInicial(),
+      body: _mostrandoResultados
+          ? _buildTelaResultados()
+          : _buildTelaBuscaInicial(),
       bottomNavigationBar: _mostrandoResultados
-          ? BottomNavigationBar(
-              type: BottomNavigationBarType.fixed,
-              backgroundColor: Colors.white,
-              selectedItemColor: _primaryBlue,
-              unselectedItemColor: Colors.grey,
-              selectedFontSize: 11,
-              unselectedFontSize: 11,
+          ? BottomNavigationBarCliente(
               currentIndex: 0,
               onTap: (index) {
                 if (index == 0) {
                   Navigator.pop(context);
+                } else if (index == 1) {
+                  Navigator.of(context).pushReplacement(
+                    PageRouteBuilder(
+                      pageBuilder: (_, _, _) => SeguindoClientePage(
+                        isVisitante: widget.isVisitante,
+                      ),
+                      transitionDuration: Duration.zero,
+                      reverseTransitionDuration: Duration.zero,
+                    ),
+                  );
                 } else if (index == 4) {
                   Navigator.of(context).pushReplacement(
                     PageRouteBuilder(
-                      pageBuilder: (_, _, _) =>
-                          TelaMeuPerfilClientePage(isVisitante: widget.isVisitante),
+                      pageBuilder: (_, _, _) => TelaMeuPerfilClientePage(
+                        isVisitante: widget.isVisitante,
+                      ),
                       transitionDuration: Duration.zero,
                       reverseTransitionDuration: Duration.zero,
                     ),
                   );
                 }
               },
-              items: const [
-                BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.people_outline),
-                  label: 'Seguindo',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.chat_bubble_outline),
-                  label: 'Mensagens',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.inventory_2_outlined),
-                  label: 'Pedidos',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.account_circle_outlined),
-                  label: 'Perfil',
-                ),
-              ],
             )
           : null,
     );

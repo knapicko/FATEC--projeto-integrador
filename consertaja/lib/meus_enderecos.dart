@@ -10,7 +10,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'tela_home.dart';
 import 'tela_home_profissional.dart';
 import 'tela_meu_perfil_cliente.dart';
+import 'seguindo_cliente.dart';
 import 'tela_meu_perfil_profissional.dart';
+import 'utils/bottom_navigation_bar_cliente.dart';
+import 'utils/bottom_navigation_bar_profissional.dart';
 
 /// Constantes dos nomes das tabelas no Supabase
 const String _tabelaEndereco = 'enderecos';
@@ -1055,111 +1058,42 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
     );
   }
 
-  Widget _buildPerfilIcon() {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: _blue.withValues(alpha: 0.12),
-      ),
-      child: Icon(
-        widget.isProfissional ? Icons.person : Icons.account_circle,
-        color: _blue,
-        size: 22,
-      ),
-    );
+  Widget _buildBottomNav() {
+    return widget.isProfissional
+        ? BottomNavigationBarProfissional(
+            currentIndex: 4,
+            onTap: _onBottomNavigationTap,
+          )
+        : BottomNavigationBarCliente(
+            currentIndex: 4,
+            onTap: _onBottomNavigationTap,
+          );
   }
 
-  Widget _buildBottomNav() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(
-          top: BorderSide(color: Colors.grey.shade300, width: 0.5),
+  void _onBottomNavigationTap(int index) {
+    if (index == 0) {
+      Navigator.of(context).pushReplacement(
+        _rotaSemAnimacao(
+          widget.isProfissional
+              ? TelaHomeProfissional(isVisitante: widget.isVisitante)
+              : TelaHome(isVisitante: widget.isVisitante),
         ),
-      ),
-      child: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.white,
-        elevation: 0,
-        selectedItemColor: _blue,
-        unselectedItemColor: const Color(0xFF8F8F8F),
-        selectedFontSize: 12,
-        unselectedFontSize: 12,
-        currentIndex: 4,
-        onTap: (index) {
-          switch (index) {
-            case 0:
-              Navigator.of(context).pushReplacement(
-                _rotaSemAnimacao(
-                  widget.isProfissional
-                      ? TelaHomeProfissional(isVisitante: widget.isVisitante)
-                      : TelaHome(isVisitante: widget.isVisitante),
-                ),
-              );
-              break;
-            case 4:
-              Navigator.of(context).pushReplacement(
-                _rotaSemAnimacao(
-                  widget.isProfissional
-                      ? TelaMeuPerfilProfissionalPage(
-                          isVisitante: widget.isVisitante,
-                        )
-                      : TelaMeuPerfilClientePage(
-                          isVisitante: widget.isVisitante,
-                        ),
-                ),
-              );
-              break;
-          }
-        },
-        items: widget.isProfissional
-            ? [
-                const BottomNavigationBarItem(
-                  icon: Icon(Icons.home),
-                  label: 'Home',
-                ),
-                const BottomNavigationBarItem(
-                  icon: Icon(Icons.sensors),
-                  label: 'Radar',
-                ),
-                const BottomNavigationBarItem(
-                  icon: Icon(Icons.chat_bubble_outline),
-                  label: 'Mensagens',
-                ),
-                const BottomNavigationBarItem(
-                  icon: Icon(Icons.archive_outlined),
-                  label: 'Pedidos',
-                ),
-                BottomNavigationBarItem(
-                  icon: _buildPerfilIcon(),
-                  label: 'Perfil',
-                ),
-              ]
-            : [
-                const BottomNavigationBarItem(
-                  icon: Icon(Icons.home),
-                  label: 'Home',
-                ),
-                const BottomNavigationBarItem(
-                  icon: Icon(Icons.people_outline),
-                  label: 'Seguindo',
-                ),
-                const BottomNavigationBarItem(
-                  icon: Icon(Icons.chat_bubble_outline),
-                  label: 'Mensagens',
-                ),
-                const BottomNavigationBarItem(
-                  icon: Icon(Icons.inventory_2_outlined),
-                  label: 'Pedidos',
-                ),
-                BottomNavigationBarItem(
-                  icon: _buildPerfilIcon(),
-                  label: 'Perfil',
-                ),
-              ],
-      ),
-    );
+      );
+    } else if (index == 1 && !widget.isProfissional) {
+      Navigator.of(context).pushReplacement(
+        _rotaSemAnimacao(
+          SeguindoClientePage(isVisitante: widget.isVisitante),
+        ),
+      );
+    } else if (index == 4) {
+      Navigator.of(context).pushReplacement(
+        _rotaSemAnimacao(
+          widget.isProfissional
+              ? TelaMeuPerfilProfissionalPage(isVisitante: widget.isVisitante)
+              : TelaMeuPerfilClientePage(isVisitante: widget.isVisitante),
+        ),
+      );
+    }
   }
 
   @override
@@ -1272,9 +1206,33 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
   static const Color _inputFill = Color(0xFFF5F5F5);
 
   static const List<String> _estados = [
-    'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS',
-    'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC',
-    'SP', 'SE', 'TO',
+    'AC',
+    'AL',
+    'AP',
+    'AM',
+    'BA',
+    'CE',
+    'DF',
+    'ES',
+    'GO',
+    'MA',
+    'MT',
+    'MS',
+    'MG',
+    'PA',
+    'PB',
+    'PR',
+    'PE',
+    'PI',
+    'RJ',
+    'RN',
+    'RS',
+    'RO',
+    'RR',
+    'SC',
+    'SP',
+    'SE',
+    'TO',
   ];
 
   final TextEditingController _cepController = TextEditingController();
@@ -1307,10 +1265,9 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
       _complementoController.text = edit.complemento;
       _bairroController.text = edit.bairro;
       _cidadeController.text = edit.cidade;
-      _estadoSelecionado =
-          _estados.contains(edit.estado.toUpperCase())
-              ? edit.estado.toUpperCase()
-              : null;
+      _estadoSelecionado = _estados.contains(edit.estado.toUpperCase())
+          ? edit.estado.toUpperCase()
+          : null;
       _tipoSalvar = edit.tipoEndereco;
 
       // Carrega coordenadas salvas se existirem

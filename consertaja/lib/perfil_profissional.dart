@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'models/postagem_resumo.dart';
 import 'services/postagens_profissional_service.dart';
 import 'utils/cor_oficio.dart';
+import 'utils/iniciais.dart';
 import 'widgets/tag_oficio.dart';
 
 class PerfilProfissionalPage extends StatefulWidget {
@@ -53,6 +54,9 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   double _lastScrollOffset = 0;
   bool _isScrollingProgrammatically = false;
   DateTime _ultimaAtualizacaoAba = DateTime.fromMillisecondsSinceEpoch(0);
+  double? _offsetDisponibilidade;
+  double? _offsetAvaliacoes;
+  double? _offsetDetalhes;
 
   String _nome = '';
   String? _fotoUrl;
@@ -74,6 +78,10 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   int? _idProfissional;
   int? _idPerfilProfissional;
   int? _idUsuarioLogado;
+  bool _seguindoProfissional = false;
+  bool _carregandoSeguimento = false;
+  bool _alterandoSeguimento = false;
+  int _totalSeguidores = 0;
   List<OficioInfo> _oficios = [];
   Future<List<PostagemResumo>> _postagensGaleriaFuture = Future.value(
     <PostagemResumo>[],
@@ -169,12 +177,17 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   @override
   void initState() {
     super.initState();
-    _nome = widget.nomeInicial;
+    _nome = widget.nomeInicial.isNotEmpty
+        ? widget.nomeInicial
+        : 'Nome não encontrado';
     if (widget.imagemInicial.startsWith('http://') ||
         widget.imagemInicial.startsWith('https://')) {
       _fotoUrl = widget.imagemInicial;
     }
     _scrollController.addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _atualizarOffsetsSecoes();
+    });
     _carregarUsuarioLogado();
     _carregarDadosProfissional();
   }
@@ -223,7 +236,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
         }
 
         setState(() {
-          _nome = response['nome']?.toString() ?? widget.nomeInicial;
+          _nome = response['nome']?.toString() ?? 'Nome não encontrado';
           final foto = response['foto_perfil_url']?.toString();
           if (foto != null && foto.isNotEmpty && foto != 'null') {
             _fotoUrl = foto;
@@ -247,6 +260,9 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
             _carregarOficios(idProfissional),
             _carregarAgendaProfissional(idProfissional),
           ]);
+        }
+        if (fkPerfil != null) {
+          await _carregarSeguimento(fkPerfil);
         }
       }
     } catch (_) {
@@ -276,6 +292,120 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
     } catch (_) {
       // Se não conseguir identificar o usuário, mantém como null.
     }
+  }
+
+  Future<void> _carregarSeguimento(int idPerfil) async {
+    if (_carregandoSeguimento) return;
+    _carregandoSeguimento = true;
+
+    try {
+      if (_idUsuarioLogado == null) {
+        await _carregarUsuarioLogado();
+      }
+
+      final supabase = Supabase.instance.client;
+      final seguidores = await supabase
+          .from('seguidores_profissional')
+          .select('id_seguidor_profissional')
+          .eq('fk_perfil', idPerfil);
+
+      var seguindo = false;
+      final idUsuario = _idUsuarioLogado;
+      if (idUsuario != null) {
+        final vinculo = await supabase
+            .from('seguidores_profissional')
+            .select('id_seguidor_profissional')
+            .eq('fk_perfil', idPerfil)
+            .eq('fk_usuario', idUsuario)
+            .maybeSingle();
+        seguindo = vinculo != null;
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _totalSeguidores = seguidores.length;
+        _seguindoProfissional = seguindo;
+      });
+    } catch (_) {
+      // Mantém o estado inicial se a consulta de seguidores falhar.
+    } finally {
+      _carregandoSeguimento = false;
+    }
+  }
+
+  Future<void> _alternarSeguimento() async {
+    final idPerfil = _idPerfilProfissional;
+    if (_alterandoSeguimento || idPerfil == null) return;
+
+    if (_idUsuarioLogado == null) {
+      await _carregarUsuarioLogado();
+    }
+
+    final idUsuario = _idUsuarioLogado;
+    if (idUsuario == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Faça login para seguir profissionais.')),
+      );
+      return;
+    }
+
+    final seguindoAntes = _seguindoProfissional;
+    final totalAntes = _totalSeguidores;
+    setState(() {
+      _alterandoSeguimento = true;
+      _seguindoProfissional = !seguindoAntes;
+      _totalSeguidores = totalAntes + (seguindoAntes ? -1 : 1);
+    });
+
+    try {
+      final supabase = Supabase.instance.client;
+      if (seguindoAntes) {
+        await supabase
+            .from('seguidores_profissional')
+            .delete()
+            .eq('fk_perfil', idPerfil)
+            .eq('fk_usuario', idUsuario);
+      } else {
+        await supabase.from('seguidores_profissional').insert({
+          'seguido_em': DateTime.now().toUtc().toIso8601String(),
+          'fk_perfil': idPerfil,
+          'fk_usuario': idUsuario,
+        });
+      }
+
+      await _carregarSeguimento(idPerfil);
+    } catch (erro) {
+      if (!mounted) return;
+      setState(() {
+        _seguindoProfissional = seguindoAntes;
+        _totalSeguidores = totalAntes;
+      });
+      final mensagem = erro is PostgrestException && _erroPermissaoRls(erro)
+          ? 'Sem permissão para seguir. Crie as políticas RLS da tabela seguidores_profissional no Supabase.'
+          : _tabelaSeguidoresIndisponivel(erro)
+          ? 'A tabela seguidores_profissional não está disponível no schema public do Supabase.'
+          : 'Não foi possível atualizar o seguimento.';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(mensagem)));
+    } finally {
+      if (mounted) {
+        setState(() => _alterandoSeguimento = false);
+      }
+    }
+  }
+
+  bool _tabelaSeguidoresIndisponivel(Object erro) {
+    if (erro is! PostgrestException) return false;
+    final texto = '${erro.message} ${erro.details ?? ''} ${erro.hint ?? ''}'
+        .toLowerCase();
+    return erro.code == '42P01' ||
+        texto.contains('seguidores_profissional') &&
+            (texto.contains('not found') ||
+                texto.contains('does not exist') ||
+                texto.contains('schema cache') ||
+                texto.contains('relation'));
   }
 
   Future<List<PostagemResumo>> _carregarPostagensGaleria(
@@ -873,6 +1003,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                                         child: Image.network(
                                           postagem.imagemUrl!,
                                           fit: BoxFit.contain,
+                                          cacheWidth: 1080,
                                           errorBuilder: (_, _, _) => const Icon(
                                             Icons.broken_image_outlined,
                                             color: Colors.white54,
@@ -1177,6 +1308,12 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
     );
   }
 
+  void _atualizarOffsetsSecoes() {
+    _offsetDisponibilidade = _offsetDaSecao(_disponibilidadeKey);
+    _offsetAvaliacoes = _offsetDaSecao(_avaliacoesKey);
+    _offsetDetalhes = _offsetDaSecao(_detalhesKey);
+  }
+
   void _onScroll() {
     if (!_scrollController.hasClients) return;
 
@@ -1228,10 +1365,10 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
 
   int _calcularAbaAtiva(double scrollOffset) {
     final scrollTop = scrollOffset + _pinnedHeaderHeight;
-    final keys = [_disponibilidadeKey, _avaliacoesKey, _detalhesKey];
+    final offsets = [_offsetDisponibilidade, _offsetAvaliacoes, _offsetDetalhes];
     var aba = 0;
-    for (var i = 0; i < keys.length; i++) {
-      final sectionOffset = _offsetDaSecao(keys[i]);
+    for (var i = 0; i < offsets.length; i++) {
+      final sectionOffset = offsets[i];
       if (sectionOffset != null && scrollTop >= sectionOffset - 20) {
         aba = i;
       }
@@ -1293,17 +1430,19 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
               ),
               SliverToBoxAdapter(
                 key: _disponibilidadeKey,
-                child: _buildSecaoDisponibilidade(),
+                child: RepaintBoundary(child: _buildSecaoDisponibilidade()),
               ),
               SliverToBoxAdapter(
                 key: _avaliacoesKey,
-                child: _buildSecaoAvaliacoes(),
+                child: RepaintBoundary(child: _buildSecaoAvaliacoes()),
               ),
               SliverToBoxAdapter(
                 key: _detalhesKey,
-                child: _buildSecaoDetalhes(),
+                child: RepaintBoundary(child: _buildSecaoDetalhes()),
               ),
-              SliverToBoxAdapter(child: _buildCatalogoServicos()),
+              SliverToBoxAdapter(
+                child: RepaintBoundary(child: _buildCatalogoServicos()),
+              ),
               SliverToBoxAdapter(
                 key: _footerButtonKey,
                 child: Padding(
@@ -1429,7 +1568,50 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                   ),
                 ),
               const SizedBox(width: 8),
-              const Icon(Icons.person_add_alt_1, color: _primaryBlue, size: 20),
+              InkWell(
+                onTap: _carregandoSeguimento || _alterandoSeguimento
+                    ? null
+                    : _alternarSeguimento,
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 4,
+                  ),
+                  child: _alterandoSeguimento
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: _primaryBlue,
+                          ),
+                        )
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _seguindoProfissional
+                                  ? Icons.person
+                                  : Icons.person_add_alt_1,
+                              color: _primaryBlue,
+                              size: 20,
+                            ),
+                            if (_seguindoProfissional) ...[
+                              const SizedBox(width: 4),
+                              const Text(
+                                'Seguindo',
+                                style: TextStyle(
+                                  color: _primaryBlue,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                ),
+              ),
             ],
           ),
         ),
@@ -1491,7 +1673,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
               _buildMetrica(
                 icone: Icons.person_outline,
                 iconeCor: _primaryBlue,
-                valor: '200',
+                valor: '$_totalSeguidores',
                 label: 'Seguidores',
               ),
             ],
@@ -1512,10 +1694,8 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
       return Image.network(
         imagemParaExibir,
         fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => Container(
-          color: Colors.grey.shade200,
-          child: const Icon(Icons.person, color: Colors.grey, size: 40),
-        ),
+        cacheWidth: 200,
+        errorBuilder: (_, _, _) => _buildIniciaisPerfil(),
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
           return const Center(
@@ -1527,14 +1707,21 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
         },
       );
     }
-    return Image.asset(
-      widget.imagemInicial.isNotEmpty
-          ? widget.imagemInicial
-          : 'assets/images/perfil_caneta_azul.png',
-      fit: BoxFit.cover,
-      errorBuilder: (_, _, _) => Container(
-        color: Colors.grey.shade100,
-        child: const Icon(Icons.person, color: Colors.grey, size: 40),
+    return _buildIniciaisPerfil();
+  }
+
+  Widget _buildIniciaisPerfil() {
+    final nomeExibicao = _nome.isNotEmpty ? _nome : 'Nome não encontrado';
+    return Container(
+      color: const Color(0xFFE1F5FE),
+      alignment: Alignment.center,
+      child: Text(
+        obterIniciais(nomeExibicao),
+        style: const TextStyle(
+          fontSize: 32,
+          fontWeight: FontWeight.bold,
+          color: _primaryBlue,
+        ),
       ),
     );
   }
@@ -2369,6 +2556,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                         ? Image.network(
                             postagem.imagemUrl!,
                             fit: BoxFit.cover,
+                            cacheWidth: 440,
                             errorBuilder: (_, _, _) => Container(
                               color: Colors.grey.shade200,
                               child: const Icon(
