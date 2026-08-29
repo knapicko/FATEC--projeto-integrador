@@ -50,4 +50,7 @@ flutter:
   assets:
     - assets/images/
     - assets/images/oficios/
+    - assets/images/oficios/categorias/
+    - assets/images/oficios/funcao/
+    - assets/images/oficios/funcao_azul/
     - assets/images/oficios_imgs/
