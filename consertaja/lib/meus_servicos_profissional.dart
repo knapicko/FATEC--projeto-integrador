@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'adicionar_servico_profissional.dart';
+
 class MeusServicosProfissionalPage extends StatelessWidget {
   const MeusServicosProfissionalPage({super.key});
 
@@ -56,7 +58,15 @@ class MeusServicosProfissionalPage extends StatelessWidget {
       floatingActionButton: Container(
         margin: const EdgeInsets.only(bottom: 8),
         child: FloatingActionButton.extended(
-          onPressed: () {},
+          onPressed: () {
+            Navigator.of(context).push(
+              PageRouteBuilder(
+                pageBuilder: (_, __, ___) => const AdicionarServicoProfissionalPage(),
+                transitionDuration: Duration.zero,
+                reverseTransitionDuration: Duration.zero,
+              ),
+            );
+          },
           backgroundColor: _primaryBlue,
           foregroundColor: Colors.white,
           elevation: 8,
