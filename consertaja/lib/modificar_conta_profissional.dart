@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'utils/iniciais.dart';
 
 class ModificarContaProfissionalPage extends StatefulWidget {
   const ModificarContaProfissionalPage({super.key});
@@ -42,7 +43,7 @@ class _ModificarContaProfissionalPageState
   bool _enviandoFoto = false;
 
   String? _fotoPerfilUrl;
-  String _nomeCompleto = 'Profissional';
+  String _nomeCompleto = 'Nome não encontrado';
   String? _anosExperienciaSelecionado;
   _TipoConta _tipoConta = _TipoConta.independente;
   bool _isPessoaJuridica = false;
@@ -88,7 +89,7 @@ class _ModificarContaProfissionalPageState
       _idUsuario = (usuario['id_usuario'] as num?)?.toInt();
       _nomeCompleto = (usuario['nome']?.toString().trim().isNotEmpty ?? false)
           ? usuario['nome'].toString().trim()
-          : 'Profissional';
+          : 'Nome não encontrado';
       _fotoPerfilUrl = usuario['foto_perfil_url']?.toString();
 
       // Verifica se o profissional é pessoa jurídica (possui CNPJ)
@@ -459,10 +460,8 @@ class _ModificarContaProfissionalPageState
                             : null,
                         child:
                             (_fotoPerfilUrl == null || _fotoPerfilUrl!.isEmpty)
-                            ? Text(
-                                _nomeCompleto.isNotEmpty
-                                    ? _nomeCompleto[0].toUpperCase()
-                                    : 'P',
+                                            ? Text(
+                                obterIniciais(_nomeCompleto),
                                 style: const TextStyle(
                                   color: _blue,
                                   fontSize: 28,

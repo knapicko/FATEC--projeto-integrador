@@ -104,6 +104,9 @@ class _AlterarDisponibilidadePageState
   bool _salvando = false;
   bool _carregando = true;
 
+  DateTime? _dataInicioFerias;
+  DateTime? _dataFimFerias;
+
   // Seleção múltipla de datas para bloqueio em lote.
   bool _selecaoMultiplaAtiva = false;
   final Set<DateTime> _datasSelecionadasMultipla = {};
@@ -933,6 +936,121 @@ class _AlterarDisponibilidadePageState
     }
   }
 
+  String _formatarDataBrasileira(DateTime data) {
+    final dia = data.day.toString().padLeft(2, '0');
+    final mes = data.month.toString().padLeft(2, '0');
+    final ano = data.year.toString();
+    return '$dia/$mes/$ano';
+  }
+
+  Future<void> _selecionarDataFerias({required bool inicio}) async {
+    final dataReferencia = (inicio
+            ? _dataInicioFerias
+            : _dataFimFerias) ??
+        DateTime.now();
+
+    final dataSelecionada = await showDatePicker(
+      context: context,
+      initialDate: dataReferencia,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      locale: const Locale('pt', 'BR'),
+    );
+
+    if (dataSelecionada == null || !mounted) return;
+
+    setState(() {
+      if (inicio) {
+        _dataInicioFerias = dataSelecionada;
+        if (_dataFimFerias != null &&
+            _dataFimFerias!.isBefore(dataSelecionada)) {
+          _dataFimFerias = dataSelecionada;
+        }
+      } else {
+        _dataFimFerias = dataSelecionada;
+        if (_dataInicioFerias != null &&
+            dataSelecionada.isBefore(_dataInicioFerias!)) {
+          _dataInicioFerias = dataSelecionada;
+        }
+      }
+    });
+
+    if (_dataInicioFerias != null && _dataFimFerias != null) {
+      await _salvarPeriodoFerias();
+    }
+  }
+
+  Future<void> _salvarPeriodoFerias() async {
+    final inicio = _dataInicioFerias;
+    final fim = _dataFimFerias;
+
+    if (inicio == null || fim == null) return;
+
+    final dataInicio = DateTime(inicio.year, inicio.month, inicio.day);
+    final dataFim = DateTime(fim.year, fim.month, fim.day);
+    final inicioCorreto = dataFim.isBefore(dataInicio) ? dataFim : dataInicio;
+    final fimCorreto = dataFim.isBefore(dataInicio) ? dataInicio : dataFim;
+
+    try {
+      final idProfissional = await _buscarIdProfissional();
+      if (idProfissional == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Não foi possível identificar o profissional.'),
+            ),
+          );
+        }
+        return;
+      }
+
+      final datas = <DateTime>[];
+      var dataAtual = inicioCorreto;
+      while (!dataAtual.isAfter(fimCorreto)) {
+        datas.add(DateTime(dataAtual.year, dataAtual.month, dataAtual.day));
+        dataAtual = dataAtual.add(const Duration(days: 1));
+      }
+
+      for (final data in datas) {
+        final chave = _formatarDataCompleta(data);
+        await _persistirExcecao(
+          chave,
+          _DadosExcecao.diaInteiro(observacao: 'Férias'),
+        );
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _excecoesLocal.addAll({
+          for (final data in datas)
+            _formatarDataCompleta(data):
+                _DadosExcecao.diaInteiro(observacao: 'Férias'),
+        });
+        _sincronizarDiasBloqueadosVisiveis();
+        _dataInicioFerias = null;
+        _dataFimFerias = null;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Período de férias salvo para ${datas.length} ${datas.length == 1 ? 'dia' : 'dias'}.',
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint('Erro ao salvar período de férias: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Erro ao salvar o período de férias.'),
+          ),
+        );
+      }
+    }
+  }
+
   String _nomeDiaPorNumero(int dia) {
     return '$dia de ${_meses[_mesExibido.month - 1]}';
   }
@@ -1482,6 +1600,139 @@ class _AlterarDisponibilidadePageState
     );
   }
 
+  Widget _buildCampoDataFerias({
+    required String rotulo,
+    required DateTime? data,
+    required VoidCallback onTap,
+  }) {
+    final valor = data == null ? 'dd/mm/aaaa' : _formatarDataBrasileira(data);
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F2F4),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _textGray.withValues(alpha: 0.2)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      rotulo,
+                      style: TextStyle(
+                        color: _textGray.withValues(alpha: 0.8),
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      valor,
+                      style: TextStyle(
+                        color: data == null
+                            ? _textGray.withValues(alpha: 0.45)
+                            : _textDark,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.calendar_month_outlined,
+                color: _textGray.withValues(alpha: 0.7),
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPeriodoFerias() {
+    return Container(
+      margin: const EdgeInsets.only(top: 18),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _textGray.withValues(alpha: 0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: _cardBlueBg,
+                  borderRadius: BorderRadius.circular(21),
+                ),
+                child: const Icon(
+                  Icons.flight_takeoff_rounded,
+                  color: _blue,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Definir período de férias',
+                  style: TextStyle(
+                    color: _textDark,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Selecione o intervalo de datas em que você estará ausente.',
+            style: TextStyle(
+              color: _textDark,
+              fontSize: 15,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              _buildCampoDataFerias(
+                rotulo: 'Data Inicial',
+                data: _dataInicioFerias,
+                onTap: () => _selecionarDataFerias(inicio: true),
+              ),
+              const SizedBox(width: 12),
+              _buildCampoDataFerias(
+                rotulo: 'Data Final',
+                data: _dataFimFerias,
+                onTap: () => _selecionarDataFerias(inicio: false),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildListaExcecoes() {
     final prefixo =
         '${_mesExibido.year}-${_mesExibido.month.toString().padLeft(2, '0')}-';
@@ -1581,6 +1832,7 @@ class _AlterarDisponibilidadePageState
         children: [
           _buildCalendario(),
           _buildSelecaoMultipla(),
+          _buildPeriodoFerias(),
           _buildListaExcecoes(),
         ],
       ),

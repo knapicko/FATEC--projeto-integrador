@@ -12,6 +12,8 @@ import 'politica_de_privacidade.dart';
 import 'sobre_conserta_ja.dart';
 import 'tela_home_profissional.dart';
 import 'main.dart';
+import 'utils/bottom_navigation_bar_profissional.dart';
+import 'utils/iniciais.dart';
 
 class TelaMeuPerfilProfissionalPage extends StatefulWidget {
   final bool isVisitante;
@@ -35,7 +37,7 @@ class _TelaMeuPerfilProfissionalPageState
   final SupabaseClient _supabase = Supabase.instance.client;
 
   bool _isLoading = true;
-  String _nomeCompleto = 'Carregando...';
+  String _nomeCompleto = 'Nome não encontrado';
   String _email = '';
   String? _fotoPerfilUrl;
 
@@ -51,7 +53,7 @@ class _TelaMeuPerfilProfissionalPageState
 
     if (widget.isVisitante) {
       _isLoading = false;
-      _nomeCompleto = 'Visitante';
+      _nomeCompleto = 'Nome não encontrado';
       _email = '';
       _fotoPerfilUrl = null;
       return;
@@ -96,7 +98,9 @@ class _TelaMeuPerfilProfissionalPageState
         _avisosAtivos.clear();
 
         _nomeCompleto =
-            (data?['nome'] ?? user.userMetadata?['nome'] ?? 'Usuário')
+            (data?['nome'] ??
+                    user.userMetadata?['nome'] ??
+                    'Nome não encontrado')
                 .toString();
         _email = (data?['email'] ?? user.email ?? '').toString();
         _fotoPerfilUrl = data?['foto_perfil_url']?.toString();
@@ -119,7 +123,7 @@ class _TelaMeuPerfilProfissionalPageState
     } catch (_) {
       if (mounted) {
         setState(() {
-          _nomeCompleto = 'Erro ao carregar';
+          _nomeCompleto = 'Nome não encontrado';
           _isLoading = false;
         });
       }
@@ -151,28 +155,8 @@ class _TelaMeuPerfilProfissionalPageState
     });
   }
 
-  String _obterIniciais(String? nome) {
-    if (nome == null || nome.trim().isEmpty) {
-      return 'U';
-    }
-
-    final partes = nome.trim().split(' ');
-
-    if (partes.length > 1) {
-      final sobrenome = partes.last.trim();
-
-      if (sobrenome.length >= 2) {
-        return sobrenome.substring(0, 2).toUpperCase();
-      }
-
-      return sobrenome.toUpperCase();
-    }
-
-    return nome.substring(0, 1).toUpperCase();
-  }
-
   Widget _buildAvatar() {
-    final initials = _obterIniciais(_nomeCompleto);
+    final initials = obterIniciais(_nomeCompleto);
 
     final Widget avatar =
         _fotoPerfilUrl != null && _fotoPerfilUrl!.trim().isNotEmpty
@@ -556,7 +540,11 @@ class _TelaMeuPerfilProfissionalPageState
                 SizedBox(
                   width: 28,
                   child: Center(
-                    child: Icon(Icons.edit_outlined, color: _iconGray, size: 24),
+                    child: Icon(
+                      Icons.edit_outlined,
+                      color: _iconGray,
+                      size: 24,
+                    ),
                   ),
                 ),
                 SizedBox(width: 12),
@@ -589,45 +577,20 @@ class _TelaMeuPerfilProfissionalPageState
   }
 
   Widget _buildBottomNav() {
-    return BottomNavigationBar(
-      type: BottomNavigationBarType.fixed,
-      backgroundColor: Colors.white,
-      selectedItemColor: _blue,
-      unselectedItemColor: const Color(0xFF8F8F8F),
+    return BottomNavigationBarProfissional(
       currentIndex: 4,
       onTap: (index) async {
-        switch (index) {
-          case 0:
-            Navigator.of(context).pushReplacement(
-              _rotaSemAnimacao(
-                TelaHomeProfissional(isVisitante: widget.isVisitante),
-              ),
-            );
-            break;
-
-          case 4:
-            if (!widget.isVisitante) {
-              await _carregarDadosPerfil();
-              if (mounted) {
-                setState(() {});
-              }
-            }
-            break;
+        if (index == 0) {
+          Navigator.of(context).pushReplacement(
+            _rotaSemAnimacao(
+              TelaHomeProfissional(isVisitante: widget.isVisitante),
+            ),
+          );
+        } else if (index == 4 && !widget.isVisitante) {
+          await _carregarDadosPerfil();
+          if (mounted) setState(() {});
         }
       },
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-        BottomNavigationBarItem(icon: Icon(Icons.sensors), label: 'Radar'),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.chat_bubble_outline),
-          label: 'Mensagens',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.archive_outlined),
-          label: 'Pedidos',
-        ),
-        BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Perfil'),
-      ],
     );
   }
 
@@ -733,8 +696,7 @@ class _TelaMeuPerfilProfissionalPageState
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) =>
-                              const PerguntasFrequentesPage(),
+                          builder: (context) => const PerguntasFrequentesPage(),
                         ),
                       );
                     },
@@ -784,55 +746,56 @@ class _TelaMeuPerfilProfissionalPageState
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const PoliticaDePrivacidadePage(),
+                          builder: (context) =>
+                              const PoliticaDePrivacidadePage(),
                         ),
                       );
                     },
                   ),
 
-                   const Divider(height: 1, thickness: 1, color: _divider),
+                  const Divider(height: 1, thickness: 1, color: _divider),
 
-                   InkWell(
-                     onTap: _sairDaConta,
-                     child: Padding(
-                       padding: const EdgeInsets.symmetric(
-                         horizontal: 16,
-                         vertical: 14,
-                       ),
-                       child: Row(
-                         children: [
-                           const SizedBox(
-                             width: 28,
-                             child: Center(
-                               child: Icon(
-                                 Icons.logout,
-                                 color: Colors.red,
-                                 size: 24,
-                               ),
-                             ),
-                           ),
-                           const SizedBox(width: 12),
-                           const Expanded(
-                             child: Text(
-                               'Sair da conta',
-                               style: TextStyle(
-                                 color: Colors.red,
-                                 fontSize: 16,
-                                 fontWeight: FontWeight.w400,
-                               ),
-                             ),
-                           ),
-                           const Icon(
-                             Icons.chevron_right,
-                             color: Colors.red,
-                             size: 20,
-                           ),
-                         ],
-                       ),
-                     ),
-                   ),
+                  InkWell(
+                    onTap: _sairDaConta,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      child: Row(
+                        children: [
+                          const SizedBox(
+                            width: 28,
+                            child: Center(
+                              child: Icon(
+                                Icons.logout,
+                                color: Colors.red,
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Text(
+                              'Sair da conta',
+                              style: TextStyle(
+                                color: Colors.red,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
+                          ),
+                          const Icon(
+                            Icons.chevron_right,
+                            color: Colors.red,
+                            size: 20,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
 
-                   const SizedBox(height: 20),
+                  const SizedBox(height: 20),
                 ],
               ),
             ),

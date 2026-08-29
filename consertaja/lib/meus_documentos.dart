@@ -49,9 +49,11 @@ class _MeusDocumentosPageState extends State<MeusDocumentosPage> {
 
   bool _carregando = true;
   bool _salvando = false;
+  bool _ehPessoaJuridica = false;
   List<_DocumentoItem> _documentos = [];
 
-  /// Mapeia o tipo de documento vindo do Supabase para os dados de exibição.
+  /// Mapeia o tipo de documento vindo do Supabase para os dados de exibição
+  /// (Pessoa Física).
   static const Map<String, ({String titulo, String subtitulo, IconData icone})>
       _tiposDocumento = {
     'RG': (
@@ -76,8 +78,42 @@ class _MeusDocumentosPageState extends State<MeusDocumentosPage> {
     ),
   };
 
-  /// Ordem de exibição dos tipos de documento.
+  /// Mapeia o tipo de documento vindo do Supabase para os dados de exibição
+  /// (Pessoa Jurídica).
+  static const Map<String, ({String titulo, String subtitulo, IconData icone})>
+      _tiposDocumentoPJ = {
+    'Cartão CNPJ': (
+      titulo: 'Cartão CNPJ',
+      subtitulo: 'Cartão CNPJ',
+      icone: Icons.credit_card_outlined,
+    ),
+    'Contrato Social': (
+      titulo: 'Contrato Social',
+      subtitulo: 'Contrato Social / Estatuto Social / Requerimento Empresário',
+      icone: Icons.folder_shared_outlined,
+    ),
+    'Notas Fiscais (DANFE)': (
+      titulo: 'Notas Fiscais (DANFE)',
+      subtitulo: 'Notas Fiscais (DANFE)',
+      icone: Icons.receipt_long_outlined,
+    ),
+    'Alvará de Funcionamento': (
+      titulo: 'Alvará de Funcionamento',
+      subtitulo: 'Alvará de Funcionamento',
+      icone: Icons.verified_user_outlined,
+    ),
+  };
+
+  /// Ordem de exibição dos tipos de documento (Pessoa Física).
   static const List<String> _ordemTipos = ['RG', 'CIN', 'CNH', 'Passaporte'];
+
+  /// Ordem de exibição dos tipos de documento (Pessoa Jurídica).
+  static const List<String> _ordemTiposPJ = [
+    'Cartão CNPJ',
+    'Contrato Social',
+    'Notas Fiscais (DANFE)',
+    'Alvará de Funcionamento',
+  ];
 
   @override
   void initState() {
@@ -94,6 +130,40 @@ class _MeusDocumentosPageState extends State<MeusDocumentosPage> {
     if (response == null) return null;
     final id = response['id_usuario'];
     return id is int ? id : int.tryParse(id?.toString() ?? '');
+  }
+
+  /// Verifica se o usuário logado é pessoa jurídica.
+  Future<bool> _buscarEhPessoaJuridica() async {
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) return false;
+
+      final usuario = await _supabase
+          .from('usuarios')
+          .select('fk_tipo_pessoa')
+          .eq('auth_id', user.id)
+          .maybeSingle();
+      if (usuario == null) return false;
+
+      final tipoPessoaId = usuario['fk_tipo_pessoa'];
+      if (tipoPessoaId == null) return false;
+
+      final assTipoPessoa = await _supabase
+          .from('ass_tipo_pessoa')
+          .select('fk_pessoa_fisica, fk_pessoa_juridica')
+          .eq('id_tipo_pessoa', tipoPessoaId)
+          .maybeSingle();
+      if (assTipoPessoa == null) return false;
+
+      final pfId = assTipoPessoa['fk_pessoa_fisica'];
+      if (pfId != null) return false;
+
+      final pjId = assTipoPessoa['fk_pessoa_juridica'];
+      return pjId != null;
+    } catch (e) {
+      debugPrint('Erro ao verificar tipo de pessoa: $e');
+      return false;
+    }
   }
 
   Future<void> _carregarDocumentos() async {
@@ -131,13 +201,16 @@ class _MeusDocumentosPageState extends State<MeusDocumentosPage> {
         return;
       }
 
-      // 3. Busca os documentos do profissional
+      // 3. Verifica se o usuário é pessoa jurídica
+      final ehPessoaJuridica = await _buscarEhPessoaJuridica();
+
+      // 4. Busca os documentos do profissional
       final docsResponse = await _supabase
           .from('documentos_profissionais')
           .select('tipo_documento, validacao_documento')
           .eq('fk_profissional', idProfissional);
 
-      // 4. Converte os dados do Supabase para um mapa de status por tipo
+      // 5. Converte os dados do Supabase para um mapa de status por tipo
       final statusPorTipo = <String, bool>{};
       for (final doc in docsResponse) {
         final tipo = doc['tipo_documento']?.toString() ?? '';
@@ -145,13 +218,16 @@ class _MeusDocumentosPageState extends State<MeusDocumentosPage> {
         statusPorTipo[tipo] = doc['validacao_documento'] == true;
       }
 
-      // 5. Monta a lista de documentos exibindo TODOS os tipos possíveis.
+      // 6. Monta a lista de documentos exibindo TODOS os tipos possíveis.
       //    Documentos que não existem no banco ou com validacao_documento = false
       //    são exibidos como pendentes.
       final documentos = <_DocumentoItem>[];
 
-      for (final tipo in _ordemTipos) {
-        final info = _tiposDocumento[tipo];
+      final tipos = ehPessoaJuridica ? _tiposDocumentoPJ : _tiposDocumento;
+      final ordemTipos = ehPessoaJuridica ? _ordemTiposPJ : _ordemTipos;
+
+      for (final tipo in ordemTipos) {
+        final info = tipos[tipo];
         if (info == null) continue;
 
         final validado = statusPorTipo[tipo] ?? false;
@@ -173,6 +249,7 @@ class _MeusDocumentosPageState extends State<MeusDocumentosPage> {
       if (mounted) {
         setState(() {
           _documentos = documentos;
+          _ehPessoaJuridica = ehPessoaJuridica;
           _carregando = false;
         });
       }
@@ -425,12 +502,12 @@ class _MeusDocumentosPageState extends State<MeusDocumentosPage> {
   }
 
   Widget _buildIntroducao() {
-    return const Padding(
-      padding: EdgeInsets.fromLTRB(16, 8, 16, 16),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'Documentos validados',
             style: TextStyle(
               color: _textDark,
@@ -438,10 +515,12 @@ class _MeusDocumentosPageState extends State<MeusDocumentosPage> {
               fontWeight: FontWeight.bold,
             ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(
-            'Gerencie seus documentos de identidade. Documentos validados aumentam sua confiabilidade na plataforma.',
-            style: TextStyle(
+            _ehPessoaJuridica
+                ? 'Gerencie os documentos da sua empresa. Documentos validados aumentam sua confiabilidade na plataforma.'
+                : 'Gerencie seus documentos de identidade. Documentos validados aumentam sua confiabilidade na plataforma.',
+            style: const TextStyle(
               color: _textGray,
               fontSize: 14,
               height: 1.45,
@@ -1002,6 +1081,8 @@ class _ValidarDocumentoPageState extends State<_ValidarDocumentoPage> {
   }
 
   Future<void> _capturarVerso() async {
+    if (_processando) return;
+
     final source = await _mostrarOpcoesOrigem('Verso do Documento');
     if (source == null) {
       if (mounted) Navigator.pop(context);
@@ -1010,7 +1091,7 @@ class _ValidarDocumentoPageState extends State<_ValidarDocumentoPage> {
 
     final XFile? file = await _picker.pickImage(
       source: source,
-      imageQuality: 85,
+      imageQuality: 100,
     );
 
     if (file == null) {
@@ -1020,282 +1101,82 @@ class _ValidarDocumentoPageState extends State<_ValidarDocumentoPage> {
 
     setState(() {
       _filePathVerso = file.path;
-      _processando = true;
     });
 
-    // Processa OCR da frente e verso
-    String fullText = '';
-    try {
-      fullText = await _processarOcr(File(_filePathFrente!));
-    } catch (e) {
-      fullText = '';
-    }
-
-    String fullTextVerso = '';
-    try {
-      fullTextVerso = await _processarOcr(File(_filePathVerso!));
-    } catch (e) {
-      fullTextVerso = '';
-    }
-
-    fullText = '$fullText\n$fullTextVerso';
-
-    debugPrint('=== TEXTO EXTRAÍDO DO DOCUMENTO ${widget.tipoDocumento} ===');
-    debugPrint(fullText);
-    debugPrint('==============================================');
-
-    // Valida o documento
-    final erros = <String>[];
-    bool valido = true;
-
-    if (widget.isPessoaJuridica) {
-      final cnpjDigitado = widget.cnpj != null ? _somenteDigitos(widget.cnpj!) : null;
-      final cnpjEncontrado = _extrairCnpj(fullText);
-
-      if (cnpjDigitado == null) {
-        erros.add('CNPJ não encontrado no cadastro.');
-        valido = false;
-      } else if (cnpjEncontrado == null) {
-        erros.add('Não foi possível identificar o CNPJ no documento.');
-        valido = false;
-      } else if (cnpjEncontrado != cnpjDigitado) {
-        erros.add('CNPJ do documento não corresponde ao CNPJ cadastrado.');
-        valido = false;
-      }
-    } else {
-      final cpfDigitado = widget.cpf != null ? _somenteDigitos(widget.cpf!) : null;
-      final cpfEncontrado = _extrairCpf(fullText);
-      final datas = _extrairDatas(fullText);
-      final dataNascimentoStr = widget.dataNascimento;
-
-      switch (widget.tipoDocumento) {
-        case 'RG':
-          if (cpfDigitado == null) {
-            erros.add('CPF não encontrado no cadastro.');
-            valido = false;
-          } else if (cpfEncontrado == null) {
-            erros.add('Não foi possível identificar o CPF no documento.');
-            valido = false;
-          } else if (cpfEncontrado != cpfDigitado) {
-            erros.add('CPF do documento não corresponde ao CPF cadastrado.');
-            valido = false;
-          }
-
-          final rg = _extrairRg(fullText);
-          final uf = _extrairUf(fullText);
-          if (!_validarFormatoRg(rg, uf)) {
-            erros.add('Número do RG não identificado ou formato inválido.');
-            valido = false;
-          }
-
-          if (dataNascimentoStr != null && dataNascimentoStr.isNotEmpty) {
-            final dataNascEsperada = _parseData(dataNascimentoStr);
-            if (dataNascEsperada != null) {
-              final dataEncontrada = _encontrarDataNascimento(datas, dataNascimentoStr);
-              if (dataEncontrada == null) {
-                erros.add('Data de nascimento não encontrada no documento.');
-                valido = false;
-              } else if (dataEncontrada.year != dataNascEsperada.year ||
-                  dataEncontrada.month != dataNascEsperada.month ||
-                  dataEncontrada.day != dataNascEsperada.day) {
-                erros.add('Data de nascimento do documento não confere com a cadastrada.');
-                valido = false;
-              }
-            }
-          }
-
-          final orgao = _extrairOrgaoEmissor(fullText);
-          if (orgao == null) {
-            erros.add('Órgão emissor não identificado.');
-            valido = false;
-          }
-          if (uf == null) {
-            erros.add('UF do documento não identificada.');
-            valido = false;
-          } else if (!_ufsValidas.contains(uf)) {
-            erros.add('UF "$uf" não é válida.');
-            valido = false;
-          }
-          break;
-
-        case 'CIN':
-          if (cpfDigitado == null) {
-            erros.add('CPF não encontrado no cadastro.');
-            valido = false;
-          } else if (cpfEncontrado == null) {
-            erros.add('Não foi possível identificar o CPF no documento.');
-            valido = false;
-          } else if (cpfEncontrado != cpfDigitado) {
-            erros.add('CPF do documento não corresponde ao CPF cadastrado.');
-            valido = false;
-          }
-          if (dataNascimentoStr != null && dataNascimentoStr.isNotEmpty) {
-            final dataNascEsperada = _parseData(dataNascimentoStr);
-            if (dataNascEsperada != null) {
-              final dataEncontrada = _encontrarDataNascimento(datas, dataNascimentoStr);
-              if (dataEncontrada == null) {
-                erros.add('Data de nascimento não encontrada no documento.');
-                valido = false;
-              } else if (dataEncontrada.year != dataNascEsperada.year ||
-                  dataEncontrada.month != dataNascEsperada.month ||
-                  dataEncontrada.day != dataNascEsperada.day) {
-                erros.add('Data de nascimento do documento não confere com a cadastrada.');
-                valido = false;
-              }
-            }
-          }
-          final orgao = _extrairOrgaoEmissor(fullText);
-          if (orgao == null) {
-            erros.add('Órgão emissor não identificado.');
-            valido = false;
-          }
-          final uf = _extrairUf(fullText);
-          if (uf == null) {
-            erros.add('UF do documento não identificada.');
-            valido = false;
-          } else if (!_ufsValidas.contains(uf)) {
-            erros.add('UF "$uf" não é válida.');
-            valido = false;
-          }
-          break;
-
-        case 'CNH':
-          if (cpfDigitado == null) {
-            erros.add('CPF não encontrado no cadastro.');
-            valido = false;
-          } else if (cpfEncontrado == null) {
-            erros.add('Não foi possível identificar o CPF no documento.');
-            valido = false;
-          } else if (cpfEncontrado != cpfDigitado) {
-            erros.add('CPF do documento não corresponde ao CPF cadastrado.');
-            valido = false;
-          }
-          final hojeCNH = DateTime.now();
-          bool temDataValida = false;
-          for (final data in datas) {
-            if (data.isAfter(hojeCNH) ||
-                (data.year == hojeCNH.year && data.month == hojeCNH.month && data.day == hojeCNH.day)) {
-              temDataValida = true;
-              break;
-            }
-          }
-          if (!temDataValida && datas.isNotEmpty) {
-            erros.add('Documento parece estar vencido (data de validade expirada).');
-            valido = false;
-          }
-          if (dataNascimentoStr != null && dataNascimentoStr.isNotEmpty) {
-            final dataNascEsperada = _parseData(dataNascimentoStr);
-            if (dataNascEsperada != null) {
-              final dataEncontrada = _encontrarDataNascimento(datas, dataNascimentoStr);
-              if (dataEncontrada == null) {
-                erros.add('Data de nascimento não encontrada no documento.');
-                valido = false;
-              } else if (dataEncontrada.year != dataNascEsperada.year ||
-                  dataEncontrada.month != dataNascEsperada.month ||
-                  dataEncontrada.day != dataNascEsperada.day) {
-                erros.add('Data de nascimento do documento não confere com a cadastrada.');
-                valido = false;
-              }
-            }
-          }
-          break;
-
-        case 'Passaporte':
-          final hojePass = DateTime.now();
-          bool temDataValidaPass = false;
-          for (final data in datas) {
-            if (data.isAfter(hojePass)) {
-              temDataValidaPass = true;
-              break;
-            }
-          }
-          if (!temDataValidaPass) {
-            erros.add('Passaporte parece estar vencido ou data de validade não identificada.');
-            valido = false;
-          }
-          if (dataNascimentoStr != null && dataNascimentoStr.isNotEmpty) {
-            final dataNascEsperada = _parseData(dataNascimentoStr);
-            if (dataNascEsperada != null) {
-              final dataEncontrada = _encontrarDataNascimento(datas, dataNascimentoStr);
-              if (dataEncontrada == null) {
-                erros.add('Data de nascimento não encontrada no passaporte.');
-                valido = false;
-              } else if (dataEncontrada.year != dataNascEsperada.year ||
-                  dataEncontrada.month != dataNascEsperada.month ||
-                  dataEncontrada.day != dataNascEsperada.day) {
-                erros.add('Data de nascimento do passaporte não confere com a cadastrada.');
-                valido = false;
-              }
-            }
-          }
-          if (!_verificarNacionalidadeBrasileira(fullText)) {
-            erros.add('Nacionalidade brasileira não identificada no passaporte.');
-            valido = false;
-          }
-          break;
-      }
-    }
-
-    if (!mounted) return;
-
-    setState(() {
-      _processando = false;
-    });
-
-    if (valido) {
-      // Sucesso - retorna o resultado
-      Navigator.pop(context, {
-        'validado': true,
-        'docsData': [
-          {'tipo': widget.tipoDocumento},
-        ],
-      });
-    } else {
-      // Falha - mostra erro e permite tentar novamente
-      _mostrarErroValidacao(erros);
-    }
+    // Processa os documentos
+    await _processarDocumentos();
   }
 
-  void _mostrarErroValidacao(List<String> erros) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Falha na validação', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Não foi possível validar o documento. Verifique:'),
-            const SizedBox(height: 12),
-            ...erros.map((e) => Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.error_outline, color: Colors.red, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(e, style: const TextStyle(fontSize: 13))),
-                ],
-              ),
-            )),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancelar'),
+  Future<void> _processarDocumentos() async {
+    if (_processando) return;
+    setState(() => _processando = true);
+
+    try {
+      final frente = File(_filePathFrente!);
+      final verso = File(_filePathVerso!);
+
+      final ocrFrente = await _processarOcr(frente);
+      final ocrVerso = await _processarOcr(verso);
+
+      final textoCompleto = '$ocrFrente\n$ocrVerso';
+
+      // Validação específica para PJ ou PF
+      final docsData = <Map<String, dynamic>>[];
+
+      if (widget.isPessoaJuridica) {
+        // Validação para Pessoa Jurídica
+        final cnpj = _extrairCnpj(textoCompleto);
+        final cnpjValido = cnpj != null && _validarCnpjLocal(cnpj);
+
+        if (cnpjValido) {
+          docsData.add({
+            'tipo': widget.tipoDocumento,
+            'validado': true,
+          });
+        }
+      } else {
+        // Validação para Pessoa Física
+        final cpf = _extrairCpf(textoCompleto);
+        final cpfValido = cpf != null && _validarCpfLocal(cpf);
+
+        if (cpfValido) {
+          docsData.add({
+            'tipo': widget.tipoDocumento,
+            'validado': true,
+          });
+        }
+      }
+
+      if (mounted) {
+        if (docsData.isNotEmpty) {
+          Navigator.pop(context, {
+            'validado': true,
+            'docsData': docsData,
+          });
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Não foi possível validar o documento. Tente novamente.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          if (mounted) Navigator.pop(context);
+        }
+      }
+    } catch (e) {
+      debugPrint('Erro ao processar documentos: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao processar documentos: $e'),
+            backgroundColor: Colors.red,
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              // Tenta novamente
-              _capturarFrente();
-            },
-            child: const Text('Tentar Novamente', style: TextStyle(color: _blue)),
-          ),
-        ],
-      ),
-    );
+        );
+        Navigator.pop(context);
+      }
+    } finally {
+      if (mounted) setState(() => _processando = false);
+    }
   }
 
   @override
@@ -1303,47 +1184,39 @@ class _ValidarDocumentoPageState extends State<_ValidarDocumentoPage> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
+        title: Text(widget.tipoDocumento),
         backgroundColor: Colors.white,
+        foregroundColor: _blue,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: _blue),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          'Validar ${widget.tipoDocumento}',
-          style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
-        ),
-        centerTitle: true,
       ),
       body: Center(
-        child: _processando
-            ? const Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(color: _blue),
-                  SizedBox(height: 16),
-                  Text(
-                    'Validando documento...',
-                    style: TextStyle(fontSize: 16, color: Colors.black87),
-                  ),
-                ],
-              )
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.credit_card, size: 80, color: _blue),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Capturando documento...',
-                    style: TextStyle(fontSize: 16, color: Colors.black87),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Aguarde, estamos preparando a captura.',
-                    style: TextStyle(fontSize: 14, color: Colors.grey),
-                  ),
-                ],
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(color: _blue),
+            const SizedBox(height: 24),
+            Text(
+              'Processando ${widget.tipoDocumento}...',
+              style: const TextStyle(
+                fontSize: 16,
+                color: Colors.black54,
+                fontWeight: FontWeight.w500,
               ),
+            ),
+            const SizedBox(height: 8),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 40),
+              child: Text(
+                'Aguarde enquanto validamos as informações do documento.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

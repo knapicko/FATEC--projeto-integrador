@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'tela_home.dart';
+import 'seguindo_cliente.dart';
 import 'editar_informacoes.dart';
 import 'meus_enderecos.dart';
 import 'perguntas_frequentes.dart';
@@ -8,6 +9,8 @@ import 'termos_de_uso.dart';
 import 'politica_de_privacidade.dart';
 import 'sobre_conserta_ja.dart';
 import 'main.dart';
+import 'utils/bottom_navigation_bar_cliente.dart';
+import 'utils/iniciais.dart';
 
 class TelaMeuPerfilClientePage extends StatefulWidget {
   final bool isVisitante;
@@ -30,7 +33,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
   final SupabaseClient _supabase = Supabase.instance.client;
 
   bool _isLoading = true;
-  String _nomeCompleto = 'Carregando...';
+  String _nomeCompleto = 'Nome não encontrado';
   String? _fotoPerfilUrl;
 
   final double _avaliacao = 4.9;
@@ -46,7 +49,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
 
     if (widget.isVisitante) {
       _isLoading = false;
-      _nomeCompleto = 'Visitante';
+      _nomeCompleto = 'Nome não encontrado';
       _fotoPerfilUrl = null;
       return;
     }
@@ -90,7 +93,9 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
         _avisosAtivos.clear();
 
         _nomeCompleto =
-            (data?['nome'] ?? user.userMetadata?['nome'] ?? 'Usuário')
+            (data?['nome'] ??
+                    user.userMetadata?['nome'] ??
+                    'Nome não encontrado')
                 .toString();
         _fotoPerfilUrl = data?['foto_perfil_url']?.toString();
 
@@ -112,7 +117,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
     } catch (_) {
       if (mounted) {
         setState(() {
-          _nomeCompleto = 'Erro ao carregar';
+          _nomeCompleto = 'Nome não encontrado';
           _isLoading = false;
         });
       }
@@ -133,28 +138,8 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
     );
   }
 
-  String _obterIniciais(String? nome) {
-    if (nome == null || nome.trim().isEmpty) {
-      return 'U';
-    }
-
-    final partes = nome.trim().split(' ');
-
-    if (partes.length > 1) {
-      final sobrenome = partes.last.trim();
-
-      if (sobrenome.length >= 2) {
-        return sobrenome.substring(0, 2).toUpperCase();
-      }
-
-      return sobrenome.toUpperCase();
-    }
-
-    return nome.substring(0, 1).toUpperCase();
-  }
-
   Widget _buildAvatar() {
-    final initials = _obterIniciais(_nomeCompleto);
+    final initials = obterIniciais(_nomeCompleto);
 
     final Widget avatar =
         _fotoPerfilUrl != null && _fotoPerfilUrl!.trim().isNotEmpty
@@ -546,229 +531,199 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
   }
 
   Widget _buildBottomNav() {
-    return BottomNavigationBar(
-      type: BottomNavigationBarType.fixed,
-      backgroundColor: Colors.white,
-      selectedItemColor: _blue,
-      unselectedItemColor: const Color(0xFF8F8F8F),
-      currentIndex: 4, // Perfil selecionado
-      onTap: (index) async {
-        switch (index) {
-          case 0:
-            Navigator.of(context).pushReplacement(
-              _rotaSemAnimacao(TelaHome(isVisitante: widget.isVisitante)),
-            );
-            break;
-
-          case 4:
-            if (!widget.isVisitante) {
-              await _carregarDadosPerfil();
-              if (mounted) {
-                setState(() {});
-              }
-            }
-            break;
+    return BottomNavigationBarCliente(
+      currentIndex: 4,
+      onTap: (index) {
+        if (index == 0) {
+          Navigator.of(context).pushReplacement(
+            _rotaSemAnimacao(TelaHome(isVisitante: widget.isVisitante)),
+          );
+        } else if (index == 1) {
+          Navigator.of(context).pushReplacement(
+            _rotaSemAnimacao(
+              SeguindoClientePage(isVisitante: widget.isVisitante),
+            ),
+          );
         }
+        // index == 4: already on the profile page, do nothing to avoid blinking
       },
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people_outline),
-            label: 'Seguindo',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.chat_bubble_outline),
-            label: 'Mensagens',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.inventory_2_outlined),
-            label: 'Pedidos',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.account_circle_outlined),
-            label: 'Perfil',
-        ),
-      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: _background,
-        body: Center(child: CircularProgressIndicator(color: _blue)),
-      );
-    }
-
     return Scaffold(
       backgroundColor: _background,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.zero,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: _blue))
+          : SafeArea(
+              bottom: false,
+              child: Column(
                 children: [
-                  _buildTopHeader(),
-                  if (!widget.isVisitante && _avisosAtivos.isNotEmpty)
-                    _buildAvisoAtual(),
-                  if (!widget.isVisitante) _buildChipsTopo(),
-                  const SizedBox(height: 10),
-                  const Divider(height: 1, thickness: 1, color: _divider),
+                  Expanded(
+                    child: ListView(
+                      padding: EdgeInsets.zero,
+                      children: [
+                        _buildTopHeader(),
+                        if (!widget.isVisitante && _avisosAtivos.isNotEmpty)
+                          _buildAvisoAtual(),
+                        if (!widget.isVisitante) _buildChipsTopo(),
+                        const SizedBox(height: 10),
+                        const Divider(height: 1, thickness: 1, color: _divider),
 
-                  _buildSectionTitle('Sua Atividade'),
-                  _buildProfileItem(
-                    label: 'Meus Endereços',
-                    imageAsset: 'assets/images/Endereço_Cinza.png',
-                    fallbackIcon: Icons.location_on_outlined,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => MeusEnderecosPage(
-                            isVisitante: widget.isVisitante,
+                        _buildSectionTitle('Sua Atividade'),
+                        _buildProfileItem(
+                          label: 'Meus Endereços',
+                          imageAsset: 'assets/images/Endereço_Cinza.png',
+                          fallbackIcon: Icons.location_on_outlined,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => MeusEnderecosPage(
+                                  isVisitante: widget.isVisitante,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        _buildProfileItem(
+                          label: 'Histórico de Pedidos',
+                          imageAsset: 'assets/images/CaixaPedido_Cinza.png',
+                          fallbackIcon: Icons.inventory_2_outlined,
+                        ),
+                        _buildProfileItem(
+                          label: 'Avaliações de Serviços',
+                          fallbackIcon: Icons.star_rounded,
+                          useRoundedIcon: true,
+                        ),
+                        _buildProfileItem(
+                          label: 'Notificações',
+                          fallbackIcon: Icons.notifications_none_rounded,
+                        ),
+                        _buildProfileItem(
+                          label: 'Serviços Favoritados',
+                          fallbackIcon: Icons.favorite_border_rounded,
+                        ),
+
+                        const Divider(height: 1, thickness: 1, color: _divider),
+
+                        _buildSectionTitle('Suporte'),
+                        _buildProfileItem(
+                          label: 'Perguntas Frequentes',
+                          fallbackIcon: Icons.help_outline_rounded,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const PerguntasFrequentesPage(),
+                              ),
+                            );
+                          },
+                        ),
+                        _buildProfileItem(
+                          label: 'Fale Conosco',
+                          imageAsset: 'assets/images/Suporte_Cinza.png',
+                          fallbackIcon: Icons.support_agent_rounded,
+                        ),
+                        _buildProfileItem(
+                          label: 'Sobre a ConsertaJá',
+                          imageAsset: 'assets/images/ConsertaJa_Cinza.png',
+                          fallbackIcon: Icons.info_outline_rounded,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const SobreConsertaJaPage(),
+                              ),
+                            );
+                          },
+                        ),
+
+                        const Divider(height: 1, thickness: 1, color: _divider),
+
+                        _buildProfileItem(
+                          label: 'Configurações',
+                          imageAsset: 'assets/images/Configuracoes_Cinza.png',
+                          fallbackIcon: Icons.settings_outlined,
+                        ),
+                        _buildProfileItem(
+                          label: 'Termos de Uso',
+                          fallbackIcon: Icons.description_outlined,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const TermosDeUsoPage(),
+                              ),
+                            );
+                          },
+                        ),
+                        _buildProfileItem(
+                          label: 'Política de Privacidade',
+                          fallbackIcon: Icons.privacy_tip_outlined,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const PoliticaDePrivacidadePage(),
+                              ),
+                            );
+                          },
+                        ),
+
+                        const Divider(height: 1, thickness: 1, color: _divider),
+
+                        InkWell(
+                          onTap: _sairDaConta,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                            child: Row(
+                              children: [
+                                const SizedBox(
+                                  width: 28,
+                                  child: Center(
+                                    child: Icon(
+                                      Icons.logout,
+                                      color: Colors.red,
+                                      size: 24,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                const Expanded(
+                                  child: Text(
+                                    'Sair da conta',
+                                    style: TextStyle(
+                                      color: Colors.red,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w400,
+                                    ),
+                                  ),
+                                ),
+                                const Icon(
+                                  Icons.chevron_right,
+                                  color: Colors.red,
+                                  size: 20,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      );
-                    },
-                  ),
-                  _buildProfileItem(
-                    label: 'Histórico de Pedidos',
-                    imageAsset: 'assets/images/CaixaPedido_Cinza.png',
-                    fallbackIcon: Icons.inventory_2_outlined,
-                  ),
-                  _buildProfileItem(
-                    label: 'Avaliações de Serviços',
-                    fallbackIcon: Icons.star_rounded,
-                    useRoundedIcon: true,
-                  ),
-                  _buildProfileItem(
-                    label: 'Notificações',
-                    fallbackIcon: Icons.notifications_none_rounded,
-                  ),
-                  _buildProfileItem(
-                    label: 'Serviços Favoritados',
-                    fallbackIcon: Icons.favorite_border_rounded,
-                  ),
 
-                  const Divider(height: 1, thickness: 1, color: _divider),
-
-                  _buildSectionTitle('Suporte'),
-                  _buildProfileItem(
-                    label: 'Perguntas Frequentes',
-                    fallbackIcon: Icons.help_outline_rounded,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const PerguntasFrequentesPage(),
-                        ),
-                      );
-                    },
+                        const SizedBox(height: 20),
+                      ],
+                    ),
                   ),
-                  _buildProfileItem(
-                    label: 'Fale Conosco',
-                    imageAsset: 'assets/images/Suporte_Cinza.png',
-                    fallbackIcon: Icons.support_agent_rounded,
-                  ),
-                  _buildProfileItem(
-                    label: 'Sobre a ConsertaJá',
-                    imageAsset: 'assets/images/ConsertaJa_Cinza.png',
-                    fallbackIcon: Icons.info_outline_rounded,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const SobreConsertaJaPage(),
-                        ),
-                      );
-                    },
-                  ),
-
-                  const Divider(height: 1, thickness: 1, color: _divider),
-
-                  _buildProfileItem(
-                    label: 'Configurações',
-                    imageAsset: 'assets/images/Configuracoes_Cinza.png',
-                    fallbackIcon: Icons.settings_outlined,
-                  ),
-                  _buildProfileItem(
-                    label: 'Termos de Uso',
-                    fallbackIcon: Icons.description_outlined,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const TermosDeUsoPage(),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildProfileItem(
-                    label: 'Política de Privacidade',
-                    fallbackIcon: Icons.privacy_tip_outlined,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const PoliticaDePrivacidadePage(),
-                        ),
-                      );
-                    },
-                  ),
-
-                   const Divider(height: 1, thickness: 1, color: _divider),
-
-                   InkWell(
-                     onTap: _sairDaConta,
-                     child: Padding(
-                       padding: const EdgeInsets.symmetric(
-                         horizontal: 16,
-                         vertical: 14,
-                       ),
-                       child: Row(
-                         children: [
-                           const SizedBox(
-                             width: 28,
-                             child: Center(
-                               child: Icon(
-                                 Icons.logout,
-                                 color: Colors.red,
-                                 size: 24,
-                               ),
-                             ),
-                           ),
-                           const SizedBox(width: 12),
-                           const Expanded(
-                             child: Text(
-                               'Sair da conta',
-                               style: TextStyle(
-                                 color: Colors.red,
-                                 fontSize: 16,
-                                 fontWeight: FontWeight.w400,
-                               ),
-                             ),
-                           ),
-                           const Icon(
-                             Icons.chevron_right,
-                             color: Colors.red,
-                             size: 20,
-                           ),
-                         ],
-                       ),
-                     ),
-                   ),
-
-                   const SizedBox(height: 20),
                 ],
               ),
             ),
-          ],
-        ),
-      ),
       bottomNavigationBar: _buildBottomNav(),
     );
   }

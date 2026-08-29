@@ -6,7 +6,10 @@ import 'perfil_profissional.dart';
 import 'meus_enderecos.dart';
 import 'tela_meu_perfil_cliente.dart';
 import 'tela_busca.dart';
+import 'seguindo_cliente.dart';
 import 'utils/cor_oficio.dart';
+import 'utils/bottom_navigation_bar_cliente.dart';
+import 'utils/iniciais.dart';
 import 'widgets/foto_perfil_google.dart';
 import 'widgets/tag_oficio.dart';
 
@@ -43,6 +46,7 @@ class ServicoProximo {
 }
 
 class LojaPopular {
+  final int? idGrupoEmpresa;
   final String titulo;
   final double avaliacao;
   final int totalAvaliacoes;
@@ -54,10 +58,15 @@ class LojaPopular {
   final Color tag2BgColor;
   final Color tag2TextColor;
   final String caminhoImagem;
+  final String bannerUrl;
+  final String? tagEmpresa;
+  final String? corTagEmpresaHex;
+  final List<OficioInfo> oficios;
   final bool isVerified;
   final String descricao;
 
   LojaPopular({
+    this.idGrupoEmpresa,
     required this.titulo,
     required this.avaliacao,
     required this.totalAvaliacoes,
@@ -69,8 +78,12 @@ class LojaPopular {
     required this.tag2BgColor,
     required this.tag2TextColor,
     required this.caminhoImagem,
+    this.bannerUrl = '',
+    this.tagEmpresa,
+    this.corTagEmpresaHex,
+    this.oficios = const [],
     this.isVerified = false,
-    this.descricao = 'Eletricista Residencial | 120+ serviços concluídos',
+    this.descricao = 'Especialistas em reparos e serviços',
   });
 }
 
@@ -86,6 +99,9 @@ class PerfilPopular {
   final String metrica;
   final bool isVerified;
   final List<OficioInfo> oficios;
+  final String? tagEmpresa;
+  final Color? tagEmpresaBgColor;
+  final Color? tagEmpresaTextColor;
 
   PerfilPopular({
     required this.nome,
@@ -99,6 +115,9 @@ class PerfilPopular {
     this.metrica = '120+ serviços concluídos',
     this.isVerified = true,
     this.oficios = const [],
+    this.tagEmpresa,
+    this.tagEmpresaBgColor,
+    this.tagEmpresaTextColor,
   });
 }
 
@@ -128,7 +147,6 @@ class TelaHome extends StatefulWidget {
 }
 
 class _TelaHomeState extends State<TelaHome> {
-
   static const Color _primaryBlue = Color(0xFF0FB3FF);
   static const Color _ratingBg = Color(0xFFFFF8E1);
   static const Color _ratingText = Color(0xFFE65100);
@@ -255,7 +273,7 @@ class _TelaHomeState extends State<TelaHome> {
       tag: 'Eletricista',
       tagBgColor: const Color(0xFFE1F5FE),
       tagTextColor: _primaryBlue,
-      caminhoImagem: 'assets/images/perfil_caneta_azul.png',
+      caminhoImagem: '',
     ),
     PerfilPopular(
       nome: 'Carlos Mendes',
@@ -264,7 +282,7 @@ class _TelaHomeState extends State<TelaHome> {
       tag: 'Eletricista',
       tagBgColor: const Color(0xFFE1F5FE),
       tagTextColor: _primaryBlue,
-      caminhoImagem: 'assets/images/perfil_caneta_azul.png',
+      caminhoImagem: '',
     ),
     PerfilPopular(
       nome: 'Carlos Mendes',
@@ -273,16 +291,16 @@ class _TelaHomeState extends State<TelaHome> {
       tag: 'Eletricista',
       tagBgColor: const Color(0xFFE1F5FE),
       tagTextColor: _primaryBlue,
-      caminhoImagem: 'assets/images/perfil_caneta_azul.png',
+      caminhoImagem: '',
     ),
     PerfilPopular(
-      nome: 'Caneta Azul',
+      nome: 'Nome não encontrado',
       avaliacao: 4.9,
       totalAvaliacoes: 423,
       tag: 'Chaveiro',
       tagBgColor: const Color(0xFFE1F5FE),
       tagTextColor: _primaryBlue,
-      caminhoImagem: 'assets/images/perfil_caneta_azul.png',
+      caminhoImagem: '',
       profissao: 'Chaveiro',
     ),
   ];
@@ -323,7 +341,11 @@ class _TelaHomeState extends State<TelaHome> {
     return _capitalizar(texto);
   }
 
-  String _formatarEnderecoCompleto(Map<String, dynamic> row, String cidade, String estado) {
+  String _formatarEnderecoCompleto(
+    Map<String, dynamic> row,
+    String cidade,
+    String estado,
+  ) {
     final logradouro = row['logradouro']?.toString().trim() ?? '';
     final numero = row['numero']?.toString().trim() ?? '';
     final bairro = row['bairro']?.toString().trim() ?? '';
@@ -360,14 +382,18 @@ class _TelaHomeState extends State<TelaHome> {
 
       final assResponse = await supabase
           .from('ass_usuario_endereco')
-          .select('fk_endereco, apelido_endereco, tipo_endereco, endereco_ativo')
+          .select(
+            'fk_endereco, apelido_endereco, tipo_endereco, endereco_ativo',
+          )
           .eq('fk_usuario', usuarioId);
 
       if (assResponse.isEmpty) return [];
 
       final enderecosResponse = await supabase
           .from('enderecos')
-          .select('id_endereco, logradouro, numero, bairro, complemento, fk_cidade');
+          .select(
+            'id_endereco, logradouro, numero, bairro, complemento, fk_cidade',
+          );
 
       final cidadesResponse = await supabase
           .from('cidades')
@@ -382,7 +408,8 @@ class _TelaHomeState extends State<TelaHome> {
         final idCidade = cidade['id_cidade'] is int
             ? cidade['id_cidade'] as int
             : int.tryParse(cidade['id_cidade']?.toString() ?? '');
-        if (idCidade != null) cidadesMap[idCidade] = Map<String, dynamic>.from(cidade);
+        if (idCidade != null)
+          cidadesMap[idCidade] = Map<String, dynamic>.from(cidade);
       }
 
       final Map<int, String> estadosMap = {};
@@ -403,14 +430,11 @@ class _TelaHomeState extends State<TelaHome> {
             : int.tryParse(fkEndereco?.toString() ?? '');
         if (idEndereco == null) continue;
 
-        final enderecoRow = enderecosResponse.firstWhere(
-          (row) {
-            final id = row['id_endereco'];
-            final idRow = id is int ? id : int.tryParse(id?.toString() ?? '');
-            return idRow == idEndereco;
-          },
-          orElse: () => const {},
-        );
+        final enderecoRow = enderecosResponse.firstWhere((row) {
+          final id = row['id_endereco'];
+          final idRow = id is int ? id : int.tryParse(id?.toString() ?? '');
+          return idRow == idEndereco;
+        }, orElse: () => const {});
 
         final fkCidade = enderecoRow['fk_cidade'];
         final idCidade = fkCidade is int
@@ -426,7 +450,9 @@ class _TelaHomeState extends State<TelaHome> {
         final estado = idEstado != null ? estadosMap[idEstado] ?? '' : '';
 
         final apelido = ass['apelido_endereco']?.toString().trim() ?? '';
-        final tipoEndereco = _tipoEnderecoExibicao(ass['tipo_endereco']?.toString());
+        final tipoEndereco = _tipoEnderecoExibicao(
+          ass['tipo_endereco']?.toString(),
+        );
         final principal = ass['endereco_ativo'] == true;
 
         enderecos.add(
@@ -434,7 +460,11 @@ class _TelaHomeState extends State<TelaHome> {
             idEndereco: idEndereco,
             titulo: apelido.isNotEmpty ? apelido : tipoEndereco,
             tipoEndereco: tipoEndereco,
-            enderecoFormatado: _formatarEnderecoCompleto(enderecoRow, cidade, estado),
+            enderecoFormatado: _formatarEnderecoCompleto(
+              enderecoRow,
+              cidade,
+              estado,
+            ),
             principal: principal,
           ),
         );
@@ -522,10 +552,24 @@ class _TelaHomeState extends State<TelaHome> {
     try {
       final supabase = Supabase.instance.client;
 
+      final empresasData = await supabase.from('grupo_empresa').select(
+            'id_grupo_empresa, tag_empresa, cor_tag_empresa, fk_perfil',
+          );
+      final empresasPorId = <int, Map<String, dynamic>>{};
+      final empresasPorPerfil = <int, Map<String, dynamic>>{};
+      for (final empresa in empresasData) {
+        final idGrupo = (empresa['id_grupo_empresa'] as num?)?.toInt();
+        if (idGrupo == null) continue;
+        final dados = Map<String, dynamic>.from(empresa);
+        empresasPorId[idGrupo] = dados;
+        final fkPerfil = (empresa['fk_perfil'] as num?)?.toInt();
+        if (fkPerfil != null) empresasPorPerfil[fkPerfil] = dados;
+      }
+
       // 1. Busca todos os profissionais cadastrados (com dados do usuário)
       final dadosProfissionais = await supabase
           .from('dados_profissionais')
-          .select('id_profissional, fk_usuario');
+          .select('id_profissional, fk_usuario, fk_grupo_empresa, fk_perfil');
 
       final perfis = <PerfilPopular>[];
 
@@ -544,9 +588,19 @@ class _TelaHomeState extends State<TelaHome> {
 
         if (usuarioResponse == null) continue;
 
-        final nome = usuarioResponse['nome']?.toString() ?? 'Profissional';
-        final fotoUrl =
-            usuarioResponse['foto_perfil_url']?.toString() ?? '';
+        final nome =
+            usuarioResponse['nome']?.toString() ?? 'Nome não encontrado';
+        final fotoUrl = usuarioResponse['foto_perfil_url']?.toString() ?? '';
+
+        final idGrupoEmpresa = (dados['fk_grupo_empresa'] as num?)?.toInt();
+        final fkPerfil = (dados['fk_perfil'] as num?)?.toInt();
+        final empresa = idGrupoEmpresa != null
+            ? empresasPorId[idGrupoEmpresa]
+            : (fkPerfil != null ? empresasPorPerfil[fkPerfil] : null);
+        final tagEmpresaRaw = empresa?['tag_empresa']?.toString().trim() ?? '';
+        final corEmpresa = CorOficio.parse(
+          empresa?['cor_tag_empresa']?.toString(),
+        );
 
         // 3. Busca os ofícios associados ao profissional
         final assOficios = await supabase
@@ -582,14 +636,157 @@ class _TelaHomeState extends State<TelaHome> {
             tagBgColor: const Color(0xFFE1F5FE),
             tagTextColor: _primaryBlue,
             caminhoImagem: fotoUrl,
-            profissao: oficios.isNotEmpty ? oficios.first.funcao : 'Profissional',
+            profissao: oficios.isNotEmpty
+                ? oficios.first.funcao
+                : 'Profissional',
             oficios: oficios,
+            tagEmpresa: tagEmpresaRaw.isEmpty
+              ? null
+              : (tagEmpresaRaw.startsWith('#')
+                  ? tagEmpresaRaw
+                  : '#$tagEmpresaRaw'),
+            tagEmpresaBgColor: tagEmpresaRaw.isEmpty
+              ? null
+              : corEmpresa,
+            tagEmpresaTextColor: tagEmpresaRaw.isEmpty
+              ? null
+              : CorOficio.corTextoContraste(corEmpresa),
           ),
         );
       }
 
       return perfis;
     } catch (e) {
+      return [];
+    }
+  }
+
+  Future<List<LojaPopular>> _buscarLojasDestaque() async {
+    try {
+      final supabase = Supabase.instance.client;
+
+      // 1. Busca grupos de empresa cadastrados
+      final empresasData = await supabase.from('grupo_empresa').select(
+            'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, fk_perfil',
+          );
+
+      final List<LojaPopular> lista = [];
+
+      for (final empresa in empresasData) {
+        final idGrupo = (empresa['id_grupo_empresa'] as num?)?.toInt();
+        final fkPerfil = (empresa['fk_perfil'] as num?)?.toInt();
+        if (idGrupo == null) continue;
+
+        final nome = empresa['nome_empresa']?.toString().trim();
+        final tag = empresa['tag_empresa']?.toString().trim();
+        final corHex = empresa['cor_tag_empresa']?.toString().trim();
+        final fotoUrl = empresa['foto_url_empresa']?.toString().trim() ?? '';
+        final bannerUrl =
+            empresa['banner_url_empresa']?.toString().trim() ?? '';
+
+        // Identificar todos os profissionais pertencentes à empresa (proprietário + membros)
+        final Set<int> idsProfissionais = {};
+
+        if (fkPerfil != null) {
+          try {
+            final dono = await supabase
+                .from('dados_profissionais')
+                .select('id_profissional')
+                .eq('fk_perfil', fkPerfil)
+                .maybeSingle();
+            final idProfDono = (dono?['id_profissional'] as num?)?.toInt();
+            if (idProfDono != null) idsProfissionais.add(idProfDono);
+          } catch (_) {}
+        }
+
+        try {
+          final membros = await supabase
+              .from('dados_profissionais')
+              .select('id_profissional')
+              .eq('fk_grupo_empresa', idGrupo);
+
+          for (final m in membros) {
+            final idProf = (m['id_profissional'] as num?)?.toInt();
+            if (idProf != null) idsProfissionais.add(idProf);
+          }
+        } catch (_) {}
+
+        // Buscar ofícios herdados dos profissionais da empresa
+        final List<OficioInfo> oficiosLoja = [];
+        if (idsProfissionais.isNotEmpty) {
+          try {
+            final assOficios = await supabase
+                .from('ass_oficio_profissional')
+                .select('fk_oficio')
+                .inFilter('fk_profissional', idsProfissionais.toList());
+
+            final idsOficios = assOficios
+                .map((e) => e['fk_oficio'])
+                .whereType<num>()
+                .map((e) => e.toInt())
+                .toSet()
+                .toList();
+
+            if (idsOficios.isNotEmpty) {
+              final oficiosData = await supabase
+                  .from('oficios')
+                  .select('funcao, cor')
+                  .inFilter('id_oficio', idsOficios);
+
+              final Set<String> funcoesVistas = {};
+              for (final row in oficiosData) {
+                final info = OficioInfo.fromMap(row);
+                final chave = info.funcao.trim().toLowerCase();
+                if (info.funcao.trim().isNotEmpty &&
+                    !funcoesVistas.contains(chave)) {
+                  funcoesVistas.add(chave);
+                  oficiosLoja.add(info);
+                }
+              }
+            }
+          } catch (_) {}
+        }
+
+        final corBase = CorOficio.parse(corHex);
+        final tagEmpresaFormatada = (tag != null && tag.isNotEmpty)
+            ? (tag.startsWith('#') ? tag : '#$tag')
+            : '#EMPRESA';
+
+        final oficiosFormatados = oficiosLoja
+            .take(3)
+            .map((o) => o.funcao)
+            .join(' • ');
+
+        lista.add(
+          LojaPopular(
+            idGrupoEmpresa: idGrupo,
+            titulo:
+                (nome != null && nome.isNotEmpty) ? nome : 'Empresa Parceira',
+            avaliacao: 4.9,
+            totalAvaliacoes: 923,
+            distancia: '1.2 km',
+            tag1: tagEmpresaFormatada,
+            tag2: oficiosLoja.isNotEmpty ? oficiosLoja.first.funcao : 'Serviços',
+            tag1BgColor: corBase,
+            tag1TextColor: CorOficio.corTextoContraste(corBase),
+            tag2BgColor: const Color(0xFFEEEEEE),
+            tag2TextColor: const Color(0xFF616161),
+            caminhoImagem: fotoUrl,
+            bannerUrl: bannerUrl,
+            tagEmpresa: tagEmpresaFormatada,
+            corTagEmpresaHex: corHex,
+            oficios: oficiosLoja,
+            isVerified: true,
+            descricao: oficiosFormatados.isNotEmpty
+                ? oficiosFormatados
+                : 'Especialistas em reparos e serviços',
+          ),
+        );
+      }
+
+      return lista;
+    } catch (e) {
+      debugPrint('Erro ao buscar lojas em destaque: $e');
       return [];
     }
   }
@@ -657,7 +854,7 @@ class _TelaHomeState extends State<TelaHome> {
 
   void _navegarParaBusca(BuildContext context) {
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => TelaBusca(isVisitante: widget.isVisitante)),
+      _rotaSemAnimacao(TelaBusca(isVisitante: widget.isVisitante)),
     );
   }
 
@@ -811,11 +1008,7 @@ class _TelaHomeState extends State<TelaHome> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(
-                    Icons.location_on,
-                    color: _primaryBlue,
-                    size: 18,
-                  ),
+                  const Icon(Icons.location_on, color: _primaryBlue, size: 18),
                   const SizedBox(width: 2),
                   Expanded(
                     child: Column(
@@ -957,7 +1150,11 @@ class _TelaHomeState extends State<TelaHome> {
                           ),
                           if (endereco.principal) ...[
                             const SizedBox(width: 8),
-                            const Icon(Icons.check, color: _primaryBlue, size: 18),
+                            const Icon(
+                              Icons.check,
+                              color: _primaryBlue,
+                              size: 18,
+                            ),
                           ],
                         ],
                       ),
@@ -969,10 +1166,7 @@ class _TelaHomeState extends State<TelaHome> {
           );
         }
 
-        return GestureDetector(
-          onTap: _abrirMeusEnderecos,
-          child: conteudo(),
-        );
+        return GestureDetector(onTap: _abrirMeusEnderecos, child: conteudo());
       },
     );
   }
@@ -1036,7 +1230,7 @@ class _TelaHomeState extends State<TelaHome> {
                 GestureDetector(
                   onTap: () => _navegarParaPerfil(context),
                   onLongPress: () => _exibirDialogSair(context),
-                    child: widget.isVisitante
+                  child: widget.isVisitante
                       ? CircleAvatar(
                           radius: 20,
                           backgroundColor: Colors.grey.shade200,
@@ -1205,10 +1399,7 @@ class _TelaHomeState extends State<TelaHome> {
                 ),
                 _buildCategoriaServico('Aulas', Icons.school_outlined),
                 _buildCategoriaServico('Assistência', Icons.build_outlined),
-                _buildCategoriaServico(
-                  'Fretes',
-                  Icons.local_shipping_outlined,
-                ),
+                _buildCategoriaServico('Fretes', Icons.local_shipping_outlined),
                 _buildCategoriaServico('Beleza', Icons.content_cut),
                 _buildCategoriaServico('Mais', Icons.more_horiz, isMais: true),
               ],
@@ -1288,28 +1479,32 @@ class _TelaHomeState extends State<TelaHome> {
                   children: [
                     _buildSectionHeader(titulo: 'Profissionais em destaque'),
                     const SizedBox(height: 12),
-                    ...perfis.take(3).map(
-                      (perfil) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => PerfilProfissionalPage(
-                                  nomeInicial: perfil.nome,
-                                  imagemInicial: perfil.caminhoImagem,
-                                  profissao: perfil.profissao,
-                                  avaliacao: perfil.avaliacao,
-                                  totalAvaliacoes: perfil.totalAvaliacoes,
-                                ),
-                              ),
-                            );
-                          },
-                          child: _buildCardProfissionalDestaque(perfil),
+                    ...perfis
+                        .take(3)
+                        .map(
+                          (perfil) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        PerfilProfissionalPage(
+                                          nomeInicial: perfil.nome,
+                                          imagemInicial: perfil.caminhoImagem,
+                                          profissao: perfil.profissao,
+                                          avaliacao: perfil.avaliacao,
+                                          totalAvaliacoes:
+                                              perfil.totalAvaliacoes,
+                                        ),
+                                  ),
+                                );
+                              },
+                              child: _buildCardProfissionalDestaque(perfil),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
                     _buildOutlineButton('Ver todos os profissionais'),
                   ],
                 );
@@ -1319,27 +1514,59 @@ class _TelaHomeState extends State<TelaHome> {
             SizedBox(height: alturaDaTela * 0.03),
 
             // Lojas em destaque
-            _buildSectionHeader(titulo: 'Lojas em destaque'),
-            const SizedBox(height: 12),
-            ...listaLojas.take(3).map(
-                  (loja) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: GestureDetector(
-                      onTap: () {
-                        if (loja.titulo == 'Caedss - Estrada das Lágrimas') {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const PerfilLoja(),
-                            ),
-                          );
-                        }
-                      },
-                      child: _buildCardLojaVertical(loja),
+            FutureBuilder<List<LojaPopular>>(
+              future: _buscarLojasDestaque(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: CircularProgressIndicator(color: _primaryBlue),
                     ),
-                  ),
-                ),
-            _buildOutlineButton('Ver todos os profissionais'),
+                  );
+                }
+
+                final lojas = snapshot.data ?? <LojaPopular>[];
+
+                if (lojas.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildSectionHeader(titulo: 'Lojas em destaque'),
+                    const SizedBox(height: 12),
+                    ...lojas
+                        .take(3)
+                        .map(
+                          (loja) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => PerfilLoja(
+                                      idGrupoEmpresa: loja.idGrupoEmpresa,
+                                      nomeEmpresa: loja.titulo,
+                                      fotoUrlEmpresa: loja.caminhoImagem,
+                                      bannerUrlEmpresa: loja.bannerUrl,
+                                      tagEmpresa: loja.tagEmpresa,
+                                      corTagEmpresa: loja.corTagEmpresaHex,
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: _buildCardLojaVertical(loja),
+                            ),
+                          ),
+                        ),
+                    _buildOutlineButton('Ver todos os profissionais'),
+                  ],
+                );
+              },
+            ),
 
             SizedBox(height: alturaDaTela * 0.03),
 
@@ -1363,38 +1590,19 @@ class _TelaHomeState extends State<TelaHome> {
           ],
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.white,
-        selectedItemColor: _primaryBlue,
-        unselectedItemColor: Colors.grey,
-        selectedFontSize: 11,
-        unselectedFontSize: 11,
+      bottomNavigationBar: BottomNavigationBarCliente(
         currentIndex: 0,
         onTap: (index) {
-          if (index == 4) {
+          if (index == 1) {
+            Navigator.of(context).pushReplacement(
+              _rotaSemAnimacao(
+                SeguindoClientePage(isVisitante: widget.isVisitante),
+              ),
+            );
+          } else if (index == 4) {
             _navegarParaPerfil(context);
           }
         },
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people_outline),
-            label: 'Seguindo',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.chat_bubble_outline),
-            label: 'Mensagens',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.inventory_2_outlined),
-            label: 'Pedidos',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.account_circle_outlined),
-            label: 'Perfil',
-          ),
-        ],
       ),
     );
   }
@@ -1437,6 +1645,49 @@ class _TelaHomeState extends State<TelaHome> {
   }
 
   Widget _buildCardProfissional(PerfilPopular perfil, {double? largura}) {
+    final bool usaImagemRede =
+        perfil.caminhoImagem.startsWith('http') ||
+        perfil.caminhoImagem.startsWith('https');
+
+    Widget imagem;
+    if (usaImagemRede) {
+      imagem = Image.network(
+        perfil.caminhoImagem,
+        width: 64,
+        height: 64,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+          width: 64,
+          height: 64,
+          color: const Color(0xFFE1F5FE),
+          alignment: Alignment.center,
+          child: Text(
+            obterIniciais(perfil.nome),
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: _primaryBlue,
+            ),
+          ),
+        ),
+      );
+    } else {
+      imagem = Container(
+        width: 64,
+        height: 64,
+        color: const Color(0xFFE1F5FE),
+        alignment: Alignment.center,
+        child: Text(
+          obterIniciais(perfil.nome),
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: _primaryBlue,
+          ),
+        ),
+      );
+    }
+
     return Container(
       width: largura,
       padding: const EdgeInsets.all(12),
@@ -1447,21 +1698,7 @@ class _TelaHomeState extends State<TelaHome> {
           Stack(
             clipBehavior: Clip.none,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Image.asset(
-                  perfil.caminhoImagem,
-                  width: 64,
-                  height: 64,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    width: 64,
-                    height: 64,
-                    color: Colors.grey.shade200,
-                    child: Icon(Icons.person, color: Colors.grey.shade500),
-                  ),
-                ),
-              ),
+              ClipRRect(borderRadius: BorderRadius.circular(10), child: imagem),
               if (perfil.isVerified)
                 Positioned(right: -2, bottom: -2, child: _buildVerifiedBadge()),
             ],
@@ -1490,12 +1727,17 @@ class _TelaHomeState extends State<TelaHome> {
                   ],
                 ),
                 const SizedBox(height: 4),
+                if (perfil.tagEmpresa != null) ...[
+                  _buildTag(
+                    perfil.tagEmpresa!,
+                    perfil.tagEmpresaBgColor ?? const Color(0xFFE1F5FE),
+                    perfil.tagEmpresaTextColor ?? _primaryBlue,
+                  ),
+                  const SizedBox(height: 4),
+                ],
                 Text(
                   perfil.profissao,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -1516,7 +1758,10 @@ class _TelaHomeState extends State<TelaHome> {
     );
   }
 
-  Widget _buildCardProfissionalDestaque(PerfilPopular perfil, {double? largura}) {
+  Widget _buildCardProfissionalDestaque(
+    PerfilPopular perfil, {
+    double? largura,
+  }) {
     final bool usaImagemRede =
         perfil.caminhoImagem.startsWith('http') ||
         perfil.caminhoImagem.startsWith('https');
@@ -1531,21 +1776,31 @@ class _TelaHomeState extends State<TelaHome> {
         errorBuilder: (_, __, ___) => Container(
           width: 64,
           height: 64,
-          color: Colors.grey.shade200,
-          child: Icon(Icons.person, color: Colors.grey.shade500),
+          color: const Color(0xFFE1F5FE),
+          alignment: Alignment.center,
+          child: Text(
+            obterIniciais(perfil.nome),
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: _primaryBlue,
+            ),
+          ),
         ),
       );
     } else {
-      imagem = Image.asset(
-        perfil.caminhoImagem,
+      imagem = Container(
         width: 64,
         height: 64,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => Container(
-          width: 64,
-          height: 64,
-          color: Colors.grey.shade200,
-          child: Icon(Icons.person, color: Colors.grey.shade500),
+        color: const Color(0xFFE1F5FE),
+        alignment: Alignment.center,
+        child: Text(
+          obterIniciais(perfil.nome),
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: _primaryBlue,
+          ),
         ),
       );
     }
@@ -1560,10 +1815,7 @@ class _TelaHomeState extends State<TelaHome> {
           Stack(
             clipBehavior: Clip.none,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: imagem,
-              ),
+              ClipRRect(borderRadius: BorderRadius.circular(10), child: imagem),
               if (perfil.isVerified)
                 Positioned(right: -2, bottom: -2, child: _buildVerifiedBadge()),
             ],
@@ -1592,29 +1844,35 @@ class _TelaHomeState extends State<TelaHome> {
                   ],
                 ),
                 const SizedBox(height: 6),
-                if (perfil.oficios.isNotEmpty)
+                if (perfil.tagEmpresa != null || perfil.oficios.isNotEmpty)
                   Wrap(
                     spacing: 6,
                     runSpacing: 4,
-                    children: perfil.oficios
-                        .map((oficio) => TagOficio(
-                              oficio: oficio,
-                              fontSize: 10,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 3,
-                              ),
-                              borderRadius: 20,
-                            ))
-                        .toList(),
+                    children: [
+                      if (perfil.tagEmpresa != null)
+                        _buildTag(
+                          perfil.tagEmpresa!,
+                          perfil.tagEmpresaBgColor ??
+                              const Color(0xFFE1F5FE),
+                          perfil.tagEmpresaTextColor ?? _primaryBlue,
+                        ),
+                      ...perfil.oficios.map(
+                        (oficio) => TagOficio(
+                          oficio: oficio,
+                          fontSize: 10,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          borderRadius: 20,
+                        ),
+                      ),
+                    ],
                   )
                 else
                   Text(
                     perfil.profissao,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade600,
-                    ),
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -1683,6 +1941,71 @@ class _TelaHomeState extends State<TelaHome> {
   }
 
   Widget _buildCardLojaVertical(LojaPopular loja) {
+    final bool usaImagemRede =
+        loja.caminhoImagem.startsWith('http://') ||
+        loja.caminhoImagem.startsWith('https://');
+
+    Widget imagem;
+    if (usaImagemRede) {
+      imagem = Image.network(
+        loja.caminhoImagem,
+        width: 64,
+        height: 64,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => Container(
+          width: 64,
+          height: 64,
+          color: const Color(0xFFE1F5FE),
+          alignment: Alignment.center,
+          child: Text(
+            obterIniciais(loja.titulo),
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: _primaryBlue,
+            ),
+          ),
+        ),
+      );
+    } else if (loja.caminhoImagem.isNotEmpty &&
+        loja.caminhoImagem.startsWith('assets/')) {
+      imagem = Image.asset(
+        loja.caminhoImagem,
+        width: 64,
+        height: 64,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => Container(
+          width: 64,
+          height: 64,
+          color: const Color(0xFFE1F5FE),
+          alignment: Alignment.center,
+          child: Text(
+            obterIniciais(loja.titulo),
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: _primaryBlue,
+            ),
+          ),
+        ),
+      );
+    } else {
+      imagem = Container(
+        width: 64,
+        height: 64,
+        color: const Color(0xFFE1F5FE),
+        alignment: Alignment.center,
+        child: Text(
+          obterIniciais(loja.titulo),
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: _primaryBlue,
+          ),
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: _cardDecoration(),
@@ -1692,17 +2015,9 @@ class _TelaHomeState extends State<TelaHome> {
           Stack(
             clipBehavior: Clip.none,
             children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: _primaryBlue,
-                  borderRadius: BorderRadius.circular(10),
-                  image: DecorationImage(
-                    image: AssetImage(loja.caminhoImagem),
-                    fit: BoxFit.cover,
-                  ),
-                ),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: imagem,
               ),
               if (loja.isVerified)
                 Positioned(right: -2, bottom: -2, child: _buildVerifiedBadge()),
@@ -1734,19 +2049,35 @@ class _TelaHomeState extends State<TelaHome> {
                 const SizedBox(height: 4),
                 Text(
                   loja.descricao,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 8),
-                Row(
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
                   children: [
-                    _buildTag(loja.tag1, loja.tag1BgColor, loja.tag1TextColor),
-                    const SizedBox(width: 6),
-                    _buildTag(loja.tag2, loja.tag2BgColor, loja.tag2TextColor),
+                    if (loja.tagEmpresa != null &&
+                        loja.tagEmpresa!.isNotEmpty)
+                      _buildTag(
+                        loja.tagEmpresa!,
+                        loja.tag1BgColor,
+                        loja.tag1TextColor,
+                      ),
+                    ...loja.oficios
+                        .take(3)
+                        .map(
+                          (oficio) => TagOficio(
+                            oficio: oficio,
+                            fontSize: 10,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            borderRadius: 4,
+                          ),
+                        ),
                   ],
                 ),
               ],
@@ -1766,11 +2097,7 @@ class _TelaHomeState extends State<TelaHome> {
       ),
       child: Text(
         texto,
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-          color: fg,
-        ),
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: fg),
       ),
     );
   }
@@ -1821,10 +2148,7 @@ class _TelaHomeState extends State<TelaHome> {
                 const SizedBox(height: 4),
                 Text(
                   servico.categoria,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                 ),
                 const SizedBox(height: 4),
                 Text(

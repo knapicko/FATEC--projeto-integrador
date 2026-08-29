@@ -2,16 +2,24 @@ import 'package:flutter/material.dart';
 
 class OficioInfo {
   final String funcao;
+  final String? categoria;
   final String? cor;
 
-  const OficioInfo({required this.funcao, this.cor});
+  const OficioInfo({required this.funcao, this.categoria, this.cor});
 
   factory OficioInfo.fromMap(Map<String, dynamic> map) {
     final funcao = map['funcao']?.toString().trim() ?? '';
+    final categoriaRaw = map['categoria']?.toString().trim();
     final corRaw = map['cor'] ?? map['Cor'];
     final cor = corRaw?.toString().trim();
     return OficioInfo(
       funcao: funcao,
+      categoria:
+          categoriaRaw != null &&
+              categoriaRaw.isNotEmpty &&
+              categoriaRaw.toLowerCase() != 'null'
+          ? categoriaRaw
+          : null,
       cor: (cor != null && cor.isNotEmpty && cor.toLowerCase() != 'null')
           ? cor
           : null,
@@ -46,6 +54,9 @@ class CorOficio {
     }
 
     var hex = normalizado.replaceAll('#', '');
+    if (hex.startsWith('0x') || hex.startsWith('0X')) {
+      hex = hex.substring(2);
+    }
     if (hex.length == 6) hex = 'FF$hex';
     if (hex.length == 8) {
       final parsed = int.tryParse(hex, radix: 16);
@@ -64,4 +75,11 @@ class CorOficio {
   }
 
   static Color corFundo(Color base) => base.withValues(alpha: 0.3);
+
+  /// Define uma cor de texto legível em cima da cor base (fundo).
+  static Color corTextoContraste(Color base) {
+    return base.computeLuminance() > 0.5
+        ? const Color(0xFF20242B)
+        : const Color(0xFFFFFFFF);
+  }
 }
