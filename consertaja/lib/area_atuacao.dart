@@ -115,7 +115,7 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
   }
 
   String _caminhoImagemOficio(String nome) {
-    return 'assets/images/oficios_imgs/$nome.jpg';
+    return 'assets/images/oficios_imgs/${nome.trim()}.jpg';
   }
 
   Widget _imagemDetalheOficio(String nome) {
@@ -128,7 +128,7 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
         height: 194,
         color: _cardBlueBg,
         alignment: Alignment.center,
-        child: IconeOficio.imagem(null, tamanho: 54),
+        child: IconeOficio.imagemPorFuncao(nome, tamanho: 54),
       ),
     );
   }
@@ -198,9 +198,9 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
                             color: _blue,
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: IconeOficio.imagem(
-                            oficio['categoria']?.toString(),
-                            tamanho: 24,
+                          child: IconeOficio.imagemPorFuncao(
+                            oficio['funcao']?.toString(),
+                            tamanho: 28,
                           ),
                         ),
                         title: Text(nome),
@@ -346,18 +346,16 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
           const SizedBox(height: 12),
           Row(
             children: List.generate(3, (index) {
-              final temOficio = index < _oficiosSelecionados.length;
+              final oficio = index < _oficiosSelecionados.length
+                  ? _oficiosSelecionados[index]
+                  : null;
               return Expanded(
                 child: Padding(
                   padding: EdgeInsets.only(right: index < 2 ? 10 : 0),
                   child: GestureDetector(
                     onTap: () => _abrirSeletorOficio(index),
-                    child: temOficio
-                        ? _buildCardOficioSelecionado(
-                            _oficiosSelecionados[index]['funcao']
-                                    ?.toString() ??
-                                '',
-                          )
+                    child: oficio != null
+                        ? _buildCardOficioSelecionado(oficio)
                         : _buildCardVazio(),
                   ),
                 ),
@@ -369,55 +367,52 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
     );
   }
 
-  Widget _buildCardOficioSelecionado(String nome) {
+  Widget _buildCardOficioSelecionado(Map<String, dynamic> oficio) {
+    final nome = oficio['funcao']?.toString() ?? '';
+
     return Container(
-      height: 110,
+      height: 136,
       decoration: BoxDecoration(
-        color: _cardBlueBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _blue, width: 1.5),
+        color: const Color(0xFFBEEBFF),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: _blue, width: 2),
       ),
       child: Stack(
         children: [
           Positioned(
-            top: 8,
-            right: 8,
+            top: 10,
+            right: 10,
             child: Container(
-              width: 20,
-              height: 20,
+              width: 24,
+              height: 24,
               decoration: const BoxDecoration(
                 color: _blue,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.check, color: Colors.white, size: 13),
+              child: const Icon(Icons.check, color: Colors.white, size: 14),
             ),
           ),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              IconeOficio.imagem(
-                _oficiosSelecionados.firstWhere(
-                  (oficio) => oficio['funcao']?.toString() == nome,
-                  orElse: () => <String, dynamic>{},
-                )['categoria']?.toString(),
-                tamanho: 30,
-              ),
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Text(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                IconeOficio.imagemPorFuncaoAzul(nome, tamanho: 56),
+                const SizedBox(height: 8),
+                Text(
                   nome,
+                  textAlign: TextAlign.center,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
                   style: const TextStyle(
                     color: _textDark,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -428,26 +423,26 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
     return CustomPaint(
       painter: _DashedBorderPainter(
         color: Colors.grey.shade300,
-        strokeWidth: 1.5,
-        radius: 12,
+        strokeWidth: 1.8,
+        radius: 22,
       ),
       child: Container(
-        height: 110,
+        height: 136,
         width: double.infinity,
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          color: const Color(0xFFF9F9F9),
+          borderRadius: BorderRadius.circular(22),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.add, color: Colors.grey.shade400, size: 28),
+            Icon(Icons.add, color: Colors.grey.shade400, size: 34),
             const SizedBox(height: 8),
             Text(
               'Vazio',
               style: TextStyle(
                 color: Colors.grey.shade500,
-                fontSize: 13,
+                fontSize: 17,
                 fontWeight: FontWeight.w500,
               ),
             ),
