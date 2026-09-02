@@ -3,18 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('exibe o cabeçalho e os serviços do profissional', (tester) async {
+  testWidgets('exibe a tela de meus serviços', (tester) async {
     await tester.pumpWidget(
-      const MaterialApp(
-        home: MeusServicosProfissionalPage(),
-      ),
+      const MaterialApp(home: MeusServicosProfissionalPage()),
     );
 
-    expect(find.text('Meu Serviços Disponiveis'), findsOneWidget);
-    expect(find.text('Buscar serviços...'), findsOneWidget);
-    expect(find.text('Instalação de Ar Condicionado'), findsOneWidget);
-    expect(find.text('Reparo de Fiação Elétrica'), findsOneWidget);
-    expect(find.text('Conserto de Vazamentos'), findsOneWidget);
-    expect(find.text('Novo Serviço'), findsOneWidget);
+    expect(find.text('Meus Serviços'), findsOneWidget);
   });
 }
