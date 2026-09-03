@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'tela_home.dart';
 import 'services/google_auth_service.dart';
 import 'services/validacao_telefone.dart';
+import 'services/validacao_documento.dart';
 import 'services/formatacao_data.dart';
 import 'widgets/seletor_ddi.dart';
 import 'widgets/dialogo_documento.dart';
@@ -226,60 +227,11 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
     super.dispose();
   }
 
-  String _somenteDigitos(String valor) {
-    return valor.replaceAll(RegExp(r'\D'), '');
-  }
+  String _somenteDigitos(String valor) => somenteDigitos(valor);
 
-  bool _validarCpfLocal(String cpf) {
-    if (cpf.length != 11) return false;
-    if (RegExp(r'^(\d)\1{10}$').hasMatch(cpf)) return false;
+  bool _validarCpfLocal(String cpf) => validarCpf(cpf);
 
-    final numeros = cpf.split('').map(int.parse).toList();
-
-    int soma = 0;
-    for (int i = 0; i < 9; i++) {
-      soma += numeros[i] * (10 - i);
-    }
-    int resto = soma % 11;
-    int digito1 = resto < 2 ? 0 : 11 - resto;
-    if (numeros[9] != digito1) return false;
-
-    soma = 0;
-    for (int i = 0; i < 10; i++) {
-      soma += numeros[i] * (11 - i);
-    }
-    resto = soma % 11;
-    int digito2 = resto < 2 ? 0 : 11 - resto;
-
-    return numeros[10] == digito2;
-  }
-
-  bool _validarCnpjLocal(String cnpj) {
-    if (cnpj.length != 14) return false;
-    if (RegExp(r'^(\d)\1{13}$').hasMatch(cnpj)) return false;
-
-    final numeros = cnpj.split('').map(int.parse).toList();
-
-    const pesos1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-    const pesos2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-
-    int soma = 0;
-    for (int i = 0; i < 12; i++) {
-      soma += numeros[i] * pesos1[i];
-    }
-    int resto = soma % 11;
-    int digito1 = resto < 2 ? 0 : 11 - resto;
-    if (numeros[12] != digito1) return false;
-
-    soma = 0;
-    for (int i = 0; i < 13; i++) {
-      soma += numeros[i] * pesos2[i];
-    }
-    resto = soma % 11;
-    int digito2 = resto < 2 ? 0 : 11 - resto;
-
-    return numeros[13] == digito2;
-  }
+  bool _validarCnpjLocal(String cnpj) => validarCnpj(cnpj);
 
   Future<bool> _validarDocumentoDigitado({bool obrigatorio = false}) async {
     final documento = _isPessoaFisica
