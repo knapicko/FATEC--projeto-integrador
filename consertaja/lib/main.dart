@@ -8,6 +8,7 @@ import 'cadastro_cliente.dart';
 import 'cadastro_profissional.dart';
 import 'login.dart';
 import 'services/google_auth_service.dart';
+import 'onboarding/conversational_onboarding_screen.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
@@ -45,7 +46,7 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   final GlobalKey<NavigatorState> _navigatorKey = navigatorKey;
-  Widget _homeWidget = const TelaEscolhaConta();
+  Widget _homeWidget = const ConversationalOnboardingScreen();
   bool _carregando = true;
 
   @override
@@ -65,7 +66,7 @@ class _MyAppState extends State<MyApp> {
           await Supabase.instance.client.auth.signOut();
           if (mounted) {
             setState(() {
-              _homeWidget = const TelaEscolhaConta();
+              _homeWidget = const ConversationalOnboardingScreen();
               _carregando = false;
             });
           }
@@ -85,7 +86,7 @@ class _MyAppState extends State<MyApp> {
       } catch (_) {
         if (mounted) {
           setState(() {
-            _homeWidget = const TelaEscolhaConta();
+            _homeWidget = const ConversationalOnboardingScreen();
             _carregando = false;
           });
         }
@@ -93,7 +94,7 @@ class _MyAppState extends State<MyApp> {
     } else {
       if (mounted) {
         setState(() {
-          _homeWidget = const TelaEscolhaConta();
+          _homeWidget = const ConversationalOnboardingScreen();
           _carregando = false;
         });
       }
