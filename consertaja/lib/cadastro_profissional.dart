@@ -2519,6 +2519,8 @@ class _CadastroProfissionalEtapa3PageState
                   text: highlightText,
                   style: const TextStyle(
                     color: Color(0xFF00A2FF),
+                    decoration: TextDecoration.underline,
+                    decorationColor: Colors.white,
                     fontWeight: FontWeight.bold,
                   ),
                   recognizer: TapGestureRecognizer()..onTap = onTapLink,
@@ -3016,7 +3018,7 @@ class _CadastroFacialPageState extends State<CadastroFacialPage> {
         centerTitle: true,
         leading: IconButton(
           onPressed: () => Navigator.pop(context),
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: _blue),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
         ),
         title: const Text(
           'Tire sua foto',
@@ -3890,13 +3892,13 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
                         width: 100,
                         height: 70,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF0FB3FF).withValues(alpha: 0.1),
+                          color: const Color.fromARGB(255, 104, 107, 109).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Icon(
                           Icons.credit_card,
                           size: 50,
-                          color: Color(0xFF0FB3FF),
+                          color: Color(0xFFFFFFFF),
                         ),
                       ),
                       const CircleAvatar(
@@ -3922,9 +3924,10 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
                       'Para mais informações confira a Política de Privacidade.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: Color(0xFF0FB3FF),
+                        color: Color(0xFFFFFFFF),
                         fontWeight: FontWeight.bold,
                         decoration: TextDecoration.underline,
+                        decorationColor: Colors.white,
                       ),
                     ),
                   ),
@@ -3949,19 +3952,19 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
               child: ElevatedButton(
                 onPressed: _podeEnviar() ? _enviarDocumentos : null,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0FB3FF),
+                  backgroundColor: const Color(0xFFFFFFFF),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(30),
                   ),
                 ),
                 child: _carregando
-                    ? const CircularProgressIndicator(color: Colors.white)
+                    ? const CircularProgressIndicator(color: Color(0xFFFFFFFF))
                     : const Text(
                         'Enviar Documentos',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: Color(0xFFFFFFFF),
                         ),
                       ),
               ),

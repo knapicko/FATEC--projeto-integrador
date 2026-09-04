@@ -1825,6 +1825,8 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
                   text: highlightText,
                   style: const TextStyle(
                     color: Color(0xFF00A2FF),
+                    decoration: TextDecoration.underline,
+                    decorationColor: Colors.white,
                     fontWeight: FontWeight.bold,
                   ),
                   recognizer: TapGestureRecognizer()..onTap = onTapLink,

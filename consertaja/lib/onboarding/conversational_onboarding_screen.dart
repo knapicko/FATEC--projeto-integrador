@@ -1235,13 +1235,20 @@ class _ConversationalOnboardingScreenState
         );
 
       case OnboardingStep.profDocsForm:
+        final podeFinalizar =
+            _controller.cadastroFacialConcluido &&
+            _controller.documentoIdentidadeConcluido &&
+            _controller.aceitouTermos &&
+            _controller.aceitouPrivacidade;
         return Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
           child: PillButton(
             label: 'Finalizar Cadastro',
             outlined: true,
             loading: _controller.carregando,
-            onTap: () => _controller.finalizarCadastroProfissional(context),
+            onTap: podeFinalizar
+                ? () => _controller.finalizarCadastroProfissional(context)
+                : null,
           ),
         );
 
