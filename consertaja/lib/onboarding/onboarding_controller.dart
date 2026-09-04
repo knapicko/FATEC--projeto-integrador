@@ -12,6 +12,7 @@ import '../services/validacao_telefone.dart';
 import '../services/google_auth_service.dart';
 import '../services/auth_navigation.dart';
 import '../cadastro_profissional.dart';
+import '../completar_cadastro.dart';
 import '../login.dart';
 import '../tela_home.dart';
 import '../tela_home_profissional.dart';
@@ -59,6 +60,10 @@ class OnboardingController extends ChangeNotifier {
   String? erroFala;
   bool _started = false;
   bool _hydrated = false;
+  String? googleAuthId;
+  String? googleEmail;
+  String? googleNome;
+  String? googleFotoUrl;
 
   // ── Estado exclusivo do fluxo Profissional ──────────────────────────────────
   List<Map<String, dynamic>> oficios = [];
@@ -154,6 +159,10 @@ class OnboardingController extends ChangeNotifier {
         'cnpjDeEmpresa': cnpjDeEmpresa,
         'historicoFala': historicoFala,
         'falaAtual': falaAtual,
+        'googleAuthId': googleAuthId,
+        'googleEmail': googleEmail,
+        'googleNome': googleNome,
+        'googleFotoUrl': googleFotoUrl,
         // Profissional
         'oficiosSelecionados': oficiosSelecionados,
         'cadastroFacialConcluido': cadastroFacialConcluido,
@@ -211,6 +220,10 @@ class OnboardingController extends ChangeNotifier {
       cnpjDeEmpresa = map['cnpjDeEmpresa'] as bool? ?? true;
       historicoFala = map['historicoFala'] as String?;
       falaAtual = map['falaAtual'] as String? ?? '';
+      googleAuthId = map['googleAuthId'] as String?;
+      googleEmail = map['googleEmail'] as String?;
+      googleNome = map['googleNome'] as String?;
+      googleFotoUrl = map['googleFotoUrl'] as String?;
       // Profissional
       cadastroFacialConcluido = map['cadastroFacialConcluido'] as bool? ?? false;
       documentoIdentidadeConcluido = map['documentoIdentidadeConcluido'] as bool? ?? false;
@@ -262,6 +275,10 @@ class OnboardingController extends ChangeNotifier {
     erroFala = null;
     historicoFala = null;
     falaAtual = '';
+    googleAuthId = null;
+    googleEmail = null;
+    googleNome = null;
+    googleFotoUrl = null;
     splashTitleVisible = true;
     pose = CaixaPose.normal;
     _hydrated = false;
@@ -351,6 +368,14 @@ class OnboardingController extends ChangeNotifier {
         pose = CaixaPose.normal;
         historicoFala = null;
         falaAtual = '';
+      case OnboardingStep.googleSuccess:
+        pose = CaixaPose.falandoFechado;
+        historicoFala = null;
+        falaAtual = 'O seu cadastro pelo Google foi realizado com sucesso!';
+      case OnboardingStep.googleMissingPrompt:
+        pose = CaixaPose.falandoFechado;
+        historicoFala = 'O seu cadastro pelo Google foi realizado com sucesso!';
+        falaAtual = 'Só precisamos de mais alguns dados para finalizar sua conta.';
       case OnboardingStep.clientPfPrompt:
         pose = CaixaPose.falandoFechado;
         historicoFala = null;
@@ -459,7 +484,7 @@ class OnboardingController extends ChangeNotifier {
     }
   }
 
-  Future<void> avancarPorToque() async {
+  Future<void> avancarPorToque([BuildContext? context]) async {
     if (carregando) return;
     switch (step) {
       case OnboardingStep.splash:
@@ -478,6 +503,10 @@ class OnboardingController extends ChangeNotifier {
         await _transicionar(OnboardingStep.chooseAccountPrompt);
       case OnboardingStep.chooseAccountPrompt:
         await _transicionar(OnboardingStep.chooseAccount);
+      case OnboardingStep.googleSuccess:
+        await _transicionar(OnboardingStep.googleMissingPrompt);
+      case OnboardingStep.googleMissingPrompt:
+        if (context != null) await abrirCompletamentoGoogle(context);
       case OnboardingStep.clientPfPrompt:
         await _transicionar(OnboardingStep.clientPfForm);
       case OnboardingStep.contactPrompt:
@@ -621,6 +650,15 @@ class OnboardingController extends ChangeNotifier {
     try {
       final user = await GoogleAuthService.signInWithGoogle();
       if (user != null && context.mounted) {
+        final perfil = await GoogleAuthService.buscarPerfil(user.id);
+        if (perfil == null && tipoConta != TipoContaOnboarding.nenhum) {
+          googleAuthId = user.id;
+          googleEmail = user.email ?? '';
+          googleNome = GoogleAuthService.extrairNome(user);
+          googleFotoUrl = GoogleAuthService.ultimaFotoUrl;
+          await _transicionar(OnboardingStep.googleSuccess);
+          return;
+        }
         await navegarPosAutenticacaoGoogle(
           context,
           tipoContaEsperado: tipoConta == TipoContaOnboarding.cliente
@@ -636,6 +674,25 @@ class OnboardingController extends ChangeNotifier {
       carregando = false;
       notifyListeners();
     }
+  }
+
+  Future<void> abrirCompletamentoGoogle(BuildContext context) async {
+    if (googleAuthId == null) return;
+    if (!context.mounted) return;
+    final page = tipoConta == TipoContaOnboarding.profissional
+        ? CompletarCadastroProfissionalPage(
+            authId: googleAuthId!,
+            emailGoogle: googleEmail ?? '',
+            nomeGoogle: googleNome,
+            fotoUrlGoogle: googleFotoUrl,
+          )
+        : CompletarCadastroClientePage(
+            authId: googleAuthId!,
+            emailGoogle: googleEmail ?? '',
+            nomeGoogle: googleNome,
+            fotoUrlGoogle: googleFotoUrl,
+          );
+    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => page));
   }
 
   // ── Profissional: Áreas de Atuação ─────────────────────────────────────────
