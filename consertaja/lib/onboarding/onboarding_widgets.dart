@@ -739,18 +739,34 @@ class BubbleTransitionSwitcher extends StatelessWidget {
       switchInCurve: Curves.easeOutCubic,
       switchOutCurve: Curves.easeInCubic,
       transitionBuilder: (child, animation) {
-        return ScaleTransition(
-          scale: Tween<double>(begin: 0.75, end: 1.0).animate(
-            CurvedAnimation(parent: animation, curve: Curves.easeOutBack),
-          ),
-          child: FadeTransition(
-            opacity: animation,
-            child: child,
-          ),
+        return _BubbleTransition(
+          animation: animation,
+          child: child,
         );
       },
       child: child,
     );
+  }
+}
+
+class _BubbleTransition extends StatelessWidget {
+  final Animation<double> animation;
+  final Widget child;
+
+  const _BubbleTransition({required this.animation, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final isLeaving = animation.status == AnimationStatus.reverse;
+    final slide = Tween<Offset>(
+      begin: const Offset(0, 0.08),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic));
+
+    final content = SlideTransition(position: slide, child: child);
+    if (!isLeaving) return content;
+
+    return FadeTransition(opacity: animation, child: content);
   }
 }
 
@@ -766,12 +782,9 @@ class AnimatedHistoricalBubble extends StatelessWidget {
       duration: const Duration(milliseconds: 380),
       curve: Curves.easeInOutCubic,
       builder: (context, val, child) {
-        return Opacity(
-          opacity: val.clamp(0.0, 1.0),
-          child: Transform.translate(
-            offset: Offset(0, (1.0 - val) * 18),
-            child: child,
-          ),
+        return Transform.translate(
+          offset: Offset(0, (1.0 - val) * 18),
+          child: child,
         );
       },
       child: SpeechBubble(
@@ -1023,6 +1036,7 @@ class TermsAndPrivacyCheckboxes extends StatelessWidget {
                           text: 'Termos de Uso',
                           style: TextStyle(
                             decoration: TextDecoration.underline,
+                            decorationColor: Colors.white,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -1065,6 +1079,7 @@ class TermsAndPrivacyCheckboxes extends StatelessWidget {
                           text: 'Política de Privacidade',
                           style: TextStyle(
                             decoration: TextDecoration.underline,
+                            decorationColor: Colors.white,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
