@@ -10,16 +10,37 @@ enum OnboardingStep {
   perfect,
   chooseAccountPrompt,
   chooseAccount,
+  // --- Fluxo Cliente PF ---
   clientPfPrompt,
   clientPfForm,
   contactPrompt,
   contactForm,
   passwordPrompt,
   passwordForm,
+  // --- Fluxo Cliente PJ ---
   clientPjPrompt,
   clientPjReviewPrompt,
   clientPjForm,
+  // --- Handoff Profissional ---
   professionalHandoff,
+  // --- Fluxo Profissional PF (dados pessoais) ---
+  profDataForm,
+  // --- Fluxo Profissional PJ (revisão empresa) ---
+  profPjReviewPrompt,
+  profPjReviewPrompt2,
+  profPjForm,
+  // --- Fluxo Profissional (contato, senha, áreas, docs) ---
+  profContactPrompt,
+  profContactForm,
+  profPasswordPrompt,
+  profPasswordForm,
+  profAreaPrompt1,
+  profAreaPrompt2,
+  profAreaPrompt3,
+  profAreaForm,
+  profDocsPrompt1,
+  profDocsPrompt2,
+  profDocsForm,
 }
 
 enum TipoContaOnboarding { nenhum, cliente, profissional }
@@ -43,6 +64,16 @@ bool stepPermiteToqueAvancar(OnboardingStep step) {
     case OnboardingStep.passwordPrompt:
     case OnboardingStep.clientPjPrompt:
     case OnboardingStep.clientPjReviewPrompt:
+    case OnboardingStep.professionalHandoff:
+    case OnboardingStep.profPjReviewPrompt:
+    case OnboardingStep.profPjReviewPrompt2:
+    case OnboardingStep.profContactPrompt:
+    case OnboardingStep.profPasswordPrompt:
+    case OnboardingStep.profAreaPrompt1:
+    case OnboardingStep.profAreaPrompt2:
+    case OnboardingStep.profAreaPrompt3:
+    case OnboardingStep.profDocsPrompt1:
+    case OnboardingStep.profDocsPrompt2:
       return true;
     default:
       return false;
@@ -74,12 +105,30 @@ double progressoDoPasso(OnboardingStep step) {
     case OnboardingStep.clientPjReviewPrompt:
     case OnboardingStep.clientPjForm:
     case OnboardingStep.professionalHandoff:
+    case OnboardingStep.profDataForm:
+    case OnboardingStep.profPjReviewPrompt:
+    case OnboardingStep.profPjReviewPrompt2:
+    case OnboardingStep.profPjForm:
       return 0.55;
     case OnboardingStep.contactPrompt:
     case OnboardingStep.contactForm:
-      return 0.70;
+    case OnboardingStep.profContactPrompt:
+    case OnboardingStep.profContactForm:
+      return 0.65;
     case OnboardingStep.passwordPrompt:
     case OnboardingStep.passwordForm:
-      return 0.86;
+    case OnboardingStep.profPasswordPrompt:
+    case OnboardingStep.profPasswordForm:
+      return 0.74;
+    case OnboardingStep.profAreaPrompt1:
+    case OnboardingStep.profAreaPrompt2:
+    case OnboardingStep.profAreaPrompt3:
+    case OnboardingStep.profAreaForm:
+      return 0.83;
+    case OnboardingStep.profDocsPrompt1:
+    case OnboardingStep.profDocsPrompt2:
+    case OnboardingStep.profDocsForm:
+      return 0.95;
   }
 }
+

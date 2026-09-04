@@ -197,7 +197,7 @@ class OnboardingWhiteField extends StatelessWidget {
 }
 
 /// Campo com máscara estilizada de documento para a Tela 4 (Imagem 4).
-class DocumentInputField extends StatelessWidget {
+class DocumentInputField extends StatefulWidget {
   final TextEditingController controller;
   final VoidCallback onSubmitted;
   final String? errorText;
@@ -210,13 +210,41 @@ class DocumentInputField extends StatelessWidget {
   });
 
   @override
+  State<DocumentInputField> createState() => _DocumentInputFieldState();
+}
+
+class _DocumentInputFieldState extends State<DocumentInputField> {
+  late final FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode = FocusNode()..addListener(_handleFocusChange);
+  }
+
+  void _handleFocusChange() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _focusNode
+      ..removeListener(_handleFocusChange)
+      ..dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final hasText = widget.controller.text.isNotEmpty;
+    final showMask = !_focusNode.hasFocus && !hasText;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Container(
           width: double.infinity,
-          height: 64,
+          height: 82,
           padding: const EdgeInsets.symmetric(horizontal: 20),
           decoration: BoxDecoration(
             color: Colors.white,
@@ -231,24 +259,14 @@ class DocumentInputField extends StatelessWidget {
           ),
           alignment: Alignment.center,
           child: Stack(
-            alignment: Alignment.center,
+            alignment: Alignment.topCenter,
             children: [
-              if (controller.text.isEmpty)
-                Text(
-                  '___ . ___ . ___ - __',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: OnboardingColors.blue.withValues(alpha: 0.65),
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 2.0,
-                  ),
-                ),
               TextField(
-                controller: controller,
+                controller: widget.controller,
+                focusNode: _focusNode,
                 keyboardType: TextInputType.number,
                 textAlign: TextAlign.center,
-                onSubmitted: (_) => onSubmitted(),
+                onSubmitted: (_) => widget.onSubmitted(),
                 inputFormatters: [CpfCnpjInputFormatter()],
                 cursorColor: OnboardingColors.blue,
                 style: const TextStyle(
@@ -257,19 +275,26 @@ class DocumentInputField extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.5,
                 ),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   isDense: true,
                   border: InputBorder.none,
+                  hintText: showMask ? _maskFor(widget.controller.text) : null,
+                  hintStyle: TextStyle(
+                    color: OnboardingColors.blue.withValues(alpha: 0.65),
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.5,
+                  ),
                 ),
               ),
             ],
           ),
         ),
-        if (errorText != null)
+        if (widget.errorText != null)
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Text(
-              errorText!,
+              widget.errorText!,
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: Colors.white,
@@ -280,6 +305,11 @@ class DocumentInputField extends StatelessWidget {
           ),
       ],
     );
+  }
+
+  String _maskFor(String value) {
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+    return digits.length > 11 ? '__.___.___/____-__' : '___.___.___-__';
   }
 }
 
@@ -828,6 +858,78 @@ class AccountTypeCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class AreaSlotCard extends StatelessWidget {
+  final String label;
+  final String? value;
+  final bool requiredMark;
+  final VoidCallback onTap;
+
+  const AreaSlotCard({
+    super.key,
+    required this.label,
+    this.value,
+    this.requiredMark = false,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasValue = value != null && value!.isNotEmpty;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  hasValue ? value! : label,
+                  style: TextStyle(
+                    color: OnboardingColors.blue.withValues(
+                      alpha: hasValue ? 1 : 0.7,
+                    ),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              if (requiredMark && !hasValue)
+                const Text(
+                  '*',
+                  style: TextStyle(
+                    color: OnboardingColors.blue,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              const SizedBox(width: 8),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: OnboardingColors.blue,
+              ),
+            ],
+          ),
         ),
       ),
     );

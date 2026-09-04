@@ -9,6 +9,7 @@ import 'cadastro_profissional.dart';
 import 'login.dart';
 import 'services/google_auth_service.dart';
 import 'onboarding/conversational_onboarding_screen.dart';
+import 'onboarding/onboarding_controller.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
@@ -44,15 +45,32 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final GlobalKey<NavigatorState> _navigatorKey = navigatorKey;
   Widget _homeWidget = const ConversationalOnboardingScreen();
   bool _carregando = true;
+  bool _rascunhoLimpoAoEncerrar = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _determinarHome();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.detached &&
+        !_rascunhoLimpoAoEncerrar) {
+      _rascunhoLimpoAoEncerrar = true;
+      OnboardingController.instance.limparRascunho();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   Future<void> _determinarHome() async {
