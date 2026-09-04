@@ -381,16 +381,16 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
   Future<void> _irParaEtapa2() async {
     setState(() {
       _erroNome = _nomeController.text.trim().isEmpty
-          ? 'O nome é obrigatório'
+                ? 'O nome é obrigatório'
           : null;
 
       if (!_isPessoaFisica) {
         _erroRazaoSocial = _razaoSocialController.text.trim().isEmpty
-            ? 'A Razão Social é obrigatória'
+                    ? 'A Razão Social é obrigatória'
             : null;
         // Pessoa Jurídica sempre exige data de fundação
         _erroDataFundacao = _dataFundacaoController.text.trim().isEmpty
-            ? 'A data de fundação é obrigatória'
+                    ? 'A data de fundação é obrigatória'
             : null;
       } else {
         _erroDataFundacao = null;
@@ -1355,9 +1355,9 @@ class _CadastroProfissionalEtapa2PageState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFF0FB3FF),
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFF0FB3FF),
         elevation: 0,
         leadingWidth: 100,
         leading: TextButton.icon(
@@ -2536,24 +2536,25 @@ class CadastroFacialInstrucoesPage extends StatelessWidget {
   const CadastroFacialInstrucoesPage({super.key});
 
   static const Color _blue = Color(0xFF0FB3FF);
+  static const Color _white = Color(0xFFFFFFFF);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: _blue,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
+        backgroundColor: _blue,
+        surfaceTintColor: _blue,
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: _blue),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: _white),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'Cadastro Facial',
           style: TextStyle(
-            color: _blue,
+            color: _white,
             fontSize: 20,
             fontWeight: FontWeight.w500,
           ),
@@ -2570,11 +2571,11 @@ class CadastroFacialInstrucoesPage extends StatelessWidget {
                 width: 120,
                 height: 120,
                 decoration: BoxDecoration(
-                  border: Border.all(color: _blue, width: 3),
+                  border: Border.all(color: _white, width: 3),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: const Center(
-                  child: Icon(Icons.face_rounded, color: _blue, size: 70),
+                  child: Icon(Icons.face_rounded, color: _white, size: 70),
                 ),
               ),
 
@@ -2584,7 +2585,7 @@ class CadastroFacialInstrucoesPage extends StatelessWidget {
                 textAlign: TextAlign.center,
                 text: const TextSpan(
                   style: TextStyle(
-                    color: Colors.black87,
+                    color: Colors.white,
                     fontSize: 15,
                     height: 1.5,
                   ),
@@ -2596,7 +2597,7 @@ class CadastroFacialInstrucoesPage extends StatelessWidget {
                     TextSpan(
                       text: 'Política de Privacidade',
                       style: TextStyle(
-                        color: _blue,
+                        color: Colors.white,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -2611,7 +2612,11 @@ class CadastroFacialInstrucoesPage extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   'Instruções',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    color: _white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
 
@@ -2620,6 +2625,7 @@ class CadastroFacialInstrucoesPage extends StatelessWidget {
               const _InstructionItem(
                 text:
                     'Segure o celular na altura do rosto e mantenha os braços firmes.',
+                    
               ),
               const _InstructionItem(
                 text:
@@ -2641,8 +2647,8 @@ class CadastroFacialInstrucoesPage extends StatelessWidget {
                 height: 56,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _blue,
-                    foregroundColor: Colors.white,
+                    backgroundColor: _white,
+                    foregroundColor: _blue,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(28),
@@ -2678,6 +2684,7 @@ class CadastroFacialInstrucoesPage extends StatelessWidget {
 
 class _InstructionItem extends StatelessWidget {
   final String text;
+  static const Color _white = Color(0xFFFFFFFF);
 
   const _InstructionItem({required this.text});
 
@@ -2701,7 +2708,11 @@ class _InstructionItem extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(fontSize: 15, height: 1.5),
+              style: const TextStyle(
+                color: _white,
+                fontSize: 15,
+                height: 1.5,
+              ),
             ),
           ),
         ],
@@ -2996,10 +3007,10 @@ class _CadastroFacialPageState extends State<CadastroFacialPage> {
     final double circleSize = MediaQuery.sizeOf(context).width * 0.82;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: _blue,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
+        backgroundColor: _blue,
+        surfaceTintColor: _blue,
         elevation: 0,
         shadowColor: Colors.transparent,
         centerTitle: true,
@@ -3010,7 +3021,7 @@ class _CadastroFacialPageState extends State<CadastroFacialPage> {
         title: const Text(
           'Tire sua foto',
           style: TextStyle(
-            color: _blue,
+            color: Colors.white,
             fontSize: 20,
             fontWeight: FontWeight.w500,
           ),
@@ -3021,7 +3032,9 @@ class _CadastroFacialPageState extends State<CadastroFacialPage> {
         ),
       ),
       body: SafeArea(
-        child: Column(
+        child: DefaultTextStyle.merge(
+          style: const TextStyle(color: Colors.white),
+          child: Column(
           children: [
             const SizedBox(height: 24),
             Center(
@@ -3031,13 +3044,13 @@ class _CadastroFacialPageState extends State<CadastroFacialPage> {
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  color: _blue,
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   _status,
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: _blue,
                     fontSize: 18,
                     fontWeight: FontWeight.w500,
                   ),
@@ -3067,7 +3080,7 @@ class _CadastroFacialPageState extends State<CadastroFacialPage> {
                   'A validação facial automática funciona apenas em Android/iOS.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Color(0xFF0FB3FF),
+                    color: Colors.white,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
@@ -3116,12 +3129,12 @@ class _CadastroFacialPageState extends State<CadastroFacialPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.switch_camera, color: _blue, size: 40),
+                  Icon(Icons.switch_camera, color: Colors.white, size: 40),
                   const SizedBox(height: 6),
                   const Text(
                     'Virar câmera',
                     style: TextStyle(
-                      color: Colors.black87,
+                      color: Colors.white,
                       fontSize: 15,
                       fontWeight: FontWeight.w400,
                     ),
@@ -3131,6 +3144,7 @@ class _CadastroFacialPageState extends State<CadastroFacialPage> {
             ),
             const SizedBox(height: 34),
           ],
+          ),
         ),
       ),
     );
@@ -3205,7 +3219,7 @@ class CadastroFacialSucessoPage extends StatelessWidget {
             ),
             const SizedBox(height: 40),
           ],
-        ),
+          ),
       ),
     );
   }
@@ -3419,9 +3433,9 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                                   ),
                                 ),
                               ],
+                              ),
                             ),
                           ),
-                        ),
                         AnimatedPositioned(
                           duration: const Duration(milliseconds: 200),
                           curve: Curves.easeInOut,
@@ -3845,23 +3859,25 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFF0FB3FF),
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFF0FB3FF),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF0FB3FF)),
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'Anexe os Documentos',
-          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         ),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        child: Column(
+      body: DefaultTextStyle.merge(
+        style: const TextStyle(color: Colors.white),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Center(
@@ -3951,6 +3967,7 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
               ),
             ),
           ],
+          ),
         ),
       ),
     );
@@ -3974,7 +3991,7 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
                     ? Colors.green
                     : isInvalid
                     ? Colors.red
-                    : const Color(0xFF0FB3FF),
+                  : Colors.white,
                 width: 1.5,
               ),
               borderRadius: BorderRadius.circular(12),
@@ -3991,7 +4008,7 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
                           ? Colors.green
                           : isInvalid
                           ? Colors.red
-                          : const Color(0xFF0FB3FF),
+                          : Colors.white,
                     ),
                   ),
                 ),
@@ -4002,7 +4019,7 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
                 else
                   const Icon(
                     Icons.arrow_forward_ios,
-                    color: Color(0xFF0FB3FF),
+                    color: Colors.white,
                     size: 20,
                   ),
               ],

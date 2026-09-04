@@ -4,6 +4,7 @@ import 'onboarding_controller.dart';
 import 'onboarding_step.dart';
 import 'onboarding_theme.dart';
 import 'onboarding_widgets.dart';
+import '../cadastro_profissional.dart';
 import '../services/validacao_documento.dart';
 
 class ConversationalOnboardingScreen extends StatefulWidget {
@@ -76,6 +77,15 @@ class _ConversationalOnboardingScreenState
       case OnboardingStep.clientPjPrompt:
       case OnboardingStep.clientPjReviewPrompt:
       case OnboardingStep.professionalHandoff:
+      case OnboardingStep.profPjReviewPrompt:
+      case OnboardingStep.profPjReviewPrompt2:
+      case OnboardingStep.profContactPrompt:
+      case OnboardingStep.profPasswordPrompt:
+      case OnboardingStep.profAreaPrompt1:
+      case OnboardingStep.profAreaPrompt2:
+      case OnboardingStep.profAreaPrompt3:
+      case OnboardingStep.profDocsPrompt1:
+      case OnboardingStep.profDocsPrompt2:
         return true;
       default:
         return false;
@@ -99,6 +109,15 @@ class _ConversationalOnboardingScreenState
       case OnboardingStep.clientPjPrompt:
       case OnboardingStep.clientPjReviewPrompt:
       case OnboardingStep.professionalHandoff:
+      case OnboardingStep.profPjReviewPrompt:
+      case OnboardingStep.profPjReviewPrompt2:
+      case OnboardingStep.profContactPrompt:
+      case OnboardingStep.profPasswordPrompt:
+      case OnboardingStep.profAreaPrompt1:
+      case OnboardingStep.profAreaPrompt2:
+      case OnboardingStep.profAreaPrompt3:
+      case OnboardingStep.profDocsPrompt1:
+      case OnboardingStep.profDocsPrompt2:
         return 220;
       case OnboardingStep.documentInput:
       case OnboardingStep.loginForm:
@@ -107,6 +126,12 @@ class _ConversationalOnboardingScreenState
       case OnboardingStep.contactForm:
       case OnboardingStep.passwordForm:
       case OnboardingStep.clientPjForm:
+      case OnboardingStep.profDataForm:
+      case OnboardingStep.profPjForm:
+      case OnboardingStep.profContactForm:
+      case OnboardingStep.profPasswordForm:
+      case OnboardingStep.profAreaForm:
+      case OnboardingStep.profDocsForm:
         return 195;
     }
   }
@@ -151,73 +176,73 @@ class _ConversationalOnboardingScreenState
                         child: _buildHeaderTitle(step),
                       ),
 
-                      // Área Central Unificada:
-                      // O elemento superior (balões ou formulários) e a caixa ficam juntos na mesma árvore,
-                      // garantindo que a caixa deslize/morphe sua posição e tamanho suavemente!
+                      // Balões usam uma área de altura estável para que o histórico
+                      // possa subir sem deslocar a caixa de ferramentas.
                       Expanded(
                         child: Center(
-                          child: SingleChildScrollView(
-                            physics: const BouncingScrollPhysics(),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 8,
-                            ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                // Conteúdo superior (balões ou formulários) com transição Morphing de tamanho e conteúdo
-                                if (!isSplash) ...[
-                                  AnimatedSize(
-                                    duration: const Duration(milliseconds: 400),
-                                    curve: Curves.easeInOutCubic,
+                                SizedBox(
+                                  height: 300,
+                                  child: Align(
                                     alignment: Alignment.bottomCenter,
-                                    child: AnimatedSwitcher(
-                                      duration: const Duration(milliseconds: 350),
-                                      reverseDuration: const Duration(milliseconds: 240),
-                                      switchInCurve: Curves.easeOutCubic,
-                                      switchOutCurve: Curves.easeInCubic,
-                                      transitionBuilder: (child, animation) {
-                                        return FadeTransition(
+                                    child: AnimatedSize(
+                                      duration: const Duration(milliseconds: 400),
+                                      curve: Curves.easeInOutCubic,
+                                      alignment: Alignment.bottomCenter,
+                                      child: AnimatedSwitcher(
+                                        duration: const Duration(milliseconds: 350),
+                                        reverseDuration: const Duration(milliseconds: 240),
+                                        layoutBuilder: (currentChild, previousChildren) {
+                                          return Stack(
+                                            alignment: Alignment.bottomCenter,
+                                            clipBehavior: Clip.none,
+                                            children: [
+                                              ...previousChildren,
+                                              ?currentChild,
+                                            ],
+                                          );
+                                        },
+                                        transitionBuilder: (child, animation) =>
+                                            FadeTransition(
                                           opacity: animation,
-                                          child: ScaleTransition(
-                                            scale: Tween<double>(begin: 0.92, end: 1.0)
-                                                .animate(
-                                                  CurvedAnimation(
-                                                    parent: animation,
-                                                    curve: Curves.easeOutCubic,
-                                                  ),
-                                                ),
+                                          child: SlideTransition(
+                                            position: Tween<Offset>(
+                                              begin: const Offset(0, 0.08),
+                                              end: Offset.zero,
+                                            ).animate(animation),
                                             child: child,
                                           ),
-                                        );
-                                      },
-                                      child: KeyedSubtree(
-                                        key: ValueKey(
-                                          'content-${step.name}-${_controller.documentoCadastrado}-${_controller.erroFala != null}',
                                         ),
-                                        child: _buildUpperContent(step),
+                                        child: isSplash
+                                            ? const SizedBox.shrink()
+                                            : isBubble
+                                                ? KeyedSubtree(
+                                                    key: ValueKey(
+                                                      'bubble-${step.name}-${_controller.falaAtual}',
+                                                    ),
+                                                    child: _buildUpperContent(step),
+                                                  )
+                                                : SingleChildScrollView(
+                                                    key: ValueKey(
+                                                      'form-${step.name}-${_controller.erroFala}',
+                                                    ),
+                                                    physics:
+                                                        const BouncingScrollPhysics(),
+                                                    child: _buildUpperContent(step),
+                                                  ),
                                       ),
                                     ),
                                   ),
-
-                                  // Espaço entre o conteúdo superior e a cabeça da caixa:
-                                  // Balões de fala ficam colados na caixa (apenas 4px), formulários ficam a 16px.
-                                  AnimatedContainer(
-                                    duration: const Duration(milliseconds: 400),
-                                    curve: Curves.easeInOutCubic,
-                                    height: isBubble ? 4.0 : 16.0,
-                                  ),
-                                ],
-
-                                // Caixa de Ferramentas: Instância ÚNICA persistente!
-                                // Ela morpha de tamanho e desliza de posição de forma orgânica.
+                                ),
+                                const SizedBox(height: 4),
                                 CaixaCharacter(
                                   asset: _controller.pose.asset,
                                   size: _caixaSizeForStep(step),
                                 ),
-
-                                // Texto ConsertaJá na Splash (aparece abaixo da caixa na tela 1)
                                 if (isSplash) ...[
                                   const SizedBox(height: 22),
                                   _buildSplashLogo(),
@@ -313,8 +338,11 @@ class _ConversationalOnboardingScreenState
     String? title;
     if (step == OnboardingStep.contactForm) {
       title = 'Email e telefone';
-    } else if (step == OnboardingStep.clientPjForm) {
+    } else if (step == OnboardingStep.clientPjForm ||
+        step == OnboardingStep.profPjForm) {
       title = 'Dados da empresa';
+    } else if (step == OnboardingStep.profContactForm) {
+      title = 'Email e telefone';
     }
 
     if (title == null) return const SizedBox.shrink();
@@ -469,6 +497,139 @@ class _ConversationalOnboardingScreenState
 
         _buildFormFields(step),
       ],
+    );
+  }
+
+  Future<void> _selecionarOficio() async {
+    if (_controller.oficios.isEmpty) {
+      await _controller.carregarOficios();
+    }
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      isScrollControlled: true,
+      builder: (context) {
+        return SafeArea(
+          child: SizedBox(
+            height: MediaQuery.sizeOf(context).height * 0.65,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              children: [
+                const Text(
+                  'Área de atuação',
+                  style: TextStyle(
+                    color: OnboardingColors.blue,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                for (final oficio in _controller.oficios)
+                  ListTile(
+                    title: Text(oficio['funcao']?.toString() ?? ''),
+                    trailing: _controller.oficiosSelecionados.any(
+                      (item) => item['id_oficio'] == oficio['id_oficio'],
+                    )
+                        ? const Icon(Icons.check_circle, color: OnboardingColors.blue)
+                        : null,
+                    onTap: () {
+                      _controller.toggleOficio(oficio);
+                      Navigator.pop(context);
+                    },
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildProfessionalDocumentForm() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildProfessionalDocumentButton(
+          label: 'Cadastro facial',
+          completed: _controller.cadastroFacialConcluido,
+          onTap: () async {
+            if (_controller.cadastroFacialConcluido) return;
+            final resultado = await Navigator.push<String>(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const CadastroFacialInstrucoesPage(),
+              ),
+            );
+            if (resultado != null && mounted) {
+              _controller.setCadastroFacial(resultado);
+            }
+          },
+        ),
+        _buildProfessionalDocumentButton(
+          label: 'Documento de identidade',
+          completed: _controller.documentoIdentidadeConcluido,
+          onTap: () async {
+            final resultado = await Navigator.push<Map<String, dynamic>>(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ValidacaoDocsPage(
+                  cpf: _controller.isCpf ? _controller.documento.text : null,
+                  cnpj: _controller.isCnpj ? _controller.documento.text : null,
+                  dataNascimento: _controller.dataNascimento.text,
+                  isPessoaJuridica: _controller.isCnpj,
+                ),
+              ),
+            );
+            if (resultado != null && resultado['validado'] == true && mounted) {
+              _controller.setDocumentoIdentidade(
+                List<Map<String, dynamic>>.from(resultado['docsData'] ?? []),
+              );
+            }
+          },
+        ),
+        TermsAndPrivacyCheckboxes(
+          aceitouTermos: _controller.aceitouTermos,
+          aceitouPrivacidade: _controller.aceitouPrivacidade,
+          onToggleTermos: _controller.toggleTermos,
+          onTogglePrivacidade: _controller.togglePrivacidade,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProfessionalDocumentButton({
+    required String label,
+    required bool completed,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: SizedBox(
+        width: double.infinity,
+        height: 58,
+        child: OutlinedButton.icon(
+          onPressed: onTap,
+          icon: Icon(
+            completed ? Icons.check_circle : Icons.arrow_forward_rounded,
+            color: Colors.white,
+          ),
+          label: Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 16,
+            ),
+          ),
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: Colors.white, width: 2),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -712,6 +873,159 @@ class _ConversationalOnboardingScreenState
           ],
         );
 
+      case OnboardingStep.profDataForm:
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            OnboardingWhiteField(
+              label: 'Nome completo',
+              controller: _controller.nome,
+              requiredMark: true,
+              errorText: _controller.erroCampo,
+            ),
+            OnboardingWhiteField(
+              label: 'Data de Nascimento',
+              controller: _controller.dataNascimento,
+              requiredMark: true,
+              readOnly: true,
+              suffixIcon: Icons.calendar_today_rounded,
+              onTap: () => _selecionarData(context, _controller.dataNascimento),
+              errorText: _controller.erroCampo,
+            ),
+          ],
+        );
+
+      case OnboardingStep.profPjForm:
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            OnboardingWhiteField(
+              label: 'CNPJ',
+              controller: _controller.cnpj,
+              requiredMark: true,
+            ),
+            OnboardingWhiteField(
+              label: 'Nome fantasia',
+              controller: _controller.nomeFantasia,
+              requiredMark: true,
+            ),
+            OnboardingWhiteField(
+              label: 'Razão Social',
+              controller: _controller.razaoSocial,
+              requiredMark: true,
+            ),
+            OnboardingWhiteField(
+              label: 'Data de Fundação',
+              controller: _controller.dataFundacao,
+              requiredMark: true,
+              readOnly: true,
+              suffixIcon: Icons.calendar_today_rounded,
+              onTap: () => _selecionarData(context, _controller.dataFundacao),
+              errorText: _controller.erroCampo,
+            ),
+          ],
+        );
+
+      case OnboardingStep.profContactForm:
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            OnboardingWhiteField(
+              label: 'E-mail',
+              controller: _controller.email,
+              keyboardType: TextInputType.emailAddress,
+              errorText: _controller.erroCampo,
+            ),
+            OnboardingPhoneField(
+              controller: _controller.telefone,
+              ddi: _controller.ddi,
+              onDdiChanged: _controller.setDdi,
+              errorText: _controller.erroCampo,
+            ),
+          ],
+        );
+
+      case OnboardingStep.profPasswordForm:
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            OnboardingWhiteField(
+              label: 'Senha',
+              controller: _controller.senha,
+              requiredMark: true,
+              obscure: _senhaOculta,
+              suffixIcon: _senhaOculta
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined,
+              onSuffix: () => setState(() => _senhaOculta = !_senhaOculta),
+            ),
+            PasswordRequirementItem(
+              text: 'No mínimo 8 caracteres',
+              valid: _controller.senhaTemOito,
+            ),
+            PasswordRequirementItem(
+              text: 'Pelo menos 1 letra maiúscula',
+              valid: _controller.senhaMaiuscula,
+            ),
+            PasswordRequirementItem(
+              text: 'Pelo menos 1 letra minúscula',
+              valid: _controller.senhaMinuscula,
+            ),
+            PasswordRequirementItem(
+              text: 'Pelo menos 1 número',
+              valid: _controller.senhaNumero,
+            ),
+            PasswordRequirementItem(
+              text: 'Pelo menos 1 caractere especial',
+              valid: _controller.senhaSimbolo,
+            ),
+            const SizedBox(height: 8),
+            OnboardingWhiteField(
+              label: 'Confirme a senha',
+              controller: _controller.confirmarSenha,
+              requiredMark: true,
+              obscure: _confirmarSenhaOculta,
+              suffixIcon: _confirmarSenhaOculta
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined,
+              onSuffix: () => setState(
+                () => _confirmarSenhaOculta = !_confirmarSenhaOculta,
+              ),
+              errorText: _controller.erroCampo,
+            ),
+          ],
+        );
+
+      case OnboardingStep.profAreaForm:
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var index = 0; index < 3; index++)
+              AreaSlotCard(
+                label: index == 0
+                    ? 'Área de atuação'
+                    : 'Área de atuação ${index + 1}',
+                value: index < _controller.oficiosSelecionados.length
+                    ? _controller.oficiosSelecionados[index]['funcao']?.toString()
+                    : null,
+                requiredMark: index == 0,
+                onTap: _selecionarOficio,
+              ),
+            if (_controller.erroCampo != null)
+              Text(
+                _controller.erroCampo!,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+          ],
+        );
+
+      case OnboardingStep.profDocsForm:
+        return _buildProfessionalDocumentForm();
+
       default:
         return const SizedBox.shrink();
     }
@@ -847,10 +1161,87 @@ class _ConversationalOnboardingScreenState
       case OnboardingStep.professionalHandoff:
         return Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+          child: GoogleButton(
+            loading: _controller.carregando,
+            onTap: () => _controller.loginComGoogle(context),
+          ),
+        );
+
+      case OnboardingStep.profPjReviewPrompt:
+      case OnboardingStep.profPjReviewPrompt2:
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+          child: GoogleButton(
+            loading: _controller.carregando,
+            onTap: () => _controller.loginComGoogle(context),
+          ),
+        );
+
+      case OnboardingStep.profDataForm:
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
           child: PillButton(
             label: 'Continuar ->',
             outlined: true,
-            onTap: () => _controller.navegarParaProfissional(context),
+            loading: _controller.carregando,
+            onTap: _controller.continuarDadosProf,
+          ),
+        );
+
+      case OnboardingStep.profPjForm:
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+          child: PillButton(
+            label: 'Continuar ->',
+            outlined: true,
+            loading: _controller.carregando,
+            onTap: _controller.continuarDadosPjProf,
+          ),
+        );
+
+      case OnboardingStep.profContactForm:
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+          child: PillButton(
+            label: 'Continuar ->',
+            outlined: true,
+            loading: _controller.carregando,
+            onTap: _controller.continuarContatoProf,
+          ),
+        );
+
+      case OnboardingStep.profPasswordForm:
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+          child: PillButton(
+            label: 'Continuar ->',
+            outlined: true,
+            loading: _controller.carregando,
+            onTap: _controller.continuarSenhaProf,
+          ),
+        );
+
+      case OnboardingStep.profAreaForm:
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+          child: PillButton(
+            label: 'Continuar ->',
+            outlined: true,
+            loading: _controller.carregando,
+            onTap: _controller.oficiosSelecionados.isEmpty
+                ? null
+                : _controller.continuarAreasProf,
+          ),
+        );
+
+      case OnboardingStep.profDocsForm:
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+          child: PillButton(
+            label: 'Finalizar Cadastro',
+            outlined: true,
+            loading: _controller.carregando,
+            onTap: () => _controller.finalizarCadastroProfissional(context),
           ),
         );
 
