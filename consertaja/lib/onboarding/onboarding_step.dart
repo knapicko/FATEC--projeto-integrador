@@ -10,6 +10,8 @@ enum OnboardingStep {
   perfect,
   chooseAccountPrompt,
   chooseAccount,
+  googleSuccess,
+  googleMissingPrompt,
   // --- Fluxo Cliente PF ---
   clientPfPrompt,
   clientPfForm,
@@ -98,6 +100,8 @@ double progressoDoPasso(OnboardingStep step) {
     case OnboardingStep.perfect:
     case OnboardingStep.chooseAccountPrompt:
     case OnboardingStep.chooseAccount:
+    case OnboardingStep.googleSuccess:
+    case OnboardingStep.googleMissingPrompt:
       return 0.46;
     case OnboardingStep.clientPfPrompt:
     case OnboardingStep.clientPfForm:

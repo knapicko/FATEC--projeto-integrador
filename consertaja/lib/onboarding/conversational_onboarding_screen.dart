@@ -77,6 +77,8 @@ class _ConversationalOnboardingScreenState
       case OnboardingStep.clientPjPrompt:
       case OnboardingStep.clientPjReviewPrompt:
       case OnboardingStep.professionalHandoff:
+      case OnboardingStep.googleSuccess:
+      case OnboardingStep.googleMissingPrompt:
       case OnboardingStep.profPjReviewPrompt:
       case OnboardingStep.profPjReviewPrompt2:
       case OnboardingStep.profContactPrompt:
@@ -109,6 +111,8 @@ class _ConversationalOnboardingScreenState
       case OnboardingStep.clientPjPrompt:
       case OnboardingStep.clientPjReviewPrompt:
       case OnboardingStep.professionalHandoff:
+      case OnboardingStep.googleSuccess:
+      case OnboardingStep.googleMissingPrompt:
       case OnboardingStep.profPjReviewPrompt:
       case OnboardingStep.profPjReviewPrompt2:
       case OnboardingStep.profContactPrompt:
@@ -155,7 +159,7 @@ class _ConversationalOnboardingScreenState
               onTap: () {
                 FocusScope.of(context).unfocus();
                 if (podeAvancarPorToque) {
-                  _controller.avancarPorToque();
+                  _controller.avancarPorToque(context);
                 }
               },
               child: Stack(
