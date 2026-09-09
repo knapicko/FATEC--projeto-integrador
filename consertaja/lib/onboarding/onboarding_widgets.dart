@@ -116,10 +116,7 @@ class OnboardingWhiteField extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    if (prefix != null) ...[
-                      prefix!,
-                      const SizedBox(width: 8),
-                    ],
+                    if (prefix != null) ...[prefix!, const SizedBox(width: 8)],
                     Expanded(
                       child: TextField(
                         controller: controller,
@@ -332,7 +329,6 @@ class OnboardingPhoneField extends StatelessWidget {
     return OnboardingWhiteField(
       label: 'Telefone',
       controller: controller,
-      requiredMark: true,
       keyboardType: TextInputType.phone,
       inputFormatters: [TelefoneInputFormatter()],
       errorText: errorText,
@@ -365,12 +361,8 @@ class PillButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = outlined
-        ? Colors.transparent
-        : (background ?? Colors.white);
-    final fg = outlined
-        ? Colors.white
-        : (foreground ?? OnboardingColors.blue);
+    final bg = outlined ? Colors.transparent : (background ?? Colors.white);
+    final fg = outlined ? Colors.white : (foreground ?? OnboardingColors.blue);
     return SizedBox(
       height: 52,
       child: ElevatedButton(
@@ -392,10 +384,7 @@ class PillButton extends StatelessWidget {
             ? SizedBox(
                 width: 22,
                 height: 22,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: fg,
-                ),
+                child: CircularProgressIndicator(strokeWidth: 2, color: fg),
               )
             : Text(
                 label,
@@ -415,11 +404,7 @@ class GoogleButton extends StatelessWidget {
   final VoidCallback? onTap;
   final bool loading;
 
-  const GoogleButton({
-    super.key,
-    this.onTap,
-    this.loading = false,
-  });
+  const GoogleButton({super.key, this.onTap, this.loading = false});
 
   @override
   Widget build(BuildContext context) {
@@ -563,11 +548,7 @@ class SpeechBubble extends StatelessWidget {
       return RichText(
         textAlign: TextAlign.center,
         text: TextSpan(
-          style: TextStyle(
-            color: baseColor,
-            fontSize: fontSize,
-            height: 1.3,
-          ),
+          style: TextStyle(color: baseColor, fontSize: fontSize, height: 1.3),
           children: [
             TextSpan(
               text: parts[0],
@@ -694,30 +675,32 @@ class CaixaCharacter extends StatelessWidget {
           switchInCurve: Curves.easeInOut,
           switchOutCurve: Curves.easeInOut,
           layoutBuilder: (currentChild, previousChildren) {
-            return Stack(
-              alignment: Alignment.center,
-              children: <Widget>[
-                ...previousChildren,
-                ?currentChild,
-              ],
+            return SizedBox(
+              width: double.infinity,
+              height: size,
+              child: Stack(
+                fit: StackFit.expand,
+                alignment: Alignment.center,
+                children: <Widget>[...previousChildren, ?currentChild],
+              ),
             );
           },
           transitionBuilder: (child, animation) {
-            return FadeTransition(
-              opacity: animation,
-              child: child,
-            );
+            return FadeTransition(opacity: animation, child: child);
           },
-          child: Image.asset(
-            asset,
-            key: ValueKey(asset),
+          child: SizedBox(
+            width: double.infinity,
             height: size,
-            fit: BoxFit.contain,
-            errorBuilder: (_, _, _) => Icon(
-              Icons.home_repair_service_rounded,
-              key: ValueKey('fallback-$asset'),
-              size: size * 0.7,
-              color: Colors.white,
+            child: Image.asset(
+              asset,
+              key: ValueKey(asset),
+              fit: BoxFit.contain,
+              errorBuilder: (_, _, _) => Icon(
+                Icons.home_repair_service_rounded,
+                key: ValueKey('fallback-$asset'),
+                size: size * 0.7,
+                color: Colors.white,
+              ),
             ),
           ),
         ),
@@ -739,10 +722,7 @@ class BubbleTransitionSwitcher extends StatelessWidget {
       switchInCurve: Curves.easeOutCubic,
       switchOutCurve: Curves.easeInCubic,
       transitionBuilder: (child, animation) {
-        return _BubbleTransition(
-          animation: animation,
-          child: child,
-        );
+        return _BubbleTransition(animation: animation, child: child);
       },
       child: child,
     );
@@ -758,15 +738,62 @@ class _BubbleTransition extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isLeaving = animation.status == AnimationStatus.reverse;
+    final curved = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
     final slide = Tween<Offset>(
-      begin: const Offset(0, 0.08),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic));
-
+      begin: isLeaving ? Offset.zero : const Offset(0, 0.08),
+      end: isLeaving ? const Offset(0, -0.16) : Offset.zero,
+    ).animate(curved);
     final content = SlideTransition(position: slide, child: child);
+
     if (!isLeaving) return content;
 
-    return FadeTransition(opacity: animation, child: content);
+    final fade = Tween<double>(begin: 1, end: 0).animate(
+      CurvedAnimation(
+        parent: ReverseAnimation(animation),
+        curve: const Interval(0.78, 1, curve: Curves.easeIn),
+      ),
+    );
+    return FadeTransition(opacity: fade, child: content);
+  }
+}
+
+class ConversationContentTransition extends StatelessWidget {
+  final Animation<double> animation;
+  final Widget child;
+
+  const ConversationContentTransition({
+    super.key,
+    required this.animation,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isLeaving = animation.status == AnimationStatus.reverse;
+    final curved = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+    final slide = Tween<Offset>(
+      begin: isLeaving ? Offset.zero : const Offset(0, 0.1),
+      end: isLeaving ? const Offset(0, -0.2) : Offset.zero,
+    ).animate(curved);
+    final content = SlideTransition(position: slide, child: child);
+
+    if (!isLeaving) return content;
+
+    final fade = Tween<double>(begin: 1, end: 0).animate(
+      CurvedAnimation(
+        parent: ReverseAnimation(animation),
+        curve: const Interval(0, 0.35, curve: Curves.easeIn),
+      ),
+    );
+    return FadeTransition(opacity: fade, child: content);
   }
 }
 
@@ -787,11 +814,7 @@ class AnimatedHistoricalBubble extends StatelessWidget {
           child: child,
         );
       },
-      child: SpeechBubble(
-        text: text,
-        historico: true,
-        comSeta: false,
-      ),
+      child: SpeechBubble(text: text, historico: true, comSeta: false),
     );
   }
 }
@@ -814,7 +837,9 @@ class AccountTypeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = profissional ? OnboardingColors.orange : OnboardingColors.blue;
+    final accent = profissional
+        ? OnboardingColors.orange
+        : OnboardingColors.blue;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -975,7 +1000,9 @@ class PasswordRequirementItem extends StatelessWidget {
             child: Text(
               text,
               style: TextStyle(
-                color: valid ? Colors.white : Colors.white.withValues(alpha: 0.8),
+                color: valid
+                    ? Colors.white
+                    : Colors.white.withValues(alpha: 0.8),
                 fontSize: 12.5,
                 fontWeight: valid ? FontWeight.bold : FontWeight.w500,
               ),
