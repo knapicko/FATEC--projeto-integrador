@@ -149,6 +149,7 @@ class _ConversationalOnboardingScreenState
 
         return Scaffold(
           backgroundColor: OnboardingColors.blue,
+          resizeToAvoidBottomInset: false,
           body: SafeArea(
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
@@ -190,50 +191,63 @@ class _ConversationalOnboardingScreenState
                                   child: Align(
                                     alignment: Alignment.bottomCenter,
                                     child: AnimatedSize(
-                                      duration: const Duration(milliseconds: 400),
+                                      duration: const Duration(
+                                        milliseconds: 400,
+                                      ),
                                       curve: Curves.easeInOutCubic,
                                       alignment: Alignment.bottomCenter,
                                       child: AnimatedSwitcher(
-                                        duration: const Duration(milliseconds: 350),
-                                        reverseDuration: const Duration(milliseconds: 240),
-                                        layoutBuilder: (currentChild, previousChildren) {
-                                          return Stack(
-                                            alignment: Alignment.bottomCenter,
-                                            clipBehavior: Clip.none,
-                                            children: [
-                                              ...previousChildren,
-                                              ?currentChild,
-                                            ],
-                                          );
-                                        },
-                                        transitionBuilder: (child, animation) =>
-                                            FadeTransition(
-                                          opacity: animation,
-                                          child: SlideTransition(
-                                            position: Tween<Offset>(
-                                              begin: const Offset(0, 0.08),
-                                              end: Offset.zero,
-                                            ).animate(animation),
-                                            child: child,
-                                          ),
+                                        duration: const Duration(
+                                          milliseconds: 460,
                                         ),
+                                        reverseDuration: const Duration(
+                                          milliseconds: 180,
+                                        ),
+                                        layoutBuilder:
+                                            (currentChild, previousChildren) {
+                                              return Stack(
+                                                alignment:
+                                                    Alignment.bottomCenter,
+                                                clipBehavior: Clip.none,
+                                                children: [
+                                                  ...previousChildren,
+                                                  ?currentChild,
+                                                ],
+                                              );
+                                            },
+                                        transitionBuilder: (child, animation) =>
+                                            ConversationContentTransition(
+                                              animation: animation,
+                                              child: child,
+                                            ),
                                         child: isSplash
                                             ? const SizedBox.shrink()
                                             : isBubble
-                                                ? KeyedSubtree(
-                                                    key: ValueKey(
-                                                      'bubble-${step.name}-${_controller.falaAtual}',
-                                                    ),
-                                                    child: _buildUpperContent(step),
-                                                  )
-                                                : SingleChildScrollView(
+                                            ? KeyedSubtree(
+                                                key: ValueKey(
+                                                  'bubble-${step.name}-${_controller.falaAtual}',
+                                                ),
+                                                child: _buildUpperContent(step),
+                                              )
+                                            : LayoutBuilder(
+                                                builder: (context, constraints) {
+                                                  return FittedBox(
                                                     key: ValueKey(
                                                       'form-${step.name}-${_controller.erroFala}',
                                                     ),
-                                                    physics:
-                                                        const BouncingScrollPhysics(),
-                                                    child: _buildUpperContent(step),
-                                                  ),
+                                                    fit: BoxFit.scaleDown,
+                                                    alignment:
+                                                        Alignment.bottomCenter,
+                                                    child: SizedBox(
+                                                      width:
+                                                          constraints.maxWidth,
+                                                      child: _buildUpperContent(
+                                                        step,
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                              ),
                                       ),
                                     ),
                                   ),
@@ -267,9 +281,7 @@ class _ConversationalOnboardingScreenState
                     Container(
                       color: Colors.black26,
                       child: const Center(
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                        ),
+                        child: CircularProgressIndicator(color: Colors.white),
                       ),
                     ),
                 ],
@@ -393,7 +405,8 @@ class _ConversationalOnboardingScreenState
   /// Conteúdo dos passos com balão de fala (com proximidade da caixa)
   Widget _buildBubbleContent(OnboardingStep step) {
     final isWelcome = step == OnboardingStep.welcome;
-    final temSeta = step != OnboardingStep.loginOrOther &&
+    final temSeta =
+        step != OnboardingStep.loginOrOther &&
         step != OnboardingStep.continueOrLogin;
 
     return Column(
@@ -528,10 +541,14 @@ class _ConversationalOnboardingScreenState
                 for (final oficio in _controller.oficios)
                   ListTile(
                     title: Text(oficio['funcao']?.toString() ?? ''),
-                    trailing: _controller.oficiosSelecionados.any(
-                      (item) => item['id_oficio'] == oficio['id_oficio'],
-                    )
-                        ? const Icon(Icons.check_circle, color: OnboardingColors.blue)
+                    trailing:
+                        _controller.oficiosSelecionados.any(
+                          (item) => item['id_oficio'] == oficio['id_oficio'],
+                        )
+                        ? const Icon(
+                            Icons.check_circle,
+                            color: OnboardingColors.blue,
+                          )
                         : null,
                     onTap: () {
                       _controller.toggleOficio(oficio);
@@ -689,12 +706,12 @@ class _ConversationalOnboardingScreenState
               title: 'Conta de cliente',
               subtitle:
                   'Procuro profissionais para resolverem meus problemas domésticos',
-              onTap: () => _controller.selecionarTipoConta(
-                TipoContaOnboarding.cliente,
-              ),
+              onTap: () =>
+                  _controller.selecionarTipoConta(TipoContaOnboarding.cliente),
             ),
             AccountTypeCard(
-              selected: _controller.tipoConta == TipoContaOnboarding.profissional,
+              selected:
+                  _controller.tipoConta == TipoContaOnboarding.profissional,
               profissional: true,
               title: 'Conta de Profissional',
               subtitle:
@@ -715,7 +732,9 @@ class _ConversationalOnboardingScreenState
               label: 'Nome completo',
               controller: _controller.nome,
               requiredMark: true,
-              errorText: _controller.nome.text.isEmpty ? _controller.erroCampo : null,
+              errorText: _controller.nome.text.isEmpty
+                  ? _controller.erroCampo
+                  : null,
             ),
             OnboardingWhiteField(
               label: 'Data de Nascimento',
@@ -736,10 +755,21 @@ class _ConversationalOnboardingScreenState
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: Text(
+                'Preencha pelo menos o e-mail e/ou telefone.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
             OnboardingWhiteField(
               label: 'E-mail',
               controller: _controller.email,
-              requiredMark: true,
               keyboardType: TextInputType.emailAddress,
               errorText: _controller.erroCampo,
             ),
@@ -930,6 +960,18 @@ class _ConversationalOnboardingScreenState
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: Text(
+                'Preencha somente o e-mail ou o telefone.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
             OnboardingWhiteField(
               label: 'E-mail',
               controller: _controller.email,
@@ -1007,7 +1049,8 @@ class _ConversationalOnboardingScreenState
                     ? 'Área de atuação'
                     : 'Área de atuação ${index + 1}',
                 value: index < _controller.oficiosSelecionados.length
-                    ? _controller.oficiosSelecionados[index]['funcao']?.toString()
+                    ? _controller.oficiosSelecionados[index]['funcao']
+                          ?.toString()
                     : null,
                 requiredMark: index == 0,
                 onTap: _selecionarOficio,
