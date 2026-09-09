@@ -6,6 +6,7 @@ import 'perfil_profissional.dart';
 import 'meus_enderecos.dart';
 import 'tela_meu_perfil_cliente.dart';
 import 'tela_busca.dart';
+import 'tela_inicial.dart';
 import 'seguindo_cliente.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/bottom_navigation_bar_cliente.dart';
@@ -552,9 +553,9 @@ class _TelaHomeState extends State<TelaHome> {
     try {
       final supabase = Supabase.instance.client;
 
-      final empresasData = await supabase.from('grupo_empresa').select(
-            'id_grupo_empresa, tag_empresa, cor_tag_empresa, fk_perfil',
-          );
+      final empresasData = await supabase
+          .from('grupo_empresa')
+          .select('id_grupo_empresa, tag_empresa, cor_tag_empresa, fk_perfil');
       final empresasPorId = <int, Map<String, dynamic>>{};
       final empresasPorPerfil = <int, Map<String, dynamic>>{};
       for (final empresa in empresasData) {
@@ -641,16 +642,14 @@ class _TelaHomeState extends State<TelaHome> {
                 : 'Profissional',
             oficios: oficios,
             tagEmpresa: tagEmpresaRaw.isEmpty
-              ? null
-              : (tagEmpresaRaw.startsWith('#')
-                  ? tagEmpresaRaw
-                  : '#$tagEmpresaRaw'),
-            tagEmpresaBgColor: tagEmpresaRaw.isEmpty
-              ? null
-              : corEmpresa,
+                ? null
+                : (tagEmpresaRaw.startsWith('#')
+                      ? tagEmpresaRaw
+                      : '#$tagEmpresaRaw'),
+            tagEmpresaBgColor: tagEmpresaRaw.isEmpty ? null : corEmpresa,
             tagEmpresaTextColor: tagEmpresaRaw.isEmpty
-              ? null
-              : CorOficio.corTextoContraste(corEmpresa),
+                ? null
+                : CorOficio.corTextoContraste(corEmpresa),
           ),
         );
       }
@@ -666,7 +665,9 @@ class _TelaHomeState extends State<TelaHome> {
       final supabase = Supabase.instance.client;
 
       // 1. Busca grupos de empresa cadastrados
-      final empresasData = await supabase.from('grupo_empresa').select(
+      final empresasData = await supabase
+          .from('grupo_empresa')
+          .select(
             'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, fk_perfil',
           );
 
@@ -760,13 +761,16 @@ class _TelaHomeState extends State<TelaHome> {
         lista.add(
           LojaPopular(
             idGrupoEmpresa: idGrupo,
-            titulo:
-                (nome != null && nome.isNotEmpty) ? nome : 'Empresa Parceira',
+            titulo: (nome != null && nome.isNotEmpty)
+                ? nome
+                : 'Empresa Parceira',
             avaliacao: 4.9,
             totalAvaliacoes: 923,
             distancia: '1.2 km',
             tag1: tagEmpresaFormatada,
-            tag2: oficiosLoja.isNotEmpty ? oficiosLoja.first.funcao : 'Serviços',
+            tag2: oficiosLoja.isNotEmpty
+                ? oficiosLoja.first.funcao
+                : 'Serviços',
             tag1BgColor: corBase,
             tag1TextColor: CorOficio.corTextoContraste(corBase),
             tag2BgColor: const Color(0xFFEEEEEE),
@@ -826,7 +830,7 @@ class _TelaHomeState extends State<TelaHome> {
                 }
 
                 navigatorKey.currentState?.pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const TelaEscolhaConta()),
+                  MaterialPageRoute(builder: (_) => const TelaInicial()),
                   (route) => false,
                 );
               },
@@ -853,9 +857,9 @@ class _TelaHomeState extends State<TelaHome> {
   }
 
   void _navegarParaBusca(BuildContext context) {
-    Navigator.of(context).push(
-      _rotaSemAnimacao(TelaBusca(isVisitante: widget.isVisitante)),
-    );
+    Navigator.of(
+      context,
+    ).push(_rotaSemAnimacao(TelaBusca(isVisitante: widget.isVisitante)));
   }
 
   BoxDecoration _cardDecoration() {
@@ -1321,7 +1325,12 @@ class _TelaHomeState extends State<TelaHome> {
 
             if (widget.isVisitante) ...[
               GestureDetector(
-                onTap: () => Navigator.pop(context),
+                onTap: () {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const TelaInicial()),
+                    (route) => false,
+                  );
+                },
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -1852,8 +1861,7 @@ class _TelaHomeState extends State<TelaHome> {
                       if (perfil.tagEmpresa != null)
                         _buildTag(
                           perfil.tagEmpresa!,
-                          perfil.tagEmpresaBgColor ??
-                              const Color(0xFFE1F5FE),
+                          perfil.tagEmpresaBgColor ?? const Color(0xFFE1F5FE),
                           perfil.tagEmpresaTextColor ?? _primaryBlue,
                         ),
                       ...perfil.oficios.map(
@@ -2015,10 +2023,7 @@ class _TelaHomeState extends State<TelaHome> {
           Stack(
             clipBehavior: Clip.none,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: imagem,
-              ),
+              ClipRRect(borderRadius: BorderRadius.circular(10), child: imagem),
               if (loja.isVerified)
                 Positioned(right: -2, bottom: -2, child: _buildVerifiedBadge()),
             ],
@@ -2058,8 +2063,7 @@ class _TelaHomeState extends State<TelaHome> {
                   spacing: 6,
                   runSpacing: 4,
                   children: [
-                    if (loja.tagEmpresa != null &&
-                        loja.tagEmpresa!.isNotEmpty)
+                    if (loja.tagEmpresa != null && loja.tagEmpresa!.isNotEmpty)
                       _buildTag(
                         loja.tagEmpresa!,
                         loja.tag1BgColor,
