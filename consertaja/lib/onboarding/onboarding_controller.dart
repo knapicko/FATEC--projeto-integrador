@@ -99,6 +99,28 @@ class OnboardingController extends ChangeNotifier {
     }
   }
 
+  void iniciarFluxoLogin() {
+    _started = true;
+    _hydrated = true;
+    _historico.clear();
+    step = OnboardingStep.loginForm;
+    erroCampo = null;
+    erroFala = null;
+    _applyVisuals();
+    notifyListeners();
+  }
+
+  void iniciarFluxoCadastro() {
+    _started = true;
+    _hydrated = true;
+    _historico.clear();
+    step = OnboardingStep.welcome;
+    erroCampo = null;
+    erroFala = null;
+    _applyVisuals();
+    notifyListeners();
+  }
+
   void _bindPersist() {
     for (final c in [
       documento,
@@ -212,8 +234,10 @@ class OnboardingController extends ChangeNotifier {
       historicoFala = map['historicoFala'] as String?;
       falaAtual = map['falaAtual'] as String? ?? '';
       // Profissional
-      cadastroFacialConcluido = map['cadastroFacialConcluido'] as bool? ?? false;
-      documentoIdentidadeConcluido = map['documentoIdentidadeConcluido'] as bool? ?? false;
+      cadastroFacialConcluido =
+          map['cadastroFacialConcluido'] as bool? ?? false;
+      documentoIdentidadeConcluido =
+          map['documentoIdentidadeConcluido'] as bool? ?? false;
       idFacial = map['idFacial'] as String?;
       fotoPerfilUrl = map['fotoPerfilUrl'] as String?;
       final rawOficios = map['oficiosSelecionados'];
@@ -264,6 +288,7 @@ class OnboardingController extends ChangeNotifier {
     falaAtual = '';
     splashTitleVisible = true;
     pose = CaixaPose.normal;
+    _started = false;
     _hydrated = false;
     // Profissional
     oficios.clear();
@@ -338,7 +363,8 @@ class OnboardingController extends ChangeNotifier {
         pose = CaixaPose.normal;
         historicoFala =
             'Identifiquei que o ${rotuloDocumento(documento.text)} ${formatarCpfOuCnpj(documento.text)} não está cadastrado no sistema';
-        falaAtual = 'Gostaria de continuar o cadastro ou entrar em outra conta?';
+        falaAtual =
+            'Gostaria de continuar o cadastro ou entrar em outra conta?';
       case OnboardingStep.perfect:
         pose = CaixaPose.falandoFechado;
         historicoFala = null;
@@ -362,7 +388,8 @@ class OnboardingController extends ChangeNotifier {
       case OnboardingStep.contactPrompt:
         pose = CaixaPose.falandoFechado;
         historicoFala = null;
-        falaAtual = 'Perfeito, agora me informe um email ou um telefone de contato';
+        falaAtual =
+            'Perfeito, agora me informe um email ou um telefone de contato';
       case OnboardingStep.contactForm:
         pose = CaixaPose.normal;
         historicoFala = null;
@@ -414,7 +441,8 @@ class OnboardingController extends ChangeNotifier {
       case OnboardingStep.profContactPrompt:
         pose = CaixaPose.falandoFechado;
         historicoFala = null;
-        falaAtual = 'Perfeito, agora me informe um email ou um telefone de contato';
+        falaAtual =
+            'Perfeito, agora me informe um email ou um telefone de contato';
       case OnboardingStep.profContactForm:
         pose = CaixaPose.normal;
         historicoFala = null;
@@ -430,10 +458,12 @@ class OnboardingController extends ChangeNotifier {
       case OnboardingStep.profAreaPrompt1:
         pose = CaixaPose.falandoAberto;
         historicoFala = null;
-        falaAtual = 'Certo, agora preciso que você escolha até 3 áreas de atuação';
+        falaAtual =
+            'Certo, agora preciso que você escolha até 3 áreas de atuação';
       case OnboardingStep.profAreaPrompt2:
         pose = CaixaPose.falandoAberto;
-        historicoFala = 'Certo, agora preciso que você escolha até 3 áreas de atuação';
+        historicoFala =
+            'Certo, agora preciso que você escolha até 3 áreas de atuação';
         falaAtual = 'Essas são as áreas que você atua no seu dia a dia';
       case OnboardingStep.profAreaPrompt3:
         pose = CaixaPose.falandoFechado;
@@ -447,11 +477,14 @@ class OnboardingController extends ChangeNotifier {
       case OnboardingStep.profDocsPrompt1:
         pose = CaixaPose.falandoAberto;
         historicoFala = null;
-        falaAtual = 'Agora só preciso de alguns documentos para finalizar seu cadastro';
+        falaAtual =
+            'Agora só preciso de alguns documentos para finalizar seu cadastro';
       case OnboardingStep.profDocsPrompt2:
         pose = CaixaPose.falandoFechado;
-        historicoFala = 'Agora só preciso de alguns documentos para finalizar seu cadastro';
-        falaAtual = 'E não se preocupe, nós não salvamos nenhum documento no nosso banco de dados';
+        historicoFala =
+            'Agora só preciso de alguns documentos para finalizar seu cadastro';
+        falaAtual =
+            'E não se preocupe, nós não salvamos nenhum documento no nosso banco de dados';
       case OnboardingStep.profDocsForm:
         pose = CaixaPose.normal;
         historicoFala = null;
@@ -580,7 +613,8 @@ class OnboardingController extends ChangeNotifier {
         _historico.last != OnboardingStep.documentInput) {
       _historico.removeLast();
     }
-    if (_historico.isNotEmpty && _historico.last == OnboardingStep.documentInput) {
+    if (_historico.isNotEmpty &&
+        _historico.last == OnboardingStep.documentInput) {
       _historico.removeLast();
     }
     await _transicionar(OnboardingStep.documentInput, empilhar: false);
@@ -626,8 +660,8 @@ class OnboardingController extends ChangeNotifier {
           tipoContaEsperado: tipoConta == TipoContaOnboarding.cliente
               ? TipoContaCadastro.cliente
               : (tipoConta == TipoContaOnboarding.profissional
-                  ? TipoContaCadastro.profissional
-                  : null),
+                    ? TipoContaCadastro.profissional
+                    : null),
         );
       }
     } catch (e) {
@@ -661,7 +695,9 @@ class OnboardingController extends ChangeNotifier {
       (e) => e['id_oficio'] == oficio['id_oficio'],
     );
     if (isSelected) {
-      oficiosSelecionados.removeWhere((e) => e['id_oficio'] == oficio['id_oficio']);
+      oficiosSelecionados.removeWhere(
+        (e) => e['id_oficio'] == oficio['id_oficio'],
+      );
     } else {
       if (oficiosSelecionados.length >= 3) return; // Limite de 3
       oficiosSelecionados.add(oficio);
@@ -778,8 +814,13 @@ class OnboardingController extends ChangeNotifier {
 
   Future<void> continuarSenhaProf() async {
     erroCampo = null;
-    if (!senhaTemOito || !senhaMaiuscula || !senhaMinuscula || !senhaSimbolo || !senhaNumero) {
-      erroCampo = 'Por favor, preencha todos os requisitos de segurança da senha.';
+    if (!senhaTemOito ||
+        !senhaMaiuscula ||
+        !senhaMinuscula ||
+        !senhaSimbolo ||
+        !senhaNumero) {
+      erroCampo =
+          'Por favor, preencha todos os requisitos de segurança da senha.';
       notifyListeners();
       return;
     }
@@ -829,7 +870,8 @@ class OnboardingController extends ChangeNotifier {
         password: senha.text,
       );
       final authUser = authResponse.user;
-      if (authUser == null) throw Exception('Falha ao criar conta de autenticação.');
+      if (authUser == null)
+        throw Exception('Falha ao criar conta de autenticação.');
       final authId = authUser.id;
       final precisaConfirmarEmail = authResponse.session == null;
 
@@ -841,8 +883,12 @@ class OnboardingController extends ChangeNotifier {
       final emailId = emailResponse['id_email'];
 
       final telefoneLimpo = telefone.text.replaceAll(RegExp(r'\D'), '');
-      final ddd2 = telefoneLimpo.length >= 2 ? telefoneLimpo.substring(0, 2) : '';
-      final numero = telefoneLimpo.length > 2 ? telefoneLimpo.substring(2) : telefoneLimpo;
+      final ddd2 = telefoneLimpo.length >= 2
+          ? telefoneLimpo.substring(0, 2)
+          : '';
+      final numero = telefoneLimpo.length > 2
+          ? telefoneLimpo.substring(2)
+          : telefoneLimpo;
       final telefoneResponse = await supabase
           .from('telefones')
           .insert({'ddd': ddd2, 'numero': numero, 'fk_status': 1})
@@ -861,12 +907,18 @@ class OnboardingController extends ChangeNotifier {
         final pfId = pfResponse['id_pessoa_fisica'];
         final assResponse = await supabase
             .from('ass_tipo_pessoa')
-            .insert({'tipo': 'Física', 'fk_pessoa_fisica': pfId, 'fk_pessoa_juridica': null})
+            .insert({
+              'tipo': 'Física',
+              'fk_pessoa_fisica': pfId,
+              'fk_pessoa_juridica': null,
+            })
             .select()
             .single();
         assTipoPessoaId = assResponse['id_tipo_pessoa'];
       } else {
-        final cnpjLimpo = somenteDigitos(cnpj.text.isEmpty ? documento.text : cnpj.text);
+        final cnpjLimpo = somenteDigitos(
+          cnpj.text.isEmpty ? documento.text : cnpj.text,
+        );
         final pjResponse = await supabase
             .from('pessoa_juridica')
             .insert({
@@ -874,7 +926,8 @@ class OnboardingController extends ChangeNotifier {
               'razao_social': razaoSocial.text.trim(),
               'nome_fantasia': nomeFantasia.text.trim(),
               'tem_imovel': !cnpjDeEmpresa,
-              'data_fundacao': converterDataParaIso(dataFundacao.text.trim()).isNotEmpty
+              'data_fundacao':
+                  converterDataParaIso(dataFundacao.text.trim()).isNotEmpty
                   ? converterDataParaIso(dataFundacao.text.trim())
                   : null,
             })
@@ -883,7 +936,11 @@ class OnboardingController extends ChangeNotifier {
         final pjId = pjResponse['id_pessoa_juridica'];
         final assResponse = await supabase
             .from('ass_tipo_pessoa')
-            .insert({'tipo': 'Jurídica', 'fk_pessoa_fisica': null, 'fk_pessoa_juridica': pjId})
+            .insert({
+              'tipo': 'Jurídica',
+              'fk_pessoa_fisica': null,
+              'fk_pessoa_juridica': pjId,
+            })
             .select()
             .single();
         assTipoPessoaId = assResponse['id_tipo_pessoa'];
@@ -923,7 +980,10 @@ class OnboardingController extends ChangeNotifier {
         try {
           await supabase
               .from('ass_oficio_profissional')
-              .insert({'fk_profissional': profissionalId, 'fk_oficio': oficio['id_oficio']})
+              .insert({
+                'fk_profissional': profissionalId,
+                'fk_oficio': oficio['id_oficio'],
+              })
               .select()
               .maybeSingle();
         } catch (e) {
@@ -959,14 +1019,17 @@ class OnboardingController extends ChangeNotifier {
         } else {
           Navigator.pushAndRemoveUntil(
             context,
-            MaterialPageRoute(builder: (_) => TelaHomeProfissional(isVisitante: false)),
+            MaterialPageRoute(
+              builder: (_) => TelaHomeProfissional(isVisitante: false),
+            ),
             (_) => false,
           );
         }
       }
     } on AuthException catch (e) {
       carregando = false;
-      erroCampo = e.message.toLowerCase().contains('already') ||
+      erroCampo =
+          e.message.toLowerCase().contains('already') ||
               e.message.toLowerCase().contains('duplicate')
           ? 'Este e-mail já está cadastrado em nossa plataforma.'
           : e.message;
@@ -984,7 +1047,9 @@ class OnboardingController extends ChangeNotifier {
       MaterialPageRoute(
         builder: (_) => CadastroProfissionalPage(
           cpf: isCpf ? documento.text : null,
-          cnpj: isCnpj ? (cnpj.text.isEmpty ? documento.text : cnpj.text) : null,
+          cnpj: isCnpj
+              ? (cnpj.text.isEmpty ? documento.text : cnpj.text)
+              : null,
           nome: isCpf ? nome.text : null,
           razaoSocial: isCnpj ? razaoSocial.text : null,
           isPessoaFisica: isCpf,
@@ -1108,14 +1173,17 @@ class OnboardingController extends ChangeNotifier {
     await _transicionar(OnboardingStep.passwordPrompt);
   }
 
-  Future<ResultadoCadastroCliente?> finalizarCadastro([BuildContext? context]) async {
+  Future<ResultadoCadastroCliente?> finalizarCadastro([
+    BuildContext? context,
+  ]) async {
     erroCampo = null;
     if (!senhaTemOito ||
         !senhaMaiuscula ||
         !senhaMinuscula ||
         !senhaSimbolo ||
         !senhaNumero) {
-      erroCampo = 'Por favor, preencha todos os requisitos de segurança da senha.';
+      erroCampo =
+          'Por favor, preencha todos os requisitos de segurança da senha.';
       notifyListeners();
       return null;
     }
@@ -1135,7 +1203,11 @@ class OnboardingController extends ChangeNotifier {
     final result = await _service.finalizarCadastroCliente(
       nome: isCnpj ? nomeFantasia.text.trim() : nome.text.trim(),
       cpf: isCpf ? documento.text.trim() : null,
-      cnpj: isCnpj ? (cnpj.text.trim().isEmpty ? documento.text.trim() : cnpj.text.trim()) : null,
+      cnpj: isCnpj
+          ? (cnpj.text.trim().isEmpty
+                ? documento.text.trim()
+                : cnpj.text.trim())
+          : null,
       razaoSocial: isCnpj ? razaoSocial.text.trim() : null,
       nomeFantasia: isCnpj ? nomeFantasia.text.trim() : null,
       isPessoaFisica: isCpf,
@@ -1157,7 +1229,9 @@ class OnboardingController extends ChangeNotifier {
       if (result.precisaConfirmarEmail) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Cadastro realizado! Confirme seu e-mail para continuar.'),
+            content: Text(
+              'Cadastro realizado! Confirme seu e-mail para continuar.',
+            ),
           ),
         );
       }
