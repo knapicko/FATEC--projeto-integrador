@@ -8,7 +8,16 @@ import '../cadastro_profissional.dart';
 import '../services/validacao_documento.dart';
 
 class ConversationalOnboardingScreen extends StatefulWidget {
-  const ConversationalOnboardingScreen({super.key});
+  final bool iniciarLogin;
+  final bool iniciarCadastro;
+  final void Function(BuildContext context)? onVoltarInicio;
+
+  const ConversationalOnboardingScreen({
+    super.key,
+    this.iniciarLogin = false,
+    this.iniciarCadastro = false,
+    this.onVoltarInicio,
+  });
 
   @override
   State<ConversationalOnboardingScreen> createState() =>
@@ -26,7 +35,13 @@ class _ConversationalOnboardingScreenState
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _controller.ensureStarted();
+      if (widget.iniciarLogin) {
+        _controller.iniciarFluxoLogin();
+      } else if (widget.iniciarCadastro) {
+        _controller.iniciarFluxoCadastro();
+      } else {
+        _controller.ensureStarted();
+      }
     });
   }
 
@@ -253,9 +268,12 @@ class _ConversationalOnboardingScreenState
                                   ),
                                 ),
                                 const SizedBox(height: 4),
-                                CaixaCharacter(
-                                  asset: _controller.pose.asset,
-                                  size: _caixaSizeForStep(step),
+                                Hero(
+                                  tag: 'caixa-transicao-inicial',
+                                  child: CaixaCharacter(
+                                    asset: _controller.pose.asset,
+                                    size: _caixaSizeForStep(step),
+                                  ),
                                 ),
                                 if (isSplash) ...[
                                   const SizedBox(height: 22),
@@ -294,7 +312,7 @@ class _ConversationalOnboardingScreenState
   }
 
   Widget _buildTopBar(bool mostraProgresso) {
-    if (!mostraProgresso) {
+    if (!mostraProgresso && widget.onVoltarInicio == null) {
       return const SizedBox(height: 18);
     }
 
@@ -305,7 +323,14 @@ class _ConversationalOnboardingScreenState
       child: Row(
         children: [
           IconButton(
-            onPressed: _controller.voltar,
+            onPressed: () {
+              if (_controller.step == OnboardingStep.welcome &&
+                  widget.onVoltarInicio != null) {
+                widget.onVoltarInicio!(context);
+              } else {
+                _controller.voltar();
+              }
+            },
             icon: const Icon(
               Icons.arrow_back_rounded,
               color: Colors.white,
@@ -313,34 +338,36 @@ class _ConversationalOnboardingScreenState
             ),
             splashRadius: 24,
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Stack(
-                children: [
-                  Container(
-                    height: 6,
-                    color: Colors.white.withValues(alpha: 0.35),
-                  ),
-                  AnimatedFractionallySizedBox(
-                    duration: const Duration(milliseconds: 400),
-                    curve: Curves.easeInOutCubic,
-                    widthFactor: progresso.clamp(0.05, 1.0),
-                    alignment: Alignment.centerLeft,
-                    child: Container(
+          if (mostraProgresso) ...[
+            const SizedBox(width: 8),
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Stack(
+                  children: [
+                    Container(
                       height: 6,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(10),
+                      color: Colors.white.withValues(alpha: 0.35),
+                    ),
+                    AnimatedFractionallySizedBox(
+                      duration: const Duration(milliseconds: 400),
+                      curve: Curves.easeInOutCubic,
+                      widthFactor: progresso.clamp(0.05, 1.0),
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 16),
+            const SizedBox(width: 16),
+          ],
         ],
       ),
     );
