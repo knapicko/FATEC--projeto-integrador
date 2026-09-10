@@ -902,10 +902,9 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
                         height: 18,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(
-                        Icons.g_mobiledata,
-                        size: 28,
-                        color: Colors.black87,
+                    : Image.asset(
+                        'assets/images/icone/google-logo.png',
+                        height: 22,
                       ),
                 label: Text(
                   _carregandoGoogle ? 'Conectando...' : 'Continuar com Google',

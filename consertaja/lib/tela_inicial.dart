@@ -109,56 +109,58 @@ class _TelaInicialState extends State<TelaInicial> {
                       ],
                     ),
                   ),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 420),
-                    child: AnimatedOpacity(
-                      opacity: _transicionando ? 0 : 1,
-                      duration: const Duration(milliseconds: 280),
-                      child: IgnorePointer(
-                        ignoring: _transicionando,
-                        child: Column(
-                          children: [
-                            _BotaoInicial(
-                              label: 'INICIAR CADASTRO',
-                              background: Colors.white,
-                              foreground: _blue,
-                              onPressed: () => _abrirFluxo(login: false),
-                            ),
-                            const SizedBox(height: 10),
-                            _BotaoInicial(
-                              label: 'JÁ POSSUO UMA CONTA',
-                              background: Colors.transparent,
-                              foreground: Colors.white,
-                              border: Colors.white,
-                              onPressed: () => _abrirFluxo(login: true),
-                            ),
-                            const SizedBox(height: 12),
-                            TextButton(
-                              onPressed: () {
-                                Navigator.of(context).pushAndRemoveUntil(
-                                  _rotaComFade(
-                                    () => const TelaHome(isVisitante: true),
+                  Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 360),
+                      child: AnimatedOpacity(
+                        opacity: _transicionando ? 0 : 1,
+                        duration: const Duration(milliseconds: 280),
+                        child: IgnorePointer(
+                          ignoring: _transicionando,
+                          child: Column(
+                            children: [
+                              _BotaoInicial(
+                                label: 'INICIAR CADASTRO',
+                                background: Colors.white,
+                                foreground: _blue,
+                                onPressed: () => _abrirFluxo(login: false),
+                              ),
+                              const SizedBox(height: 10),
+                              _BotaoInicial(
+                                label: 'JÁ POSSUO UMA CONTA',
+                                background: Colors.transparent,
+                                foreground: Colors.white,
+                                border: Colors.white,
+                                onPressed: () => _abrirFluxo(login: true),
+                              ),
+                              const SizedBox(height: 12),
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.of(context).pushAndRemoveUntil(
+                                    _rotaComFade(
+                                      () => const TelaHome(isVisitante: true),
+                                    ),
+                                    (route) => false,
+                                  );
+                                },
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 4,
                                   ),
-                                  (route) => false,
-                                );
-                              },
-                              style: TextButton.styleFrom(
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                  vertical: 4,
+                                ),
+                                child: const Text(
+                                  'Quero visitar ›',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
                               ),
-                              child: const Text(
-                                'Quero visitar ›',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -192,7 +194,7 @@ class _BotaoInicial extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      height: 46,
+      height: 54,
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(

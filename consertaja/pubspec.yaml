@@ -51,6 +51,7 @@ flutter:
   assets:
     - assets/images/
     - assets/images/caixa/
+    - assets/images/icone/
     - assets/images/oficios/
     - assets/images/oficios/categorias/
     - assets/images/oficios/funcao/

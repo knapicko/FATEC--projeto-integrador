@@ -29,6 +29,7 @@ class _ConversationalOnboardingScreenState
   bool _senhaOculta = true;
   bool _confirmarSenhaOculta = true;
   bool _senhaLoginOculta = true;
+  bool _tentouFinalizarCadastro = false;
 
   @override
   void initState() {
@@ -662,17 +663,18 @@ class _ConversationalOnboardingScreenState
           onPressed: onTap,
           icon: Icon(
             completed ? Icons.check_circle : Icons.arrow_forward_rounded,
-            color: Colors.white,
+            color: completed ? OnboardingColors.blue : Colors.white,
           ),
           label: Text(
             label,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: completed ? OnboardingColors.blue : Colors.white,
               fontWeight: FontWeight.w800,
               fontSize: 16,
             ),
           ),
           style: OutlinedButton.styleFrom(
+            backgroundColor: completed ? Colors.white : Colors.transparent,
             side: const BorderSide(color: Colors.white, width: 2),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
@@ -806,13 +808,13 @@ class _ConversationalOnboardingScreenState
               label: 'E-mail',
               controller: _controller.email,
               keyboardType: TextInputType.emailAddress,
-              errorText: _controller.erroCampo,
+              errorText: _controller.erroEmail,
             ),
             OnboardingPhoneField(
               controller: _controller.telefone,
               ddi: _controller.ddi,
               onDdiChanged: _controller.setDdi,
-              errorText: _controller.erroCampo,
+              errorText: _controller.erroTelefone,
             ),
           ],
         );
@@ -1011,13 +1013,13 @@ class _ConversationalOnboardingScreenState
               label: 'E-mail',
               controller: _controller.email,
               keyboardType: TextInputType.emailAddress,
-              errorText: _controller.erroCampo,
+              errorText: _controller.erroEmail,
             ),
             OnboardingPhoneField(
               controller: _controller.telefone,
               ddi: _controller.ddi,
               onDdiChanged: _controller.setDdi,
-              errorText: _controller.erroCampo,
+              errorText: _controller.erroTelefone,
             ),
           ],
         );
@@ -1329,15 +1331,43 @@ class _ConversationalOnboardingScreenState
             _controller.documentoIdentidadeConcluido &&
             _controller.aceitouTermos &&
             _controller.aceitouPrivacidade;
+        final requisitosPendentes = [
+          if (!_controller.aceitouTermos) 'Leia os Termos de Uso',
+          if (!_controller.aceitouPrivacidade) 'Leia a Política de Privacidade',
+          if (!_controller.cadastroFacialConcluido)
+            'Valide o seu cadastro facial',
+          if (!_controller.documentoIdentidadeConcluido)
+            'Valide o seu documento de identidade',
+        ];
         return Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
-          child: PillButton(
-            label: 'Finalizar Cadastro',
-            outlined: true,
-            loading: _controller.carregando,
-            onTap: podeFinalizar
-                ? () => _controller.finalizarCadastroProfissional(context)
-                : null,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_tentouFinalizarCadastro && !podeFinalizar) ...[
+                Text(
+                  '${requisitosPendentes.join(' e ')}.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
+              PillButton(
+                label: 'Finalizar Cadastro',
+                outlined: true,
+                loading: _controller.carregando,
+                onTap: () {
+                  if (!podeFinalizar) {
+                    setState(() => _tentouFinalizarCadastro = true);
+                  }
+                  _controller.finalizarCadastroProfissional(context);
+                },
+              ),
+            ],
           ),
         );
 

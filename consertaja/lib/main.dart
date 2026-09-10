@@ -133,14 +133,40 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       supportedLocales: const [Locale('pt', 'BR')],
       locale: const Locale('pt', 'BR'),
 
-      home: _carregando
-          ? const Scaffold(
-              backgroundColor: Colors.white,
-              body: Center(
-                child: CircularProgressIndicator(color: Color(0xFF00A3FF)),
+      home: _carregando ? const _StartupSplash() : _homeWidget,
+    );
+  }
+}
+
+class _StartupSplash extends StatelessWidget {
+  const _StartupSplash();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Color(0xFF0FB3FF),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset(
+              'assets/images/icone/icone_consertaja.png',
+              width: 92,
+              height: 92,
+              fit: BoxFit.contain,
+            ),
+            SizedBox(height: 16),
+            Text(
+              'ConsertaJá',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.w400,
               ),
-            )
-          : _homeWidget,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
