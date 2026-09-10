@@ -59,6 +59,46 @@ class TelefoneInputFormatter extends TextInputFormatter {
   }
 }
 
+class LoginIdentifierInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final value = newValue.text;
+    if (value.contains('@') || RegExp(r'[A-Za-z]').hasMatch(value)) {
+      return newValue;
+    }
+
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+    if (digits.length > 14) return oldValue;
+    if (digits.length >= 12) {
+      return _applyMask(digits, '##.###.###/####-##');
+    }
+    if (digits.length == 11) {
+      return _applyMask(digits, '###.###.###-##');
+    }
+    return _applyMask(digits, '(##) ####-####');
+  }
+
+  TextEditingValue _applyMask(String digits, String mask) {
+    var formatted = '';
+    var index = 0;
+    for (final character in mask.split('')) {
+      if (index >= digits.length) break;
+      if (character == '#') {
+        formatted += digits[index++];
+      } else {
+        formatted += character;
+      }
+    }
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
 class OnboardingWhiteField extends StatelessWidget {
   final String label;
   final TextEditingController controller;
@@ -666,12 +706,12 @@ class CaixaCharacter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 520),
       curve: Curves.easeInOutCubic,
       height: size,
       child: Center(
         child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 250),
+          duration: const Duration(milliseconds: 340),
           switchInCurve: Curves.easeInOut,
           switchOutCurve: Curves.easeInOut,
           layoutBuilder: (currentChild, previousChildren) {
@@ -717,8 +757,8 @@ class BubbleTransitionSwitcher extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 380),
-      reverseDuration: const Duration(milliseconds: 240),
+      duration: const Duration(milliseconds: 520),
+      reverseDuration: const Duration(milliseconds: 340),
       switchInCurve: Curves.easeOutCubic,
       switchOutCurve: Curves.easeInCubic,
       transitionBuilder: (child, animation) {
@@ -806,7 +846,7 @@ class AnimatedHistoricalBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 380),
+      duration: const Duration(milliseconds: 520),
       curve: Curves.easeInOutCubic,
       builder: (context, val, child) {
         return Transform.translate(

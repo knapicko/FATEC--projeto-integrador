@@ -19,7 +19,7 @@ class _TelaInicialState extends State<TelaInicial> {
   Future<void> _abrirFluxo({required bool login}) async {
     if (_transicionando) return;
     setState(() => _transicionando = true);
-    await Future<void>.delayed(const Duration(milliseconds: 180));
+    await Future<void>.delayed(const Duration(milliseconds: 120));
     await OnboardingController.instance.limparRascunho();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
@@ -44,11 +44,14 @@ class _TelaInicialState extends State<TelaInicial> {
   PageRouteBuilder<void> _rotaComFade(Widget Function() builder) {
     return PageRouteBuilder<void>(
       pageBuilder: (_, animation, _) => FadeTransition(
-        opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+        opacity: CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeInOutCubic,
+        ),
         child: builder(),
       ),
-      transitionDuration: const Duration(milliseconds: 360),
-      reverseTransitionDuration: const Duration(milliseconds: 240),
+      transitionDuration: const Duration(milliseconds: 520),
+      reverseTransitionDuration: const Duration(milliseconds: 340),
     );
   }
 
@@ -80,7 +83,7 @@ class _TelaInicialState extends State<TelaInicial> {
                         ),
                         AnimatedOpacity(
                           opacity: _transicionando ? 0 : 1,
-                          duration: const Duration(milliseconds: 160),
+                          duration: const Duration(milliseconds: 280),
                           child: const Padding(
                             padding: EdgeInsets.only(top: 16),
                             child: Text.rich(
@@ -110,7 +113,7 @@ class _TelaInicialState extends State<TelaInicial> {
                     constraints: const BoxConstraints(maxWidth: 420),
                     child: AnimatedOpacity(
                       opacity: _transicionando ? 0 : 1,
-                      duration: const Duration(milliseconds: 160),
+                      duration: const Duration(milliseconds: 280),
                       child: IgnorePointer(
                         ignoring: _transicionando,
                         child: Column(

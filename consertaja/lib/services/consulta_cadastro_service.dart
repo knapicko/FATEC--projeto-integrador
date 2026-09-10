@@ -288,6 +288,42 @@ class ConsultaCadastroService {
     }
   }
 
+  Future<String?> _emailPorTelefone(String value) async {
+    final digits = somenteDigitos(value);
+    if (digits.length < 10) return null;
+
+    try {
+      final ddd = digits.substring(0, 2);
+      final numero = digits.substring(2);
+      final telefone = await _supabase
+          .from('telefones')
+          .select('id_telefone')
+          .eq('ddd', ddd)
+          .eq('numero', numero)
+          .maybeSingle();
+      final telefoneId = telefone?['id_telefone'];
+      if (telefoneId == null) return null;
+
+      final usuario = await _supabase
+          .from('usuarios')
+          .select('fk_email')
+          .eq('fk_telefone', telefoneId)
+          .maybeSingle();
+      final emailId = usuario?['fk_email'];
+      if (emailId == null) return null;
+
+      final email = await _supabase
+          .from('emails')
+          .select('endereco_email')
+          .eq('id_email', emailId)
+          .maybeSingle();
+      return email?['endereco_email'] as String?;
+    } catch (e) {
+      debugPrint('Erro ao resolver e-mail do telefone: $e');
+      return null;
+    }
+  }
+
   /// Login de [LoginPage._fazerLogin], aceitando e-mail ou CPF/CNPJ no identificador.
   Future<ResultadoLogin> fazerLogin({
     required String identificador,
@@ -303,7 +339,11 @@ class ConsultaCadastroService {
     var email = identificador.trim();
     if (!_emailRegex.hasMatch(email)) {
       final digits = somenteDigitos(identificador);
-      final resolvido = await _emailPorDocumento(digits);
+          final resolvido = digits.length == 14
+            ? await _emailPorDocumento(digits)
+            : digits.length == 11
+            ? await _emailPorDocumento(digits) ?? await _emailPorTelefone(digits)
+            : await _emailPorTelefone(digits);
       if (resolvido == null || resolvido.isEmpty) {
         return const ResultadoLogin(
           sucesso: false,

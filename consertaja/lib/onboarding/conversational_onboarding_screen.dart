@@ -5,7 +5,6 @@ import 'onboarding_step.dart';
 import 'onboarding_theme.dart';
 import 'onboarding_widgets.dart';
 import '../cadastro_profissional.dart';
-import '../services/validacao_documento.dart';
 
 class ConversationalOnboardingScreen extends StatefulWidget {
   final bool iniciarLogin;
@@ -184,14 +183,14 @@ class _ConversationalOnboardingScreenState
                     children: [
                       // Top bar com transição suave de tamanho e fade (Morphing)
                       AnimatedSize(
-                        duration: const Duration(milliseconds: 380),
+                        duration: const Duration(milliseconds: 500),
                         curve: Curves.easeInOutCubic,
                         child: _buildTopBar(mostraProgresso),
                       ),
 
                       // Título opcional de seção ("Email e telefone", "Dados da empresa") com Morphing
                       AnimatedSize(
-                        duration: const Duration(milliseconds: 380),
+                        duration: const Duration(milliseconds: 500),
                         curve: Curves.easeInOutCubic,
                         child: _buildHeaderTitle(step),
                       ),
@@ -211,16 +210,16 @@ class _ConversationalOnboardingScreenState
                                     alignment: Alignment.bottomCenter,
                                     child: AnimatedSize(
                                       duration: const Duration(
-                                        milliseconds: 400,
+                                        milliseconds: 520,
                                       ),
                                       curve: Curves.easeInOutCubic,
                                       alignment: Alignment.bottomCenter,
                                       child: AnimatedSwitcher(
                                         duration: const Duration(
-                                          milliseconds: 460,
+                                          milliseconds: 600,
                                         ),
                                         reverseDuration: const Duration(
-                                          milliseconds: 180,
+                                          milliseconds: 300,
                                         ),
                                         layoutBuilder:
                                             (currentChild, previousChildren) {
@@ -291,7 +290,7 @@ class _ConversationalOnboardingScreenState
 
                       // Rodapé com botões contextuais: morpha de altura ao aparecer/sumir
                       AnimatedSize(
-                        duration: const Duration(milliseconds: 380),
+                        duration: const Duration(milliseconds: 500),
                         curve: Curves.easeInOutCubic,
                         child: _buildFooterActions(step),
                       ),
@@ -328,7 +327,10 @@ class _ConversationalOnboardingScreenState
         children: [
           IconButton(
             onPressed: () {
-              if (_controller.step == OnboardingStep.welcome &&
+              if (_controller.step == OnboardingStep.loginForm &&
+                  widget.onVoltarInicio != null) {
+                widget.onVoltarInicio!(context);
+              } else if (_controller.step == OnboardingStep.welcome &&
                   widget.onVoltarInicio != null) {
                 widget.onVoltarInicio!(context);
               } else {
@@ -354,7 +356,7 @@ class _ConversationalOnboardingScreenState
                       color: Colors.white.withValues(alpha: 0.35),
                     ),
                     AnimatedFractionallySizedBox(
-                      duration: const Duration(milliseconds: 400),
+                      duration: const Duration(milliseconds: 520),
                       curve: Curves.easeInOutCubic,
                       widthFactor: progresso.clamp(0.05, 1.0),
                       alignment: Alignment.centerLeft,
@@ -697,9 +699,11 @@ class _ConversationalOnboardingScreenState
           mainAxisSize: MainAxisSize.min,
           children: [
             OnboardingWhiteField(
-              label: rotuloDocumento(_controller.identificadorLogin.text),
+              label: _loginIdentifierHint(_controller.identificadorLogin.text),
               controller: _controller.identificadorLogin,
               filledValue: true,
+              keyboardType: TextInputType.emailAddress,
+              inputFormatters: [LoginIdentifierInputFormatter()],
             ),
             OnboardingWhiteField(
               label: 'Senha',
@@ -1103,6 +1107,17 @@ class _ConversationalOnboardingScreenState
       default:
         return const SizedBox.shrink();
     }
+  }
+
+  String _loginIdentifierHint(String value) {
+    if (value.contains('@') || RegExp(r'[A-Za-z]').hasMatch(value)) {
+      return 'exemplo@email.com';
+    }
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+    if (digits.length >= 12) return 'CNPJ: __.___.___/____-__';
+    if (digits.length == 11) return 'CPF ou telefone: ___.___.___-__';
+    if (digits.isNotEmpty) return 'Telefone: (__) ____-____';
+    return 'CPF, CNPJ, email ou telefone';
   }
 
   Widget _buildFooterActions(OnboardingStep step) {

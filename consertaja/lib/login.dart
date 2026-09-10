@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'services/google_auth_service.dart';
+import 'services/consulta_cadastro_service.dart';
 import 'tela_home.dart';
 import 'tela_home_profissional.dart';
 import 'esqueci_senha.dart';
 import 'services/auth_navigation.dart';
+import 'tela_inicial.dart';
+import 'onboarding/onboarding_widgets.dart';
 
 // ================= TELA: LOGIN =================
 class LoginPage extends StatefulWidget {
@@ -38,46 +41,25 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _carregando = true);
 
     try {
-      final supabase = Supabase.instance.client;
-      final response = await supabase.auth.signInWithPassword(
-        email: _emailController.text.trim(),
-        password: _senhaController.text,
+      final resultado = await ConsultaCadastroService().fazerLogin(
+        identificador: _emailController.text,
+        senha: _senhaController.text,
       );
 
-      if (response.user != null) {
-        if (mounted) {
-          // Verificar se o usuário é um profissional
-          final supabase = Supabase.instance.client;
-          final usuarioResponse = await supabase
-              .from('usuarios')
-              .select('tipo_conta')
-              .eq('auth_id', response.user!.id)
-              .maybeSingle();
-
-          final isProfissional = usuarioResponse?['tipo_conta'] == 'Profissional';
-
-          if (mounted) {
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(
-                builder: (context) => isProfissional
-                    ? TelaHomeProfissional(isVisitante: false)
-                    : TelaHome(isVisitante: false),
-              ),
-              (route) => false,
-            );
-          }
-        }
-      }
-    } on AuthException catch (e) {
-      if (mounted) {
-        String mensagem = 'Email ou senha incorretos.';
-        if (e.message.contains('Email not confirmed')) {
-          mensagem = 'Confirme seu email antes de fazer login.';
-        }
-        ScaffoldMessenger.of(
+      if (resultado.sucesso && mounted) {
+        Navigator.pushAndRemoveUntil(
           context,
-        ).showSnackBar(SnackBar(content: Text(mensagem)));
+          MaterialPageRoute(
+            builder: (context) => resultado.isProfissional
+                ? TelaHomeProfissional(isVisitante: false)
+                : TelaHome(isVisitante: false),
+          ),
+          (route) => false,
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(resultado.mensagem ?? 'Email ou senha incorretos.')),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -158,6 +140,17 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  String _identificadorHint(String value) {
+    if (value.contains('@') || RegExp(r'[A-Za-z]').hasMatch(value)) {
+      return 'exemplo@email.com';
+    }
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+    if (digits.length >= 12) return 'CNPJ: __.___.___/____-__';
+    if (digits.length == 11) return 'CPF ou telefone: ___.___.___-__';
+    if (digits.isNotEmpty) return 'Telefone: (__) ____-____';
+    return 'CPF, CNPJ, email ou telefone';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -211,11 +204,15 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 40),
 
-              _InputFieldWithAnimation(
-                label: 'Email',
-                hint: 'exemplo@email.com',
-                keyboardType: TextInputType.emailAddress,
-                controller: _emailController,
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _emailController,
+                builder: (context, value, _) => _InputFieldWithAnimation(
+                  label: 'Email, CPF, CNPJ ou telefone',
+                  hint: _identificadorHint(value.text),
+                  keyboardType: TextInputType.text,
+                  inputFormatters: [LoginIdentifierInputFormatter()],
+                  controller: _emailController,
+                ),
               ),
 
               _InputFieldWithAnimation(
@@ -351,7 +348,11 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   GestureDetector(
                     onTap: () {
-                      Navigator.pop(context);
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(builder: (_) => const TelaInicial()),
+                        (route) => false,
+                      );
                     },
                     child: const Text(
                       'Cadastre-se.',
