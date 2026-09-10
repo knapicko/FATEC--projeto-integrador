@@ -329,7 +329,7 @@ class OnboardingController extends ChangeNotifier {
     }
     contentVisible = false;
     notifyListeners();
-    await Future.delayed(const Duration(milliseconds: 280));
+    await Future.delayed(const Duration(milliseconds: 160));
     step = next;
     erroCampo = null;
     erroFala = null;
