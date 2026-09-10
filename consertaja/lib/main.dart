@@ -4,16 +4,12 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'tela_home.dart';
 import 'tela_home_profissional.dart';
 import 'atualizar_senha.dart';
-import 'cadastro_cliente.dart';
-import 'cadastro_profissional.dart';
-import 'login.dart';
 import 'services/google_auth_service.dart';
-import 'onboarding/conversational_onboarding_screen.dart';
 import 'onboarding/onboarding_controller.dart';
+import 'tela_inicial.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
-
   WidgetsFlutterBinding.ensureInitialized();
 
   await Supabase.initialize(
@@ -23,7 +19,7 @@ void main() async {
   // 3. CONFIGURAR O LISTENER DIRETAMENTE NO MAIN
   Supabase.instance.client.auth.onAuthStateChange.listen((data) {
     final AuthChangeEvent event = data.event;
-    
+
     if (event == AuthChangeEvent.passwordRecovery) {
       // O Future.microtask espera o Flutter terminar de carregar o MaterialApp
       // antes de chamar o navegador, garantindo que a tela apareça
@@ -47,7 +43,7 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final GlobalKey<NavigatorState> _navigatorKey = navigatorKey;
-  Widget _homeWidget = const ConversationalOnboardingScreen();
+  Widget _homeWidget = const TelaInicial();
   bool _carregando = true;
   bool _rascunhoLimpoAoEncerrar = false;
 
@@ -60,8 +56,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.detached &&
-        !_rascunhoLimpoAoEncerrar) {
+    if (state == AppLifecycleState.detached && !_rascunhoLimpoAoEncerrar) {
       _rascunhoLimpoAoEncerrar = true;
       OnboardingController.instance.limparRascunho();
     }
@@ -84,7 +79,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           await Supabase.instance.client.auth.signOut();
           if (mounted) {
             setState(() {
-              _homeWidget = const ConversationalOnboardingScreen();
+              _homeWidget = const TelaInicial();
               _carregando = false;
             });
           }
@@ -104,7 +99,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       } catch (_) {
         if (mounted) {
           setState(() {
-            _homeWidget = const ConversationalOnboardingScreen();
+            _homeWidget = const TelaInicial();
             _carregando = false;
           });
         }
@@ -112,7 +107,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     } else {
       if (mounted) {
         setState(() {
-          _homeWidget = const ConversationalOnboardingScreen();
+          _homeWidget = const TelaInicial();
           _carregando = false;
         });
       }
@@ -135,18 +130,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: const [
-        Locale('pt', 'BR'),
-      ],
+      supportedLocales: const [Locale('pt', 'BR')],
       locale: const Locale('pt', 'BR'),
 
       home: _carregando
           ? const Scaffold(
               backgroundColor: Colors.white,
               body: Center(
-                child: CircularProgressIndicator(
-                  color: Color(0xFF00A3FF),
-                ),
+                child: CircularProgressIndicator(color: Color(0xFF00A3FF)),
               ),
             )
           : _homeWidget,
@@ -160,6 +151,8 @@ class TelaEscolhaConta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return const TelaInicial();
+    /*
     double alturaDaTela = MediaQuery.of(context).size.height;
     double larguraDaTela = MediaQuery.of(context).size.width;
 
@@ -170,7 +163,6 @@ class TelaEscolhaConta extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              
               SizedBox(height: alturaDaTela * 0.01),
 
               Image.asset(
@@ -195,9 +187,10 @@ class TelaEscolhaConta extends StatelessWidget {
 
               BotaoSelecaoConta(
                 titulo: 'Criar conta de Cliente',
-                subtitulo: 'Procuro profissionais para resolverem meus problemas domésticos',
+                subtitulo:
+                    'Procuro profissionais para resolverem meus problemas domésticos',
                 corBorda: const Color(0xFF00A2FF),
-                icone: Icons.people_alt_outlined, 
+                icone: Icons.people_alt_outlined,
                 onTap: () {
                   Navigator.push(
                     context,
@@ -211,9 +204,10 @@ class TelaEscolhaConta extends StatelessWidget {
 
               BotaoSelecaoConta(
                 titulo: 'Criar conta de Profissional',
-                subtitulo: 'Ofereço meus serviços e quero receber pedidos de cliente',
+                subtitulo:
+                    'Ofereço meus serviços e quero receber pedidos de cliente',
                 corBorda: const Color(0xFFF2994A),
-                icone: Icons.handyman_outlined, 
+                icone: Icons.handyman_outlined,
                 onTap: () {
                   Navigator.push(
                     context,
@@ -227,9 +221,10 @@ class TelaEscolhaConta extends StatelessWidget {
 
               BotaoSelecaoConta(
                 titulo: 'Quero Visitar',
-                subtitulo: 'Quero conhecer o aplicativo antes de criar uma conta',
+                subtitulo:
+                    'Quero conhecer o aplicativo antes de criar uma conta',
                 corBorda: const Color(0xFF828282),
-                icone: Icons.badge_outlined,  
+                icone: Icons.badge_outlined,
                 onTap: () {
                   Navigator.push(
                     context,
@@ -244,15 +239,13 @@ class TelaEscolhaConta extends StatelessWidget {
               BotaoSelecaoConta(
                 titulo: 'Já possuo uma conta',
                 subtitulo: 'Quero entrar em uma conta criada anteriormente',
-                corBorda: const Color(0xFF004A7C), 
-                icone: Icons.login,  
+                corBorda: const Color(0xFF004A7C),
+                icone: Icons.login,
                 fundoPreenchido: true,
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (context) => const LoginPage(),
-                    ),
+                    MaterialPageRoute(builder: (context) => const LoginPage()),
                   );
                 },
               ),
@@ -261,6 +254,7 @@ class TelaEscolhaConta extends StatelessWidget {
         ),
       ),
     );
+    */
   }
 }
 
@@ -269,7 +263,7 @@ class BotaoSelecaoConta extends StatelessWidget {
   final String titulo;
   final String subtitulo;
   final Color corBorda;
-  final IconData icone; 
+  final IconData icone;
   final VoidCallback onTap;
   final bool fundoPreenchido;
 
@@ -278,7 +272,7 @@ class BotaoSelecaoConta extends StatelessWidget {
     required this.titulo,
     required this.subtitulo,
     required this.corBorda,
-    required this.icone, 
+    required this.icone,
     required this.onTap,
     this.fundoPreenchido = false,
   });
@@ -295,7 +289,7 @@ class BotaoSelecaoConta extends StatelessWidget {
       if (brilhoDoFundo == Brightness.dark) {
         corDoTextoPrincipal = Colors.white;
         corDoTextoSubtitulo = Colors.white70;
-        corDoIcone = Colors.white; 
+        corDoIcone = Colors.white;
       } else {
         corDoTextoPrincipal = Colors.black87;
         corDoTextoSubtitulo = Colors.black54;
@@ -304,7 +298,7 @@ class BotaoSelecaoConta extends StatelessWidget {
     } else {
       corDoTextoPrincipal = corBorda;
       corDoTextoSubtitulo = Colors.black54;
-      corDoIcone = corBorda; 
+      corDoIcone = corBorda;
     }
 
     return GestureDetector(
@@ -319,11 +313,7 @@ class BotaoSelecaoConta extends StatelessWidget {
         child: Row(
           children: [
             // COMPONENTE DE ÍCONE CUSTOMIZADO SUBSTITUINDO O IMAGE.ASSET
-            Icon(
-              icone,
-              size: 36, 
-              color: corDoIcone,
-            ),
+            Icon(icone, size: 36, color: corDoIcone),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
