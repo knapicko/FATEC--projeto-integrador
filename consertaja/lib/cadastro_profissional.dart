@@ -381,16 +381,16 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
   Future<void> _irParaEtapa2() async {
     setState(() {
       _erroNome = _nomeController.text.trim().isEmpty
-                ? 'O nome é obrigatório'
+          ? 'O nome é obrigatório'
           : null;
 
       if (!_isPessoaFisica) {
         _erroRazaoSocial = _razaoSocialController.text.trim().isEmpty
-                    ? 'A Razão Social é obrigatória'
+            ? 'A Razão Social é obrigatória'
             : null;
         // Pessoa Jurídica sempre exige data de fundação
         _erroDataFundacao = _dataFundacaoController.text.trim().isEmpty
-                    ? 'A data de fundação é obrigatória'
+            ? 'A data de fundação é obrigatória'
             : null;
       } else {
         _erroDataFundacao = null;
@@ -885,10 +885,9 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(
-                          Icons.g_mobiledata,
-                          size: 28,
-                          color: Colors.black87,
+                      : Image.asset(
+                          'assets/images/icone/google-logo.png',
+                          height: 22,
                         ),
                   label: Text(
                     _carregandoGoogle
@@ -1781,6 +1780,7 @@ class _CadastroProfissionalEtapa3PageState
   bool _termosDeUso = false;
   bool _politicaPrivacidade = false;
   bool _carregando = false;
+  bool _tentouFinalizarCadastro = false;
   String? _idFacial;
   File? _fotoIdentidade;
   // Dados dos documentos validados para salvar no banco
@@ -2148,6 +2148,14 @@ class _CadastroProfissionalEtapa3PageState
 
   @override
   Widget build(BuildContext context) {
+    final requisitosPendentes = [
+      if (!_termosDeUso) 'Leia os Termos de Uso',
+      if (!_politicaPrivacidade) 'Leia a Política de Privacidade',
+      if (!_cadastroFacialConcluido) 'Valide o seu cadastro facial',
+      if (!_documentoIdentidadeConcluido)
+        'Valide o seu documento de identidade',
+    ];
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -2331,19 +2339,29 @@ class _CadastroProfissionalEtapa3PageState
                 },
               ),
               const SizedBox(height: 40),
-
+              if (_tentouFinalizarCadastro &&
+                  requisitosPendentes.isNotEmpty) ...[
+                Text(
+                  '${requisitosPendentes.join(' e ')}.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFF00A2FF),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
               SizedBox(
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton(
-                  onPressed:
-                      (_termosDeUso &&
-                          _politicaPrivacidade &&
-                          _cadastroFacialConcluido &&
-                          _documentoIdentidadeConcluido &&
-                          !_carregando)
-                      ? _finalizarCadastroBanco
-                      : null,
+                  onPressed: _carregando
+                      ? null
+                      : () {
+                          setState(() => _tentouFinalizarCadastro = true);
+                          _finalizarCadastroBanco();
+                        },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00A2FF),
                     disabledBackgroundColor: const Color(
@@ -2627,7 +2645,6 @@ class CadastroFacialInstrucoesPage extends StatelessWidget {
               const _InstructionItem(
                 text:
                     'Segure o celular na altura do rosto e mantenha os braços firmes.',
-                    
               ),
               const _InstructionItem(
                 text:
@@ -2710,11 +2727,7 @@ class _InstructionItem extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(
-                color: _white,
-                fontSize: 15,
-                height: 1.5,
-              ),
+              style: const TextStyle(color: _white, fontSize: 15, height: 1.5),
             ),
           ),
         ],
@@ -3018,7 +3031,10 @@ class _CadastroFacialPageState extends State<CadastroFacialPage> {
         centerTitle: true,
         leading: IconButton(
           onPressed: () => Navigator.pop(context),
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.white,
+          ),
         ),
         title: const Text(
           'Tire sua foto',
@@ -3037,115 +3053,115 @@ class _CadastroFacialPageState extends State<CadastroFacialPage> {
         child: DefaultTextStyle.merge(
           style: const TextStyle(color: Colors.white),
           child: Column(
-          children: [
-            const SizedBox(height: 24),
-            Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  _status,
-                  style: const TextStyle(
-                    color: _blue,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w500,
+            children: [
+              const SizedBox(height: 24),
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 10,
                   ),
-                ),
-              ),
-            ),
-
-            if (_status.startsWith('Falha:'))
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 8,
-                ),
-                child: Text(
-                  _status,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.red, fontSize: 12),
-                ),
-              ),
-
-            const SizedBox(height: 42),
-
-            if (kIsWeb)
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24),
-                child: Text(
-                  'A validação facial automática funciona apenas em Android/iOS.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
+                  decoration: BoxDecoration(
                     color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _status,
+                    style: const TextStyle(
+                      color: _blue,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
               ),
 
-            Center(
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  ClipOval(
-                    child: SizedBox(
-                      width: circleSize,
-                      height: circleSize,
-                      child:
-                          _carregandoCamera ||
-                              _controller == null ||
-                              !_controller!.value.isInitialized ||
-                              _controller!.value.previewSize == null
-                          ? const Center(child: CircularProgressIndicator())
-                          : FittedBox(
-                              fit: BoxFit.cover,
-                              child: SizedBox(
-                                width: _controller!.value.previewSize!.height,
-                                height: _controller!.value.previewSize!.width,
-                                child: CameraPreview(_controller!),
-                              ),
-                            ),
-                    ),
+              if (_status.startsWith('Falha:'))
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 8,
                   ),
-                  Container(
-                    width: circleSize,
-                    height: circleSize,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: borderColor, width: 3),
-                    ),
+                  child: Text(
+                    _status,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.red, fontSize: 12),
                   ),
-                ],
-              ),
-            ),
-            const Spacer(),
-            GestureDetector(
-              onTap: _trocarCamera,
-              behavior: HitTestBehavior.opaque,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.switch_camera, color: Colors.white, size: 40),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Virar câmera',
+                ),
+
+              const SizedBox(height: 42),
+
+              if (kIsWeb)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    'A validação facial automática funciona apenas em Android/iOS.',
+                    textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w400,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                ],
+                ),
+
+              Center(
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    ClipOval(
+                      child: SizedBox(
+                        width: circleSize,
+                        height: circleSize,
+                        child:
+                            _carregandoCamera ||
+                                _controller == null ||
+                                !_controller!.value.isInitialized ||
+                                _controller!.value.previewSize == null
+                            ? const Center(child: CircularProgressIndicator())
+                            : FittedBox(
+                                fit: BoxFit.cover,
+                                child: SizedBox(
+                                  width: _controller!.value.previewSize!.height,
+                                  height: _controller!.value.previewSize!.width,
+                                  child: CameraPreview(_controller!),
+                                ),
+                              ),
+                      ),
+                    ),
+                    Container(
+                      width: circleSize,
+                      height: circleSize,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: borderColor, width: 3),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 34),
-          ],
+              const Spacer(),
+              GestureDetector(
+                onTap: _trocarCamera,
+                behavior: HitTestBehavior.opaque,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.switch_camera, color: Colors.white, size: 40),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Virar câmera',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 34),
+            ],
           ),
         ),
       ),
@@ -3221,7 +3237,7 @@ class CadastroFacialSucessoPage extends StatelessWidget {
             ),
             const SizedBox(height: 40),
           ],
-          ),
+        ),
       ),
     );
   }
@@ -3435,9 +3451,9 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                                   ),
                                 ),
                               ],
-                              ),
                             ),
                           ),
+                        ),
                         AnimatedPositioned(
                           duration: const Duration(milliseconds: 200),
                           curve: Curves.easeInOut,
@@ -3566,10 +3582,7 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
       label: 'Contrato Social / Estatuto Social / Requerimento Empresário',
       type: 'Contrato Social / Estatuto Social/ Requerimento Empresário',
     ),
-    _DocType(
-      label: 'Notas Fiscais (DANFE)',
-      type: 'Notas Fiscais (DANFE)',
-    ),
+    _DocType(label: 'Notas Fiscais (DANFE)', type: 'Notas Fiscais (DANFE)'),
     _DocType(label: 'Alvará de Funcionamento', type: 'Alvará de Funcionamento'),
   ];
 
@@ -3880,96 +3893,111 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Column(
-                children: [
-                  Stack(
-                    alignment: Alignment.bottomRight,
-                    children: [
-                      Container(
-                        width: 100,
-                        height: 70,
-                        decoration: BoxDecoration(
-                          color: const Color.fromARGB(255, 104, 107, 109).withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Column(
+                  children: [
+                    Stack(
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        Container(
+                          width: 100,
+                          height: 70,
+                          decoration: BoxDecoration(
+                            color: const Color.fromARGB(
+                              255,
+                              104,
+                              107,
+                              109,
+                            ).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.credit_card,
+                            size: 50,
+                            color: Color(0xFFFFFFFF),
+                          ),
                         ),
-                        child: const Icon(
-                          Icons.credit_card,
-                          size: 50,
-                          color: Color(0xFFFFFFFF),
+                        const CircleAvatar(
+                          radius: 14,
+                          backgroundColor: Colors.white,
+                          child: Icon(
+                            Icons.check_circle,
+                            color: Color(0xFF0FB3FF),
+                            size: 26,
+                          ),
                         ),
-                      ),
-                      const CircleAvatar(
-                        radius: 14,
-                        backgroundColor: Colors.white,
-                        child: Icon(
-                          Icons.check_circle,
-                          color: Color(0xFF0FB3FF),
-                          size: 26,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'O seu documento de identidade é utilizado exclusivamente para a verificação da sua conta.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 15, height: 1.4),
-                  ),
-                  GestureDetector(
-                    onTap: () {},
-                    child: const Text(
-                      'Para mais informações confira a Política de Privacidade.',
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'O seu documento de identidade é utilizado exclusivamente para a verificação da sua conta.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Color(0xFFFFFFFF),
-                        fontWeight: FontWeight.bold,
-                        decoration: TextDecoration.underline,
-                        decorationColor: Colors.white,
+                      style: TextStyle(fontSize: 15, height: 1.4),
+                    ),
+                    GestureDetector(
+                      onTap: () {},
+                      child: const Text(
+                        'Para mais informações confira a Política de Privacidade.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Color(0xFFFFFFFF),
+                          fontWeight: FontWeight.bold,
+                          decoration: TextDecoration.underline,
+                          decorationColor: Colors.white,
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 32),
-
-            const Text(
-              'Escolha o tipo documento',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-
-            ..._docTypes.map((doc) => _buildDocButton(doc)),
-
-            const SizedBox(height: 40),
-
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: ElevatedButton(
-                onPressed: _podeEnviar() ? _enviarDocumentos : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFFFFFF),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
-                  ),
+                  ],
                 ),
-                child: _carregando
-                    ? const CircularProgressIndicator(color: Color(0xFFFFFFFF))
-                    : const Text(
-                        'Enviar Documentos',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFFFFFFFF),
-                        ),
-                      ),
               ),
-            ),
-          ],
+              const SizedBox(height: 32),
+
+              const Text(
+                'Escolha o tipo documento',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+
+              ..._docTypes.map((doc) => _buildDocButton(doc)),
+
+              const SizedBox(height: 40),
+
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: _podeEnviar() ? _enviarDocumentos : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFFFFFF),
+                    foregroundColor: _podeEnviar()
+                        ? const Color(0xFF0FB3FF)
+                        : Colors.white,
+                    side: _podeEnviar()
+                        ? const BorderSide(color: Colors.white, width: 2)
+                        : BorderSide.none,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                  ),
+                  child: _carregando
+                      ? const CircularProgressIndicator(
+                          color: Color(0xFF0FB3FF),
+                        )
+                      : Text(
+                          'Enviar Documentos',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: _podeEnviar()
+                                ? const Color(0xFF0FB3FF)
+                                : Colors.white,
+                          ),
+                        ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -3989,12 +4017,13 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
             margin: EdgeInsets.only(bottom: doc.errorMessage != null ? 2 : 12),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
+              color: isValid ? Colors.white : Colors.transparent,
               border: Border.all(
                 color: isValid
-                    ? Colors.green
+                    ? const Color(0xFFFFFFFF)
                     : isInvalid
                     ? Colors.red
-                  : Colors.white,
+                    : Colors.white,
                 width: 1.5,
               ),
               borderRadius: BorderRadius.circular(12),
@@ -4008,7 +4037,7 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                       color: isValid
-                          ? Colors.green
+                          ? const Color(0xFF0FB3FF)
                           : isInvalid
                           ? Colors.red
                           : Colors.white,
@@ -4016,7 +4045,11 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
                   ),
                 ),
                 if (isValid)
-                  const Icon(Icons.check_circle, color: Colors.green, size: 28)
+                  const Icon(
+                    Icons.check_circle,
+                    color: Color(0xFF0FB3FF),
+                    size: 28,
+                  )
                 else if (isInvalid)
                   const Icon(Icons.error_outline, color: Colors.red, size: 28)
                 else

@@ -58,7 +58,9 @@ class _LoginPageState extends State<LoginPage> {
         );
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(resultado.mensagem ?? 'Email ou senha incorretos.')),
+          SnackBar(
+            content: Text(resultado.mensagem ?? 'Email ou senha incorretos.'),
+          ),
         );
       }
     } catch (e) {
@@ -99,13 +101,17 @@ class _LoginPageState extends State<LoginPage> {
 
       final isProfissional = usuarioResponse?['tipo_conta'] == 'Profissional';
       final nomeGoogle = GoogleAuthService.extrairNome(currentUser);
-      final fotoUrlGoogle = currentUser.userMetadata?['avatar_url'] as String? ?? GoogleAuthService.ultimaFotoUrl;
+      final fotoUrlGoogle =
+          currentUser.userMetadata?['avatar_url'] as String? ??
+          GoogleAuthService.ultimaFotoUrl;
 
       if (mounted) {
         if (isProfissional) {
           Navigator.pushAndRemoveUntil(
             context,
-            MaterialPageRoute(builder: (context) => TelaHomeProfissional(isVisitante: false)),
+            MaterialPageRoute(
+              builder: (context) => TelaHomeProfissional(isVisitante: false),
+            ),
             (route) => false,
           );
         } else if (usuarioResponse == null) {
@@ -124,7 +130,9 @@ class _LoginPageState extends State<LoginPage> {
         } else {
           Navigator.pushAndRemoveUntil(
             context,
-            MaterialPageRoute(builder: (context) => TelaHome(isVisitante: false)),
+            MaterialPageRoute(
+              builder: (context) => TelaHome(isVisitante: false),
+            ),
             (route) => false,
           );
         }
@@ -314,8 +322,8 @@ class _LoginPageState extends State<LoginPage> {
                 height: 55,
                 child: OutlinedButton.icon(
                   onPressed: _carregando ? null : _fazerLoginComGoogle,
-                  icon: Image.network(
-                    'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/24px-Google_%22G%22_logo.svg.png',
+                  icon: Image.asset(
+                    'assets/images/icone/google-logo.png',
                     height: 22,
                   ),
                   label: const Text(

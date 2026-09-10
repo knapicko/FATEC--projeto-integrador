@@ -138,6 +138,18 @@ class OnboardingWhiteField extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (errorText != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 8, bottom: 4),
+              child: Text(
+                errorText!,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
           Stack(
             children: [
               Container(
@@ -215,18 +227,6 @@ class OnboardingWhiteField extends StatelessWidget {
                 ),
             ],
           ),
-          if (errorText != null)
-            Padding(
-              padding: const EdgeInsets.only(left: 8, top: 4),
-              child: Text(
-                errorText!,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
         ],
       ),
     );
@@ -471,9 +471,9 @@ class GoogleButton extends StatelessWidget {
             : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CustomPaint(
-                    size: const Size(20, 20),
-                    painter: GoogleLogoPainter(),
+                  Image.asset(
+                    'assets/images/icone/google-logo.png',
+                    height: 22,
                   ),
                   const SizedBox(width: 12),
                   const Text(
@@ -489,47 +489,6 @@ class GoogleButton extends StatelessWidget {
       ),
     );
   }
-}
-
-class GoogleLogoPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2;
-
-    final paintBlue = Paint()
-      ..color = const Color(0xFF4285F4)
-      ..style = PaintingStyle.fill;
-    final paintRed = Paint()
-      ..color = const Color(0xFFEA4335)
-      ..style = PaintingStyle.fill;
-    final paintYellow = Paint()
-      ..color = const Color(0xFFFBBC05)
-      ..style = PaintingStyle.fill;
-    final paintGreen = Paint()
-      ..color = const Color(0xFF34A853)
-      ..style = PaintingStyle.fill;
-
-    final rect = Rect.fromCircle(center: center, radius: radius);
-    canvas.drawArc(rect, -0.785, 1.57, true, paintBlue);
-    canvas.drawArc(rect, 0.785, 1.57, true, paintGreen);
-    canvas.drawArc(rect, 2.356, 1.57, true, paintYellow);
-    canvas.drawArc(rect, 3.927, 1.57, true, paintRed);
-
-    final innerPaint = Paint()..color = Colors.white;
-    canvas.drawCircle(center, radius * 0.58, innerPaint);
-
-    final barRect = Rect.fromLTRB(
-      center.dx,
-      center.dy - radius * 0.22,
-      size.width,
-      center.dy + radius * 0.22,
-    );
-    canvas.drawRect(barRect, paintBlue);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class SpeechBubble extends StatelessWidget {

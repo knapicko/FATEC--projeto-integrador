@@ -1344,6 +1344,7 @@ class _CompletarCadastroProfissionalDocumentosPageState
   bool _termosDeUso = false;
   bool _politicaPrivacidade = false;
   bool _carregando = false;
+  bool _tentouFinalizarCadastro = false;
   String? _idFacial;
   List<Map<String, dynamic>> _documentosValidados = [];
 
@@ -1531,6 +1532,14 @@ class _CompletarCadastroProfissionalDocumentosPageState
 
   @override
   Widget build(BuildContext context) {
+    final requisitosPendentes = [
+      if (!_termosDeUso) 'Leia os Termos de Uso',
+      if (!_politicaPrivacidade) 'Leia a Política de Privacidade',
+      if (!_cadastroFacialConcluido) 'Valide o seu cadastro facial',
+      if (!_documentoIdentidadeConcluido)
+        'Valide o seu documento de identidade',
+    ];
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -1685,17 +1694,27 @@ class _CompletarCadastroProfissionalDocumentosPageState
             ),
 
             const SizedBox(height: 24),
+            if (_tentouFinalizarCadastro && requisitosPendentes.isNotEmpty) ...[
+              Text(
+                '${requisitosPendentes.join(' e ')}.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFF0FB3FF),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
             SizedBox(
               height: 55,
               child: ElevatedButton(
-                onPressed:
-                    (_termosDeUso &&
-                        _politicaPrivacidade &&
-                        _cadastroFacialConcluido &&
-                        _documentoIdentidadeConcluido &&
-                        !_carregando)
-                    ? _finalizarCadastroBanco
-                    : null,
+                onPressed: _carregando
+                    ? null
+                    : () {
+                        setState(() => _tentouFinalizarCadastro = true);
+                        _finalizarCadastroBanco();
+                      },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF0FB3FF),
                   disabledBackgroundColor: const Color(

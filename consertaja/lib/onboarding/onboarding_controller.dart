@@ -57,6 +57,8 @@ class OnboardingController extends ChangeNotifier {
   bool aceitouPrivacidade = false;
   bool cnpjDeEmpresa = true;
   String? erroCampo;
+  String? erroEmail;
+  String? erroTelefone;
   String? erroFala;
   bool _started = false;
   bool _hydrated = false;
@@ -401,7 +403,8 @@ class OnboardingController extends ChangeNotifier {
       case OnboardingStep.googleMissingPrompt:
         pose = CaixaPose.falandoFechado;
         historicoFala = 'O seu cadastro pelo Google foi realizado com sucesso!';
-        falaAtual = 'Só precisamos de mais alguns dados para finalizar sua conta.';
+        falaAtual =
+            'Só precisamos de mais alguns dados para finalizar sua conta.';
       case OnboardingStep.clientPfPrompt:
         pose = CaixaPose.falandoFechado;
         historicoFala = null;
@@ -822,23 +825,26 @@ class OnboardingController extends ChangeNotifier {
 
   Future<void> continuarContatoProf() async {
     erroCampo = null;
+    erroEmail = null;
+    erroTelefone = null;
     erroFala = null;
     final emailVazio = email.text.trim().isEmpty;
     final telefoneVazio = telefone.text.trim().isEmpty;
     if (emailVazio && telefoneVazio) {
-      erroCampo = 'Informe email ou telefone';
+      erroEmail = 'Informe email ou telefone';
+      erroTelefone = 'Informe email ou telefone';
       notifyListeners();
       return;
     }
     if (!emailVazio && !_service.emailFormatoValido(email.text)) {
-      erroCampo = 'Informe um e-mail válido';
+      erroEmail = 'Informe um e-mail válido';
       notifyListeners();
       return;
     }
     if (!telefoneVazio) {
       final validacao = validarTelefoneCompleto(telefone.text);
       if (!validacao.valido) {
-        erroCampo = validacao.erro;
+        erroTelefone = validacao.erro;
         notifyListeners();
         return;
       }
@@ -1184,22 +1190,25 @@ class OnboardingController extends ChangeNotifier {
 
   Future<void> continuarContato() async {
     erroCampo = null;
+    erroEmail = null;
+    erroTelefone = null;
     final emailVazio = email.text.trim().isEmpty;
     final telefoneVazio = telefone.text.trim().isEmpty;
     if (emailVazio && telefoneVazio) {
-      erroCampo = 'Informe email ou telefone';
+      erroEmail = 'Informe email ou telefone';
+      erroTelefone = 'Informe email ou telefone';
       notifyListeners();
       return;
     }
     if (!emailVazio && !_service.emailFormatoValido(email.text)) {
-      erroCampo = 'Informe um e-mail válido';
+      erroEmail = 'Informe um e-mail válido';
       notifyListeners();
       return;
     }
     if (!telefoneVazio) {
       final validacao = validarTelefoneCompleto(telefone.text);
       if (!validacao.valido) {
-        erroCampo = validacao.erro;
+        erroTelefone = validacao.erro;
         notifyListeners();
         return;
       }
