@@ -4,7 +4,7 @@ import 'google_auth_service.dart';
 import '../tela_home.dart';
 import '../tela_home_profissional.dart';
 import '../completar_cadastro.dart';
-import '../tela_escolha_conta.dart';
+import '../tela_inicial.dart';
 
 /// Após login/cadastro com Google, redireciona para home ou cadastro incompleto.
 Future<void> navegarPosAutenticacaoGoogle(
@@ -185,9 +185,7 @@ class TelaEscolhaContaCompletar extends StatelessWidget {
                   if (context.mounted) {
                     Navigator.pushAndRemoveUntil(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => const TelaEscolhaConta(),
-                      ),
+                      MaterialPageRoute(builder: (_) => const TelaInicial()),
                       (_) => false,
                     );
                   }

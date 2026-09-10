@@ -8,7 +8,7 @@ import 'perguntas_frequentes.dart';
 import 'termos_de_uso.dart';
 import 'politica_de_privacidade.dart';
 import 'sobre_conserta_ja.dart';
-import 'main.dart';
+import 'tela_inicial.dart';
 import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/iniciais.dart';
 
@@ -525,7 +525,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
     await _supabase.auth.signOut();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const TelaEscolhaConta()),
+      MaterialPageRoute(builder: (_) => const TelaInicial()),
       (route) => false,
     );
   }

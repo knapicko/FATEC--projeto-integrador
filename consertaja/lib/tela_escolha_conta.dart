@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
-import 'cadastro_profissional.dart';
-import 'cadastro_cliente.dart';
-import 'login.dart';
-import 'tela_home.dart';
+import 'tela_inicial.dart';
 
 class TelaEscolhaConta extends StatelessWidget {
   const TelaEscolhaConta({super.key});
 
   @override
   Widget build(BuildContext context) {
+    return const TelaInicial();
+    /*
     double alturaDaTela = MediaQuery.of(context).size.height;
     double larguraDaTela = MediaQuery.of(context).size.width;
 
@@ -106,6 +105,7 @@ class TelaEscolhaConta extends StatelessWidget {
         ),
       ),
     );
+    */
   }
 }
 
