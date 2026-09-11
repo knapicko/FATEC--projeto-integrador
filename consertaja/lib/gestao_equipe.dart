@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'modificar_conta_profissional.dart';
+import 'services/profissional_equipe_service.dart';
 import 'utils/cor_oficio.dart';
 import 'widgets/tag_oficio.dart';
 
@@ -2033,6 +2034,27 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                 }
               }
             }
+          } else {
+            final dadosCriacao = await _abrirPopoverCriarProfissional(
+              cpf: cpfDigits,
+              idGrupo: idGrupo,
+            );
+            if (dadosCriacao) {
+              _emailController.clear();
+              await _carregarMembrosEConvites();
+              if (mounted) {
+                setState(() => _carregandoEmpresa = false);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Conta criada e associada à sua empresa.'),
+                    backgroundColor: Color(0xFF10B981),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            }
+            if (mounted) setState(() => _carregandoEmpresa = false);
+            return;
           }
         }
       }
@@ -2232,6 +2254,39 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
           ),
         );
       }
+    }
+  }
+
+  Future<bool> _abrirPopoverCriarProfissional({
+    required String cpf,
+    required int idGrupo,
+  }) async {
+    final dados = await showModalBottomSheet<DadosNovoProfissional>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => CriarProfissionalPopover(cpf: cpf),
+    );
+    if (dados == null) return false;
+
+    try {
+      await ProfissionalEquipeService().criarConta(
+        cpf: cpf,
+        senha: dados.senha,
+        idGrupoEmpresa: idGrupo,
+      );
+      return true;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Não foi possível criar a conta: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return false;
     }
   }
 

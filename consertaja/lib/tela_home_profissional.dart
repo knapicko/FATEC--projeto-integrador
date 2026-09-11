@@ -13,6 +13,7 @@ import 'meus_servicos_profissional.dart';
 import 'minhas_postagens_profissional.dart';
 import 'models/postagem_resumo.dart';
 import 'services/postagens_profissional_service.dart';
+import 'services/completar_cadastro_equipe.dart';
 import 'tela_meu_perfil_profissional.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
@@ -140,6 +141,20 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   void initState() {
     super.initState();
     _inicializarFutures();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _mostrarCompletamentoEquipeSeNecessario();
+    });
+  }
+
+  Future<void> _mostrarCompletamentoEquipeSeNecessario() async {
+    if (widget.isVisitante || !mounted) return;
+    final deveCompletar = await CompletarCadastroEquipeDialog.deveCompletar();
+    if (!deveCompletar || !mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const CompletarCadastroEquipeDialog(),
+    );
   }
 
   void _inicializarFutures() {
