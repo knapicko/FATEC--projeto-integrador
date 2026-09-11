@@ -24,9 +24,12 @@ Deno.serve(async (request) => {
     return new Response('ok', { status: 200, headers: corsHeaders });
   }
 
-  const serviceRoleKey = Deno.env.get('SERVICE_ROLE_KEY');
-  const anonKey = Deno.env.get('ANON_KEY');
+  // Aceita os nomes customizados OU os nomes padrão injetados automaticamente
+  const serviceRoleKey =
+    Deno.env.get('SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  const anonKey = Deno.env.get('ANON_KEY') ?? Deno.env.get('SUPABASE_ANON_KEY');
   console.log('SERVICE_ROLE_KEY configurada:', Boolean(serviceRoleKey));
+  console.log('ANON_KEY configurada:', Boolean(anonKey));
 
   if (!serviceRoleKey) {
     console.error('Secret SERVICE_ROLE_KEY nao configurada.');
@@ -191,6 +194,11 @@ Deno.serve(async (request) => {
     );
   }
 
+  let emailId: number | null = null;
+  let pessoaId: number | null = null;
+  let tipoPessoaId: number | null = null;
+  let usuarioId: number | null = null;
+
   try {
     console.log('Criando registro em emails.');
     const emailRow = await service
@@ -199,6 +207,7 @@ Deno.serve(async (request) => {
       .select('id_email')
       .single();
     if (emailRow.error) throw emailRow.error;
+    emailId = emailRow.data.id_email;
 
     console.log('Criando registro em pessoa_fisica.');
     const pessoa = await service
@@ -207,18 +216,20 @@ Deno.serve(async (request) => {
       .select('id_pessoa_fisica')
       .single();
     if (pessoa.error) throw pessoa.error;
+    pessoaId = pessoa.data.id_pessoa_fisica;
 
     console.log('Criando registro em ass_tipo_pessoa.');
     const tipoPessoa = await service
       .from('ass_tipo_pessoa')
       .insert({
-        tipo: 'Fisica',
-        fk_pessoa_fisica: pessoa.data.id_pessoa_fisica,
+        tipo: 'Física', // mesmo valor gravado pelo app no cadastro normal
+        fk_pessoa_fisica: pessoaId,
         fk_pessoa_juridica: null,
       })
       .select('id_tipo_pessoa')
       .single();
     if (tipoPessoa.error) throw tipoPessoa.error;
+    tipoPessoaId = tipoPessoa.data.id_tipo_pessoa;
 
     console.log('Criando registro em usuarios.');
     const usuario = await service
@@ -227,17 +238,18 @@ Deno.serve(async (request) => {
         nome: `Profissional ${cpf.slice(-4)}`,
         data_criacao: new Date().toISOString(),
         tipo_conta: 'Profissional',
-        fk_email: emailRow.data.id_email,
-        fk_tipo_pessoa: tipoPessoa.data.id_tipo_pessoa,
+        fk_email: emailId,
+        fk_tipo_pessoa: tipoPessoaId,
         auth_id: novoAuth.user.id,
       })
       .select('id_usuario')
       .single();
     if (usuario.error) throw usuario.error;
+    usuarioId = usuario.data.id_usuario;
 
     console.log('Criando registro em dados_profissionais.');
     const profissional = await service.from('dados_profissionais').insert({
-      fk_usuario: usuario.data.id_usuario,
+      fk_usuario: usuarioId,
       fk_grupo_empresa: grupoId,
       rosto_validado: false,
       data_admissao: new Date().toISOString().split('T')[0],
@@ -248,7 +260,30 @@ Deno.serve(async (request) => {
     return json({ success: true });
   } catch (error) {
     console.error('Erro ao criar perfil relacional:', error);
+
+    // Limpeza completa: remove TODOS os registros parciais desta tentativa.
+    // Sem isso, a reexecução para o mesmo CPF falha com
+    // 'duplicate key value violates unique constraint "emails_endereco_email_key"'.
     await service.auth.admin.deleteUser(novoAuth.user.id);
+    if (usuarioId) {
+      await service.from('usuarios').delete().eq('id_usuario', usuarioId);
+    }
+    if (tipoPessoaId) {
+      await service
+        .from('ass_tipo_pessoa')
+        .delete()
+        .eq('id_tipo_pessoa', tipoPessoaId);
+    }
+    if (pessoaId) {
+      await service
+        .from('pessoa_fisica')
+        .delete()
+        .eq('id_pessoa_fisica', pessoaId);
+    }
+    if (emailId) {
+      await service.from('emails').delete().eq('id_email', emailId);
+    }
+
     return json(
       {
         error:
