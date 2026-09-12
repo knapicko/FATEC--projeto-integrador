@@ -150,9 +150,13 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     if (widget.isVisitante || !mounted) return;
     final deveCompletar = await CompletarCadastroEquipeDialog.deveCompletar();
     if (!deveCompletar || !mounted) return;
-    await showDialog<void>(
+    await showModalBottomSheet<void>(
       context: context,
-      barrierDismissible: false,
+      isScrollControlled: true,
+      enableDrag: false,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black54,
+      isDismissible: false,
       builder: (_) => const CompletarCadastroEquipeDialog(),
     );
   }

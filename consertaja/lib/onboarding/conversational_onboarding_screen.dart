@@ -34,6 +34,9 @@ class _ConversationalOnboardingScreenState
   @override
   void initState() {
     super.initState();
+    // Atualiza os requisitos de senha AO VIVO enquanto o usuário digita.
+    // Sem esse listener, a lista só era recalculada ao desfocar/agir no campo.
+    _controller.senha.addListener(_atualizarRequisitosSenha);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.iniciarLogin) {
         _controller.iniciarFluxoLogin();
@@ -43,6 +46,16 @@ class _ConversationalOnboardingScreenState
         _controller.ensureStarted();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _controller.senha.removeListener(_atualizarRequisitosSenha);
+    super.dispose();
+  }
+
+  void _atualizarRequisitosSenha() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _selecionarData(

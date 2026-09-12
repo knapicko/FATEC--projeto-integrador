@@ -24,10 +24,21 @@ Deno.serve(async (request) => {
     return new Response('ok', { status: 200, headers: corsHeaders });
   }
 
-  // Aceita os nomes customizados OU os nomes padrão injetados automaticamente
-  const serviceRoleKey =
-    Deno.env.get('SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  const anonKey = Deno.env.get('ANON_KEY') ?? Deno.env.get('SUPABASE_ANON_KEY');
+  // Prioriza as chaves INJETADAS AUTOMATICAMENTE pelo runtime do Supabase
+  // (SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY), que são sempre as corretas
+  // do projeto e possuem acesso total (papel service_role, ignora RLS/grants).
+  // Os nomes customizados (SERVICE_ROLE_KEY / ANON_KEY) são apenas fallback para
+  // desenvolvimento local, pois valores errados/limitados causam erros como
+  // 'permission denied for table dados_profissionais'.
+  const limparChave = (chave: string | undefined) =>
+    chave?.trim().replace(/\s+/g, '') ?? '';
+  const serviceRoleKey = limparChave(
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ??
+      Deno.env.get('SERVICE_ROLE_KEY'),
+  );
+  const anonKey = limparChave(
+    Deno.env.get('SUPABASE_ANON_KEY') ?? Deno.env.get('ANON_KEY'),
+  );
   console.log('SERVICE_ROLE_KEY configurada:', Boolean(serviceRoleKey));
   console.log('ANON_KEY configurada:', Boolean(anonKey));
 
