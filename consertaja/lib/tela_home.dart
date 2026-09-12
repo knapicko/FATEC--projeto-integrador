@@ -7,6 +7,7 @@ import 'meus_enderecos.dart';
 import 'tela_meu_perfil_cliente.dart';
 import 'tela_busca.dart';
 import 'tela_inicial.dart';
+import 'tela_mensagens.dart';
 import 'seguindo_cliente.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/bottom_navigation_bar_cliente.dart';
@@ -1606,6 +1607,12 @@ class _TelaHomeState extends State<TelaHome> {
             Navigator.of(context).pushReplacement(
               _rotaSemAnimacao(
                 SeguindoClientePage(isVisitante: widget.isVisitante),
+              ),
+            );
+          } else if (index == 2) {
+            Navigator.of(context).pushReplacement(
+              _rotaSemAnimacao(
+                TelaMensagensPage(isVisitante: widget.isVisitante),
               ),
             );
           } else if (index == 4) {

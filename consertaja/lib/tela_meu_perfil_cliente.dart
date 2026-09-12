@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'tela_home.dart';
+import 'tela_mensagens.dart';
 import 'seguindo_cliente.dart';
 import 'editar_informacoes.dart';
 import 'meus_enderecos.dart';
@@ -542,6 +543,12 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
           Navigator.of(context).pushReplacement(
             _rotaSemAnimacao(
               SeguindoClientePage(isVisitante: widget.isVisitante),
+            ),
+          );
+        } else if (index == 2) {
+          Navigator.of(context).pushReplacement(
+            _rotaSemAnimacao(
+              TelaMensagensPage(isVisitante: widget.isVisitante),
             ),
           );
         }

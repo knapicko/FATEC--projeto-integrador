@@ -15,6 +15,7 @@ import 'models/postagem_resumo.dart';
 import 'services/postagens_profissional_service.dart';
 import 'services/completar_cadastro_equipe.dart';
 import 'tela_meu_perfil_profissional.dart';
+import 'tela_mensagens.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
 import 'utils/iniciais.dart';
@@ -1901,6 +1902,17 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
       bottomNavigationBar: BottomNavigationBarProfissional(
         currentIndex: _currentIndex,
         onTap: (index) {
+          if (index == 2) {
+            Navigator.of(context).pushReplacement(
+              _rotaSemAnimacao(
+                TelaMensagensPage(
+                  isVisitante: widget.isVisitante,
+                  isProfissional: true,
+                ),
+              ),
+            );
+            return;
+          }
           if (index == 4) {
             Navigator.of(context).pushReplacement(
               _rotaSemAnimacao(

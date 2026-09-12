@@ -28,3 +28,28 @@ String formatarDataSelecionada(DateTime data) {
   final mes = data.month.toString().padLeft(2, '0');
   return '$dia/$mes/${data.year}';
 }
+
+/// Formata a última conexión de um usuário como texto relativo.
+///
+/// * `null`                    → `''` (não se exibe)
+/// * fez 2 min ou menos        → `'Online'`
+/// * fez menos de 1 hora       → `'há X min'`
+/// * fez menos de 24 horas     → `'há X h'`
+/// * fez 1 dia                 → `'há 1 dia'`
+/// * fez menos de 7 dias       → `'há X dias'`
+/// * fez menos de 30 dias      → `'há X semanas'`
+/// * resto                     → `'há X meses'`
+String formatarUltimaVezAtivo(DateTime? ultimaConexion) {
+  if (ultimaConexion == null) return '';
+
+  final diff = DateTime.now().difference(ultimaConexion);
+
+  // Una conexión com menos de 2 minutos se considera "online".
+  if (diff.inMinutes <= 2) return 'Online';
+  if (diff.inMinutes < 60) return 'há ${diff.inMinutes} min';
+  if (diff.inHours < 24) return 'há ${diff.inHours} h';
+  if (diff.inDays == 1) return 'há 1 dia';
+  if (diff.inDays < 7) return 'há ${diff.inDays} dias';
+  if (diff.inDays < 30) return 'há ${diff.inDays ~/ 7} semanas';
+  return 'há ${diff.inDays ~/ 30} meses';
+}
