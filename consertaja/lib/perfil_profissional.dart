@@ -3,6 +3,7 @@ import 'package:flutter/rendering.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'models/postagem_resumo.dart';
 import 'services/postagens_profissional_service.dart';
+import 'tela_chat_profissional.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/iniciais.dart';
 import 'widgets/tag_oficio.dart';
@@ -1447,7 +1448,13 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                 key: _footerButtonKey,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                  child: _buildBotaoSolicitarServico(),
+                  child: Row(
+                    children: [
+                      Expanded(child: _buildBotaoMensagem()),
+                      const SizedBox(width: 12),
+                      Expanded(child: _buildBotaoSolicitarServico()),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -1457,9 +1464,69 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
               left: 16,
               right: 16,
               bottom: 24,
-              child: _buildBotaoSolicitarServico(),
+              child: Row(
+                children: [
+                  Expanded(child: _buildBotaoMensagem()),
+                  const SizedBox(width: 12),
+                  Expanded(child: _buildBotaoSolicitarServico()),
+                ],
+              ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBotaoMensagem() {
+    return Material(
+      elevation: _showFloatingButton ? 6 : 0,
+      borderRadius: BorderRadius.circular(12),
+      color: Colors.white,
+      child: InkWell(
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => TelaChatProfissional(
+                nomeProfissional:
+                    _nome.isNotEmpty ? _nome : widget.nomeInicial,
+                fotoProfissional: _fotoUrl ?? widget.imagemInicial,
+                oficioPrincipal: _oficios.isNotEmpty
+                    ? _oficios.first.funcao
+                    : widget.profissao,
+                idProfissional: _idProfissional,
+              ),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _primaryBlue, width: 1.5),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.chat_bubble_outline,
+                color: _primaryBlue,
+                size: 22,
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                'ENVIAR MENSAGEM',
+                style: TextStyle(
+                  color: _primaryBlue,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

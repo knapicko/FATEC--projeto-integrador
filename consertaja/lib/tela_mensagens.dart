@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'seguindo_cliente.dart';
 import 'services/formatacao_data.dart';
+import 'tela_chat_profissional.dart';
 import 'tela_home.dart';
 import 'tela_home_profissional.dart';
 import 'tela_meu_perfil_cliente.dart';
@@ -189,7 +190,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
             .from('mensagens')
             .select('fk_conversa, conteudo, data_envio')
             .inFilter('fk_conversa', idsConversas)
-            .order('data_envio'); // descendente por padrão
+            .order('data_envio', ascending: false);
         for (final mensagem in mensagens) {
           final id = (mensagem['fk_conversa'] as num?)?.toInt();
           if (id != null && !ultimaPorConversa.containsKey(id)) {
@@ -265,6 +266,48 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
         // existir em `solicitacoes`.
       }
 // Construir os resumos de conversa.
+      // Ofício do contato (só faz sentido quando o contato é profissional).
+      final oficioPorProfissional = <int, String>{};
+      if (!isProfissional) {
+        try {
+          final idsProf = contatoPorChave.keys.toList();
+          if (idsProf.isNotEmpty) {
+            final assocs = await _supabase
+                .from('ass_oficio_profissional')
+                .select('fk_profissional, fk_oficio')
+                .inFilter('fk_profissional', idsProf);
+            final idsOficio = assocs
+                .map((r) => (r['fk_oficio'] as num?)?.toInt())
+                .whereType<int>()
+                .toSet()
+                .toList();
+            if (idsOficio.isNotEmpty) {
+              final oficios = await _supabase
+                  .from('oficios')
+                  .select('id_oficio, funcao')
+                  .inFilter('id_oficio', idsOficio);
+              final funcaoPorId = <int, String>{
+                for (final row in oficios)
+                  if ((row['id_oficio'] as num?) != null)
+                    (row['id_oficio'] as num).toInt():
+                        row['funcao']?.toString() ?? '',
+              };
+              for (final row in assocs) {
+                final idP = (row['fk_profissional'] as num?)?.toInt();
+                final idO = (row['fk_oficio'] as num?)?.toInt();
+                if (idP != null &&
+                    idO != null &&
+                    !oficioPorProfissional.containsKey(idP)) {
+                  final funcao = funcaoPorId[idO] ?? '';
+                  if (funcao.isNotEmpty) oficioPorProfissional[idP] = funcao;
+                }
+              }
+            }
+          }
+        } catch (_) {
+          // Ofício é opcional no card.
+        }
+      }
       final resultado = <_ConversaResumo>[];
       for (final conv in conversas) {
         final idConv = (conv['id_conversa'] as num?)?.toInt();
@@ -283,6 +326,10 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
             nomeContato:
                 contato['nome']?.toString() ?? 'Nome não encontrado',
             fotoUrl: contato['foto_perfil_url']?.toString() ?? '',
+            oficioContato: isProfissional
+                ? 'Cliente'
+                : (oficioPorProfissional[chaveContato] ?? ''),
+            idProfissional: isProfissional ? null : chaveContato,
             servicoAssociado: servicoPorConversa[idConv],
             ultimaConexaoContato: DateTime.tryParse(
               contato['ultima_conexao']?.toString() ?? '',
@@ -354,7 +401,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
         backgroundColor: _primaryBlue,
         elevation: 0,
         leading: IconButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: _voltarParaHome,
           icon: const Icon(Icons.arrow_back_ios, size: 20, color: Colors.white),
         ),
         title: const Text(
@@ -488,6 +535,24 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
     // Os índices 3 (Pedidos) ainda não está linkado.
   }
 
+  /// Volta para a Home sem quebrar quando a tela Mensagens é a primeira
+  /// da pilha (ex: veio direto da bottom bar). Usa pushReplacement nesse
+  /// caso em vez de pop (que causava `_history.isNotEmpty is not true`).
+  void _voltarParaHome() {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+      return;
+    }
+    navigator.pushReplacement(
+      _rotaSemAnimacao(
+        widget.isProfissional
+            ? TelaHomeProfissional(isVisitante: widget.isVisitante)
+            : TelaHome(isVisitante: widget.isVisitante),
+      ),
+    );
+  }
+
   Widget _buildEstadoVazio(bool pesquisaAtiva) {
     return Center(
       child: Column(
@@ -531,15 +596,28 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
   Widget _buildCard(_ConversaResumo conversa) {
     final textoEstado = formatarUltimaVezAtivo(conversa.ultimaConexaoContato);
     final corEstado = conversa.estaOnline ? _greenOnline : _textMuted;
+    final textoDataHora = _formatarDataHoraUltimaMensagem(
+      conversa.dataUltimaMensagem,
+    );
 
     return InkWell(
       borderRadius: BorderRadius.circular(12),
-      onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('A conversa completa estará disponível em breve.'),
+      onTap: () async {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => TelaChatProfissional(
+              nomeProfissional: conversa.nomeContato,
+              fotoProfissional: conversa.fotoUrl,
+              oficioPrincipal: conversa.oficioContato,
+              idProfissional: conversa.idProfissional,
+              idConversa: conversa.idConversa,
+            ),
           ),
         );
+        if (!context.mounted) return;
+        setState(() {
+          _conversasFuture = _carregarConversas();
+        });
       },
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
@@ -572,7 +650,16 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
                           ),
                         ),
                       ),
-                      if (textoEstado.isNotEmpty) ...[
+                      if (textoDataHora.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          textoDataHora,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: _textMuted,
+                          ),
+                        ),
+                      ] else if (textoEstado.isNotEmpty) ...[
                         const SizedBox(width: 6),
                         Text(
                           textoEstado,
@@ -633,53 +720,27 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
       ),
     );
   }
-// ======================================================================
-  //  Visualização prévia (dados de exemplo, enquanto não há mensageria real)
-  // ======================================================================
 
   List<_ConversaResumo> _conversasDeExemplo() {
-    _visualizacaoPrevia = true;
+    return [];
+  }
+
+  /// Formata data + hora da última mensagem estilo WhatsApp:
+  /// hoje → "HH:mm", ontem → "Ontem HH:mm", resto → "dd/MM/yyyy HH:mm".
+  String _formatarDataHoraUltimaMensagem(DateTime? data) {
+    if (data == null) return '';
+    final local = data.isUtc ? data.toLocal() : data;
     final agora = DateTime.now();
-    return [
-      _ConversaResumo(
-        idConversa: -1,
-        nomeContato: 'Carlos Mendes',
-        servicoAssociado: 'Conserto de cabo de panela',
-        ultimaConexaoContato: agora,
-        ultimaMensagem: 'Boa tarde! Recebi o seu pedido, posso passar amanhã de manhã.',
-        dataUltimaMensagem: agora,
-      ),
-      _ConversaResumo(
-        idConversa: -2,
-        nomeContato: 'Lúcia Ferreira',
-        ultimaConexaoContato: agora.subtract(const Duration(minutes: 5)),
-        ultimaMensagem: 'Ficamos de que avisaria quando estivesse livre.',
-        dataUltimaMensagem: agora.subtract(const Duration(minutes: 5)),
-      ),
-      _ConversaResumo(
-        idConversa: -3,
-        nomeContato: 'João Pereira',
-        servicoAssociado: 'Reparo de máquina de lavar',
-        ultimaConexaoContato: agora.subtract(const Duration(hours: 3)),
-        ultimaMensagem: 'Vou levar a ferramenta no sábado de manhã.',
-        dataUltimaMensagem: agora.subtract(const Duration(hours: 3)),
-      ),
-      _ConversaResumo(
-        idConversa: -4,
-        nomeContato: 'Ana Torres',
-        ultimaConexaoContato: agora.subtract(const Duration(days: 2)),
-        ultimaMensagem: 'Obrigada pelo atendimento, tudo ficou funcionando.',
-        dataUltimaMensagem: agora.subtract(const Duration(days: 2)),
-      ),
-      _ConversaResumo(
-        idConversa: -5,
-        nomeContato: 'Diego Ramírez',
-        servicoAssociado: 'Cabeamento elétrico',
-        ultimaConexaoContato: agora.subtract(const Duration(days: 9)),
-        ultimaMensagem: 'Aviso quando conseguir os materiais.',
-        dataUltimaMensagem: agora.subtract(const Duration(days: 9)),
-      ),
-    ];
+    final hoje = DateTime(agora.year, agora.month, agora.day);
+    final diaMsg = DateTime(local.year, local.month, local.day);
+    final diferencaDias = hoje.difference(diaMsg).inDays;
+    final hh = local.hour.toString().padLeft(2, '0');
+    final mm = local.minute.toString().padLeft(2, '0');
+    if (diferencaDias == 0) return '$hh:$mm';
+    if (diferencaDias == 1) return 'Ontem $hh:$mm';
+    final dd = local.day.toString().padLeft(2, '0');
+    final mes = local.month.toString().padLeft(2, '0');
+    return '$dd/$mes/${local.year} $hh:$mm';
   }
 }
 
@@ -688,6 +749,8 @@ class _ConversaResumo {
   final int idConversa;
   final String nomeContato;
   final String fotoUrl;
+  final String oficioContato;
+  final int? idProfissional;
   final String? servicoAssociado;
   final DateTime? ultimaConexaoContato;
   final String? ultimaMensagem;
@@ -697,6 +760,8 @@ class _ConversaResumo {
     required this.idConversa,
     required this.nomeContato,
     this.fotoUrl = '',
+    this.oficioContato = '',
+    this.idProfissional,
     this.servicoAssociado,
     this.ultimaConexaoContato,
     this.ultimaMensagem,
