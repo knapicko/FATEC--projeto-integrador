@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'perfil_profissional.dart';
 import 'tela_home.dart';
+import 'tela_mensagens.dart';
 import 'tela_meu_perfil_cliente.dart';
 import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/iniciais.dart';
@@ -18,6 +19,7 @@ class SeguindoClientePage extends StatefulWidget {
 
 class _SeguindoClientePageState extends State<SeguindoClientePage> {
   static const _blue = Color(0xFF0A6E9D);
+  static const _primaryBlue = Color(0xFF0FB3FF);
   static const _background = Color(0xFFFAFAFA);
   final _supabase = Supabase.instance.client;
   final _buscaController = TextEditingController();
@@ -140,6 +142,10 @@ class _SeguindoClientePageState extends State<SeguindoClientePage> {
       Navigator.of(context).pushReplacement(
         _rotaSemAnimacao(TelaHome(isVisitante: widget.isVisitante)),
       );
+    } else if (index == 2) {
+      Navigator.of(context).pushReplacement(
+        _rotaSemAnimacao(TelaMensagensPage(isVisitante: widget.isVisitante)),
+      );
     } else if (index == 4) {
       Navigator.of(context).pushReplacement(
         _rotaSemAnimacao(
@@ -154,75 +160,95 @@ class _SeguindoClientePageState extends State<SeguindoClientePage> {
     return Scaffold(
       backgroundColor: _background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFE9E9F0),
+        backgroundColor: _primaryBlue,
         elevation: 0,
-        title: _buscaAtiva
-            ? TextField(
-                controller: _buscaController,
-                autofocus: true,
-                onChanged: (valor) => setState(() => _termoBusca = valor),
-                decoration: const InputDecoration(
-                  hintText: 'Pesquisar profissional',
-                  border: InputBorder.none,
-                ),
-              )
-            : const Text(
-                'Seguindo',
-                style: TextStyle(color: _blue, fontWeight: FontWeight.bold),
-              ),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            tooltip: _buscaAtiva ? 'Fechar pesquisa' : 'Pesquisar',
-            icon: Icon(_buscaAtiva ? Icons.close : Icons.search, color: _blue),
-            onPressed: () {
-              setState(() {
-                _buscaAtiva = !_buscaAtiva;
-                if (!_buscaAtiva) {
-                  _termoBusca = '';
-                  _buscaController.clear();
-                }
-              });
-            },
+        leading: IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: const Icon(Icons.arrow_back_ios, size: 20, color: Colors.white),
+        ),
+        title: const Text(
+          'Seguindo',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
           ),
-        ],
+        ),
+        centerTitle: true,
       ),
-      body: FutureBuilder<List<_ProfissionalSeguido>>(
-        future: _profissionaisFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: _blue));
-          }
-          if (snapshot.hasError) {
-            return const Center(
-              child: Text('Não foi possível carregar os profissionais.'),
-            );
-          }
-          final termo = _termoBusca.trim().toLowerCase();
-          final profissionais = (snapshot.data ?? [])
-              .where(
-                (profissional) =>
-                    termo.isEmpty ||
-                    profissional.nome.toLowerCase().contains(termo) ||
-                    profissional.oficios.any(
-                      (oficio) => oficio.toLowerCase().contains(termo),
-                    ),
-              )
-              .toList();
-          if (profissionais.isEmpty) {
-            return const Center(child: Text('Nenhum profissional encontrado.'));
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(14, 20, 14, 24),
-            itemCount: profissionais.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 13),
-            itemBuilder: (context, index) => _buildCard(profissionais[index]),
-          );
-        },
-      ),
+      body: Column(
+        children: [
+          _buildBarraPesquisa(),
+          Expanded(
+            child: FutureBuilder<List<_ProfissionalSeguido>>(
+              future: _profissionaisFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator(color: _blue));
+                }
+                if (snapshot.hasError) {
+                  return const Center(
+                    child: Text('Não foi possível carregar os profissionais.'),
+                  );
+                }
+                final termo = _termoBusca.trim().toLowerCase();
+                final profissionais = (snapshot.data ?? [])
+                    .where(
+                      (profissional) =>
+                          termo.isEmpty ||
+                          profissional.nome.toLowerCase().contains(termo) ||
+                          profissional.oficios.any(
+                            (oficio) => oficio.toLowerCase().contains(termo),
+                          ),
+                    )
+                    .toList();
+                if (profissionais.isEmpty) {
+                  return const Center(child: Text('Nenhum profissional encontrado.'));
+                }
+                return ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(14, 20, 14, 24),
+                  itemCount: profissionais.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 13),
+                  itemBuilder: (context, index) => _buildCard(profissionais[index]),
+                );
+              },
+              ),
+            ),
+          ],
+        ),
       bottomNavigationBar: BottomNavigationBarCliente(
         currentIndex: 1,
         onTap: _navegar,
+      ),
+    );
+  }
+
+  Widget _buildBarraPesquisa() {
+    return Container(
+      color: _background,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      child: Container(
+        height: 46,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: TextField(
+          controller: _buscaController,
+          onChanged: (value) => setState(() => _termoBusca = value),
+          style: const TextStyle(fontSize: 15),
+          decoration: InputDecoration(
+            hintText: 'Pesquisar profissional',
+            hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 15),
+            prefixIcon: Icon(
+              Icons.search,
+              color: Colors.grey.shade400,
+              size: 22,
+            ),
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(vertical: 14),
+          ),
+        ),
       ),
     );
   }

@@ -11,6 +11,7 @@ import 'termos_de_uso.dart';
 import 'politica_de_privacidade.dart';
 import 'sobre_conserta_ja.dart';
 import 'tela_home_profissional.dart';
+import 'tela_mensagens.dart';
 import 'tela_inicial.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
 import 'utils/iniciais.dart';
@@ -584,6 +585,12 @@ class _TelaMeuPerfilProfissionalPageState
           Navigator.of(context).pushReplacement(
             _rotaSemAnimacao(
               TelaHomeProfissional(isVisitante: widget.isVisitante),
+            ),
+          );
+        } else if (index == 2) {
+          Navigator.of(context).pushReplacement(
+            _rotaSemAnimacao(
+              TelaMensagensPage(isVisitante: widget.isVisitante, isProfissional: true),
             ),
           );
         } else if (index == 4 && !widget.isVisitante) {
