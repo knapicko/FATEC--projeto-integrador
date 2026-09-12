@@ -21,6 +21,22 @@ const String _tabelaAssUsuarioEndereco = 'ass_usuario_endereco';
 const String _tabelaCidade = 'cidades';
 const String _tabelaEstado = 'estados';
 
+/// Matriz de cor aplicada ao mapa (Leaflet/flutter_map) para deixá-lo
+/// minimalista em PRETO e BRANCO:
+/// - Cores viram tons de cinza (luminância) — linhas de ruas/caminhos
+///   ficam pretas e o fundo fica branco.
+/// - O azul #0FB3FF não é aplicado aqui no mapa; ele permanece apenas
+///   nos marcadores e elementos da interface (fora deste filtro).
+///
+/// Observação: conversão padrão para tons de cinza via luminância:
+/// g = 0.2126*R + 0.7152*G + 0.0722*B (certifica-se de preservar branco e preto).
+const List<double> _matrizMapaPretoBranco = <double>[
+  0.2126, 0.7152, 0.0722, 0, 0,
+  0.2126, 0.7152, 0.0722, 0, 0,
+  0.2126, 0.7152, 0.0722, 0, 0,
+  0, 0, 0, 1, 0,
+];
+
 class EnderecoEditData {
   final int idEndereco;
   final String cep;
@@ -855,12 +871,17 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
                       ),
                     ),
                     children: [
-                      TileLayer(
-                        urlTemplate:
-                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        userAgentPackageName: 'br.com.consertaja',
-                        maxNativeZoom: 19,
-                        maxZoom: 19,
+                      ColorFiltered(
+                        colorFilter: ColorFilter.matrix(
+                          _matrizMapaPretoBranco,
+                        ),
+                        child: TileLayer(
+                          urlTemplate:
+                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          userAgentPackageName: 'br.com.consertaja',
+                          maxNativeZoom: 19,
+                          maxZoom: 19,
+                        ),
                       ),
                       MarkerLayer(
                         markers: [
@@ -1777,12 +1798,17 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
                         ),
                       ),
                       children: [
-                        TileLayer(
-                          urlTemplate:
-                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                          userAgentPackageName: 'br.com.consertaja',
-                          maxNativeZoom: 19,
-                          maxZoom: 19,
+                        ColorFiltered(
+                          colorFilter: ColorFilter.matrix(
+                            _matrizMapaPretoBranco,
+                          ),
+                          child: TileLayer(
+                            urlTemplate:
+                                'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                            userAgentPackageName: 'br.com.consertaja',
+                            maxNativeZoom: 19,
+                            maxZoom: 19,
+                          ),
                         ),
                         MarkerLayer(
                           markers: [
