@@ -6,7 +6,9 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'modificar_conta_profissional.dart';
+import 'services/consulta_cadastro_service.dart';
 import 'services/profissional_equipe_service.dart';
+import 'services/validacao_documento.dart';
 import 'utils/cor_oficio.dart';
 import 'widgets/tag_oficio.dart';
 
@@ -15,6 +17,39 @@ class GestaoEquipePage extends StatefulWidget {
 
   @override
   State<GestaoEquipePage> createState() => _GestaoEquipePageState();
+}
+
+class _DocumentoOuEmailInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final texto = newValue.text;
+    // E-mail: mantém como digitado.
+    if (texto.contains('@') || RegExp(r'[A-Za-z]').hasMatch(texto)) {
+      return newValue;
+    }
+    final digitos = texto.replaceAll(RegExp(r'\D'), '');
+    if (digitos.length > 14) return oldValue;
+    final mascara =
+        digitos.length <= 11 ? '###.###.###-##' : '##.###.###/####-##';
+    var formatado = '';
+    var indiceDigito = 0;
+    for (var i = 0; i < mascara.length; i++) {
+      if (indiceDigito >= digitos.length) break;
+      if (mascara[i] == '#') {
+        formatado += digitos[indiceDigito];
+        indiceDigito++;
+      } else {
+        formatado += mascara[i];
+      }
+    }
+    return TextEditingValue(
+      text: formatado,
+      selection: TextSelection.collapsed(offset: formatado.length),
+    );
+  }
 }
 
 class _MembroEquipe {
@@ -1943,6 +1978,38 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
         final documentoDigits = input.replaceAll(RegExp(r'\D'), '');
         convitePorCnpj = documentoDigits.length == 14;
 
+        // Valida o CPF/CNPJ com a mesma verificação usada no cadastro
+        // (ConsultaCadastroService.validarDocumento). Evita prosseguir com
+        // um documento inválido no fluxo de convite/criação de conta.
+        if (documentoDigits.length == 11 || documentoDigits.length == 14) {
+          bool documentoValido = false;
+          try {
+            final validacao = await ConsultaCadastroService()
+                .validarDocumento(documentoDigits);
+            documentoValido = validacao.valido;
+          } catch (_) {
+            // Fallback offline: valida apenas os dígitos verificadores.
+            documentoValido = documentoDigits.length == 11
+                ? validarCpf(documentoDigits)
+                : validarCnpj(documentoDigits);
+          }
+          if (!documentoValido) {
+            if (mounted) {
+              setState(() => _carregandoEmpresa = false);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'CPF/CNPJ inválido. Verifique os números digitados.',
+                  ),
+                  backgroundColor: Colors.redAccent,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
+            return;
+          }
+        }
+
         if (convitePorCnpj) {
           // Busca o usuário empresarial por CNPJ.
           final pj = await supabase
@@ -2521,6 +2588,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                     padding: const EdgeInsets.symmetric(horizontal: 18),
                     child: TextField(
                       controller: _emailController,
+                      inputFormatters: [_DocumentoOuEmailInputFormatter()],
                       decoration: const InputDecoration(
                         hintText: 'E-mail, CPF ou CNPJ do profissional.',
                         hintStyle: TextStyle(
