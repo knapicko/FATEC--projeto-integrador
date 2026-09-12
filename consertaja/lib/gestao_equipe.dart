@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'configuracoes_empresa.dart';
 import 'modificar_conta_profissional.dart';
 import 'services/consulta_cadastro_service.dart';
 import 'services/profissional_equipe_service.dart';
@@ -89,20 +90,9 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
   static const Color _textMuted = Color(0xFF64748B);
   static const Color _cardBorder = Color(0xFFE2E8F0);
 
-  static const List<Color> _coresPreset = [
-    Color(0xFF0FB3FF), // Azul ConsertaJá
-    Color(0xFF1E293B), // Slate Escuro
-    Color(0xFF2563EB), // Azul Royal
-    Color(0xFF10B981), // Verde Esmeralda
-    Color(0xFFF59E0B), // Âmbar
-    Color(0xFFEF4444), // Vermelho
-    Color(0xFF8B5CF6), // Roxo
-    Color(0xFF6D4C41), // Marrom
-  ];
-
   final TextEditingController _emailController = TextEditingController();
-  String _nomeEmpresa = 'ConsertaJá Serviços Ltda.';
-  String _tagEmpresa = 'LOJA';
+  String _nomeEmpresa = '';
+  String _tagEmpresa = 'TAG';
   Color _corTagEmpresa = const Color(0xFF0FB3FF);
   String? _fotoUrlEmpresa;
   String? _bannerUrlEmpresa;
@@ -245,10 +235,26 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
 
             if (mounted) {
               setState(() {
-                if (nomeGrupo != null && nomeGrupo.isNotEmpty)
+                if (nomeGrupo != null && nomeGrupo.isNotEmpty) {
                   _nomeEmpresa = nomeGrupo;
-                if (tagGrupo != null && tagGrupo.isNotEmpty)
+                } else if (nomeFantasiaPj != null && nomeFantasiaPj.isNotEmpty) {
+                  _nomeEmpresa = nomeFantasiaPj;
+                  if (_idGrupoEmpresa != null) {
+                    supabase
+                        .from('grupo_empresa')
+                        .update({'nome_empresa': nomeFantasiaPj})
+                        .eq('id_grupo_empresa', _idGrupoEmpresa!);
+                  }
+                } else if (nomeUsuario != null && nomeUsuario.isNotEmpty) {
+                  _nomeEmpresa = nomeUsuario;
+                }
+
+                if (tagGrupo != null && tagGrupo.isNotEmpty) {
                   _tagEmpresa = tagGrupo.toUpperCase();
+                } else {
+                  _tagEmpresa = 'TAG';
+                }
+
                 if (corGrupo != null && corGrupo.isNotEmpty)
                   _corTagEmpresa = _corFromHex(corGrupo);
                 _fotoUrlEmpresa = fotoGrupo;
@@ -288,10 +294,26 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
 
             if (mounted) {
               setState(() {
-                if (nomeGrupo != null && nomeGrupo.isNotEmpty)
+                if (nomeGrupo != null && nomeGrupo.isNotEmpty) {
                   _nomeEmpresa = nomeGrupo;
-                if (tagGrupo != null && tagGrupo.isNotEmpty)
+                } else if (nomeFantasiaPj != null && nomeFantasiaPj.isNotEmpty) {
+                  _nomeEmpresa = nomeFantasiaPj;
+                  if (_idGrupoEmpresa != null) {
+                    supabase
+                        .from('grupo_empresa')
+                        .update({'nome_empresa': nomeFantasiaPj})
+                        .eq('id_grupo_empresa', _idGrupoEmpresa!);
+                  }
+                } else if (nomeUsuario != null && nomeUsuario.isNotEmpty) {
+                  _nomeEmpresa = nomeUsuario;
+                }
+
+                if (tagGrupo != null && tagGrupo.isNotEmpty) {
                   _tagEmpresa = tagGrupo.toUpperCase();
+                } else {
+                  _tagEmpresa = 'TAG';
+                }
+
                 if (corGrupo != null && corGrupo.isNotEmpty)
                   _corTagEmpresa = _corFromHex(corGrupo);
                 _fotoUrlEmpresa = fotoGrupo;
@@ -1179,7 +1201,9 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              _nomeEmpresa,
+                              _nomeEmpresa.isNotEmpty
+                                  ? _nomeEmpresa
+                                  : 'Nome da Empresa',
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
@@ -1229,680 +1253,12 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                           ],
                         ),
                 ),
-                OutlinedButton.icon(
-                  onPressed: _carregandoEmpresa
-                      ? null
-                      : _abrirBottomSheetEditarNomeEmpresa,
-                  icon: const Icon(Icons.edit_outlined, size: 16),
-                  label: const Text('Editar'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _primaryBlue,
-                    side: const BorderSide(color: _primaryBlue),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                  ),
-                ),
               ],
             ),
           ),
         ],
       ),
     );
-  }
-
-  Future<void> _abrirBottomSheetEditarNomeEmpresa() async {
-    final nomeController = TextEditingController(text: _nomeEmpresa);
-    final tagController = TextEditingController(text: _tagEmpresa);
-    Color corSelecionada = _corTagEmpresa;
-    final formKey = GlobalKey<FormState>();
-    bool salvando = false;
-
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            final corTextoTag = _corContraste(corSelecionada);
-            final tagPreview = tagController.text.trim().isEmpty
-                ? 'TAG'
-                : tagController.text.trim().toUpperCase();
-            final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-
-            return Padding(
-              padding: EdgeInsets.only(bottom: bottomInset),
-              child: SafeArea(
-                child: Container(
-                  constraints: BoxConstraints(
-                    maxHeight: MediaQuery.of(context).size.height * 0.85,
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Handle de arraste
-                      Center(
-                        child: Container(
-                          width: 40,
-                          height: 4,
-                          margin: const EdgeInsets.only(top: 12, bottom: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade300,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                      ),
-
-                      // Cabeçalho da ActionSheet
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 8, 12, 12),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFEFF6FF),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(
-                                Icons.storefront_rounded,
-                                color: _primaryBlue,
-                                size: 22,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            const Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Perfil da Empresa',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: _titleDark,
-                                    ),
-                                  ),
-                                  SizedBox(height: 2),
-                                  Text(
-                                    'Altere o nome, a tag e a cor identificadora',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: _textMuted,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.close_rounded,
-                                color: _textMuted,
-                              ),
-                              splashRadius: 20,
-                              onPressed: () => Navigator.pop(ctx),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Divider(height: 1, color: _cardBorder),
-
-                      // Conteúdo rolável com o formulário
-                      Flexible(
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-                          child: Form(
-                            key: formKey,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'NOME DA EMPRESA',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: _textMuted,
-                                    letterSpacing: 0.8,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                TextFormField(
-                                  controller: nomeController,
-                                  textCapitalization: TextCapitalization.words,
-                                  decoration: InputDecoration(
-                                    hintText: 'Ex: Assistência Express',
-                                    filled: true,
-                                    fillColor: const Color(0xFFF8FAFC),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(
-                                        color: _cardBorder,
-                                      ),
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(
-                                        color: _cardBorder,
-                                      ),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(
-                                        color: _primaryBlue,
-                                        width: 1.5,
-                                      ),
-                                    ),
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 12,
-                                    ),
-                                  ),
-                                  validator: (value) {
-                                    if (value == null || value.trim().isEmpty) {
-                                      return 'Informe o nome da empresa.';
-                                    }
-                                    if (value.trim().length < 2) {
-                                      return 'Mínimo de 2 caracteres.';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 16),
-                                const Text(
-                                  'TAG DA EMPRESA (MÁX. 5 LETRAS)',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: _textMuted,
-                                    letterSpacing: 0.8,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF8FAFC),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: _cardBorder),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      const Padding(
-                                        padding: EdgeInsets.only(
-                                          left: 14,
-                                          right: 4,
-                                        ),
-                                        child: Text(
-                                          '#',
-                                          style: TextStyle(
-                                            color: _textMuted,
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                      Expanded(
-                                        child: TextFormField(
-                                          controller: tagController,
-                                          maxLength: 5,
-                                          textCapitalization:
-                                              TextCapitalization.characters,
-                                          inputFormatters: [
-                                            FilteringTextInputFormatter.allow(
-                                              RegExp(r'[a-zA-Z0-9]'),
-                                            ),
-                                            LengthLimitingTextInputFormatter(5),
-                                          ],
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            letterSpacing: 1,
-                                          ),
-                                          decoration: const InputDecoration(
-                                            hintText: 'LOJA',
-                                            border: InputBorder.none,
-                                            counterText: '',
-                                            contentPadding:
-                                                EdgeInsets.symmetric(
-                                                  vertical: 12,
-                                                ),
-                                          ),
-                                          onChanged: (v) {
-                                            final upper = v.toUpperCase();
-                                            if (upper != v) {
-                                              tagController.value =
-                                                  tagController.value.copyWith(
-                                                    text: upper,
-                                                    selection:
-                                                        TextSelection.collapsed(
-                                                          offset: upper.length,
-                                                        ),
-                                                  );
-                                            }
-                                            setSheetState(() {});
-                                          },
-                                          validator: (value) {
-                                            if (value == null ||
-                                                value.trim().isEmpty) {
-                                              return 'Informe a tag da empresa.';
-                                            }
-                                            return null;
-                                          },
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                const Text(
-                                  'COR DA TAG',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: _textMuted,
-                                    letterSpacing: 0.8,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: Row(
-                                    children: [
-                                      ..._coresPreset.map((cor) {
-                                        final selecionada =
-                                            corSelecionada.toARGB32() ==
-                                            cor.toARGB32();
-                                        return GestureDetector(
-                                          onTap: () {
-                                            setSheetState(() {
-                                              corSelecionada = cor;
-                                            });
-                                          },
-                                          child: Container(
-                                            margin: const EdgeInsets.only(
-                                              right: 8,
-                                            ),
-                                            width: 34,
-                                            height: 34,
-                                            decoration: BoxDecoration(
-                                              color: cor,
-                                              shape: BoxShape.circle,
-                                              border: selecionada
-                                                  ? Border.all(
-                                                      color: _titleDark,
-                                                      width: 2.5,
-                                                    )
-                                                  : Border.all(
-                                                      color:
-                                                          Colors.grey.shade300,
-                                                    ),
-                                            ),
-                                            child: selecionada
-                                                ? const Icon(
-                                                    Icons.check,
-                                                    color: Colors.white,
-                                                    size: 16,
-                                                  )
-                                                : null,
-                                          ),
-                                        );
-                                      }),
-                                      GestureDetector(
-                                        onTap: () async {
-                                          final cor = await showDialog<Color>(
-                                            context: context,
-                                            builder: (context) =>
-                                                _ColorPickerDialog(
-                                                  corInicial: corSelecionada,
-                                                ),
-                                          );
-                                          if (cor != null) {
-                                            setSheetState(() {
-                                              corSelecionada = cor;
-                                            });
-                                          }
-                                        },
-                                        child: Container(
-                                          width: 34,
-                                          height: 34,
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            gradient: const SweepGradient(
-                                              colors: [
-                                                Colors.red,
-                                                Colors.orange,
-                                                Colors.yellow,
-                                                Colors.green,
-                                                Colors.blue,
-                                                Colors.purple,
-                                                Colors.red,
-                                              ],
-                                            ),
-                                            border: Border.all(
-                                              color: Colors.grey.shade300,
-                                            ),
-                                          ),
-                                          child: const Center(
-                                            child: Icon(
-                                              Icons.colorize_rounded,
-                                              color: Colors.white,
-                                              size: 16,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF1F5F9),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      const Text(
-                                        'Prévia:',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: _textMuted,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: corSelecionada,
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          '#$tagPreview',
-                                          style: TextStyle(
-                                            color: corTextoTag,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                            letterSpacing: 0.5,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      // Botões de Ação na base
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: salvando
-                                    ? null
-                                    : () => Navigator.pop(ctx),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: _textMuted,
-                                  side: const BorderSide(color: _cardBorder),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 14,
-                                  ),
-                                ),
-                                child: const Text(
-                                  'Cancelar',
-                                  style: TextStyle(fontWeight: FontWeight.w600),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              flex: 2,
-                              child: ElevatedButton(
-                                onPressed: salvando
-                                    ? null
-                                    : () async {
-                                        if (!formKey.currentState!.validate()) {
-                                          return;
-                                        }
-                                        final novoNome = nomeController.text
-                                            .trim();
-                                        final novaTag = tagController.text
-                                            .trim()
-                                            .toUpperCase();
-                                        setSheetState(() => salvando = true);
-
-                                        final scaffold = ScaffoldMessenger.of(
-                                          context,
-                                        );
-                                        final sucesso =
-                                            await _salvarDadosEmpresaNoBanco(
-                                              novoNome,
-                                              novaTag,
-                                              corSelecionada,
-                                            );
-                                        if (ctx.mounted) {
-                                          Navigator.pop(ctx);
-                                        }
-                                        if (sucesso && mounted) {
-                                          scaffold.showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                'Perfil da empresa atualizado com sucesso!',
-                                              ),
-                                              backgroundColor: Color(
-                                                0xFF10B981,
-                                              ),
-                                              behavior:
-                                                  SnackBarBehavior.floating,
-                                            ),
-                                          );
-                                        }
-                                      },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: _primaryBlue,
-                                  foregroundColor: Colors.white,
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 14,
-                                  ),
-                                ),
-                                child: salvando
-                                    ? const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                    : const Text(
-                                        'Salvar Alterações',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 15,
-                                        ),
-                                      ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Future<bool> _salvarDadosEmpresaNoBanco(
-    String novoNome,
-    String novaTag,
-    Color novaCor,
-  ) async {
-    try {
-      final supabase = Supabase.instance.client;
-      final user = supabase.auth.currentUser;
-      if (user == null) return false;
-
-      // Garante _idUsuario e _idProfissional
-      if (_idUsuario == null) {
-        final usuario = await supabase
-            .from('usuarios')
-            .select('id_usuario')
-            .eq('auth_id', user.id)
-            .maybeSingle();
-        _idUsuario = (usuario?['id_usuario'] as num?)?.toInt();
-      }
-
-      if (_idUsuario == null) return false;
-
-      if (_idProfissional == null || _idPerfil == null) {
-        final dadosProf = await supabase
-            .from('dados_profissionais')
-            .select('id_profissional, fk_perfil, fk_grupo_empresa')
-            .eq('fk_usuario', _idUsuario!)
-            .maybeSingle();
-
-        _idProfissional = (dadosProf?['id_profissional'] as num?)?.toInt();
-        _idPerfil = (dadosProf?['fk_perfil'] as num?)?.toInt();
-        _idGrupoEmpresa ??= (dadosProf?['fk_grupo_empresa'] as num?)?.toInt();
-      }
-
-      // Se fk_perfil ainda não existe, cria um registro na tabela perfil
-      if (_idPerfil == null && _idProfissional != null) {
-        try {
-          final novoPerfil = await supabase
-              .from('perfil')
-              .insert({'tipo_perfil': 'Loja'})
-              .select('id_perfil')
-              .single();
-
-          _idPerfil = (novoPerfil['id_perfil'] as num?)?.toInt();
-          if (_idPerfil != null) {
-            await supabase
-                .from('dados_profissionais')
-                .update({'fk_perfil': _idPerfil})
-                .eq('id_profissional', _idProfissional!);
-          }
-        } catch (e) {
-          debugPrint('Erro ao criar perfil para grupo_empresa: $e');
-        }
-      }
-
-      if (_idPerfil == null) return false;
-
-      final hexCor = _corParaHex(novaCor);
-
-      // 1. Se já temos _idGrupoEmpresa, atualiza diretamente
-      if (_idGrupoEmpresa != null) {
-        await supabase
-            .from('grupo_empresa')
-            .update({
-              'nome_empresa': novoNome,
-              'tag_empresa': novaTag,
-              'cor_tag_empresa': hexCor,
-            })
-            .eq('id_grupo_empresa', _idGrupoEmpresa!);
-      } else {
-        // 2. Verifica se já existe registro em grupo_empresa para o fk_perfil
-        final existente = await supabase
-            .from('grupo_empresa')
-            .select('id_grupo_empresa')
-            .eq('fk_perfil', _idPerfil!)
-            .maybeSingle();
-
-        if (existente != null) {
-          _idGrupoEmpresa = (existente['id_grupo_empresa'] as num?)?.toInt();
-          await supabase
-              .from('grupo_empresa')
-              .update({
-                'nome_empresa': novoNome,
-                'tag_empresa': novaTag,
-                'cor_tag_empresa': hexCor,
-              })
-              .eq('id_grupo_empresa', _idGrupoEmpresa!);
-
-          if (_idProfissional != null && _idGrupoEmpresa != null) {
-            await supabase
-                .from('dados_profissionais')
-                .update({'fk_grupo_empresa': _idGrupoEmpresa})
-                .eq('id_profissional', _idProfissional!);
-          }
-        } else {
-          // 3. Cria novo registro em grupo_empresa
-          final novoGrupo = await supabase
-              .from('grupo_empresa')
-              .insert({
-                'fk_perfil': _idPerfil!,
-                'nome_empresa': novoNome,
-                'tag_empresa': novaTag,
-                'cor_tag_empresa': hexCor,
-              })
-              .select('id_grupo_empresa')
-              .single();
-
-          _idGrupoEmpresa = (novoGrupo['id_grupo_empresa'] as num?)?.toInt();
-
-          if (_idProfissional != null && _idGrupoEmpresa != null) {
-            await supabase
-                .from('dados_profissionais')
-                .update({'fk_grupo_empresa': _idGrupoEmpresa})
-                .eq('id_profissional', _idProfissional!);
-          }
-        }
-      }
-
-      if (mounted) {
-        setState(() {
-          _nomeEmpresa = novoNome;
-          _tagEmpresa = novaTag;
-          _corTagEmpresa = novaCor;
-        });
-      }
-
-      return true;
-    } catch (e) {
-      debugPrint('Erro ao salvar dados da empresa: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao salvar perfil da empresa: $e'),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-      return false;
-    }
   }
 
   Future<void> _convidarFuncionario() async {
@@ -2497,13 +1853,16 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_outlined, color: _primaryBlue),
-            onPressed: () {
-              Navigator.push(
+            onPressed: () async {
+              final atualizou = await Navigator.push<bool>(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const ModificarContaProfissionalPage(),
+                  builder: (context) => const ConfiguracoesEmpresaPage(),
                 ),
               );
+              if (atualizou == true) {
+                _carregarDadosEmpresa();
+              }
             },
           ),
         ],
@@ -2993,286 +2352,4 @@ class _DashedCirclePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class _ColorPickerDialog extends StatefulWidget {
-  final Color corInicial;
-
-  const _ColorPickerDialog({required this.corInicial});
-
-  @override
-  State<_ColorPickerDialog> createState() => _ColorPickerDialogState();
-}
-
-class _ColorPickerDialogState extends State<_ColorPickerDialog> {
-  late Color _cor;
-
-  @override
-  void initState() {
-    super.initState();
-    _cor = widget.corInicial;
-  }
-
-  void _atualizarCor(Color nova) {
-    setState(() => _cor = nova);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: const Text(
-        'Escolher cor da Tag',
-        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-      ),
-      content: SizedBox(
-        width: 280,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                height: 48,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: _cor,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-              ),
-              const SizedBox(height: 16),
-              _ColorizSliderHue(cor: _cor, onChanged: _atualizarCor),
-              const SizedBox(height: 12),
-              _ColorizSliderSaturacao(cor: _cor, onChanged: _atualizarCor),
-              const SizedBox(height: 12),
-              _ColorizSliderBrilho(cor: _cor, onChanged: _atualizarCor),
-              const SizedBox(height: 16),
-              Text(
-                'HEX: #${_cor.toARGB32().toRadixString(16).substring(2).toUpperCase()}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.black54,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text(
-            'Cancelar',
-            style: TextStyle(color: Color(0xFF64748B)),
-          ),
-        ),
-        ElevatedButton(
-          onPressed: () => Navigator.pop(context, _cor),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: _cor,
-            foregroundColor: _cor.computeLuminance() > 0.55
-                ? Colors.black
-                : Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          child: const Text(
-            'Selecionar',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ColorizSliderHue extends StatelessWidget {
-  final Color cor;
-  final ValueChanged<Color> onChanged;
-
-  const _ColorizSliderHue({required this.cor, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    final hsl = HSLColor.fromColor(cor);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'MATIZ',
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-            color: Colors.black54,
-            letterSpacing: 0.6,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Container(
-          height: 22,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(6),
-            gradient: const LinearGradient(
-              colors: [
-                Color(0xFFFF0000),
-                Color(0xFFFFFF00),
-                Color(0xFF00FF00),
-                Color(0xFF00FFFF),
-                Color(0xFF0000FF),
-                Color(0xFFFF00FF),
-                Color(0xFFFF0000),
-              ],
-            ),
-          ),
-          child: SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              trackHeight: 22,
-              activeTrackColor: Colors.transparent,
-              inactiveTrackColor: Colors.transparent,
-              thumbColor: Colors.white,
-              overlayColor: Colors.transparent,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
-            ),
-            child: Slider(
-              value: (hsl.hue / 360).clamp(0.0, 1.0),
-              onChanged: (v) {
-                onChanged(
-                  HSLColor.fromAHSL(
-                    1.0,
-                    v * 360,
-                    hsl.saturation,
-                    hsl.lightness,
-                  ).toColor(),
-                );
-              },
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ColorizSliderSaturacao extends StatelessWidget {
-  final Color cor;
-  final ValueChanged<Color> onChanged;
-
-  const _ColorizSliderSaturacao({required this.cor, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    final hsl = HSLColor.fromColor(cor);
-    final base = HSLColor.fromAHSL(hsl.alpha, hsl.hue, 1.0, hsl.lightness);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'SATURAÇÃO',
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-            color: Colors.black54,
-            letterSpacing: 0.6,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Container(
-          height: 22,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(6),
-            gradient: LinearGradient(
-              colors: [Colors.grey.shade300, base.toColor()],
-            ),
-          ),
-          child: SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              trackHeight: 22,
-              activeTrackColor: Colors.transparent,
-              inactiveTrackColor: Colors.transparent,
-              thumbColor: Colors.white,
-              overlayColor: Colors.transparent,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
-            ),
-            child: Slider(
-              value: hsl.saturation.clamp(0.0, 1.0),
-              onChanged: (v) {
-                onChanged(
-                  HSLColor.fromAHSL(
-                    hsl.alpha,
-                    hsl.hue,
-                    v,
-                    hsl.lightness,
-                  ).toColor(),
-                );
-              },
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ColorizSliderBrilho extends StatelessWidget {
-  final Color cor;
-  final ValueChanged<Color> onChanged;
-
-  const _ColorizSliderBrilho({required this.cor, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    final hsl = HSLColor.fromColor(cor);
-    final corHsl = HSLColor.fromAHSL(hsl.alpha, hsl.hue, hsl.saturation, 1.0);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'BRILHO',
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-            color: Colors.black54,
-            letterSpacing: 0.6,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Container(
-          height: 22,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(6),
-            gradient: LinearGradient(
-              colors: [Colors.black, corHsl.toColor(), Colors.white],
-            ),
-          ),
-          child: SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              trackHeight: 22,
-              activeTrackColor: Colors.transparent,
-              inactiveTrackColor: Colors.transparent,
-              thumbColor: Colors.white,
-              overlayColor: Colors.transparent,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
-            ),
-            child: Slider(
-              value: hsl.lightness.clamp(0.0, 1.0),
-              onChanged: (v) {
-                onChanged(
-                  HSLColor.fromAHSL(
-                    hsl.alpha,
-                    hsl.hue,
-                    hsl.saturation,
-                    v,
-                  ).toColor(),
-                );
-              },
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 }
