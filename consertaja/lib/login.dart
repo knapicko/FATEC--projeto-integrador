@@ -148,17 +148,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  String _identificadorHint(String value) {
-    if (value.contains('@') || RegExp(r'[A-Za-z]').hasMatch(value)) {
-      return 'exemplo@email.com';
-    }
-    final digits = value.replaceAll(RegExp(r'\D'), '');
-    if (digits.length >= 12) return 'CNPJ:';
-    if (digits.length == 11) return 'CPF ou telefone:';
-    if (digits.isNotEmpty) return 'Telefone:';
-    return 'CPF, CNPJ, email ou telefone';
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -214,13 +203,16 @@ class _LoginPageState extends State<LoginPage> {
 
               ValueListenableBuilder<TextEditingValue>(
                 valueListenable: _emailController,
-                builder: (context, value, _) => _InputFieldWithAnimation(
-                  label: 'Email, CPF, CNPJ ou telefone',
-                  hint: _identificadorHint(value.text),
-                  keyboardType: TextInputType.text,
-                  inputFormatters: [LoginIdentifierInputFormatter()],
-                  controller: _emailController,
-                ),
+                builder: (context, value, _) {
+                  final tipo = identificarTipoLogin(value.text);
+                  return _InputFieldWithAnimation(
+                    label: tipo.endsWith(':') ? tipo : 'Email, CPF, CNPJ ou telefone',
+                    hint: 'Digite seu identificador',
+                    keyboardType: TextInputType.text,
+                    inputFormatters: [LoginIdentifierInputFormatter()],
+                    controller: _emailController,
+                  );
+                },
               ),
 
               _InputFieldWithAnimation(

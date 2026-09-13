@@ -21,6 +21,11 @@ class _TelaInicialState extends State<TelaInicial> {
     setState(() => _transicionando = true);
     await Future<void>.delayed(const Duration(milliseconds: 120));
     await OnboardingController.instance.limparRascunho();
+    if (login) {
+      OnboardingController.instance.iniciarFluxoLogin();
+    } else {
+      OnboardingController.instance.iniciarFluxoCadastro();
+    }
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       _rotaComFade(
@@ -58,6 +63,7 @@ class _TelaInicialState extends State<TelaInicial> {
   @override
   Widget build(BuildContext context) {
     final altura = MediaQuery.sizeOf(context).height;
+    final caixaSize = (altura * 0.22).clamp(160.0, 195.0);
 
     return Scaffold(
       backgroundColor: _blue,
@@ -74,11 +80,15 @@ class _TelaInicialState extends State<TelaInicial> {
                       children: [
                         Hero(
                           tag: 'caixa-transicao-inicial',
-                          child: Image.asset(
-                            'assets/images/caixa/caixa_normal.png',
-                            width: altura * 0.22,
-                            height: altura * 0.22,
-                            fit: BoxFit.contain,
+                          child: SizedBox(
+                            width: caixaSize,
+                            height: caixaSize,
+                            child: Image.asset(
+                              'assets/images/caixa/caixa_normal.png',
+                              width: caixaSize,
+                              height: caixaSize,
+                              fit: BoxFit.contain,
+                            ),
                           ),
                         ),
                         AnimatedOpacity(

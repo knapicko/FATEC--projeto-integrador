@@ -103,6 +103,15 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     );
   }
 
+  void _abrirCriarPedido() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Criar novo pedido/orçamento em breve.'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
   void _visualizarImagemEmTelaCheia(String url) {
     showDialog(
       context: context,
@@ -236,7 +245,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       final fkUsuario = (conversa['fk_usuario'] as num?)?.toInt();
       final fkProfissional = (conversa['fk_profissional'] as num?)?.toInt();
       if (fkUsuario != null && fkUsuario == _idUsuarioLogado) {
-        _souProfissionalNaConversa = false;
+        if (mounted) setState(() => _souProfissionalNaConversa = false);
         return;
       }
       if (fkProfissional != null) {
@@ -246,7 +255,18 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
             .eq('id_profissional', fkProfissional)
             .maybeSingle();
         final fkUsuarioProf = (dadosProf?['fk_usuario'] as num?)?.toInt();
-        _souProfissionalNaConversa = fkUsuarioProf == _idUsuarioLogado;
+        if (mounted) {
+          setState(() => _souProfissionalNaConversa = fkUsuarioProf == _idUsuarioLogado);
+        }
+        return;
+      }
+      final perfilProf = await _supabase
+          .from('dados_profissionais')
+          .select('id_profissional')
+          .eq('fk_usuario', _idUsuarioLogado!)
+          .maybeSingle();
+      if (perfilProf != null && mounted) {
+        setState(() => _souProfissionalNaConversa = true);
       }
     } catch (e) {
       debugPrint('Erro ao carregar papel na conversa: $e');
@@ -1448,52 +1468,58 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
 
   Widget _buildBarraInput() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(
-          top: BorderSide(color: Color(0xFFE5E7EB), width: 1),
+          top: BorderSide(color: Color(0xFFEDF2F7), width: 1),
         ),
       ),
       child: SafeArea(
         top: false,
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             IconButton(
               onPressed: _abrirAnexos,
               icon: const Icon(
                 Icons.attach_file_rounded,
-                color: Color(0xFF6B7280),
-                size: 24,
+                color: Color(0xFF64748B),
+                size: 26,
               ),
-              splashRadius: 20,
+              splashRadius: 22,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
             ),
+            const SizedBox(width: 4),
             Expanded(
               child: Container(
-                height: 44,
-                padding: const EdgeInsets.only(left: 16, right: 6),
+                height: 48,
+                padding: const EdgeInsets.only(left: 18, right: 10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF3F4F6),
-                  borderRadius: BorderRadius.circular(24),
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(28),
                 ),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Expanded(
                       child: TextField(
                         controller: _mensagemController,
                         style: const TextStyle(
                           fontSize: 15,
-                          color: Color(0xFF111827),
+                          color: Color(0xFF1E293B),
                         ),
                         decoration: const InputDecoration(
                           hintText: 'Mensagem...',
                           hintStyle: TextStyle(
-                            color: Color(0xFF9CA3AF),
+                            color: Color(0xFF94A3B8),
                             fontSize: 15,
+                            fontWeight: FontWeight.w400,
                           ),
                           border: InputBorder.none,
                           isDense: true,
-                          contentPadding: EdgeInsets.symmetric(vertical: 10),
+                          contentPadding: EdgeInsets.symmetric(vertical: 12),
                         ),
                         maxLines: 1,
                         textCapitalization: TextCapitalization.sentences,
@@ -1503,23 +1529,39 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                       onPressed: _abrirAnexos,
                       icon: const Icon(
                         Icons.camera_alt_outlined,
-                        color: Color(0xFF9CA3AF),
-                        size: 22,
+                        color: Color(0xFF94A3B8),
+                        size: 23,
                       ),
                       splashRadius: 18,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                     ),
+                    if (_souProfissionalNaConversa) ...[
+                      const SizedBox(width: 4),
+                      IconButton(
+                        onPressed: _abrirCriarPedido,
+                        icon: const Icon(
+                          Icons.receipt_long_outlined,
+                          color: Color(0xFF94A3B8),
+                          size: 23,
+                        ),
+                        splashRadius: 18,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      ),
+                    ],
                   ],
                 ),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
             GestureDetector(
               onTap: _enviando
                   ? null
                   : (_temTexto ? _enviarMensagem : _onGravarAudio),
               child: Container(
-                width: 44,
-                height: 44,
+                width: 48,
+                height: 48,
                 decoration: const BoxDecoration(
                   color: _primaryBlue,
                   shape: BoxShape.circle,
@@ -1537,7 +1579,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                       : Icon(
                           _temTexto ? Icons.send_rounded : Icons.mic_rounded,
                           color: Colors.white,
-                          size: _temTexto ? 20 : 24,
+                          size: _temTexto ? 22 : 25,
                         ),
                 ),
               ),
