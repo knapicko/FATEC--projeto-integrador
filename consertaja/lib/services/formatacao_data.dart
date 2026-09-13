@@ -4,6 +4,8 @@
 /// usuário vê o formato brasileiro (DD/MM/AAAA).
 library;
 
+import 'verificacao_online.dart';
+
 /// Converte uma data ISO (AAAA-MM-DD) para o formato brasileiro (DD/MM/AAAA).
 String formatarDataBrasileira(String dataIso) {
   final partes = dataIso.split('-');
@@ -45,7 +47,9 @@ String formatarUltimaVezAtivo(DateTime? ultimaConexion) {
   final diff = DateTime.now().difference(ultimaConexion);
 
   // Una conexión com menos de 2 minutos se considera "online".
-  if (diff.inMinutes <= 2) return 'Online';
+  if (diff.inMinutes <= VerificacaoOnline.janelaOnline.inMinutes) {
+    return 'Online';
+  }
   if (diff.inMinutes < 60) return 'há ${diff.inMinutes} min';
   if (diff.inHours < 24) return 'há ${diff.inHours} h';
   if (diff.inDays == 1) return 'há 1 dia';
