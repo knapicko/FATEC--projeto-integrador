@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'seguindo_cliente.dart';
-import 'services/formatacao_data.dart';
+import 'services/verificacao_online.dart';
 import 'tela_chat_profissional.dart';
 import 'tela_home.dart';
 import 'tela_home_profissional.dart';
@@ -12,22 +15,9 @@ import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
 import 'utils/iniciais.dart';
 
-/// Tela "Mensagens": lista de conversas do usuário logado (cliente ou
-/// profissional), acessada pelo botão "Mensagens" da barra de navegação
-/// inferior do home.
-///
-/// Cada card de contato exibe:
-///  - foto à esquerda (ou iniciais como fallback);
-///  - nome;
-///  - serviço associado, apenas quando existe uma solicitação aceita
-///    (data_aceite não nula) que referencia esse serviço;
-///  - última vez ativo ("Online", "há X min", "há X h", "há X dias"...);
-///  - última mensagem da conversa.
-///
-/// Por enquanto é uma visualização essencialmente visual: se ainda não há
-/// dados reais (ou as tabelas ainda não foram criadas no Supabase) são
-/// exibidas conversas de exemplo para que seja possível ver o layout. Para
-/// carregar seus dados reais, execute o script `docs/sql/mensagens.sql`.
+/// Tela "Mensagens": lista de conversas do usuário logado (cliente ou profissional),
+/// com visual moderno, atualização em tempo real, indicador de presença online,
+/// badge com contador de não lidas e tipografia fiel ao design.
 class TelaMensagensPage extends StatefulWidget {
   final bool isVisitante;
   final bool isProfissional;
@@ -44,58 +34,89 @@ class TelaMensagensPage extends StatefulWidget {
 
 class _TelaMensagensPageState extends State<TelaMensagensPage> {
   static const Color _primaryBlue = Color(0xFF0FB3FF);
-  static const Color _background = Color(0xFFFAFAFA);
-  static const Color _titleDark = Color(0xFF1A2B4A);
+  static const Color _background = Color(0xFFF6F8FB);
+  static const Color _titleDark = Color(0xFF111827);
+  static const Color _unreadAccent = Color(0xFF1D4F91);
   static const Color _textMuted = Color(0xFF6B7280);
-  static const Color _greenOnline = Color(0xFF1F9D55);
-
-  /// Quando ativo, se não há conversas reais (ou as tabelas ainda não
-  /// existem) é exibida uma lista de exemplo com um banner de aviso.
-  static const bool _mostrarExemplosQuandoNaoHa = true;
 
   final _supabase = Supabase.instance.client;
   final _buscaController = TextEditingController();
 
-  late Future<List<_ConversaResumo>> _conversasFuture;
-  bool _buscaAtiva = false;
+  List<_ConversaResumo> _conversas = [];
+  bool _carregando = true;
+  String? _erro;
   String _termoBusca = '';
-  bool _visualizacaoPrevia = false;
+  int? _idUsuarioLogado;
+  bool _isProfissional = false;
+
+  RealtimeChannel? _canalLista;
+  Timer? _pollingLista;
+  Timer? _timerOnlineTicker;
+  Timer? _debounceReload;
 
   @override
   void initState() {
     super.initState();
-    _conversasFuture = _carregarConversas();
+    _isProfissional = widget.isProfissional;
+    _carregarConversas(mostrarLoading: true).then((_) {
+      if (mounted) _assinarAtualizacoes();
+    });
+
+    // Reavalia a cada 15 segundos para atualizar a bolinha azul de online visualmente
+    _timerOnlineTicker = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void dispose() {
+    _debounceReload?.cancel();
+    _pollingLista?.cancel();
+    _timerOnlineTicker?.cancel();
+    if (_canalLista != null) {
+      _supabase.removeChannel(_canalLista!);
+    }
     _buscaController.dispose();
     super.dispose();
   }
 
-  // ======================================================================
-  //  Carregamento de dados (Supabase)
-  // ======================================================================
-
-  Future<List<_ConversaResumo>> _carregarConversas() async {
-    _visualizacaoPrevia = false;
+  Future<void> _carregarConversas({bool mostrarLoading = false}) async {
+    if (mostrarLoading && mounted) {
+      setState(() {
+        _carregando = true;
+        _erro = null;
+      });
+    }
 
     try {
       final authUser = _supabase.auth.currentUser;
-      if (authUser == null) return _conversasDeExemplo();
+      if (authUser == null) {
+        _aplicarLista([]);
+        return;
+      }
 
       final usuario = await _supabase
           .from('usuarios')
           .select('id_usuario, tipo_conta')
           .eq('auth_id', authUser.id)
           .maybeSingle();
+
       final idUsuario = (usuario?['id_usuario'] as num?)?.toInt();
-      if (idUsuario == null) return _conversasDeExemplo();
+      if (idUsuario == null) {
+        _aplicarLista([]);
+        return;
+      }
+      _idUsuarioLogado = idUsuario;
 
       final isProfissional =
-          (usuario?['tipo_conta'] ?? '').toString() == 'Profissional';
+          (usuario?['tipo_conta'] ?? '').toString() == 'Profissional' ||
+          widget.isProfissional;
+      if (mounted) {
+        setState(() => _isProfissional = isProfissional);
+      } else {
+        _isProfissional = isProfissional;
+      }
 
-      // Conversas do usuário logado.
       final List<Map<String, dynamic>> conversas;
       if (isProfissional) {
         final dadosProf = await _supabase
@@ -104,7 +125,10 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
             .eq('fk_usuario', idUsuario)
             .maybeSingle();
         final idProf = (dadosProf?['id_profissional'] as num?)?.toInt();
-        if (idProf == null) return _conversasDeExemplo();
+        if (idProf == null) {
+          _aplicarLista([]);
+          return;
+        }
         conversas = await _supabase
             .from('conversas')
             .select()
@@ -116,20 +140,22 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
             .eq('fk_usuario', idUsuario);
       }
 
-      if (conversas.isEmpty) return _conversasDeExemplo();
+      if (conversas.isEmpty) {
+        _aplicarLista([]);
+        return;
+      }
 
-      // Resolver o outro lado da conversa (o contato que é exibido).
-      // Para o cliente o contato é o profissional; para o profissional o
-      // contato é o cliente.
       final Map<int, Map<String, dynamic>> contatoPorChave;
       if (isProfissional) {
         final idsClientes = {
           ...conversas
               .map((row) => (row['fk_usuario'] as num?)?.toInt())
-              .whereType<int>()
-              .toList(),
+              .whereType<int>(),
         }.toList();
-        if (idsClientes.isEmpty) return _conversasDeExemplo();
+        if (idsClientes.isEmpty) {
+          _aplicarLista([]);
+          return;
+        }
         final usuarios = await _buscarUsuarios(idsClientes);
         contatoPorChave = {
           for (final row in usuarios)
@@ -141,10 +167,12 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
         final idsProfissional = {
           ...conversas
               .map((row) => (row['fk_profissional'] as num?)?.toInt())
-              .whereType<int>()
-              .toList(),
+              .whereType<int>(),
         }.toList();
-        if (idsProfissional.isEmpty) return _conversasDeExemplo();
+        if (idsProfissional.isEmpty) {
+          _aplicarLista([]);
+          return;
+        }
         final dados = await _supabase
             .from('dados_profissionais')
             .select('id_profissional, fk_usuario')
@@ -158,10 +186,12 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
         final idsUsuariosProf = {
           ...dados
               .map((row) => (row['fk_usuario'] as num?)?.toInt())
-              .whereType<int>()
-              .toList(),
+              .whereType<int>(),
         }.toList();
-        if (idsUsuariosProf.isEmpty) return _conversasDeExemplo();
+        if (idsUsuariosProf.isEmpty) {
+          _aplicarLista([]);
+          return;
+        }
         final usuarios = await _buscarUsuarios(idsUsuariosProf);
         final usuarioPorId = <int, Map<String, dynamic>>{
           for (final row in usuarios)
@@ -173,42 +203,43 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
           for (final entrada in dadosPorId.entries)
             if (usuarioPorId[(entrada.value['fk_usuario'] as num?)?.toInt()] !=
                 null)
-              entrada.key: usuarioPorId[
-                  (entrada.value['fk_usuario'] as num).toInt()]!,
+              entrada.key:
+                  usuarioPorId[(entrada.value['fk_usuario'] as num).toInt()]!,
         };
       }
-// Última mensagem de cada conversa (a mais recente primeiro).
+
       final idsConversas = {
         ...conversas
             .map((row) => (row['id_conversa'] as num?)?.toInt())
-            .whereType<int>()
-            .toList(),
+            .whereType<int>(),
       }.toList();
       final ultimaPorConversa = <int, Map<String, dynamic>>{};
+      final naoLidasPorConversa = <int, int>{};
       try {
-        final mensagens = await _supabase
-            .from('mensagens')
-            .select('fk_conversa, conteudo, data_envio')
-            .inFilter('fk_conversa', idsConversas)
-            .order('data_envio', ascending: false);
+        final mensagens = await _buscarMensagens(idsConversas);
         for (final mensagem in mensagens) {
           final id = (mensagem['fk_conversa'] as num?)?.toInt();
-          if (id != null && !ultimaPorConversa.containsKey(id)) {
+          if (id == null) continue;
+          if (!ultimaPorConversa.containsKey(id)) {
             ultimaPorConversa[id] = Map<String, dynamic>.from(mensagem);
           }
+          if (!mensagem.containsKey('lida')) continue;
+          final remetente =
+              (mensagem['fk_remitente_usuario'] as num?)?.toInt();
+          if (remetente != null &&
+              remetente != idUsuario &&
+              mensagem['lida'] != true) {
+            naoLidasPorConversa[id] = (naoLidasPorConversa[id] ?? 0) + 1;
+          }
         }
-      } catch (_) {
-        // Opcional: se falhar, o card fica sem visualização.
-      }
+      } catch (_) {}
 
-      // Serviço associado (apenas solicitações aceitas → data_aceite não nula).
       final servicoPorConversa = <int, String>{};
       try {
         final idsSolicitacao = {
           ...conversas
               .map((row) => (row['fk_solicitacao'] as num?)?.toInt())
-              .whereType<int>()
-              .toList(),
+              .whereType<int>(),
         }.toList();
         if (idsSolicitacao.isNotEmpty) {
           final solicitacoes = await _supabase
@@ -223,8 +254,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
                       row['fk_servico_prof'] != null,
                 )
                 .map((row) => (row['fk_servico_prof'] as num?)?.toInt())
-                .whereType<int>()
-                .toList(),
+                .whereType<int>(),
           }.toList();
           if (idsServico.isNotEmpty) {
             final servicos = await _supabase
@@ -261,12 +291,8 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
             }
           }
         }
-      } catch (_) {
-        // O serviço associado é opcional; ignora se a coluna ainda não
-        // existir em `solicitacoes`.
-      }
-// Construir os resumos de conversa.
-      // Ofício do contato (só faz sentido quando o contato é profissional).
+      } catch (_) {}
+
       final oficioPorProfissional = <int, String>{};
       if (!isProfissional) {
         try {
@@ -304,10 +330,9 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
               }
             }
           }
-        } catch (_) {
-          // Ofício é opcional no card.
-        }
+        } catch (_) {}
       }
+
       final resultado = <_ConversaResumo>[];
       for (final conv in conversas) {
         final idConv = (conv['id_conversa'] as num?)?.toInt();
@@ -320,11 +345,18 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
         if (contato == null) continue;
 
         final ultima = ultimaPorConversa[idConv];
+        final remetenteUltima =
+            (ultima?['fk_remitente_usuario'] as num?)?.toInt();
+        final ultimaLida = ultima?['lida'] == true;
+        final ultimaEnviadaPorMim =
+            remetenteUltima != null && remetenteUltima == idUsuario;
+        final ultimaRecebida =
+            remetenteUltima != null && remetenteUltima != idUsuario;
+
         resultado.add(
           _ConversaResumo(
             idConversa: idConv,
-            nomeContato:
-                contato['nome']?.toString() ?? 'Nome não encontrado',
+            nomeContato: contato['nome']?.toString() ?? 'Nome não encontrado',
             fotoUrl: contato['foto_perfil_url']?.toString() ?? '',
             oficioContato: isProfissional
                 ? 'Cliente'
@@ -338,13 +370,19 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
             dataUltimaMensagem: DateTime.tryParse(
               ultima?['data_envio']?.toString() ?? '',
             ),
+            mensagensNaoLidas: naoLidasPorConversa[idConv] ?? 0,
+            ultimaMensagemRecebida: ultimaRecebida,
+            ultimaMensagemLida: ultimaLida,
+            ultimaMensagemEnviadaPorMim: ultimaEnviadaPorMim,
           ),
         );
       }
 
-      if (resultado.isEmpty) return _conversasDeExemplo();
+      if (resultado.isEmpty) {
+        _aplicarLista([]);
+        return;
+      }
 
-      // Ordenar por mensagem mais recente.
       resultado.sort((a, b) {
         final fa = a.dataUltimaMensagem;
         final fb = b.dataUltimaMensagem;
@@ -354,15 +392,67 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
         return fb.compareTo(fa);
       });
 
-      return resultado;
+      _aplicarLista(resultado);
     } catch (erro) {
-      // Se as tabelas de mensageria ainda não existem (ou RLS as bloqueia) e
-      // temos a visualização prévia ativada, mostramos os exemplos visuais.
-      if (_mostrarExemplosQuandoNaoHa && _eTabelaIndisponivel(erro)) {
-        return _conversasDeExemplo();
+      if (_eTabelaIndisponivel(erro)) {
+        _aplicarLista([]);
+        return;
       }
-      return [];
+      if (!mounted) return;
+      setState(() {
+        _carregando = false;
+        _erro = 'Não foi possível carregar as conversas.';
+      });
     }
+  }
+
+  void _aplicarLista(List<_ConversaResumo> lista) {
+    if (!mounted) return;
+    setState(() {
+      _conversas = lista;
+      _carregando = false;
+      _erro = null;
+    });
+  }
+
+  void _assinarAtualizacoes() {
+    _pollingLista?.cancel();
+    if (_canalLista != null) {
+      _supabase.removeChannel(_canalLista!);
+      _canalLista = null;
+    }
+
+    final canal = _supabase.channel(
+      'lista_mensagens_realtime_${_idUsuarioLogado ?? 0}_${DateTime.now().millisecondsSinceEpoch}',
+    );
+    _canalLista = canal;
+
+    // Escuta novas mensagens e alterações em conversas em tempo real
+    canal.onPostgresChanges(
+      event: PostgresChangeEvent.all,
+      schema: 'public',
+      table: 'mensagens',
+      callback: (_) => _agendarRecarregar(),
+    );
+    canal.onPostgresChanges(
+      event: PostgresChangeEvent.all,
+      schema: 'public',
+      table: 'conversas',
+      callback: (_) => _agendarRecarregar(),
+    );
+    canal.subscribe();
+
+    // Polling a cada 4 segundos como garantia para atualizações silenciosas em segundo plano
+    _pollingLista = Timer.periodic(const Duration(seconds: 4), (_) {
+      _carregarConversas();
+    });
+  }
+
+  void _agendarRecarregar() {
+    _debounceReload?.cancel();
+    _debounceReload = Timer(const Duration(milliseconds: 250), () {
+      if (mounted) _carregarConversas();
+    });
   }
 
   static bool _eTabelaIndisponivel(Object erro) {
@@ -377,8 +467,6 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
                 texto.contains('schema cache'));
   }
 
-  /// Consulta os usuários cuidando para que a coluna `ultima_conexao` pode não
-  /// existir ainda se o script de mensageria não foi executado.
   Future<List<Map<String, dynamic>>> _buscarUsuarios(List<int> ids) async {
     try {
       return await _supabase
@@ -393,6 +481,26 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
     }
   }
 
+  Future<List<Map<String, dynamic>>> _buscarMensagens(List<int> ids) async {
+    try {
+      return await _supabase
+          .from('mensagens')
+          .select(
+            'fk_conversa, conteudo, data_envio, fk_remitente_usuario, lida',
+          )
+          .inFilter('fk_conversa', ids)
+          .order('data_envio', ascending: false)
+          .limit(300);
+    } catch (_) {
+      return await _supabase
+          .from('mensagens')
+          .select('fk_conversa, conteudo, data_envio, fk_remitente_usuario')
+          .inFilter('fk_conversa', ids)
+          .order('data_envio', ascending: false)
+          .limit(300);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -400,16 +508,18 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
       appBar: AppBar(
         backgroundColor: _primaryBlue,
         elevation: 0,
+        scrolledUnderElevation: 0,
         leading: IconButton(
           onPressed: _voltarParaHome,
-          icon: const Icon(Icons.arrow_back_ios, size: 20, color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: Colors.white, size: 24),
         ),
         title: const Text(
           'Mensagens',
           style: TextStyle(
             color: Colors.white,
             fontSize: 18,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.2,
           ),
         ),
         centerTitle: true,
@@ -417,69 +527,84 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
       body: Column(
         children: [
           _buildBarraPesquisa(),
-          Expanded(
-            child: FutureBuilder<List<_ConversaResumo>>(
-              future: _conversasFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: _primaryBlue),
-                  );
-                }
-                if (snapshot.hasError) {
-                  return const Center(
-                    child: Text('Não foi possível carregar as conversas.'),
-                  );
-                }
-
-                final termo = _termoBusca.trim().toLowerCase();
-                final conversas = (snapshot.data ?? [])
-                    .where(
-                      (conversa) =>
-                          termo.isEmpty ||
-                          conversa.nomeContato.toLowerCase().contains(termo),
-                    )
-                    .toList();
-                if (conversas.isEmpty) {
-                  return _buildEstadoVazio(termo.isNotEmpty);
-                }
-
-                final children = <Widget>[];
-                if (_visualizacaoPrevia) children.add(_buildBannerVisualizacaoPrevia());
-                for (var index = 0; index < conversas.length; index++) {
-                  if (index > 0) children.add(const SizedBox(height: 12));
-                  children.add(_buildCard(conversas[index]));
-                }
-                return ListView(
-                  padding: const EdgeInsets.fromLTRB(14, 8, 14, 24),
-                  children: children,
-                );
-              },
-              ),
-            ),
-          ],
-        ),
+          Expanded(child: _buildLista()),
+        ],
+      ),
       bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
 
+  Widget _buildLista() {
+    if (_carregando && _conversas.isEmpty) {
+      return const Center(
+        child: CircularProgressIndicator(color: _primaryBlue),
+      );
+    }
+    if (_erro != null && _conversas.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Text(
+            _erro!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: _textMuted),
+          ),
+        ),
+      );
+    }
+
+    final termo = _termoBusca.trim().toLowerCase();
+    final conversas = _conversas
+        .where(
+          (conversa) =>
+              termo.isEmpty ||
+              conversa.nomeContato.toLowerCase().contains(termo) ||
+              conversa.subtituloServico.toLowerCase().contains(termo) ||
+              (conversa.ultimaMensagem ?? '').toLowerCase().contains(termo),
+        )
+        .toList();
+
+    if (conversas.isEmpty) {
+      return _buildEstadoVazio(termo.isNotEmpty);
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      itemCount: conversas.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        return _buildCard(conversas[index]);
+      },
+    );
+  }
+
   Widget _buildBarraPesquisa() {
-    return Container(
-      color: _background,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
       child: Container(
-        height: 46,
+        height: 48,
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: TextField(
           controller: _buscaController,
           onChanged: (value) => setState(() => _termoBusca = value),
           style: const TextStyle(fontSize: 15, color: _titleDark),
           decoration: InputDecoration(
-            hintText: 'Pesquisar conversas',
-            hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 15),
+            hintText: 'Pesquisar...',
+            hintStyle: TextStyle(
+              color: Colors.grey.shade400,
+              fontSize: 15,
+              fontWeight: FontWeight.w400,
+            ),
             prefixIcon: Icon(
               Icons.search,
               color: Colors.grey.shade400,
@@ -532,12 +657,8 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
         ),
       );
     }
-    // Os índices 3 (Pedidos) ainda não está linkado.
   }
 
-  /// Volta para a Home sem quebrar quando a tela Mensagens é a primeira
-  /// da pilha (ex: veio direto da bottom bar). Usa pushReplacement nesse
-  /// caso em vez de pop (que causava `_history.isNotEmpty is not true`).
   void _voltarParaHome() {
     final navigator = Navigator.of(context);
     if (navigator.canPop()) {
@@ -554,132 +675,93 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
   }
 
   Widget _buildEstadoVazio(bool pesquisaAtiva) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.message_outlined,
-            size: 48,
-            color: Colors.grey.shade600,
+    if (pesquisaAtiva) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFEFF6FF),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.search_off_rounded,
+                  size: 32,
+                  color: _primaryBlue,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Nenhuma conversa encontrada',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: _titleDark,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Tente buscar por outro termo ou nome.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
-          Text(
-            pesquisaAtiva
-                ? 'A pesquisa não encontrou conversas.'
-                : 'Você ainda não tem conversas.\nQuando iniciar um chat com um profissional, aparecerá aqui.',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBannerVisualizacaoPrevia() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFDF3E0),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: const Text(
-        'Visualização prévia: conversas de exemplo. Crie as tabelas do SQL de '
-        'mensageria para ver os seus dados reais.',
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(fontSize: 12, color: Color(0xFF8A6D1D)),
-      ),
-    );
-  }
-
-  Widget _buildCard(_ConversaResumo conversa) {
-    final textoEstado = formatarUltimaVezAtivo(conversa.ultimaConexaoContato);
-    final corEstado = conversa.estaOnline ? _greenOnline : _textMuted;
-    final textoDataHora = _formatarDataHoraUltimaMensagem(
-      conversa.dataUltimaMensagem,
-    );
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: () async {
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => TelaChatProfissional(
-              nomeProfissional: conversa.nomeContato,
-              fotoProfissional: conversa.fotoUrl,
-              oficioPrincipal: conversa.oficioContato,
-              idProfissional: conversa.idProfissional,
-              idConversa: conversa.idConversa,
-            ),
-          ),
-        );
-        if (!context.mounted) return;
-        setState(() {
-          _conversasFuture = _carregarConversas();
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE0E0E0)),
         ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
+      );
+    }
+
+    final titulo = _isProfissional
+        ? 'Você ainda não contatou nem foi contatado por nenhum cliente'
+        : 'Você ainda não contatou nenhum profissional';
+
+    final subtitulo = _isProfissional
+        ? 'Quando um cliente iniciar um atendimento ou você enviar uma mensagem, as conversas aparecerão aqui.'
+        : 'Quando você iniciar uma conversa com um profissional para solicitar um serviço, ela aparecerá aqui.';
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            _buildAvatar(conversa),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          conversa.nomeContato,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                            color: _titleDark,
-                          ),
-                        ),
-                      ),
-                      if (textoDataHora.isNotEmpty) ...[
-                        const SizedBox(width: 6),
-                        Text(
-                          textoDataHora,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: _textMuted,
-                          ),
-                        ),
-                      ] else if (textoEstado.isNotEmpty) ...[
-                        const SizedBox(width: 6),
-                        Text(
-                          textoEstado,
-                          style: TextStyle(fontSize: 12, color: corEstado),
-                        ),
-                      ],
-                    ],
-                  ),
-                  if (conversa.servicoAssociado != null) ...[
-                    const SizedBox(height: 5),
-                    _buildTagServico(conversa.servicoAssociado!),
-                  ],
-                  const SizedBox(height: 5),
-                  Text(
-                    conversa.ultimaMensagem ?? 'A conversa está vazia',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 13, color: _textMuted),
-                  ),
-                ],
+            Container(
+              width: 72,
+              height: 72,
+              decoration: const BoxDecoration(
+                color: Color(0xFFE8F6FD),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.chat_bubble_outline_rounded,
+                size: 36,
+                color: _primaryBlue,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              titulo,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: _titleDark,
+                height: 1.3,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              subtitulo,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13.5,
+                color: Colors.grey.shade500,
+                height: 1.4,
               ),
             ),
           ],
@@ -688,45 +770,232 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
     );
   }
 
-  Widget _buildTagServico(String titulo) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFE6F2FF),
-        borderRadius: BorderRadius.circular(8),
+  Widget _buildCard(_ConversaResumo conversa) {
+    final destaqueNaoLida = conversa.temNaoLidas;
+    final textoDataHora = _formatarDataHoraUltimaMensagem(
+      conversa.dataUltimaMensagem,
+    );
+
+    // Cores e estilos fiéis ao design
+    final corHorario = destaqueNaoLida ? _unreadAccent : _textMuted;
+    final corServico = destaqueNaoLida ? _unreadAccent : _textMuted;
+    final corMensagem = destaqueNaoLida ? _titleDark : _textMuted;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () async {
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => TelaChatProfissional(
+                nomeProfissional: conversa.nomeContato,
+                fotoProfissional: conversa.fotoUrl,
+                oficioPrincipal: conversa.subtituloServico,
+                idProfissional: conversa.idProfissional,
+                idConversa: conversa.idConversa > 0 ? conversa.idConversa : null,
+              ),
+            ),
+          );
+          if (!mounted) return;
+          _carregarConversas();
+        },
+        child: Ink(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.035),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _buildAvatar(conversa),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Linha 1: Nome e Horário
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              conversa.nomeContato,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15.5,
+                                color: _titleDark,
+                              ),
+                            ),
+                          ),
+                          if (textoDataHora.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Text(
+                              textoDataHora,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: destaqueNaoLida
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                color: corHorario,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      // Linha 2: Categoria / Serviço
+                      const SizedBox(height: 3),
+                      Text(
+                        conversa.subtituloServico,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: destaqueNaoLida
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                          color: corServico,
+                        ),
+                      ),
+                      // Linha 3: Mensagem prévia e Badge numérico
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          // Visto único/duplo: aparece SOMENTE nas mensagens
+                          // ENVIADAS pelo usuário logado (última mensagem da
+                          // conversa enviada por mim), para mostrar se foi
+                          // lida (azul duplo) ou não (cinza).
+                          if (conversa.ultimaMensagemEnviadaPorMim &&
+                              (conversa.ultimaMensagem
+                                      ?.trim()
+                                      .isNotEmpty ==
+                                  true)) ...[
+                            Icon(
+                              conversa.ultimaMensagemLida
+                                  ? Icons.done_all
+                                  : Icons.done,
+                              size: 16,
+                              color:
+                                  conversa.ultimaMensagemLida
+                                      ? _primaryBlue
+                                      : Colors.grey.shade400,
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                          Expanded(
+                            child: Text(
+                              conversa.ultimaMensagem ?? 'Nenhuma mensagem ainda',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: destaqueNaoLida
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                                color: corMensagem,
+                              ),
+                            ),
+                          ),
+                          if (conversa.mensagensNaoLidas > 0) ...[
+                            const SizedBox(width: 8),
+                            _buildBadgeNaoLidas(conversa.mensagensNaoLidas),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
+    );
+  }
+
+  Widget _buildBadgeNaoLidas(int quantidade) {
+    final texto = quantidade > 99 ? '99+' : '$quantidade';
+    return Container(
+      constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: _primaryBlue,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      alignment: Alignment.center,
       child: Text(
-        titulo,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 11, color: Color(0xFF0A6E9D)),
+        texto,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+          height: 1.1,
+        ),
       ),
     );
   }
 
   Widget _buildAvatar(_ConversaResumo conversa) {
-    if (conversa.fotoUrl.startsWith('http')) {
-      return CircleAvatar(
-        radius: 27,
-        backgroundImage: NetworkImage(conversa.fotoUrl),
-      );
-    }
-    return CircleAvatar(
-      radius: 27,
-      backgroundColor: const Color(0xFFE6EFF2),
-      child: Text(
-        obterIniciais(conversa.nomeContato),
-        style: TextStyle(color: _primaryBlue, fontWeight: FontWeight.bold),
+    final online = VerificacaoOnline.estaOnline(conversa.ultimaConexaoContato);
+    final temFoto = conversa.fotoUrl.trim().startsWith('http');
+
+    final Widget avatar = temFoto
+        ? CircleAvatar(
+            radius: 27,
+            backgroundColor: const Color(0xFFE5E7EB),
+            backgroundImage: NetworkImage(conversa.fotoUrl),
+          )
+        : CircleAvatar(
+            radius: 27,
+            backgroundColor: const Color(0xFFDCE5EE),
+            child: Text(
+              obterIniciais(conversa.nomeContato),
+              style: const TextStyle(
+                color: Color(0xFF5E6F7E),
+                fontWeight: FontWeight.w700,
+                fontSize: 15.5,
+              ),
+            ),
+          );
+
+    return SizedBox(
+      width: 54,
+      height: 54,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          avatar,
+          if (online)
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Container(
+                width: 13,
+                height: 13,
+                decoration: BoxDecoration(
+                  color: _primaryBlue,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2.2),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
 
-  List<_ConversaResumo> _conversasDeExemplo() {
-    return [];
-  }
-
-  /// Formata data + hora da última mensagem estilo WhatsApp:
-  /// hoje → "HH:mm", ontem → "Ontem HH:mm", resto → "dd/MM/yyyy HH:mm".
+  /// Formatação em formato 24h BR (ex: "23:00", "Ontem", "Seg", "12/07")
   String _formatarDataHoraUltimaMensagem(DateTime? data) {
     if (data == null) return '';
     final local = data.isUtc ? data.toLocal() : data;
@@ -734,17 +1003,19 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
     final hoje = DateTime(agora.year, agora.month, agora.day);
     final diaMsg = DateTime(local.year, local.month, local.day);
     final diferencaDias = hoje.difference(diaMsg).inDays;
-    final hh = local.hour.toString().padLeft(2, '0');
-    final mm = local.minute.toString().padLeft(2, '0');
-    if (diferencaDias == 0) return '$hh:$mm';
-    if (diferencaDias == 1) return 'Ontem $hh:$mm';
-    final dd = local.day.toString().padLeft(2, '0');
-    final mes = local.month.toString().padLeft(2, '0');
-    return '$dd/$mes/${local.year} $hh:$mm';
+
+    if (diferencaDias == 0) {
+      return DateFormat('HH:mm').format(local);
+    }
+    if (diferencaDias == 1) return 'Ontem';
+    if (diferencaDias < 7 && diferencaDias > 0) {
+      final diasSemana = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+      return diasSemana[local.weekday - 1];
+    }
+    return DateFormat('dd/MM').format(local);
   }
 }
 
-/// Resumo de uma conversa para a lista da tela "Mensagens".
 class _ConversaResumo {
   final int idConversa;
   final String nomeContato;
@@ -755,6 +1026,11 @@ class _ConversaResumo {
   final DateTime? ultimaConexaoContato;
   final String? ultimaMensagem;
   final DateTime? dataUltimaMensagem;
+  final int mensagensNaoLidas;
+  final bool forcarDestaqueNaoLida;
+  final bool ultimaMensagemRecebida;
+  final bool ultimaMensagemLida;
+  final bool ultimaMensagemEnviadaPorMim;
 
   const _ConversaResumo({
     required this.idConversa,
@@ -766,13 +1042,22 @@ class _ConversaResumo {
     this.ultimaConexaoContato,
     this.ultimaMensagem,
     this.dataUltimaMensagem,
+    this.mensagensNaoLidas = 0,
+    this.forcarDestaqueNaoLida = false,
+    this.ultimaMensagemRecebida = false,
+    this.ultimaMensagemLida = false,
+    this.ultimaMensagemEnviadaPorMim = false,
   });
 
-  /// Considera que o contato está online se se conectou há 2 minutos ou
-  /// menos (mesma regra usada por [formatarUltimaVezAtivo]).
-  bool get estaOnline {
-    final conexao = ultimaConexaoContato;
-    if (conexao == null) return false;
-    return DateTime.now().difference(conexao).inMinutes <= 2;
+  bool get temNaoLidas => mensagensNaoLidas > 0 || forcarDestaqueNaoLida;
+
+  String get subtituloServico {
+    if (servicoAssociado != null && servicoAssociado!.trim().isNotEmpty) {
+      return servicoAssociado!.trim();
+    }
+    if (oficioContato.trim().isNotEmpty) {
+      return oficioContato.trim();
+    }
+    return 'Atendimento';
   }
 }

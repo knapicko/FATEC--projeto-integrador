@@ -153,9 +153,9 @@ class _LoginPageState extends State<LoginPage> {
       return 'exemplo@email.com';
     }
     final digits = value.replaceAll(RegExp(r'\D'), '');
-    if (digits.length >= 12) return 'CNPJ: __.___.___/____-__';
-    if (digits.length == 11) return 'CPF ou telefone: ___.___.___-__';
-    if (digits.isNotEmpty) return 'Telefone: (__) ____-____';
+    if (digits.length >= 12) return 'CNPJ:';
+    if (digits.length == 11) return 'CPF ou telefone:';
+    if (digits.isNotEmpty) return 'Telefone:';
     return 'CPF, CNPJ, email ou telefone';
   }
 

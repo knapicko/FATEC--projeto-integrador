@@ -124,3 +124,68 @@ CREATE POLICY "oficios_select_autenticado"
   USING (true);
 
 
+-- 5) Mensagens lidas / não lidas
+-- Linhas já existentes ficam como lidas (DEFAULT true na criação da coluna);
+-- mensagens novas entram como não lidas (DEFAULT false depois do ALTER).
+ALTER TABLE public.mensagens
+  ADD COLUMN IF NOT EXISTS lida boolean NOT NULL DEFAULT true;
+
+ALTER TABLE public.mensagens
+  ALTER COLUMN lida SET DEFAULT false;
+
+CREATE INDEX IF NOT EXISTS idx_mensagens_nao_lidas
+  ON public.mensagens (fk_conversa, lida)
+  WHERE lida = false;
+
+DROP POLICY IF EXISTS "mensagens_update_leitura" ON public.mensagens;
+CREATE POLICY "mensagens_update_leitura"
+  ON public.mensagens FOR UPDATE TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.conversas c
+      WHERE c.id_conversa = mensagens.fk_conversa
+        AND (
+          c.fk_usuario = public.meu_id_usuario()
+          OR EXISTS (
+            SELECT 1 FROM public.dados_profissionais dp
+            WHERE dp.id_profissional = c.fk_profissional
+              AND dp.fk_usuario = public.meu_id_usuario()
+          )
+        )
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.conversas c
+      WHERE c.id_conversa = mensagens.fk_conversa
+        AND (
+          c.fk_usuario = public.meu_id_usuario()
+          OR EXISTS (
+            SELECT 1 FROM public.dados_profissionais dp
+            WHERE dp.id_profissional = c.fk_profissional
+              AND dp.fk_usuario = public.meu_id_usuario()
+          )
+        )
+    )
+  );
+
+-- 6) Presença online: o próprio usuário atualiza ultima_conexao
+DROP POLICY IF EXISTS "usuarios_update_proprio_auth" ON public.usuarios;
+CREATE POLICY "usuarios_update_proprio_auth"
+  ON public.usuarios FOR UPDATE TO authenticated
+  USING (auth_id = auth.uid())
+  WITH CHECK (auth_id = auth.uid());
+
+-- 7) Realtime da lista de conversas (novos chats / status)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public'
+      AND tablename = 'conversas'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.conversas;
+  END IF;
+END $$;
+
+
