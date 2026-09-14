@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' hide Path;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'models/postagem_resumo.dart';
+import 'models/servico_profissional.dart';
 import 'services/postagens_profissional_service.dart';
+import 'services/servicos_profissional_service.dart';
 import 'tela_chat_profissional.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/icone_oficio.dart';
@@ -55,9 +58,10 @@ class _BlinkingSignalDotState extends State<_BlinkingSignalDot>
       vsync: this,
       duration: const Duration(milliseconds: 1400),
     )..repeat(reverse: true);
-    _animation = Tween<double>(begin: 0.2, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _animation = Tween<double>(
+      begin: 0.2,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -78,8 +82,9 @@ class _BlinkingSignalDotState extends State<_BlinkingSignalDot>
               width: 14,
               height: 14,
               decoration: BoxDecoration(
-                color: const Color(0xFF10B981)
-                    .withValues(alpha: _animation.value * 0.35),
+                color: const Color(
+                  0xFF10B981,
+                ).withValues(alpha: _animation.value * 0.35),
                 shape: BoxShape.circle,
               ),
             ),
@@ -87,8 +92,9 @@ class _BlinkingSignalDotState extends State<_BlinkingSignalDot>
               width: 8,
               height: 8,
               decoration: BoxDecoration(
-                color: const Color(0xFF10B981)
-                    .withValues(alpha: 0.35 + (_animation.value * 0.65)),
+                color: const Color(
+                  0xFF10B981,
+                ).withValues(alpha: 0.35 + (_animation.value * 0.65)),
                 shape: BoxShape.circle,
               ),
             ),
@@ -97,6 +103,24 @@ class _BlinkingSignalDotState extends State<_BlinkingSignalDot>
       },
     );
   }
+}
+
+class _MetodoEntregaInfo {
+  final String titulo;
+  final String textoBadge;
+  final Color corFundoBadge;
+  final Color corTextoBadge;
+  final String descricao;
+  final IconData icone;
+
+  const _MetodoEntregaInfo({
+    required this.titulo,
+    required this.textoBadge,
+    required this.corFundoBadge,
+    required this.corTextoBadge,
+    required this.descricao,
+    required this.icone,
+  });
 }
 
 class PerfilProfissionalPage extends StatefulWidget {
@@ -186,6 +210,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   bool _alterandoSeguimento = false;
   int _totalSeguidores = 0;
   List<OficioInfo> _oficios = [];
+  List<_MetodoEntregaInfo> _metodosEntrega = [];
   Future<List<PostagemResumo>> _postagensGaleriaFuture = Future.value(
     <PostagemResumo>[],
   );
@@ -229,35 +254,9 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
     },
   ];
 
-  final List<Map<String, dynamic>> _servicos = [
-    {
-      'titulo': 'Cópia e Conserto de Chaves',
-      'tag': 'Chaveiro',
-      'avaliacao': 4.9,
-      'totalAvaliacoes': 253,
-      'preco': 45.00,
-      'imagem_url':
-          'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=500',
-      'fallback_asset': 'assets/images/loja_chaveiro.png',
-    },
-    {
-      'titulo': 'Instalação Split 12k BTUs',
-      'tag': 'Refrigeração',
-      'avaliacao': 4.9,
-      'totalAvaliacoes': 180,
-      'preco': 180.00,
-      'imagem_url':
-          'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=500',
-      'fallback_asset': 'assets/images/panela.png',
-    },
-  ];
-
-  final List<String> _categorias = [
-    'Todos',
-    'Chaveiro',
-    'Ar-Condicionado',
-    'Elétrica',
-  ];
+  List<ServicoProfissional> _servicos = [];
+  bool _carregandoServicos = true;
+  List<String> _categorias = ['Todos'];
 
   @override
   void initState() {
@@ -625,15 +624,19 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
 
         final fkUsuario = response['id_usuario'];
         final idUsuarioProf = (fkUsuario as num?)?.toInt();
+        String? metodoEntregaRaw;
         if (fkUsuario != null) {
           final dadosProf = await supabase
               .from('dados_profissionais')
-              .select('id_profissional, fk_perfil, anos_experiencia')
+              .select(
+                'id_profissional, fk_perfil, anos_experiencia, metodo_entrega',
+              )
               .eq('fk_usuario', fkUsuario)
               .maybeSingle();
           idProfissional = (dadosProf?['id_profissional'] as num?)?.toInt();
           fkPerfil = (dadosProf?['fk_perfil'] as num?)?.toInt();
           anosExperiencia = dadosProf?['anos_experiencia']?.toString();
+          metodoEntregaRaw = dadosProf?['metodo_entrega'] as String?;
 
           if (fkPerfil != null) {
             final perfil = await supabase
@@ -654,6 +657,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
           }
           _idProfissional = idProfissional;
           _idPerfilProfissional = fkPerfil;
+          _metodosEntrega = _parseMetodosEntrega(metodoEntregaRaw);
           if (tipoPerfil != null && tipoPerfil.isNotEmpty) {
             _tipoPerfil = tipoPerfil;
           }
@@ -678,6 +682,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
             _carregarExcecoes(),
             _carregarOficios(idProfissional),
             _carregarAgendaProfissional(idProfissional),
+            _carregarServicosProfissional(idProfissional),
           ]);
         }
         if (fkPerfil != null) {
@@ -695,22 +700,82 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
         }
       } else {
         if (mounted) {
-          setState(() => _enderecoCarregado = true);
+          setState(() {
+            _enderecoCarregado = true;
+            _carregandoServicos = false;
+          });
         }
       }
     } catch (_) {
       // Mantém dados iniciais em caso de falha
       if (mounted) {
-        setState(() => _enderecoCarregado = true);
+        setState(() {
+          _enderecoCarregado = true;
+          _carregandoServicos = false;
+        });
       }
     } finally {
       if (mounted) {
         setState(() {
           _carregandoPerfil = false;
           _enderecoCarregado = true;
+          _carregandoServicos = false;
         });
       }
     }
+  }
+
+  List<_MetodoEntregaInfo> _parseMetodosEntrega(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return <_MetodoEntregaInfo>[];
+
+    final partes = raw.split(',').map((e) => e.trim().toLowerCase()).toList();
+    final List<_MetodoEntregaInfo> resultado = [];
+
+    for (final parte in partes) {
+      if (parte.contains('leva')) {
+        const info = _MetodoEntregaInfo(
+          titulo: 'Leva e Traz',
+          textoBadge: 'Popular',
+          corFundoBadge: Color(0xFFE0F2FE),
+          corTextoBadge: Color(0xFF0284C7),
+          descricao: 'O profissional retira e entrega no seu endereço',
+          icone: Icons.electric_moped_rounded,
+        );
+        if (!resultado.any((m) => m.titulo == info.titulo)) resultado.add(info);
+      } else if (parte.contains('retirad')) {
+        const info = _MetodoEntregaInfo(
+          titulo: 'Retirada no Local',
+          textoBadge: 'Grátis',
+          corFundoBadge: Color(0xFFF1F5F9),
+          corTextoBadge: Color(0xFF475569),
+          descricao: 'Você leva e busca no endereço do profissional',
+          icone: Icons.storefront_outlined,
+        );
+        if (!resultado.any((m) => m.titulo == info.titulo)) resultado.add(info);
+      } else if (parte.contains('receba')) {
+        const info = _MetodoEntregaInfo(
+          titulo: 'Receba em Casa',
+          textoBadge: 'Entrega',
+          corFundoBadge: Color(0xFFE0F2FE),
+          corTextoBadge: Color(0xFF0284C7),
+          descricao: 'Você leva para o profissional e recebe depois',
+          icone: Icons.inventory_2_outlined,
+        );
+        if (!resultado.any((m) => m.titulo == info.titulo)) resultado.add(info);
+      } else if (parte.contains('domicil') || parte.contains('domicíl')) {
+        const info = _MetodoEntregaInfo(
+          titulo: 'Atendimento em Domicílio',
+          textoBadge: 'No Local',
+          corFundoBadge: Color(0xFFECFDF5),
+          corTextoBadge: Color(0xFF059669),
+          descricao: 'Técnico vai até a sua residência',
+          icone: Icons.home_repair_service_outlined,
+        );
+        if (!resultado.any((m) => m.titulo == info.titulo)) resultado.add(info);
+      }
+    }
+
+    return resultado;
   }
 
   Future<void> _carregarEnderecoProfissional(int idUsuario) async {
@@ -720,7 +785,9 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
       // 1. Busca associação de endereço ativo do usuário na ass_usuario_endereco
       final assList = await supabase
           .from('ass_usuario_endereco')
-          .select('fk_endereco, apelido_endereco, tipo_endereco, endereco_ativo')
+          .select(
+            'fk_endereco, apelido_endereco, tipo_endereco, endereco_ativo',
+          )
           .eq('fk_usuario', idUsuario)
           .eq('endereco_ativo', true)
           .limit(1);
@@ -805,8 +872,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                 .limit(1);
 
             if (estList.isNotEmpty) {
-              siglaEstado =
-                  estList.first['sigla_estado']?.toString() ?? '';
+              siglaEstado = estList.first['sigla_estado']?.toString() ?? '';
             }
           }
         }
@@ -1643,6 +1709,36 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
     } catch (_) {}
   }
 
+  Future<void> _carregarServicosProfissional(int idProfissional) async {
+    try {
+      final servicos = await ServicosProfissionalService.buscarServicos(
+        idProfissional: idProfissional,
+      );
+      if (!mounted) return;
+
+      final categoriasSet = <String>{'Todos'};
+      for (final s in servicos) {
+        if (s.funcao != null && s.funcao!.trim().isNotEmpty) {
+          categoriasSet.add(s.funcao!.trim());
+        }
+      }
+
+      setState(() {
+        _servicos = servicos;
+        _categorias = categoriasSet.toList();
+        if (!_categorias.contains(_categoriaServico)) {
+          _categoriaServico = 'Todos';
+        }
+        _carregandoServicos = false;
+      });
+    } catch (e) {
+      debugPrint('Erro ao carregar serviços do profissional: $e');
+      if (mounted) {
+        setState(() => _carregandoServicos = false);
+      }
+    }
+  }
+
   String _formatarDataCompleta(DateTime data) {
     final mm = data.month.toString().padLeft(2, '0');
     final dd = data.day.toString().padLeft(2, '0');
@@ -1947,51 +2043,73 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
     }
   }
 
+  Future<void> _recarregarPerfil() async {
+    await Future.wait([
+      _carregarUsuarioLogado(),
+      _carregarDadosProfissional(),
+    ]);
+    if (mounted) {
+      _atualizarOffsetsSecoes();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: CustomScrollView(
-        controller: _scrollController,
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          SliverToBoxAdapter(child: _buildCabecalhoVisual()),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 8, bottom: 8),
-              child: _buildBarraBusca(),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: RefreshIndicator(
+          color: _primaryBlue,
+          backgroundColor: Colors.white,
+          edgeOffset: MediaQuery.paddingOf(context).top + 8,
+          onRefresh: _recarregarPerfil,
+          child: CustomScrollView(
+            controller: _scrollController,
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
             ),
+            clipBehavior: Clip.none,
+            slivers: [
+              SliverToBoxAdapter(child: _buildCabecalhoVisual()),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 8, bottom: 8),
+                  child: _buildBarraBusca(),
+                ),
+              ),
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _AbasDelegate(
+                  abaAtiva: _abaAtiva,
+                  onAbaTap: _scrollParaAba,
+                ),
+              ),
+              SliverToBoxAdapter(
+                key: _disponibilidadeKey,
+                child: RepaintBoundary(child: _buildSecaoDisponibilidade()),
+              ),
+              SliverToBoxAdapter(
+                child: RepaintBoundary(child: _buildSecaoLocalizacao()),
+              ),
+              SliverToBoxAdapter(
+                key: _avaliacoesKey,
+                child: RepaintBoundary(child: _buildSecaoAvaliacoes()),
+              ),
+              SliverToBoxAdapter(
+                key: _detalhesKey,
+                child: RepaintBoundary(child: _buildSecaoDetalhes()),
+              ),
+              SliverToBoxAdapter(
+                child: RepaintBoundary(child: _buildCatalogoServicos()),
+              ),
+              SliverToBoxAdapter(
+                key: _footerButtonKey,
+                child: const SizedBox(height: 48),
+              ),
+            ],
           ),
-          SliverPersistentHeader(
-            pinned: true,
-            delegate: _AbasDelegate(
-              abaAtiva: _abaAtiva,
-              onAbaTap: _scrollParaAba,
-            ),
-          ),
-          SliverToBoxAdapter(
-            key: _disponibilidadeKey,
-            child: RepaintBoundary(child: _buildSecaoDisponibilidade()),
-          ),
-          SliverToBoxAdapter(
-            child: RepaintBoundary(child: _buildSecaoLocalizacao()),
-          ),
-          SliverToBoxAdapter(
-            key: _avaliacoesKey,
-            child: RepaintBoundary(child: _buildSecaoAvaliacoes()),
-          ),
-          SliverToBoxAdapter(
-            key: _detalhesKey,
-            child: RepaintBoundary(child: _buildSecaoDetalhes()),
-          ),
-          SliverToBoxAdapter(
-            child: RepaintBoundary(child: _buildCatalogoServicos()),
-          ),
-          SliverToBoxAdapter(
-            key: _footerButtonKey,
-            child: const SizedBox(height: 48),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -2007,6 +2125,14 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
           clipBehavior: Clip.none,
           alignment: Alignment.bottomCenter,
           children: [
+            // Fundo escuro estendido para cima que acompanha o pull-to-refresh / overscroll
+            Positioned(
+              top: -1000,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(color: _bannerDark),
+            ),
             Container(
               height: 140,
               width: double.infinity,
@@ -2950,8 +3076,10 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                 children: [
                   FlutterMap(
                     options: MapOptions(
-                      initialCenter:
-                          LatLng(endereco.latitude, endereco.longitude),
+                      initialCenter: LatLng(
+                        endereco.latitude,
+                        endereco.longitude,
+                      ),
                       initialZoom: 15.0,
                       minZoom: 3,
                       maxZoom: 19,
@@ -2970,14 +3098,18 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                       CircleLayer(
                         circles: [
                           CircleMarker(
-                            point:
-                                LatLng(endereco.latitude, endereco.longitude),
+                            point: LatLng(
+                              endereco.latitude,
+                              endereco.longitude,
+                            ),
                             radius: 68,
                             useRadiusInMeter: false,
-                            color: const Color(0xFF0284C7)
-                                .withValues(alpha: 0.12),
-                            borderColor: const Color(0xFF0284C7)
-                                .withValues(alpha: 0.35),
+                            color: const Color(
+                              0xFF0284C7,
+                            ).withValues(alpha: 0.12),
+                            borderColor: const Color(
+                              0xFF0284C7,
+                            ).withValues(alpha: 0.35),
                             borderStrokeWidth: 1.5,
                           ),
                         ],
@@ -2985,8 +3117,10 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                       MarkerLayer(
                         markers: [
                           Marker(
-                            point:
-                                LatLng(endereco.latitude, endereco.longitude),
+                            point: LatLng(
+                              endereco.latitude,
+                              endereco.longitude,
+                            ),
                             width: 40,
                             height: 40,
                             alignment: Alignment.center,
@@ -3656,6 +3790,10 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
             ),
           const SizedBox(height: 24),
 
+          // Métodos de Entrega
+          _buildSecaoMetodosEntrega(),
+          const SizedBox(height: 24),
+
           // Galeria de Postagens (carregada do Supabase)
           const Text(
             'Galeria de Postagens',
@@ -3827,8 +3965,206 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
     );
   }
 
+  // Seção de Métodos de Entrega
+  Widget _buildSecaoMetodosEntrega() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(
+              Icons.local_shipping_rounded,
+              color: Color(0xFF00A3FF),
+              size: 24,
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              'Métodos de Entrega',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+                color: _textDark,
+                letterSpacing: -0.3,
+              ),
+            ),
+            if (_metodosEntrega.isNotEmpty) ...[
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8FDF2),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFA7F3D0)),
+                ),
+                child: Text(
+                  '${_metodosEntrega.length} ${_metodosEntrega.length == 1 ? 'modalidade' : 'modalidades'}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF059669),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 14),
+        if (_metodosEntrega.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: const Text(
+              'O profissional ainda não possui método de entrega cadastrado.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                color: Color(0xFF64748B),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          )
+        else
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  children: [
+                    for (int i = 0; i < _metodosEntrega.length; i += 2) ...[
+                      if (i > 0) const SizedBox(height: 10),
+                      _buildCardMetodoEntrega(_metodosEntrega[i]),
+                    ],
+                  ],
+                ),
+              ),
+              if (_metodosEntrega.length > 1) ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    children: [
+                      for (int i = 1; i < _metodosEntrega.length; i += 2) ...[
+                        if (i > 1) const SizedBox(height: 10),
+                        _buildCardMetodoEntrega(_metodosEntrega[i]),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+      ],
+    );
+  }
+
+  String _formatarTituloMetodo(String titulo) {
+    if (titulo.toLowerCase().contains('domicil')) {
+      return 'Atendimento em\nDomicílio';
+    }
+    return titulo;
+  }
+
+  Widget _buildCardMetodoEntrega(_MetodoEntregaInfo info) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE0F2FE),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Center(
+                  child: Icon(
+                    info.icone,
+                    color: const Color(0xFF00A3FF),
+                    size: 20,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _formatarTituloMetodo(info.titulo),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: _textDark,
+                        height: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 2.5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: info.corFundoBadge,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        info.textoBadge,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: info.corTextoBadge,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            info.descricao,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xFF64748B),
+              height: 1.35,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // 5. Conteúdo das Abas: Serviços Oferecidos
   Widget _buildCatalogoServicos() {
+    final servicosFiltrados = _categoriaServico == 'Todos'
+        ? _servicos
+        : _servicos.where((s) => s.funcao == _categoriaServico).toList();
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       child: Column(
@@ -3843,72 +4179,125 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
             ),
           ),
           const SizedBox(height: 12),
+          if (_carregandoServicos)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: Center(
+                child: CircularProgressIndicator(color: _primaryBlue),
+              ),
+            )
+          else if (_servicos.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: const Text(
+                'Este profissional ainda não oferece nenhum serviço',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFF64748B),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            )
+          else ...[
+            // Chips de filtro horizontal
+            if (_categorias.length > 1) ...[
+              SizedBox(
+                height: 38,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: _categorias.length,
+                  itemBuilder: (context, index) {
+                    final categoria = _categorias[index];
+                    final isSelected = _categoriaServico == categoria;
+                    return GestureDetector(
+                      onTap: () => setState(() => _categoriaServico = categoria),
+                      child: Container(
+                        margin: const EdgeInsets.only(right: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? const Color(0xFFF0F9FF)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isSelected
+                                ? _primaryBlue
+                                : const Color(0xFFCBD5E1),
+                            width: isSelected ? 1.5 : 1,
+                          ),
+                        ),
+                        child: Text(
+                          categoria,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: isSelected
+                                ? _primaryBlue
+                                : const Color(0xFF475569),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
 
-          // Chips de filtro horizontal
-          SizedBox(
-            height: 38,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              itemCount: _categorias.length,
-              itemBuilder: (context, index) {
-                final categoria = _categorias[index];
-                final isSelected = _categoriaServico == categoria;
-                return GestureDetector(
-                  onTap: () => setState(() => _categoriaServico = categoria),
-                  child: Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? const Color(0xFFF0F9FF)
-                          : Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: isSelected
-                            ? _primaryBlue
-                            : const Color(0xFFCBD5E1),
-                        width: isSelected ? 1.5 : 1,
-                      ),
-                    ),
-                    child: Text(
-                      categoria,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: isSelected
-                            ? _primaryBlue
-                            : const Color(0xFF475569),
-                      ),
-                    ),
+            if (servicosFiltrados.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: const Text(
+                  'Nenhum serviço encontrado nesta categoria.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w500,
                   ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Grid de Cards verticais de serviço
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 14,
-              crossAxisSpacing: 14,
-              childAspectRatio: 0.68,
-            ),
-            itemCount: _servicos.length,
-            itemBuilder: (context, index) =>
-                _buildCardServicoVisual(_servicos[index]),
-          ),
+                ),
+              )
+            else
+              // Grid de Cards verticais de serviço
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 14,
+                  crossAxisSpacing: 14,
+                  childAspectRatio: 0.68,
+                ),
+                itemCount: servicosFiltrados.length,
+                itemBuilder: (context, index) =>
+                    _buildCardServicoVisual(servicosFiltrados[index]),
+              ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildCardServicoVisual(Map<String, dynamic> servico) {
+  Widget _buildCardServicoVisual(ServicoProfissional servico) {
+    final corTag = servico.cor != null && servico.cor!.isNotEmpty
+        ? CorOficio.parse(servico.cor)
+        : _primaryBlue;
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -3932,37 +4321,38 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                if (servico['imagem_url'] != null)
+                if (servico.imagemUrl != null &&
+                    servico.imagemUrl!.trim().isNotEmpty)
                   Image.network(
-                    servico['imagem_url'] as String,
+                    servico.imagemUrl!,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) =>
-                        _buildFallbackImagemServico(servico),
+                    errorBuilder: (_, _, _) => _buildFallbackImagemServico(),
                   )
                 else
-                  _buildFallbackImagemServico(servico),
-                Positioned(
-                  top: 8,
-                  left: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _primaryBlue,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      servico['tag'] as String,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                  _buildFallbackImagemServico(),
+                if (servico.funcao != null && servico.funcao!.trim().isNotEmpty)
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: corTag,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        servico.funcao!,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ),
-                ),
               ],
             ),
           ),
@@ -3976,7 +4366,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    servico['titulo'] as String,
+                    servico.titulo,
                     style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
@@ -3989,7 +4379,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                   Row(
                     children: [
                       Text(
-                        '${servico['avaliacao']}',
+                        widget.avaliacao.toStringAsFixed(1),
                         style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
@@ -4000,7 +4390,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                       const Icon(Icons.star, color: _starGold, size: 13),
                       const SizedBox(width: 3),
                       Text(
-                        '(${servico['totalAvaliacoes']})',
+                        '(${_avaliacoes.length})',
                         style: const TextStyle(
                           fontSize: 11,
                           color: Color(0xFF94A3B8),
@@ -4021,7 +4411,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                       ),
                       const SizedBox(height: 1),
                       Text(
-                        'R\$ ${(servico['preco'] as num).toStringAsFixed(2).replaceAll('.', ',')}',
+                        'R\$ ${servico.valor.toStringAsFixed(2).replaceAll('.', ',')}',
                         style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
@@ -4039,21 +4429,16 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
     );
   }
 
-  Widget _buildFallbackImagemServico(Map<String, dynamic> servico) {
-    final asset = servico['fallback_asset'] as String?;
-    if (asset != null && asset.isNotEmpty) {
-      return Image.asset(
-        asset,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => Container(
-          color: Colors.grey.shade200,
-          child: const Icon(Icons.handyman, color: Colors.grey),
-        ),
-      );
-    }
+  Widget _buildFallbackImagemServico() {
     return Container(
-      color: Colors.grey.shade200,
-      child: const Icon(Icons.handyman, color: Colors.grey),
+      color: const Color(0xFFF1F5F9),
+      child: const Center(
+        child: Icon(
+          Icons.handyman_rounded,
+          color: Color(0xFF94A3B8),
+          size: 36,
+        ),
+      ),
     );
   }
 }
