@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart' hide Path;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'models/postagem_resumo.dart';
 import 'services/postagens_profissional_service.dart';
@@ -7,6 +9,95 @@ import 'tela_chat_profissional.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/icone_oficio.dart';
 import 'utils/iniciais.dart';
+
+class _DadosEnderecoProfissional {
+  final String apelido;
+  final String logradouro;
+  final String numero;
+  final String bairro;
+  final String cidade;
+  final String estado;
+  final String cep;
+  final double latitude;
+  final double longitude;
+  final bool temCoordenadas;
+
+  const _DadosEnderecoProfissional({
+    required this.apelido,
+    required this.logradouro,
+    required this.numero,
+    required this.bairro,
+    required this.cidade,
+    required this.estado,
+    required this.cep,
+    required this.latitude,
+    required this.longitude,
+    required this.temCoordenadas,
+  });
+}
+
+class _BlinkingSignalDot extends StatefulWidget {
+  const _BlinkingSignalDot();
+
+  @override
+  State<_BlinkingSignalDot> createState() => _BlinkingSignalDotState();
+}
+
+class _BlinkingSignalDotState extends State<_BlinkingSignalDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat(reverse: true);
+    _animation = Tween<double>(begin: 0.2, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981)
+                    .withValues(alpha: _animation.value * 0.35),
+                shape: BoxShape.circle,
+              ),
+            ),
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981)
+                    .withValues(alpha: 0.35 + (_animation.value * 0.65)),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
 
 class PerfilProfissionalPage extends StatefulWidget {
   final String nomeInicial;
@@ -88,6 +179,8 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   int? _idProfissional;
   int? _idPerfilProfissional;
   int? _idUsuarioLogado;
+  _DadosEnderecoProfissional? _enderecoProfissional;
+  bool _enderecoCarregado = false;
   bool _seguindoProfissional = false;
   bool _carregandoSeguimento = false;
   bool _alterandoSeguimento = false;
@@ -531,6 +624,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
         String? tipoPerfil;
 
         final fkUsuario = response['id_usuario'];
+        final idUsuarioProf = (fkUsuario as num?)?.toInt();
         if (fkUsuario != null) {
           final dadosProf = await supabase
               .from('dados_profissionais')
@@ -578,22 +672,184 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
               : Future.value(<PostagemResumo>[]);
         });
 
+        final tarefas = <Future<void>>[];
         if (idProfissional != null) {
-          await Future.wait([
+          tarefas.addAll([
             _carregarExcecoes(),
             _carregarOficios(idProfissional),
             _carregarAgendaProfissional(idProfissional),
           ]);
         }
         if (fkPerfil != null) {
-          await _carregarSeguimento(fkPerfil);
+          tarefas.add(_carregarSeguimento(fkPerfil));
+        }
+        if (idUsuarioProf != null) {
+          tarefas.add(_carregarEnderecoProfissional(idUsuarioProf));
+        } else {
+          if (mounted) {
+            setState(() => _enderecoCarregado = true);
+          }
+        }
+        if (tarefas.isNotEmpty) {
+          await Future.wait(tarefas);
+        }
+      } else {
+        if (mounted) {
+          setState(() => _enderecoCarregado = true);
         }
       }
     } catch (_) {
       // Mantém dados iniciais em caso de falha
+      if (mounted) {
+        setState(() => _enderecoCarregado = true);
+      }
     } finally {
       if (mounted) {
-        setState(() => _carregandoPerfil = false);
+        setState(() {
+          _carregandoPerfil = false;
+          _enderecoCarregado = true;
+        });
+      }
+    }
+  }
+
+  Future<void> _carregarEnderecoProfissional(int idUsuario) async {
+    try {
+      final supabase = Supabase.instance.client;
+
+      // 1. Busca associação de endereço ativo do usuário na ass_usuario_endereco
+      final assList = await supabase
+          .from('ass_usuario_endereco')
+          .select('fk_endereco, apelido_endereco, tipo_endereco, endereco_ativo')
+          .eq('fk_usuario', idUsuario)
+          .eq('endereco_ativo', true)
+          .limit(1);
+
+      if (assList.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _enderecoProfissional = null;
+            _enderecoCarregado = true;
+          });
+        }
+        return;
+      }
+
+      final ass = assList.first;
+      final fkEndereco = ass['fk_endereco'];
+      final idEndereco = fkEndereco is int
+          ? fkEndereco
+          : int.tryParse(fkEndereco?.toString() ?? '');
+
+      if (idEndereco == null) {
+        if (mounted) {
+          setState(() {
+            _enderecoProfissional = null;
+            _enderecoCarregado = true;
+          });
+        }
+        return;
+      }
+
+      // 2. Busca dados na tabela enderecos
+      final endList = await supabase
+          .from('enderecos')
+          .select(
+            'id_endereco, cep, logradouro, numero, bairro, complemento, fk_cidade, latitude, longitude',
+          )
+          .eq('id_endereco', idEndereco)
+          .limit(1);
+
+      if (endList.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _enderecoProfissional = null;
+            _enderecoCarregado = true;
+          });
+        }
+        return;
+      }
+
+      final enderecoRow = endList.first;
+
+      // 3. Busca cidade e estado
+      String nomeCidade = '';
+      String siglaEstado = '';
+
+      final fkCidade = enderecoRow['fk_cidade'];
+      final idCidade = fkCidade is int
+          ? fkCidade
+          : int.tryParse(fkCidade?.toString() ?? '');
+
+      if (idCidade != null) {
+        final cidList = await supabase
+            .from('cidades')
+            .select('nome_cidade, fk_estado')
+            .eq('id_cidade', idCidade)
+            .limit(1);
+
+        if (cidList.isNotEmpty) {
+          final cidRow = cidList.first;
+          nomeCidade = cidRow['nome_cidade']?.toString() ?? '';
+
+          final fkEstado = cidRow['fk_estado'];
+          final idEstado = fkEstado is int
+              ? fkEstado
+              : int.tryParse(fkEstado?.toString() ?? '');
+
+          if (idEstado != null) {
+            final estList = await supabase
+                .from('estados')
+                .select('sigla_estado')
+                .eq('id_estado', idEstado)
+                .limit(1);
+
+            if (estList.isNotEmpty) {
+              siglaEstado =
+                  estList.first['sigla_estado']?.toString() ?? '';
+            }
+          }
+        }
+      }
+
+      final apelido = ass['apelido_endereco']?.toString();
+      final logradouro = enderecoRow['logradouro']?.toString() ?? '';
+      final numero = enderecoRow['numero']?.toString() ?? '';
+      final bairro = enderecoRow['bairro']?.toString() ?? '';
+      final cep = enderecoRow['cep']?.toString() ?? '';
+      final latDb = double.tryParse(enderecoRow['latitude']?.toString() ?? '');
+      final lngDb = double.tryParse(enderecoRow['longitude']?.toString() ?? '');
+
+      final bool temCoords = latDb != null && lngDb != null;
+      // Coordenadas padrão para o centro caso o banco não possua latitude/longitude
+      final latFinal = latDb ?? -23.5505;
+      final lngFinal = lngDb ?? -46.6333;
+
+      if (mounted) {
+        setState(() {
+          _enderecoProfissional = _DadosEnderecoProfissional(
+            apelido: (apelido != null && apelido.trim().isNotEmpty)
+                ? apelido.trim()
+                : 'Oficina & Base Operacional',
+            logradouro: logradouro,
+            numero: numero,
+            bairro: bairro,
+            cidade: nomeCidade,
+            estado: siglaEstado,
+            cep: cep,
+            latitude: latFinal,
+            longitude: lngFinal,
+            temCoordenadas: temCoords,
+          );
+          _enderecoCarregado = true;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _enderecoProfissional = null;
+          _enderecoCarregado = true;
+        });
       }
     }
   }
@@ -1718,6 +1974,9 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
             child: RepaintBoundary(child: _buildSecaoDisponibilidade()),
           ),
           SliverToBoxAdapter(
+            child: RepaintBoundary(child: _buildSecaoLocalizacao()),
+          ),
+          SliverToBoxAdapter(
             key: _avaliacoesKey,
             child: RepaintBoundary(child: _buildSecaoAvaliacoes()),
           ),
@@ -2591,6 +2850,401 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  // 4.5. Seção de Localização e Atendimento
+  Widget _buildSecaoLocalizacao() {
+    if (!_enderecoCarregado) {
+      return const SizedBox.shrink();
+    }
+
+    final endereco = _enderecoProfissional;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(
+                Icons.location_on_outlined,
+                color: Color(0xFF00A3FF),
+                size: 24,
+              ),
+              SizedBox(width: 8),
+              Text(
+                'Localização e Atendimento',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: _textDark,
+                  letterSpacing: -0.3,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (endereco == null)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 26),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                children: const [
+                  Icon(
+                    Icons.location_off_outlined,
+                    color: Color(0xFF94A3B8),
+                    size: 32,
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    'Profissional não possui endereço cadastrado',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF475569),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            _buildCardLocalizacao(endereco),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCardLocalizacao(_DadosEnderecoProfissional endereco) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 1. Mapa interativo com visualização da base e raio de atendimento
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            child: SizedBox(
+              height: 190,
+              width: double.infinity,
+              child: Stack(
+                children: [
+                  FlutterMap(
+                    options: MapOptions(
+                      initialCenter:
+                          LatLng(endereco.latitude, endereco.longitude),
+                      initialZoom: 15.0,
+                      minZoom: 3,
+                      maxZoom: 19,
+                      interactionOptions: const InteractionOptions(
+                        flags: InteractiveFlag.all,
+                      ),
+                    ),
+                    children: [
+                      TileLayer(
+                        urlTemplate:
+                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'br.com.consertaja',
+                        maxNativeZoom: 19,
+                        maxZoom: 19,
+                      ),
+                      CircleLayer(
+                        circles: [
+                          CircleMarker(
+                            point:
+                                LatLng(endereco.latitude, endereco.longitude),
+                            radius: 68,
+                            useRadiusInMeter: false,
+                            color: const Color(0xFF0284C7)
+                                .withValues(alpha: 0.12),
+                            borderColor: const Color(0xFF0284C7)
+                                .withValues(alpha: 0.35),
+                            borderStrokeWidth: 1.5,
+                          ),
+                        ],
+                      ),
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point:
+                                LatLng(endereco.latitude, endereco.longitude),
+                            width: 40,
+                            height: 40,
+                            alignment: Alignment.center,
+                            child: const Icon(
+                              Icons.location_on,
+                              color: Color(0xFF0FB3FF),
+                              size: 40,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  // Badge superior esquerdo: "A 2.4 km de você" com bolinha verde pulsante
+                  Positioned(
+                    top: 12,
+                    left: 12,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.95),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.08),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          _BlinkingSignalDot(),
+                          SizedBox(width: 6),
+                          Text(
+                            'A 2.4 km de você',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Badge superior direito: "Raio de 1 km"
+                  Positioned(
+                    top: 12,
+                    right: 12,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.95),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.08),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(
+                            Icons.radar_rounded,
+                            size: 16,
+                            color: Color(0xFF0284C7),
+                          ),
+                          SizedBox(width: 5),
+                          Text(
+                            'Raio de 1 km',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF0284C7),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // 2. Informações do endereço e botões de navegação
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0F9FF),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: const Color(0xFFBAE6FD).withValues(alpha: 0.8),
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.storefront_outlined,
+                        color: Color(0xFF0284C7),
+                        size: 26,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            endereco.apelido,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF0F172A),
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${endereco.logradouro}, ${endereco.numero}',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF475569),
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            '${endereco.bairro}, ${endereco.cidade} - ${endereco.estado} • CEP ${endereco.cep}',
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              color: Color(0xFF94A3B8),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Calculando rota para ${endereco.logradouro}, ${endereco.numero}...',
+                                ),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          },
+                          child: Container(
+                            height: 46,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF0F9FF),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: const Color(0xFFBAE6FD),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: const [
+                                Icon(
+                                  Icons.assistant_direction_outlined,
+                                  size: 20,
+                                  color: Color(0xFF0284C7),
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Como Chegar',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF0284C7),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Abrindo no Google Maps...'),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          },
+                          child: Container(
+                            height: 46,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: const Color(0xFFE2E8F0),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: const [
+                                Icon(
+                                  Icons.map_outlined,
+                                  size: 20,
+                                  color: Color(0xFF334155),
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Google Maps',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF334155),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
