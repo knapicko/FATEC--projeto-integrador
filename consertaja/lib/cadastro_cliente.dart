@@ -13,6 +13,7 @@ import 'services/validacao_documento.dart';
 import 'services/formatacao_data.dart';
 import 'widgets/seletor_ddi.dart';
 import 'widgets/dialogo_documento.dart';
+import 'utils/app_navigation_util.dart';
 import 'termos_de_uso.dart';
 import 'politica_de_privacidade.dart';
 import 'completar_cadastro.dart';
@@ -601,8 +602,10 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
+    return AppBackHandler(
+      isAuth: true,
+      child: Scaffold(
+        backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -1022,7 +1025,7 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
           ),
         ],
       ),
-    );
+    ),);
   }
 }
 

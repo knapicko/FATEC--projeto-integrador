@@ -8,6 +8,7 @@ import 'services/google_auth_service.dart';
 import 'onboarding/onboarding_controller.dart';
 import 'tela_inicial.dart';
 import 'services/verificacao_online.dart';
+import 'utils/app_navigation_util.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
@@ -134,6 +135,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: _navigatorKey,
+      navigatorObservers: [
+        AppRouteObserver.instance,
+      ],
       debugShowCheckedModeBanner: false,
       title: 'ConsertaJá',
       theme: ThemeData(

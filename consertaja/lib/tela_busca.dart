@@ -8,6 +8,8 @@ import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/iniciais.dart';
 import 'widgets/tag_oficio.dart';
+import 'tela_home.dart';
+import 'utils/app_navigation_util.dart';
 
 enum _AbaResultado { todos, servicos, profissionais }
 
@@ -1845,41 +1847,43 @@ class _TelaBuscaState extends State<TelaBusca> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey.shade100,
-      body: _mostrandoResultados
-          ? _buildTelaResultados()
-          : _buildTelaBuscaInicial(),
-      bottomNavigationBar: _mostrandoResultados
-          ? BottomNavigationBarCliente(
-              currentIndex: 0,
-              onTap: (index) {
-                if (index == 0) {
-                  Navigator.pop(context);
-                } else if (index == 1) {
-                  Navigator.of(context).pushReplacement(
-                    PageRouteBuilder(
-                      pageBuilder: (_, _, _) => SeguindoClientePage(
+    return AppBackHandler(
+      child: Scaffold(
+        backgroundColor: Colors.grey.shade100,
+        body: _mostrandoResultados
+            ? _buildTelaResultados()
+            : _buildTelaBuscaInicial(),
+        bottomNavigationBar: _mostrandoResultados
+            ? BottomNavigationBarCliente(
+                currentIndex: 0,
+                onTap: (index) {
+                  if (index == 0) {
+                    AppNavigationUtil.navegarAba(
+                      context,
+                      TelaHome(isVisitante: widget.isVisitante),
+                      isHome: true,
+                    );
+                  } else if (index == 1) {
+                    AppNavigationUtil.navegarAba(
+                      context,
+                      SeguindoClientePage(
                         isVisitante: widget.isVisitante,
                       ),
-                      transitionDuration: Duration.zero,
-                      reverseTransitionDuration: Duration.zero,
-                    ),
-                  );
-                } else if (index == 4) {
-                  Navigator.of(context).pushReplacement(
-                    PageRouteBuilder(
-                      pageBuilder: (_, _, _) => TelaMeuPerfilClientePage(
+                      isHome: false,
+                    );
+                  } else if (index == 4) {
+                    AppNavigationUtil.navegarAba(
+                      context,
+                      TelaMeuPerfilClientePage(
                         isVisitante: widget.isVisitante,
                       ),
-                      transitionDuration: Duration.zero,
-                      reverseTransitionDuration: Duration.zero,
-                    ),
-                  );
-                }
-              },
-            )
-          : null,
+                      isHome: false,
+                    );
+                  }
+                },
+              )
+            : null,
+      ),
     );
   }
 }

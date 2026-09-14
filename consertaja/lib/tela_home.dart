@@ -14,6 +14,7 @@ import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/iniciais.dart';
 import 'widgets/foto_perfil_google.dart';
 import 'widgets/tag_oficio.dart';
+import 'utils/app_navigation_util.dart';
 
 class ServicoPopular {
   final String titulo;
@@ -850,10 +851,10 @@ class _TelaHomeState extends State<TelaHome> {
   }
 
   void _navegarParaPerfil(BuildContext context) {
-    Navigator.of(context).pushReplacement(
-      _rotaSemAnimacao(
-        TelaMeuPerfilClientePage(isVisitante: widget.isVisitante),
-      ),
+    AppNavigationUtil.navegarAba(
+      context,
+      TelaMeuPerfilClientePage(isVisitante: widget.isVisitante),
+      isHome: false,
     );
   }
 
@@ -1182,8 +1183,10 @@ class _TelaHomeState extends State<TelaHome> {
     final alturaDaTela = MediaQuery.of(context).size.height;
     final larguraCategoria = (larguraDaTela - 32 - 24) / 4;
 
-    return Scaffold(
-      backgroundColor: Colors.white,
+    return AppBackHandler(
+      isHome: true,
+      child: Scaffold(
+        backgroundColor: Colors.white,
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1604,23 +1607,23 @@ class _TelaHomeState extends State<TelaHome> {
         currentIndex: 0,
         onTap: (index) {
           if (index == 1) {
-            Navigator.of(context).pushReplacement(
-              _rotaSemAnimacao(
-                SeguindoClientePage(isVisitante: widget.isVisitante),
-              ),
+            AppNavigationUtil.navegarAba(
+              context,
+              SeguindoClientePage(isVisitante: widget.isVisitante),
+              isHome: false,
             );
           } else if (index == 2) {
-            Navigator.of(context).pushReplacement(
-              _rotaSemAnimacao(
-                TelaMensagensPage(isVisitante: widget.isVisitante),
-              ),
+            AppNavigationUtil.navegarAba(
+              context,
+              TelaMensagensPage(isVisitante: widget.isVisitante),
+              isHome: false,
             );
           } else if (index == 4) {
             _navegarParaPerfil(context);
           }
         },
       ),
-    );
+    ),);
   }
 
   Widget _buildCategoriaServico(

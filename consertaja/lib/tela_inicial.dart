@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'onboarding/conversational_onboarding_screen.dart';
 import 'onboarding/onboarding_controller.dart';
 import 'tela_home.dart';
+import 'utils/app_navigation_util.dart';
 
 class TelaInicial extends StatefulWidget {
   const TelaInicial({super.key});
@@ -65,8 +66,10 @@ class _TelaInicialState extends State<TelaInicial> {
     final altura = MediaQuery.sizeOf(context).height;
     final caixaSize = (altura * 0.22).clamp(160.0, 195.0);
 
-    return Scaffold(
-      backgroundColor: _blue,
+    return AppBackHandler(
+      isAuth: true,
+      child: Scaffold(
+        backgroundColor: _blue,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -181,7 +184,7 @@ class _TelaInicialState extends State<TelaInicial> {
           },
         ),
       ),
-    );
+    ),);
   }
 }
 

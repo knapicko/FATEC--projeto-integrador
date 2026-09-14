@@ -13,6 +13,7 @@ import 'package:flutter/gestures.dart';
 import 'package:http/http.dart' as http;
 
 import 'login.dart';
+import 'utils/app_navigation_util.dart';
 
 import 'tela_home_profissional.dart';
 
@@ -493,8 +494,10 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
+    return AppBackHandler(
+      isAuth: true,
+      child: Scaffold(
+        backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -1030,7 +1033,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
           ),
         ],
       ),
-    );
+    ),);
   }
 }
 

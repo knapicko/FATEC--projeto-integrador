@@ -6,6 +6,7 @@ import 'onboarding_theme.dart';
 import 'onboarding_widgets.dart';
 import '../cadastro_profissional.dart';
 import '../esqueci_senha.dart';
+import '../utils/app_navigation_util.dart';
 
 class ConversationalOnboardingScreen extends StatefulWidget {
   final bool iniciarLogin;
@@ -187,7 +188,18 @@ class _ConversationalOnboardingScreenState
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
+    return AppBackHandler(
+      isAuth: true,
+      onCustomBack: () {
+        if ((_controller.step == OnboardingStep.loginForm ||
+                _controller.step == OnboardingStep.welcome) &&
+            widget.onVoltarInicio != null) {
+          widget.onVoltarInicio!(context);
+        } else {
+          _controller.voltar();
+        }
+      },
+      child: AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
         final step = _controller.step;
@@ -352,7 +364,7 @@ class _ConversationalOnboardingScreenState
           ),
         );
       },
-    );
+    ),);
   }
 
   Widget _buildTopBar(bool mostraProgresso) {

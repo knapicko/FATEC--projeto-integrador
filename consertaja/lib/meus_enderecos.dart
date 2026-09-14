@@ -14,6 +14,7 @@ import 'seguindo_cliente.dart';
 import 'tela_meu_perfil_profissional.dart';
 import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
+import 'utils/app_navigation_util.dart';
 
 /// Constantes dos nomes das tabelas no Supabase
 const String _tabelaEndereco = 'enderecos';
@@ -703,14 +704,6 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
     }
   }
 
-  PageRouteBuilder<T> _rotaSemAnimacao<T>(Widget page) {
-    return PageRouteBuilder<T>(
-      pageBuilder: (_, _, _) => page,
-      transitionDuration: Duration.zero,
-      reverseTransitionDuration: Duration.zero,
-    );
-  }
-
   bool _correspondeBusca(_EnderecoItem endereco) {
     if (_termoBusca.trim().isEmpty) return true;
     final termo = _termoBusca.toLowerCase();
@@ -1093,26 +1086,26 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
 
   void _onBottomNavigationTap(int index) {
     if (index == 0) {
-      Navigator.of(context).pushReplacement(
-        _rotaSemAnimacao(
-          widget.isProfissional
-              ? TelaHomeProfissional(isVisitante: widget.isVisitante)
-              : TelaHome(isVisitante: widget.isVisitante),
-        ),
+      AppNavigationUtil.navegarAba(
+        context,
+        widget.isProfissional
+            ? TelaHomeProfissional(isVisitante: widget.isVisitante)
+            : TelaHome(isVisitante: widget.isVisitante),
+        isHome: true,
       );
     } else if (index == 1 && !widget.isProfissional) {
-      Navigator.of(context).pushReplacement(
-        _rotaSemAnimacao(
-          SeguindoClientePage(isVisitante: widget.isVisitante),
-        ),
+      AppNavigationUtil.navegarAba(
+        context,
+        SeguindoClientePage(isVisitante: widget.isVisitante),
+        isHome: false,
       );
     } else if (index == 4) {
-      Navigator.of(context).pushReplacement(
-        _rotaSemAnimacao(
-          widget.isProfissional
-              ? TelaMeuPerfilProfissionalPage(isVisitante: widget.isVisitante)
-              : TelaMeuPerfilClientePage(isVisitante: widget.isVisitante),
-        ),
+      AppNavigationUtil.navegarAba(
+        context,
+        widget.isProfissional
+            ? TelaMeuPerfilProfissionalPage(isVisitante: widget.isVisitante)
+            : TelaMeuPerfilClientePage(isVisitante: widget.isVisitante),
+        isHome: false,
       );
     }
   }

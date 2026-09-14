@@ -12,6 +12,7 @@ import 'sobre_conserta_ja.dart';
 import 'tela_inicial.dart';
 import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/iniciais.dart';
+import 'utils/app_navigation_util.dart';
 
 class TelaMeuPerfilClientePage extends StatefulWidget {
   final bool isVisitante;
@@ -129,14 +130,6 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
     if (value == null) return true;
     final text = value.toString().trim();
     return text.isEmpty || text.toLowerCase() == 'null';
-  }
-
-  PageRouteBuilder _rotaSemAnimacao(Widget page) {
-    return PageRouteBuilder(
-      pageBuilder: (_, _, _) => page,
-      transitionDuration: Duration.zero,
-      reverseTransitionDuration: Duration.zero,
-    );
   }
 
   Widget _buildAvatar() {
@@ -536,20 +529,22 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
       currentIndex: 4,
       onTap: (index) {
         if (index == 0) {
-          Navigator.of(context).pushReplacement(
-            _rotaSemAnimacao(TelaHome(isVisitante: widget.isVisitante)),
+          AppNavigationUtil.navegarAba(
+            context,
+            TelaHome(isVisitante: widget.isVisitante),
+            isHome: true,
           );
         } else if (index == 1) {
-          Navigator.of(context).pushReplacement(
-            _rotaSemAnimacao(
-              SeguindoClientePage(isVisitante: widget.isVisitante),
-            ),
+          AppNavigationUtil.navegarAba(
+            context,
+            SeguindoClientePage(isVisitante: widget.isVisitante),
+            isHome: false,
           );
         } else if (index == 2) {
-          Navigator.of(context).pushReplacement(
-            _rotaSemAnimacao(
-              TelaMensagensPage(isVisitante: widget.isVisitante),
-            ),
+          AppNavigationUtil.navegarAba(
+            context,
+            TelaMensagensPage(isVisitante: widget.isVisitante),
+            isHome: false,
           );
         }
         // index == 4: already on the profile page, do nothing to avoid blinking
@@ -559,8 +554,9 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _background,
+    return AppBackHandler(
+      child: Scaffold(
+        backgroundColor: _background,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: _blue))
           : SafeArea(
@@ -732,6 +728,6 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
               ),
             ),
       bottomNavigationBar: _buildBottomNav(),
-    );
+    ),);
   }
 }

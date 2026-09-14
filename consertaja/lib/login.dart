@@ -9,6 +9,7 @@ import 'esqueci_senha.dart';
 import 'services/auth_navigation.dart';
 import 'tela_inicial.dart';
 import 'onboarding/onboarding_widgets.dart';
+import 'utils/app_navigation_util.dart';
 
 // ================= TELA: LOGIN =================
 class LoginPage extends StatefulWidget {
@@ -150,8 +151,10 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
+    return AppBackHandler(
+      isAuth: true,
+      child: Scaffold(
+        backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -370,7 +373,7 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ),
       ),
-    );
+    ),);
   }
 }
 

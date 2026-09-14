@@ -14,6 +14,7 @@ import 'tela_meu_perfil_profissional.dart';
 import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
 import 'utils/iniciais.dart';
+import 'utils/app_navigation_util.dart';
 
 /// Tela "Mensagens": lista de conversas do usuário logado (cliente ou profissional),
 /// com visual moderno, atualização em tempo real, indicador de presença online,
@@ -503,34 +504,36 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _background,
-      appBar: AppBar(
-        backgroundColor: _primaryBlue,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          onPressed: _voltarParaHome,
-          icon: const Icon(Icons.arrow_back, color: Colors.white, size: 24),
-        ),
-        title: const Text(
-          'Mensagens',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.2,
+    return AppBackHandler(
+      child: Scaffold(
+        backgroundColor: _background,
+        appBar: AppBar(
+          backgroundColor: _primaryBlue,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: IconButton(
+            onPressed: _voltarParaHome,
+            icon: const Icon(Icons.arrow_back, color: Colors.white, size: 24),
           ),
+          title: const Text(
+            'Mensagens',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              letterSpacing: -0.2,
+            ),
+          ),
+          centerTitle: true,
         ),
-        centerTitle: true,
+        body: Column(
+          children: [
+            _buildBarraPesquisa(),
+            Expanded(child: _buildLista()),
+          ],
+        ),
+        bottomNavigationBar: _buildBottomNavigationBar(),
       ),
-      body: Column(
-        children: [
-          _buildBarraPesquisa(),
-          Expanded(child: _buildLista()),
-        ],
-      ),
-      bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
 
@@ -625,53 +628,34 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
     return BottomNavigationBarCliente(currentIndex: 2, onTap: _navegar);
   }
 
-  PageRouteBuilder _rotaSemAnimacao(Widget page) {
-    return PageRouteBuilder(
-      pageBuilder: (_, _, _) => page,
-      transitionDuration: Duration.zero,
-      reverseTransitionDuration: Duration.zero,
-    );
-  }
-
   void _navegar(int index) {
     if (index == 0) {
-      Navigator.of(context).pushReplacement(
-        _rotaSemAnimacao(
-          widget.isProfissional
-              ? TelaHomeProfissional(isVisitante: widget.isVisitante)
-              : TelaHome(isVisitante: widget.isVisitante),
-        ),
+      AppNavigationUtil.navegarAba(
+        context,
+        widget.isProfissional
+            ? TelaHomeProfissional(isVisitante: widget.isVisitante)
+            : TelaHome(isVisitante: widget.isVisitante),
+        isHome: true,
       );
     } else if (index == 1 && !widget.isProfissional) {
-      Navigator.of(context).pushReplacement(
-        _rotaSemAnimacao(
-          SeguindoClientePage(isVisitante: widget.isVisitante),
-        ),
+      AppNavigationUtil.navegarAba(
+        context,
+        SeguindoClientePage(isVisitante: widget.isVisitante),
+        isHome: false,
       );
     } else if (index == 4) {
-      Navigator.of(context).pushReplacement(
-        _rotaSemAnimacao(
-          widget.isProfissional
-              ? TelaMeuPerfilProfissionalPage(isVisitante: widget.isVisitante)
-              : TelaMeuPerfilClientePage(isVisitante: widget.isVisitante),
-        ),
+      AppNavigationUtil.navegarAba(
+        context,
+        widget.isProfissional
+            ? TelaMeuPerfilProfissionalPage(isVisitante: widget.isVisitante)
+            : TelaMeuPerfilClientePage(isVisitante: widget.isVisitante),
+        isHome: false,
       );
     }
   }
 
   void _voltarParaHome() {
-    final navigator = Navigator.of(context);
-    if (navigator.canPop()) {
-      navigator.pop();
-      return;
-    }
-    navigator.pushReplacement(
-      _rotaSemAnimacao(
-        widget.isProfissional
-            ? TelaHomeProfissional(isVisitante: widget.isVisitante)
-            : TelaHome(isVisitante: widget.isVisitante),
-      ),
-    );
+    AppNavigationUtil.tratarBotaoVoltar(context, isHome: false);
   }
 
   Widget _buildEstadoVazio(bool pesquisaAtiva) {
