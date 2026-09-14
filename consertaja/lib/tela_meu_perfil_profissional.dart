@@ -15,6 +15,7 @@ import 'tela_mensagens.dart';
 import 'tela_inicial.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
 import 'utils/iniciais.dart';
+import 'utils/app_navigation_util.dart';
 
 class TelaMeuPerfilProfissionalPage extends StatefulWidget {
   final bool isVisitante;
@@ -135,14 +136,6 @@ class _TelaMeuPerfilProfissionalPageState
     if (value == null) return true;
     final text = value.toString().trim();
     return text.isEmpty || text.toLowerCase() == 'null';
-  }
-
-  PageRouteBuilder _rotaSemAnimacao(Widget page) {
-    return PageRouteBuilder(
-      pageBuilder: (_, _, _) => page,
-      transitionDuration: Duration.zero,
-      reverseTransitionDuration: Duration.zero,
-    );
   }
 
   void _abrirEditarInformacoes() {
@@ -582,16 +575,16 @@ class _TelaMeuPerfilProfissionalPageState
       currentIndex: 4,
       onTap: (index) async {
         if (index == 0) {
-          Navigator.of(context).pushReplacement(
-            _rotaSemAnimacao(
-              TelaHomeProfissional(isVisitante: widget.isVisitante),
-            ),
+          AppNavigationUtil.navegarAba(
+            context,
+            TelaHomeProfissional(isVisitante: widget.isVisitante),
+            isHome: true,
           );
         } else if (index == 2) {
-          Navigator.of(context).pushReplacement(
-            _rotaSemAnimacao(
-              TelaMensagensPage(isVisitante: widget.isVisitante, isProfissional: true),
-            ),
+          AppNavigationUtil.navegarAba(
+            context,
+            TelaMensagensPage(isVisitante: widget.isVisitante, isProfissional: true),
+            isHome: false,
           );
         } else if (index == 4 && !widget.isVisitante) {
           await _carregarDadosPerfil();
@@ -610,8 +603,9 @@ class _TelaMeuPerfilProfissionalPageState
       );
     }
 
-    return Scaffold(
-      backgroundColor: _background,
+    return AppBackHandler(
+      child: Scaffold(
+        backgroundColor: _background,
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -810,6 +804,6 @@ class _TelaMeuPerfilProfissionalPageState
         ),
       ),
       bottomNavigationBar: _buildBottomNav(),
-    );
+    ),);
   }
 }

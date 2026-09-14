@@ -20,6 +20,7 @@ import 'utils/cor_oficio.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
 import 'utils/iniciais.dart';
 import 'widgets/tag_oficio.dart';
+import 'utils/app_navigation_util.dart';
 
 class TelaHomeProfissional extends StatefulWidget {
   final bool isVisitante;
@@ -1345,8 +1346,10 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _background,
+    return AppBackHandler(
+      isHome: true,
+      child: Scaffold(
+        backgroundColor: _background,
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -1903,28 +1906,28 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
         currentIndex: _currentIndex,
         onTap: (index) {
           if (index == 2) {
-            Navigator.of(context).pushReplacement(
-              _rotaSemAnimacao(
-                TelaMensagensPage(
-                  isVisitante: widget.isVisitante,
-                  isProfissional: true,
-                ),
+            AppNavigationUtil.navegarAba(
+              context,
+              TelaMensagensPage(
+                isVisitante: widget.isVisitante,
+                isProfissional: true,
               ),
+              isHome: false,
             );
             return;
           }
           if (index == 4) {
-            Navigator.of(context).pushReplacement(
-              _rotaSemAnimacao(
-                TelaMeuPerfilProfissionalPage(isVisitante: widget.isVisitante),
-              ),
+            AppNavigationUtil.navegarAba(
+              context,
+              TelaMeuPerfilProfissionalPage(isVisitante: widget.isVisitante),
+              isHome: false,
             );
             return;
           }
           setState(() => _currentIndex = index);
         },
       ),
-    );
+    ),);
   }
 
   Widget _buildStatCard(String label, String value) {

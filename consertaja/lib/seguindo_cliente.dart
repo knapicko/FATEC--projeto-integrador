@@ -7,6 +7,7 @@ import 'tela_mensagens.dart';
 import 'tela_meu_perfil_cliente.dart';
 import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/iniciais.dart';
+import 'utils/app_navigation_util.dart';
 
 class SeguindoClientePage extends StatefulWidget {
   final bool isVisitante;
@@ -129,43 +130,40 @@ class _SeguindoClientePageState extends State<SeguindoClientePage> {
     return profissionais;
   }
 
-  PageRouteBuilder _rotaSemAnimacao(Widget page) {
-    return PageRouteBuilder(
-      pageBuilder: (_, _, _) => page,
-      transitionDuration: Duration.zero,
-      reverseTransitionDuration: Duration.zero,
-    );
-  }
-
   void _navegar(int index) {
     if (index == 0) {
-      Navigator.of(context).pushReplacement(
-        _rotaSemAnimacao(TelaHome(isVisitante: widget.isVisitante)),
+      AppNavigationUtil.navegarAba(
+        context,
+        TelaHome(isVisitante: widget.isVisitante),
+        isHome: true,
       );
     } else if (index == 2) {
-      Navigator.of(context).pushReplacement(
-        _rotaSemAnimacao(TelaMensagensPage(isVisitante: widget.isVisitante)),
+      AppNavigationUtil.navegarAba(
+        context,
+        TelaMensagensPage(isVisitante: widget.isVisitante),
+        isHome: false,
       );
     } else if (index == 4) {
-      Navigator.of(context).pushReplacement(
-        _rotaSemAnimacao(
-          TelaMeuPerfilClientePage(isVisitante: widget.isVisitante),
-        ),
+      AppNavigationUtil.navegarAba(
+        context,
+        TelaMeuPerfilClientePage(isVisitante: widget.isVisitante),
+        isHome: false,
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _background,
-      appBar: AppBar(
-        backgroundColor: _primaryBlue,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.pop(context),
-          icon: const Icon(Icons.arrow_back_ios, size: 20, color: Colors.white),
-        ),
+    return AppBackHandler(
+      child: Scaffold(
+        backgroundColor: _background,
+        appBar: AppBar(
+          backgroundColor: _primaryBlue,
+          elevation: 0,
+          leading: IconButton(
+            onPressed: () => AppNavigationUtil.tratarBotaoVoltar(context, isHome: false),
+            icon: const Icon(Icons.arrow_back_ios, size: 20, color: Colors.white),
+          ),
         title: const Text(
           'Seguindo',
           style: TextStyle(
@@ -220,7 +218,7 @@ class _SeguindoClientePageState extends State<SeguindoClientePage> {
         currentIndex: 1,
         onTap: _navegar,
       ),
-    );
+    ),);
   }
 
   Widget _buildBarraPesquisa() {
