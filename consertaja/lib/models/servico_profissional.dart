@@ -44,7 +44,7 @@ class ServicoProfissional {
         ? oficioMap['funcao']?.toString()
         : null;
     final cor = oficioMap is Map<String, dynamic>
-        ? oficioMap['cod_cor']?.toString()
+        ? (oficioMap['cod_cor'] ?? oficioMap['cor'])?.toString()
         : null;
 
     return ServicoProfissional(

@@ -103,11 +103,14 @@ class ServicosProfissionalService {
 
   // ── CRUD dos serviços do profissional ──────────────────────────────────────
 
-  /// Lista todos os serviços ativos do profissional logado.
+  /// Lista todos os serviços ativos do profissional.
+  /// Se `idProfissional` for informado, busca por ele. Caso contrário, busca do profissional logado.
   /// Faz join (left join) com `oficios` para obter funcao e cod_cor.
-  static Future<List<ServicoProfissional>> buscarServicos() async {
+  static Future<List<ServicoProfissional>> buscarServicos({
+    int? idProfissional,
+  }) async {
     try {
-      final idProf = await buscarIdProfissional();
+      final idProf = idProfissional ?? await buscarIdProfissional();
       if (idProf == null) return [];
 
       final rows = await _supabase
