@@ -12,6 +12,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
     show Clipboard, ClipboardData, MissingPluginException;
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart' show ImagePicker, ImageSource;
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
@@ -76,6 +77,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
   bool _gravando = false;
   int _segundosGravando = 0;
   String _caminhoGravacao = '';
+  String _extensaoGravacao = 'm4a';
   double _deslizeCancelarDx = 0;
   Timer? _timerGravacao;
   StreamSubscription? _subAmplitude;
@@ -157,12 +159,27 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
         return;
       }
 
-      final dir = await getTemporaryDirectory();
-      _caminhoGravacao =
-          '${dir.path}/audio_chat_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      // Na web o `path` é ignorado (stop() devolve um blob URL); no mobile
+      // gravamos direto num arquivo temporário .m4a.
+      if (!kIsWeb) {
+        final dir = await getTemporaryDirectory();
+        _caminhoGravacao =
+            '${dir.path}/audio_chat_${DateTime.now().millisecondsSinceEpoch}.m4a';
+        _extensaoGravacao = 'm4a';
+      } else {
+        _caminhoGravacao = '';
+        final suportaAac =
+            await _gravador.isEncoderSupported(AudioEncoder.aacLc);
+        _extensaoGravacao = suportaAac ? 'm4a' : 'webm';
+      }
+
+      var encoder = AudioEncoder.aacLc;
+      if (kIsWeb && _extensaoGravacao == 'webm') {
+        encoder = AudioEncoder.opus;
+      }
 
       await _gravador.start(
-        const RecordConfig(encoder: AudioEncoder.aacLc),
+        RecordConfig(encoder: encoder),
         path: _caminhoGravacao,
       );
 
@@ -188,7 +205,14 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     } catch (e) {
       debugPrint('Erro ao iniciar gravação: $e');
       if (mounted) {
-        _mostrarAviso('Não foi possível iniciar a gravação de áudio.');
+        if (e is MissingPluginException) {
+          _mostrarAviso(
+            'Feche o app por completo e rode novamente (flutter run) para '
+            'registrar o módulo de gravação.',
+          );
+        } else {
+          _mostrarAviso('Não foi possível iniciar a gravação de áudio.');
+        }
       }
     }
   }
@@ -203,33 +227,53 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     _subAmplitude = null;
     _nivelGravacao.value = 0;
 
+    final emWeb = kIsWeb;
     final caminho = _caminhoGravacao;
+    final extensao = _extensaoGravacao;
     final segundos = _segundosGravando;
     _caminhoGravacao = '';
     if (mounted) setState(() => _gravando = false);
 
+    // stop() devolve o caminho do arquivo (mobile) ou um blob URL (web).
+    String? resultado;
     try {
-      await _gravador.stop();
+      resultado = await _gravador.stop();
     } catch (e) {
       debugPrint('Erro ao parar gravação: $e');
     }
 
     // Cancelamento (ou gravação curta demais): apaga o arquivo.
     if (!enviar || segundos < 1) {
-      try {
-        final arquivo = File(caminho);
-        if (await arquivo.exists()) await arquivo.delete();
-      } catch (_) {}
+      if (!emWeb) {
+        try {
+          final arquivo = File(caminho);
+          if (await arquivo.exists()) await arquivo.delete();
+        } catch (_) {}
+      }
       return;
     }
 
     try {
-      final bytes = await File(caminho).readAsBytes();
-      try {
-        final arquivo = File(caminho);
-        if (await arquivo.exists()) await arquivo.delete();
-      } catch (_) {}
-      await _enviarAnexoAudio(bytes: bytes, duracaoSegundos: segundos);
+      final Uint8List bytes;
+      if (emWeb) {
+        // Web: baixa o áudio do blob gerado pelo navegador.
+        final url = resultado;
+        if (url == null || url.isEmpty) {
+          throw Exception('Gravação vazia.');
+        }
+        bytes = await http.readBytes(Uri.parse(url));
+      } else {
+        bytes = await File(caminho).readAsBytes();
+        try {
+          final arquivo = File(caminho);
+          if (await arquivo.exists()) await arquivo.delete();
+        } catch (_) {}
+      }
+      await _enviarAnexoAudio(
+        bytes: bytes,
+        duracaoSegundos: segundos,
+        extensao: extensao,
+      );
     } catch (e) {
       debugPrint('Erro ao ler áudio gravado: $e');
       _mostrarAviso('Não foi possível enviar o áudio. Tente de novo.');
@@ -240,6 +284,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
   Future<void> _enviarAnexoAudio({
     required Uint8List bytes,
     required int duracaoSegundos,
+    String extensao = 'm4a',
   }) async {
     if (_idConversa == null || _idUsuarioLogado == null || _enviando) return;
 
@@ -265,6 +310,8 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
         idUsuarioLogado: _idUsuarioLogado!,
         bytes: bytes,
         duracaoSegundos: duracaoSegundos,
+        extensao: extensao,
+        contentType: extensao == 'webm' ? 'audio/webm' : 'audio/mp4',
       );
       if (!mounted) return;
 
@@ -334,8 +381,18 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     } catch (e) {
       debugPrint('Erro ao tocar áudio: $e');
       if (mounted) {
-        setState(() => _idAudioTocando = null);
-        _mostrarAviso('Não foi possível reproduzir o áudio.');
+        setState(() {
+          _idAudioTocando = null;
+          _audioPausado = false;
+        });
+        if (e is MissingPluginException) {
+          _mostrarAviso(
+            'Feche o app por completo e rode novamente (flutter run) para '
+            'registrar o módulo de áudio.',
+          );
+        } else {
+          _mostrarAviso('Não foi possível reproduzir o áudio.');
+        }
       }
     }
   }
