@@ -9,7 +9,7 @@ import '../models/servico_profissional.dart';
 
 class ServicosProfissionalService {
   static SupabaseClient get _supabase => Supabase.instance.client;
-  static const String _bucketServicos = 'Servicos';
+  static const String _bucketServicos = 'Imagens Servicos';
 
   // ── Identidade ─────────────────────────────────────────────────────────────
 
@@ -55,7 +55,7 @@ class ServicosProfissionalService {
 
   // ── Upload de imagem ────────────────────────────────────────────────────────
 
-  /// Faz upload de uma imagem para o bucket 'Servicos' e retorna a URL pública.
+  /// Faz upload de uma imagem para o bucket 'Imagens Servicos' e retorna a URL pública.
   static Future<String?> uploadImagemServico(XFile imagem) async {
     try {
       final user = _supabase.auth.currentUser;
@@ -249,22 +249,26 @@ class ServicosProfissionalService {
 
   // ── Ofícios (categorias) ──────────────────────────────────────────────────
 
-  /// Busca todos os ofícios (categorias/funções) disponíveis.
-  static Future<List<({String nome, String cor})>> buscarOficios() async {
+  /// Busca todos os ofícios (categorias/funções) disponíveis, incluindo id_oficio.
+  static Future<List<({int id, String nome, String cor})>> buscarOficios() async {
     try {
-      final rows = await _supabase.from('oficios').select('funcao, cod_cor');
+      final rows = await _supabase
+          .from('oficios')
+          .select('id_oficio, funcao, cod_cor')
+          .order('funcao', ascending: true);
       return rows.map((row) {
+        final id = (row['id_oficio'] as num?)?.toInt() ?? 0;
         final nome = row['funcao']?.toString().trim() ?? 'GERAL';
         final cor = row['cod_cor']?.toString().trim() ?? '#1D2430';
-        return (nome: nome, cor: cor);
+        return (id: id, nome: nome, cor: cor);
       }).toList();
     } catch (e) {
       debugPrint('❌ [ServicosSvc] buscarOficios ERROR: $e');
       // Fallback para uma lista básica
       return [
-        (nome: 'GERAL', cor: '#1D2430'),
-        (nome: 'ELÉTRICA', cor: '#F59E0B'),
-        (nome: 'HIDRÁULICA', cor: '#1F8BFF'),
+        (id: 1, nome: 'GERAL', cor: '#1D2430'),
+        (id: 2, nome: 'ELÉTRICA', cor: '#F59E0B'),
+        (id: 3, nome: 'HIDRÁULICA', cor: '#1F8BFF'),
       ];
     }
   }

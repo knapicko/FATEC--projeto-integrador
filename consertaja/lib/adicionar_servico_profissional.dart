@@ -672,7 +672,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
   bool _tentouSalvar = false;
 
   /// Lista de ofícios (categorias) carregada do banco.
-  List<({String nome, String cor})> _oficios = [];
+  List<({int id, String nome, String cor})> _oficios = [];
   bool _carregandoOficios = true;
 
   /// URL já salva no banco (edição)
@@ -927,7 +927,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
                           setState(() {
                             _categoriaSelecionada = cat.nome;
                             _categoriaCor = cat.cor;
-                            _fkOficioSelecionado = i + 1;
+                            _fkOficioSelecionado = cat.id;
                           });
                           Navigator.of(ctx).pop();
                         },

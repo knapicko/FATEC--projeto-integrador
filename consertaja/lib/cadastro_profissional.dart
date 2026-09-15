@@ -939,8 +939,9 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildRequisitoItem(String texto, bool valido) {
     final cor = valido ? const Color(0xFF00A2FF) : Colors.grey.shade400;
@@ -1033,7 +1034,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
           ),
         ],
       ),
-    ),);
+    );
   }
 }
 
