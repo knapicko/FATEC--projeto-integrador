@@ -1,9 +1,14 @@
 import 'dart:async';
 
+import 'package:file_picker/file_picker.dart' show FilePicker;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+import 'package:image_picker/image_picker.dart' show ImagePicker, ImageSource;
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart' show LaunchMode, launchUrl;
 
+import 'services/chat_anexos_service.dart';
 import 'services/verificacao_online.dart';
 import 'utils/iniciais.dart';
 
@@ -94,13 +99,208 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     );
   }
 
-  void _abrirAnexos() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Envio de arquivos e fotos em breve.'),
-        duration: Duration(seconds: 2),
+  /// Abre o menu de anexos: foto da galeria, câmera ou documento.
+  Future<void> _abrirAnexos() async {
+    if (_enviando) return;
+    if (_idConversa == null || _idUsuarioLogado == null) {
+      _mostrarAviso('Aguarde o carregamento da conversa.');
+      return;
+    }
+
+    final opcao = await showModalBottomSheet<_OpcaoAnexo>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 42,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE2E8F0),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              leading: const Icon(
+                Icons.photo_library_outlined,
+                color: _primaryBlue,
+              ),
+              title: const Text('Foto da galeria'),
+              onTap: () => Navigator.pop(sheetContext, _OpcaoAnexo.galeria),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.photo_camera_outlined,
+                color: _primaryBlue,
+              ),
+              title: const Text('Tirar foto'),
+              onTap: () => Navigator.pop(sheetContext, _OpcaoAnexo.camera),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.attach_file_rounded,
+                color: _primaryBlue,
+              ),
+              title: const Text('Documento'),
+              subtitle: const Text('PDF, planilha, texto...'),
+              onTap: () => Navigator.pop(sheetContext, _OpcaoAnexo.documento),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     );
+
+    if (!mounted || opcao == null) return;
+    if (opcao == _OpcaoAnexo.galeria) {
+      await _enviarImagem(ImageSource.gallery);
+    } else if (opcao == _OpcaoAnexo.camera) {
+      await _enviarImagem(ImageSource.camera);
+    } else {
+      await _enviarDocumento();
+    }
+  }
+
+  /// Escolhe uma foto (galeria ou câmera) e a envia como anexo do chat.
+  Future<void> _enviarImagem(ImageSource origem) async {
+    try {
+      final imagem = await ImagePicker().pickImage(
+        source: origem,
+        imageQuality: 80,
+      );
+      if (imagem == null) return;
+
+      await _enviarAnexo(
+        nomeArquivo: imagem.name.trim().isEmpty ? 'foto.jpg' : imagem.name,
+        ehImagem: true,
+        enviar: () => ChatAnexosService.enviarImagem(
+          idConversa: _idConversa!,
+          idUsuarioLogado: _idUsuarioLogado!,
+          imagem: imagem,
+        ),
+      );
+    } catch (e) {
+      debugPrint('Erro ao escolher foto: $e');
+      _mostrarAviso('Não foi possível abrir a galeria/câmera.');
+    }
+  }
+
+  /// Escolhe um arquivo (PDF, planilha, etc.) e o envia como anexo do chat.
+  Future<void> _enviarDocumento() async {
+    try {
+      final arquivo = await FilePicker.pickFile();
+      if (arquivo == null) return;
+
+      await _enviarAnexo(
+        nomeArquivo: arquivo.name,
+        ehImagem: ChatAnexosService.ehImagem(arquivo.name),
+        enviar: () => ChatAnexosService.enviarDocumento(
+          idConversa: _idConversa!,
+          idUsuarioLogado: _idUsuarioLogado!,
+          nomeArquivo: arquivo.name,
+          caminhoLocal: arquivo.path,
+          leitorBytes: arquivo.readAsBytes,
+        ),
+      );
+    } catch (e) {
+      debugPrint('Erro ao escolher documento: $e');
+      _mostrarAviso('Não foi possível abrir o seletor de arquivos.');
+    }
+  }
+
+  /// Mostra a bolha otimista, faz o upload no bucket e replaceia pela mensagem real.
+  Future<void> _enviarAnexo({
+    required String nomeArquivo,
+    required bool ehImagem,
+    required Future<ResultadoEnvioAnexo> Function() enviar,
+  }) async {
+    if (_idConversa == null || _idUsuarioLogado == null || _enviando) return;
+
+    final tempId = -DateTime.now().millisecondsSinceEpoch;
+    final otimista = _Mensagem(
+      id: tempId,
+      conteudo: ehImagem ? '' : nomeArquivo,
+      dataEnvio: DateTime.now(),
+      ehRemetente: true,
+      tipoMensagem: ehImagem ? 'Imagem' : 'Documento',
+      lida: false,
+      enviando: true,
+    );
+    setState(() {
+      _enviando = true;
+      _mensagens = [..._mensagens, otimista];
+    });
+    _scrollToBottom();
+
+    try {
+      final resultado = await enviar();
+      if (!mounted) return;
+
+      if (resultado.sucesso && resultado.linha != null) {
+        final real =
+            _mensagemDoMap(resultado.linha!) ??
+            _Mensagem(
+              id: tempId,
+              conteudo: nomeArquivo,
+              dataEnvio: DateTime.now(),
+              ehRemetente: true,
+              tipoMensagem: ehImagem ? 'Imagem' : 'Documento',
+              lida: false,
+            );
+        setState(() {
+          _mensagens = _mensagens
+              .map((m) => m.id == tempId ? real : m)
+              .toList();
+        });
+        _scrollToBottom();
+      } else {
+        setState(() {
+          _mensagens = _mensagens.where((m) => m.id != tempId).toList();
+        });
+        _mostrarAviso(resultado.erro ?? 'Não foi possível enviar o anexo.');
+      }
+    } catch (e) {
+      debugPrint('Erro ao enviar anexo: $e');
+      if (!mounted) return;
+      setState(() {
+        _mensagens = _mensagens.where((m) => m.id != tempId).toList();
+      });
+      _mostrarAviso('Não foi possível enviar o anexo. Tente de novo.');
+    } finally {
+      if (mounted) setState(() => _enviando = false);
+    }
+  }
+
+  void _mostrarAviso(String texto) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(texto)));
+  }
+
+  /// Abre o documento anexado em outro aplicativo; se falhar, copia o link.
+  Future<void> _abrirDocumento(String url, String nome) async {
+    if (url.isEmpty) {
+      _mostrarAviso('Link do documento indisponível.');
+      return;
+    }
+    try {
+      final abriu = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+      if (abriu) return;
+      throw Exception('Falha ao abrir o documento');
+    } catch (e) {
+      debugPrint('Erro ao abrir documento: $e');
+      await Clipboard.setData(ClipboardData(text: url));
+      _mostrarAviso('Não foi possível abrir "$nome". Link copiado.');
+    }
   }
 
   void _abrirCriarPedido() {
@@ -1137,18 +1337,88 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
   }
 
   Widget _buildBalaoMensagem(_Mensagem mensagem) {
-    if (mensagem.ehRemetente) {
-      return _buildBalaoTextoEnviado(mensagem);
+    if (mensagem.enviando) {
+      return _buildBalaoEnviando(mensagem);
     }
 
     final tipo = mensagem.tipoMensagem.toLowerCase();
     if (tipo == 'imagem') {
       return _buildBalaoImagem(mensagem);
     }
+    if (tipo == 'documento') {
+      return _buildBalaoDocumento(mensagem);
+    }
     if (tipo == 'audio') {
       return _buildBalaoAudio(mensagem);
     }
-    return _buildBalaoTextoRecebido(mensagem);
+    return mensagem.ehRemetente
+        ? _buildBalaoTextoEnviado(mensagem)
+        : _buildBalaoTextoRecebido(mensagem);
+  }
+
+  /// Resolve nome e URL de uma mensagem do tipo documento.
+  ({String nome, String url}) _dadosDocumento(_Mensagem mensagem) {
+    final legenda = mensagem.legenda?.trim() ?? '';
+    final conteudo = mensagem.conteudo.trim();
+    final urlArquivo = mensagem.urlArquivo?.trim() ?? '';
+    final separado = ChatAnexosService.separarConteudoDocumento(conteudo);
+
+    final url = urlArquivo.isNotEmpty
+        ? urlArquivo
+        : (separado?.url ??
+              (conteudo.startsWith('http') ? conteudo : ''));
+
+    final nome = legenda.isNotEmpty
+        ? legenda
+        : (separado != null && separado.nome.isNotEmpty
+              ? separado.nome
+              : 'Documento');
+
+    return (nome: nome, url: url);
+  }
+
+  /// Bolha temporária exibida enquanto o anexo é enviado para o Supabase.
+  Widget _buildBalaoEnviando(_Mensagem mensagem) {
+    final texto = mensagem.tipoMensagem.toLowerCase() == 'imagem'
+        ? 'Enviando foto...'
+        : 'Enviando arquivo...';
+
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 3),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.75,
+        ),
+        decoration: BoxDecoration(
+          color: _primaryBlue.withValues(alpha: 0.75),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 15,
+              height: 15,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              texto,
+              style: const TextStyle(
+                fontSize: 13.5,
+                color: Colors.white,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildBalaoTextoEnviado(_Mensagem mensagem) {
@@ -1252,10 +1522,14 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
             : '');
     // Sem URL real vinda do Supabase: não mostra imagem estática, usa texto.
     if (fotoUrl.isEmpty) {
-      return _buildBalaoTextoRecebido(mensagem);
+      return mensagem.ehRemetente
+          ? _buildBalaoTextoEnviado(mensagem)
+          : _buildBalaoTextoRecebido(mensagem);
     }
     return Align(
-      alignment: Alignment.centerLeft,
+      alignment: mensagem.ehRemetente
+          ? Alignment.centerRight
+          : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 4),
         constraints: BoxConstraints(
@@ -1330,13 +1604,26 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                           color: Colors.black54,
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Text(
-                          DateFormat('HH:mm').format(mensagem.dataEnvio),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              DateFormat('HH:mm').format(mensagem.dataEnvio),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            if (mensagem.ehRemetente) ...[
+                              const SizedBox(width: 4),
+                              Icon(
+                                mensagem.lida ? Icons.done_all : Icons.done,
+                                size: 13,
+                                color: Colors.white,
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                     ),
@@ -1360,6 +1647,143 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
         ),
       ),
     );
+  }
+
+  Widget _buildBalaoDocumento(_Mensagem mensagem) {
+    final dados = _dadosDocumento(mensagem);
+    final enviada = mensagem.ehRemetente;
+    final extensao = ChatAnexosService.extensaoDe(dados.nome).toUpperCase();
+
+    return Align(
+      alignment: enviada ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.76,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => _abrirDocumento(dados.url, dados.nome),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F6FD),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        _iconeDocumento(dados.nome),
+                        color: _primaryBlue,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            dados.nome,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF111827),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            extensao.isEmpty
+                                ? 'Toque para abrir'
+                                : '$extensao • Toque para abrir',
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              color: Color(0xFF6B7280),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      DateFormat('HH:mm').format(mensagem.dataEnvio),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF9CA3AF),
+                      ),
+                    ),
+                    if (enviada) ...[
+                      const SizedBox(width: 4),
+                      Icon(
+                        mensagem.lida ? Icons.done_all : Icons.done,
+                        size: 14,
+                        color: _primaryBlue,
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Ícone exibido no cartão do documento, de acordo com a extensão.
+  IconData _iconeDocumento(String nome) {
+    switch (ChatAnexosService.extensaoDe(nome)) {
+      case 'pdf':
+        return Icons.picture_as_pdf_rounded;
+      case 'doc':
+      case 'docx':
+        return Icons.description_rounded;
+      case 'xls':
+      case 'xlsx':
+      case 'csv':
+        return Icons.table_chart_rounded;
+      case 'ppt':
+      case 'pptx':
+        return Icons.slideshow_rounded;
+      case 'zip':
+      case 'rar':
+        return Icons.folder_zip_rounded;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+      case 'webp':
+        return Icons.image_rounded;
+      default:
+        return Icons.insert_drive_file_rounded;
+    }
   }
 
   Widget _buildBalaoAudio(_Mensagem mensagem) {
@@ -1640,6 +2064,9 @@ class _Mensagem {
   final String? legenda;
   final String? duracaoAudio;
 
+  /// `true` enquanto o anexo ainda está subindo para o Supabase Storage.
+  final bool enviando;
+
   _Mensagem({
     required this.id,
     required this.conteudo,
@@ -1650,8 +2077,12 @@ class _Mensagem {
     this.urlArquivo,
     this.legenda,
     this.duracaoAudio,
+    this.enviando = false,
   });
 }
+
+/// Opções do menu de anexos do chat.
+enum _OpcaoAnexo { galeria, camera, documento }
 
 /// Animação de 3 pontinhos brancos pulando indicando digitação do contato
 class _IndicadorDigitando extends StatefulWidget {

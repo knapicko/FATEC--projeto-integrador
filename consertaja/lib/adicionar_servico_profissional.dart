@@ -653,7 +653,6 @@ class _FormularioServicoSheet extends StatefulWidget {
 class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
   static const Color _primaryBlue = Color(0xFF0FB3FF);
   static const Color _deepBlue = Color(0xFF003F87);
-  static const Color _softBlue = Color(0xFFEAF9FF);
   static const Color _textDark = Color(0xFF1D2A39);
   static const Color _textMuted = Color(0xFF7B8393);
   static const Color _border = Color(0xFFE6ECF2);
@@ -1279,35 +1278,6 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
     );
   }
 
-  Widget _buildImagemFileMobile() {
-    // Fallback para mobile quando Image.network falha para path local
-    if (_imagemLocalNova == null) {
-      return Container(height: 160, color: const Color(0xFFEAF9FF));
-    }
-    return Builder(
-      builder: (ctx) {
-        try {
-          return Image.file(
-            // ignore: avoid_dynamic_calls
-            _imagemLocalNova as dynamic,
-            height: 160,
-            width: double.infinity,
-            fit: BoxFit.cover,
-          );
-        } catch (_) {
-          return Container(
-            height: 160,
-            color: const Color(0xFFEAF9FF),
-            child: const Icon(
-              Icons.image_rounded,
-              color: Color(0xFF0FB3FF),
-              size: 40,
-            ),
-          );
-        }
-      },
-    );
-  }
 
   Widget _buildLabel(String texto) {
     return Text(

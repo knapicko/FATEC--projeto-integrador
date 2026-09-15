@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'seguindo_cliente.dart';
+import 'services/chat_anexos_service.dart';
 import 'services/verificacao_online.dart';
 import 'tela_chat_profissional.dart';
 import 'tela_home.dart';
@@ -367,7 +368,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
             ultimaConexaoContato: DateTime.tryParse(
               contato['ultima_conexao']?.toString() ?? '',
             ),
-            ultimaMensagem: ultima?['conteudo']?.toString(),
+            ultimaMensagem: _previaMensagem(ultima),
             dataUltimaMensagem: DateTime.tryParse(
               ultima?['data_envio']?.toString() ?? '',
             ),
@@ -487,7 +488,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
       return await _supabase
           .from('mensagens')
           .select(
-            'fk_conversa, conteudo, data_envio, fk_remitente_usuario, lida',
+            'fk_conversa, conteudo, data_envio, fk_remitente_usuario, lida, tipo_mensagem',
           )
           .inFilter('fk_conversa', ids)
           .order('data_envio', ascending: false)
@@ -500,6 +501,24 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
           .order('data_envio', ascending: false)
           .limit(300);
     }
+  }
+
+  /// Prévia amigável da última mensagem (foto, documento, áudio ou texto).
+  String? _previaMensagem(Map<String, dynamic>? ultima) {
+    if (ultima == null) return null;
+
+    final tipo = (ultima['tipo_mensagem']?.toString() ?? 'Texto')
+        .toLowerCase();
+    final conteudo = ultima['conteudo']?.toString() ?? '';
+
+    if (tipo == 'imagem') return '📷 Foto';
+    if (tipo == 'audio') return '🎤 Áudio';
+    if (tipo == 'documento') {
+      final nome =
+          ChatAnexosService.separarConteudoDocumento(conteudo)?.nome ?? '';
+      return nome.isEmpty ? '📎 Documento' : '📎 $nome';
+    }
+    return conteudo;
   }
 
   @override
