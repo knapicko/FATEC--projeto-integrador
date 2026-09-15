@@ -1538,7 +1538,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
           maxWidth: MediaQuery.of(context).size.width * 0.74,
         ),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: mensagem.ehRemetente ? _primaryBlue : Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -1637,9 +1637,11 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                   padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
                   child: Text(
                     mensagem.legenda!,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13.5,
-                      color: Color(0xFF374151),
+                      color: mensagem.ehRemetente
+                          ? Colors.white
+                          : const Color(0xFF374151),
                     ),
                   ),
                 ),
