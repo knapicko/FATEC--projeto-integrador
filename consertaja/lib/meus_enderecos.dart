@@ -32,10 +32,26 @@ const String _tabelaEstado = 'estados';
 /// Observação: conversão padrão para tons de cinza via luminância:
 /// g = 0.2126*R + 0.7152*G + 0.0722*B (certifica-se de preservar branco e preto).
 const List<double> _matrizMapaPretoBranco = <double>[
-  0.2126, 0.7152, 0.0722, 0, 0,
-  0.2126, 0.7152, 0.0722, 0, 0,
-  0.2126, 0.7152, 0.0722, 0, 0,
-  0, 0, 0, 1, 0,
+  0.2126,
+  0.7152,
+  0.0722,
+  0,
+  0,
+  0.2126,
+  0.7152,
+  0.0722,
+  0,
+  0,
+  0.2126,
+  0.7152,
+  0.0722,
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  0,
 ];
 
 class EnderecoEditData {
@@ -865,9 +881,7 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
                     ),
                     children: [
                       ColorFiltered(
-                        colorFilter: ColorFilter.matrix(
-                          _matrizMapaPretoBranco,
-                        ),
+                        colorFilter: ColorFilter.matrix(_matrizMapaPretoBranco),
                         child: TileLayer(
                           urlTemplate:
                               'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -1010,6 +1024,10 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
   }
 
   Widget _buildBotaoAdicionar() {
+    if (widget.isProfissional && _enderecos.isNotEmpty) {
+      return const SizedBox.shrink();
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
       child: CustomPaint(
@@ -1255,6 +1273,7 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
   final TextEditingController _complementoController = TextEditingController();
   final TextEditingController _bairroController = TextEditingController();
   final TextEditingController _cidadeController = TextEditingController();
+  final TextEditingController _apelidoOutroController = TextEditingController();
 
   String? _estadoSelecionado;
   String _tipoSalvar = 'Casa';
@@ -1271,6 +1290,7 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
   @override
   void initState() {
     super.initState();
+    _tipoSalvar = _tiposSalvar.first;
     final edit = widget.enderecoEditar;
     if (edit != null) {
       _cepController.text = edit.cep;
@@ -1282,7 +1302,13 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
       _estadoSelecionado = _estados.contains(edit.estado.toUpperCase())
           ? edit.estado.toUpperCase()
           : null;
-      _tipoSalvar = edit.tipoEndereco;
+      final tiposDisponiveis = _tiposSalvar;
+      if (tiposDisponiveis.contains(edit.tipoEndereco)) {
+        _tipoSalvar = edit.tipoEndereco;
+      } else {
+        _tipoSalvar = 'Outro';
+        _apelidoOutroController.text = edit.tipoEndereco;
+      }
 
       // Carrega coordenadas salvas se existirem
       if (edit.latitude != null && edit.longitude != null) {
@@ -1323,8 +1349,19 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
     _complementoController.dispose();
     _bairroController.dispose();
     _cidadeController.dispose();
+    _apelidoOutroController.dispose();
     super.dispose();
   }
+
+  List<String> get _tiposSalvar => widget.isProfissional
+      ? const ['Loja', 'Oficina', 'Outro']
+      : const ['Casa', 'Trabalho', 'Outro'];
+
+  bool get _usaApelidoPersonalizado => _tipoSalvar == 'Outro';
+
+  String get _apelidoParaSalvar => _usaApelidoPersonalizado
+      ? _apelidoOutroController.text.trim()
+      : _tipoSalvar;
 
   Future<void> _buscarCep() async {
     FocusScope.of(context).unfocus();
@@ -1513,6 +1550,17 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
       return;
     }
 
+    if (_usaApelidoPersonalizado &&
+        _apelidoOutroController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Informe um apelido para o endereço.'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
     setState(() => _salvando = true);
 
     try {
@@ -1552,6 +1600,21 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
           .from(_tabelaAssUsuarioEndereco)
           .select('fk_endereco')
           .eq('fk_usuario', usuarioId);
+
+      if (widget.isProfissional && !widget.isEdicao && assResponse.isNotEmpty) {
+        if (mounted) {
+          setState(() => _salvando = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Profissionais podem cadastrar apenas um endereço.',
+              ),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        return;
+      }
 
       final isPrimeiroEndereco = assResponse.isEmpty;
 
@@ -1631,8 +1694,8 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
         await supabase
             .from(_tabelaAssUsuarioEndereco)
             .update({
-              'apelido_endereco': _tipoSalvar,
-              'tipo_endereco': _tipoSalvar,
+              'apelido_endereco': _apelidoParaSalvar,
+              'tipo_endereco': _apelidoParaSalvar,
             })
             .eq('fk_usuario', usuarioId)
             .eq('fk_endereco', idEndereco);
@@ -1650,8 +1713,8 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
         await supabase.from(_tabelaAssUsuarioEndereco).insert({
           'fk_usuario': usuarioId,
           'fk_endereco': idEndereco,
-          'apelido_endereco': _tipoSalvar,
-          'tipo_endereco': _tipoSalvar,
+          'apelido_endereco': _apelidoParaSalvar,
+          'tipo_endereco': _apelidoParaSalvar,
           'endereco_ativo': isPrimeiroEndereco,
         });
       }
@@ -2152,12 +2215,16 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
           Wrap(
             spacing: 10,
             runSpacing: 10,
-            children: [
-              _buildChipTipo('Casa'),
-              _buildChipTipo('Trabalho'),
-              _buildChipTipo('Outro'),
-            ],
+            children: _tiposSalvar.map(_buildChipTipo).toList(),
           ),
+          if (_usaApelidoPersonalizado) ...[
+            const SizedBox(height: 16),
+            _buildCampo(
+              label: 'Apelido do endereço',
+              controller: _apelidoOutroController,
+              hint: 'Ex: Casa da praia',
+            ),
+          ],
         ],
       ),
     );
