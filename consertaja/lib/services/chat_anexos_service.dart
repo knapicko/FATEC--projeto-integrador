@@ -254,6 +254,50 @@ class ChatAnexosService {
     }
   }
 
+  /// Envia uma mensagem de áudio gravada pelo usuário.
+  /// `bytes` = arquivo .m4a, `duracaoSegundos` = duração da gravação.
+  static Future<ResultadoEnvioAnexo> enviarAudio({
+    required int idConversa,
+    required int idUsuarioLogado,
+    required Uint8List bytes,
+    required int duracaoSegundos,
+  }) async {
+    try {
+      final nomeArquivo = 'audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      final caminho = _construirCaminho(idConversa, nomeArquivo);
+
+      await _supabase.storage.from(bucketAnexos).uploadBinary(
+            caminho,
+            bytes,
+            fileOptions: const FileOptions(contentType: 'audio/mp4'),
+          );
+      final url = _supabase.storage.from(bucketAnexos).getPublicUrl(caminho);
+      debugPrint('✅ [ChatAnexos] Upload áudio OK: $url');
+
+      final linha = await _inserirMensagem(
+        idConversa: idConversa,
+        idUsuarioLogado: idUsuarioLogado,
+        tipoMensagem: 'Audio',
+        conteudo: url,
+        urlArquivo: url,
+        duracaoSegundos: duracaoSegundos,
+      );
+
+      if (linha == null) {
+        return (
+          sucesso: false,
+          linha: null,
+          erro: 'Áudio enviado, mas não foi possível registrar a mensagem.',
+        );
+      }
+      return (sucesso: true, linha: linha, erro: null);
+    } catch (e, s) {
+      debugPrint('❌ [ChatAnexos] ERRO no envio de áudio: $e');
+      debugPrint('❌ [ChatAnexos] stack: $s');
+      return (sucesso: false, linha: null, erro: _mensagemErro(e));
+    }
+  }
+
   /// Insere a mensagem do anexo em `mensagens`.
   /// Se o banco não tiver as colunas extras, reenvia apenas o essencial.
   static Future<Map<String, dynamic>?> _inserirMensagem({
@@ -263,6 +307,7 @@ class ChatAnexosService {
     required String conteudo,
     required String urlArquivo,
     String? legenda,
+    int? duracaoSegundos,
   }) async {
     final legendaTratada = legenda?.trim();
     try {
@@ -277,11 +322,13 @@ class ChatAnexosService {
             'url_arquivo': urlArquivo,
             if (legendaTratada != null && legendaTratada.isNotEmpty)
               'legenda': legendaTratada,
+            'duracao_audio': ?duracaoSegundos,
           })
           .select(_colunasCompletas)
           .maybeSingle();
     } on PostgrestException {
-      // `url_arquivo`/`legenda` podem não existir: a URL já vai em `conteudo`.
+      // `url_arquivo`/`legenda`/`duracao_audio` podem não existir: a URL já
+      // vai em `conteudo`.
       return await _supabase
           .from('mensagens')
           .insert({

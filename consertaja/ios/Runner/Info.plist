@@ -24,6 +24,10 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Permita o acesso ao microfone para gravar mensagens de áudio no chat.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Permita o acesso à câmera para enviar fotos no chat.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>
