@@ -607,6 +607,9 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
 
   Future<void> _carregarDadosProfissional() async {
     try {
+      debugPrint(
+        '🔎 [PerfilProfissional] Iniciando busca para nome: "${widget.nomeInicial}"',
+      );
       final supabase = Supabase.instance.client;
       final response = await supabase
           .from('usuarios')
@@ -615,6 +618,9 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
           .ilike('nome', '%${widget.nomeInicial}%')
           .maybeSingle();
 
+      debugPrint(
+        '🔎 [PerfilProfissional] Usuário encontrado: ${response != null}',
+      );
       if (response != null && mounted) {
         int? idProfissional;
         int? fkPerfil;
@@ -624,19 +630,24 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
 
         final fkUsuario = response['id_usuario'];
         final idUsuarioProf = (fkUsuario as num?)?.toInt();
+        debugPrint(
+          '🔎 [PerfilProfissional] id_usuario encontrado: $idUsuarioProf',
+        );
         String? metodoEntregaRaw;
         if (fkUsuario != null) {
           final dadosProf = await supabase
               .from('dados_profissionais')
               .select(
-                'id_profissional, fk_perfil, anos_experiencia, metodo_entrega',
+                'id_profissional, fk_perfil, anos_experiencia',
               )
               .eq('fk_usuario', fkUsuario)
               .maybeSingle();
           idProfissional = (dadosProf?['id_profissional'] as num?)?.toInt();
           fkPerfil = (dadosProf?['fk_perfil'] as num?)?.toInt();
           anosExperiencia = dadosProf?['anos_experiencia']?.toString();
-          metodoEntregaRaw = dadosProf?['metodo_entrega'] as String?;
+          debugPrint(
+            '🔎 [PerfilProfissional] id_profissional encontrado: $idProfissional; fk_perfil: $fkPerfil',
+          );
 
           if (fkPerfil != null) {
             final perfil = await supabase
@@ -699,6 +710,9 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
           await Future.wait(tarefas);
         }
       } else {
+        debugPrint(
+          '⚠️ [PerfilProfissional] Nenhum usuário encontrado para nome: "${widget.nomeInicial}"',
+        );
         if (mounted) {
           setState(() {
             _enderecoCarregado = true;
@@ -706,7 +720,11 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
           });
         }
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('❌ [PerfilProfissional] Erro ao carregar perfil: $e');
+      debugPrint(
+        '❌ [PerfilProfissional] Erro ao carregar perfil STACK: ${StackTrace.current}',
+      );
       // Mantém dados iniciais em caso de falha
       if (mounted) {
         setState(() {
@@ -1711,8 +1729,14 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
 
   Future<void> _carregarServicosProfissional(int idProfissional) async {
     try {
+      debugPrint(
+        '🔎 [PerfilProfissional] Buscando serviços para id_profissional=$idProfissional',
+      );
       final servicos = await ServicosProfissionalService.buscarServicos(
         idProfissional: idProfissional,
+      );
+      debugPrint(
+        '✅ [PerfilProfissional] Serviços recebidos: ${servicos.length}',
       );
       if (!mounted) return;
 
@@ -1731,8 +1755,14 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
         }
         _carregandoServicos = false;
       });
+      debugPrint(
+        '✅ [PerfilProfissional] Estado atualizado. Serviços exibíveis: ${_servicos.length}; categorias: $_categorias',
+      );
     } catch (e) {
       debugPrint('Erro ao carregar serviços do profissional: $e');
+      debugPrint(
+        '❌ [PerfilProfissional] Serviços STACK: ${StackTrace.current}',
+      );
       if (mounted) {
         setState(() => _carregandoServicos = false);
       }
@@ -4406,7 +4436,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                         'Preço Médio',
                         style: TextStyle(
                           fontSize: 10,
-                          color: Color(0xFF94A3B8),
+                          color: Color(0xFF0FB3FF),
                         ),
                       ),
                       const SizedBox(height: 1),
