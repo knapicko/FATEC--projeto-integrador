@@ -255,21 +255,25 @@ class ChatAnexosService {
   }
 
   /// Envia uma mensagem de áudio gravada pelo usuário.
-  /// `bytes` = arquivo .m4a, `duracaoSegundos` = duração da gravação.
+  /// [extensao]/[contentType] variam por plataforma (m4a no mobile,
+  /// m4a ou webm na web, conforme o codec suportado pelo navegador).
   static Future<ResultadoEnvioAnexo> enviarAudio({
     required int idConversa,
     required int idUsuarioLogado,
     required Uint8List bytes,
     required int duracaoSegundos,
+    String extensao = 'm4a',
+    String contentType = 'audio/mp4',
   }) async {
     try {
-      final nomeArquivo = 'audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      final nomeArquivo =
+          'audio_${DateTime.now().millisecondsSinceEpoch}.$extensao';
       final caminho = _construirCaminho(idConversa, nomeArquivo);
 
       await _supabase.storage.from(bucketAnexos).uploadBinary(
             caminho,
             bytes,
-            fileOptions: const FileOptions(contentType: 'audio/mp4'),
+            fileOptions: FileOptions(contentType: contentType),
           );
       final url = _supabase.storage.from(bucketAnexos).getPublicUrl(caminho);
       debugPrint('✅ [ChatAnexos] Upload áudio OK: $url');
