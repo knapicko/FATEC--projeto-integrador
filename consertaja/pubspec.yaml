@@ -32,6 +32,7 @@ dependencies:
   shared_preferences: ^2.5.3
   flutter_markdown: ^0.7.7+1
   file_picker: ^13.1.0
+  file_selector: ^1.0.3
   url_launcher: ^6.3.2
 
 dev_dependencies:

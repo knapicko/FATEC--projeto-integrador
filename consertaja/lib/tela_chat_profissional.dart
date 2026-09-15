@@ -1,8 +1,15 @@
 import 'dart:async';
+import 'dart:typed_data';
 
-import 'package:file_picker/file_picker.dart' show FilePicker;
+import 'package:file_picker/file_picker.dart'
+    show FilePicker, FileType, WindowsOptions;
+import 'package:file_selector/file_selector.dart'
+    show XTypeGroup, openFile;
+import 'package:flutter/foundation.dart'
+    show debugPrint, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+import 'package:flutter/services.dart'
+    show Clipboard, ClipboardData, MissingPluginException;
 import 'package:image_picker/image_picker.dart' show ImagePicker, ImageSource;
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -195,26 +202,133 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
   }
 
   /// Escolhe um arquivo (PDF, planilha, etc.) e o envia como anexo do chat.
+  ///
+  /// No celular usa o `file_picker`. No Windows usa o `file_selector`
+  /// (plugin C++ nativo); se o app foi instalado sem rebuild após adicionar
+  /// o plugin, o Windows lança `MissingPluginException` e mostramos um aviso
+  /// pedindo rebuild em vez de cair no `file_picker` quebrado.
   Future<void> _enviarDocumento() async {
+    String? nomeArquivo;
+    String? caminhoLocal;
+    Future<Uint8List> Function()? leitorBytes;
+
     try {
-      final arquivo = await FilePicker.pickFile();
-      if (arquivo == null) return;
+      // No Windows, o file_picker v13 usa o windows_file_picker via FFI, que
+      // falha no `flutter run` (UnimplementedError). Vai direto no nativo.
+      // (defaultTargetPlatform em vez de dart:io Platform: funciona na web.)
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+        final arquivo = await _escolherDocumentoWindows();
+        if (arquivo == null) return;
+        nomeArquivo = arquivo.$1;
+        caminhoLocal = arquivo.$2;
+        leitorBytes = arquivo.$3;
+      } else {
+        final arquivo = await _escolherDocumentoFilePicker();
+        if (arquivo == null) return;
+        nomeArquivo = arquivo.$1;
+        caminhoLocal = arquivo.$2;
+        leitorBytes = arquivo.$3;
+      }
 
       await _enviarAnexo(
-        nomeArquivo: arquivo.name,
-        ehImagem: ChatAnexosService.ehImagem(arquivo.name),
+        nomeArquivo: nomeArquivo,
+        ehImagem: ChatAnexosService.ehImagem(nomeArquivo),
         enviar: () => ChatAnexosService.enviarDocumento(
           idConversa: _idConversa!,
           idUsuarioLogado: _idUsuarioLogado!,
-          nomeArquivo: arquivo.name,
-          caminhoLocal: arquivo.path,
-          leitorBytes: arquivo.readAsBytes,
+          nomeArquivo: nomeArquivo!,
+          caminhoLocal: caminhoLocal,
+          leitorBytes: leitorBytes!,
         ),
+      );
+    } on MissingPluginException catch (e) {
+      // App Windows compilado sem o file_selector registrado:
+      // é preciso rebuild limpo.
+      debugPrint('Plugin nativo ausente (rebuild necessário): $e');
+      _mostrarAviso(
+        'O app do Windows precisa ser recompilado para abrir arquivos. '
+        'Rode: flutter clean e depois flutter run -d windows.',
       );
     } catch (e) {
       debugPrint('Erro ao escolher documento: $e');
       _mostrarAviso('Não foi possível abrir o seletor de arquivos.');
     }
+  }
+
+  /// Seletor nativo via `file_selector` (Windows/desktop).
+  /// Retorna (nome, caminhoLocal, leitorBytes).
+  /// Retorna null se o usuário cancelar. Deixa MissingPluginException
+  /// subir para o chamador (significa que o app precisa de rebuild).
+  Future<(String, String?, Future<Uint8List> Function())?>
+  _escolherDocumentoWindows() async {
+    const grupo = XTypeGroup(
+      label: 'Documentos e imagens',
+      extensions: [
+        'pdf',
+        'doc',
+        'docx',
+        'xls',
+        'xlsx',
+        'ppt',
+        'pptx',
+        'txt',
+        'csv',
+        'zip',
+        'rar',
+        'jpg',
+        'jpeg',
+        'png',
+        'webp',
+      ],
+    );
+    final arquivo = await openFile(
+      acceptedTypeGroups: [grupo],
+      confirmButtonText: 'Escolher documento',
+    ).timeout(const Duration(minutes: 2));
+    if (arquivo == null) return null;
+    final caminho = arquivo.path;
+    final nome = caminho.split(RegExp(r'[\\/]')).last;
+    if (nome.trim().isEmpty) return null;
+    return (
+      nome,
+      caminho.isEmpty ? null : caminho,
+      () async {
+        final bytes = await arquivo.readAsBytes();
+        return Uint8List.fromList(bytes);
+      },
+    );
+  }
+
+  /// Seletor via `file_picker` (celular + fallback desktop).
+  /// Retorna (nome, caminhoLocal, leitorBytes) ou null se cancelar.
+  Future<(String, String?, Future<Uint8List> Function())?>
+  _escolherDocumentoFilePicker() async {
+    final arquivo = await FilePicker.pickFile(
+      dialogTitle: 'Escolher documento',
+      type: FileType.custom,
+      allowedExtensions: const [
+        'pdf',
+        'doc',
+        'docx',
+        'xls',
+        'xlsx',
+        'ppt',
+        'pptx',
+        'txt',
+        'csv',
+        'zip',
+        'rar',
+        'jpg',
+        'jpeg',
+        'png',
+        'webp',
+      ],
+      // Sem lockParentWindow: no Windows ele pode travar o diálogo
+      // do windows_file_picker atrás da janela do app (`flutter run`).
+      windowsOptions: const WindowsOptions(lockParentWindow: false),
+    );
+    if (arquivo == null) return null;
+    return (arquivo.name, arquivo.path, arquivo.readAsBytes);
   }
 
   /// Mostra a bolha otimista, faz o upload no bucket e replaceia pela mensagem real.
