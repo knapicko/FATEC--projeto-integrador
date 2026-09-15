@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart' hide Path;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'models/postagem_resumo.dart';
 import 'models/servico_profissional.dart';
+import 'services/cor_dominante_service.dart';
 import 'services/postagens_profissional_service.dart';
 import 'services/servicos_profissional_service.dart';
 import 'tela_chat_profissional.dart';
@@ -146,7 +147,6 @@ class PerfilProfissionalPage extends StatefulWidget {
 class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   // Cores do design system das imagens
   static const Color _primaryBlue = Color(0xFF0FB3FF);
-  static const Color _bannerDark = Color(0xFF0F2439);
   static const Color _starGold = Color(0xFFF59E0B);
   static const Color _priceOrange = Color(0xFFEA580C);
   static const Color _statusGreen = Color(0xFF10B981);
@@ -181,6 +181,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
 
   String _nome = '';
   String? _fotoUrl;
+  Color _corBanner = const Color(0xFF0A6E9D);
   bool _carregandoPerfil = true;
 
   String _filtroComentario = 'Principais';
@@ -627,6 +628,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
         String? anosExperiencia;
         String? descricaoPerfil;
         String? tipoPerfil;
+        String? corBanner;
 
         final fkUsuario = response['id_usuario'];
         final idUsuarioProf = (fkUsuario as num?)?.toInt();
@@ -652,11 +654,12 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
           if (fkPerfil != null) {
             final perfil = await supabase
                 .from('perfil')
-                .select('descricao_perfil, tipo_perfil')
+              .select('descricao_perfil, tipo_perfil, cor_banner')
                 .eq('id_perfil', fkPerfil)
                 .maybeSingle();
             descricaoPerfil = perfil?['descricao_perfil']?.toString();
             tipoPerfil = perfil?['tipo_perfil']?.toString();
+            corBanner = perfil?['cor_banner']?.toString();
           }
         }
 
@@ -668,6 +671,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
           }
           _idProfissional = idProfissional;
           _idPerfilProfissional = fkPerfil;
+          _corBanner = CorDominanteService.paraColor(corBanner);
           _metodosEntrega = _parseMetodosEntrega(metodoEntregaRaw);
           if (tipoPerfil != null && tipoPerfil.isNotEmpty) {
             _tipoPerfil = tipoPerfil;
@@ -2161,12 +2165,12 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
               left: 0,
               right: 0,
               bottom: 0,
-              child: Container(color: _bannerDark),
+              child: Container(color: _corBanner),
             ),
             Container(
               height: 140,
               width: double.infinity,
-              color: _bannerDark,
+              color: _corBanner,
               child: SafeArea(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
