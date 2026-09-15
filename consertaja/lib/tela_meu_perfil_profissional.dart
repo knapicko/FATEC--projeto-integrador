@@ -621,7 +621,6 @@ class _TelaMeuPerfilProfissionalPageState
                   _buildSectionTitle('Sua Atividade'),
                   _buildProfileItem(
                     label: 'Meus Endereços',
-                    imageAsset: 'assets/images/Endereço_Cinza.png',
                     fallbackIcon: Icons.location_on_outlined,
                     onTap: () {
                       Navigator.push(
@@ -637,7 +636,6 @@ class _TelaMeuPerfilProfissionalPageState
                   ),
                   _buildProfileItem(
                     label: 'Histórico de Pedidos',
-                    imageAsset: 'assets/images/CaixaPedido_Cinza.png',
                     fallbackIcon: Icons.inventory_2_outlined,
                   ),
                   _buildProfileItem(
@@ -704,7 +702,6 @@ class _TelaMeuPerfilProfissionalPageState
                   ),
                   _buildProfileItem(
                     label: 'Fale Conosco',
-                    imageAsset: 'assets/images/Suporte_Cinza.png',
                     fallbackIcon: Icons.support_agent_rounded,
                   ),
 
@@ -725,7 +722,6 @@ class _TelaMeuPerfilProfissionalPageState
                   ),
                   _buildProfileItem(
                     label: 'Configurações',
-                    imageAsset: 'assets/images/Configuracoes_Cinza.png',
                     fallbackIcon: Icons.settings_outlined,
                   ),
                   _buildProfileItem(
