@@ -394,8 +394,26 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
     String? imageAsset,
     IconData? fallbackIcon,
     bool useRoundedIcon = false,
+    bool semIcone = false,
     VoidCallback? onTap,
   }) {
+    if (semIcone) {
+      return InkWell(
+        onTap: onTap ?? () {},
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: _textGray,
+              fontSize: 16,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+        ),
+      );
+    }
+
     Widget leading;
 
     if (imageAsset != null) {
@@ -577,7 +595,6 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                         _buildSectionTitle('Sua Atividade'),
                         _buildProfileItem(
                           label: 'Meus Endereços',
-                          imageAsset: 'assets/images/Endereço_Cinza.png',
                           fallbackIcon: Icons.location_on_outlined,
                           onTap: () {
                             Navigator.push(
@@ -592,7 +609,6 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                         ),
                         _buildProfileItem(
                           label: 'Histórico de Pedidos',
-                          imageAsset: 'assets/images/CaixaPedido_Cinza.png',
                           fallbackIcon: Icons.inventory_2_outlined,
                         ),
                         _buildProfileItem(
@@ -627,7 +643,6 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                         ),
                         _buildProfileItem(
                           label: 'Fale Conosco',
-                          imageAsset: 'assets/images/Suporte_Cinza.png',
                           fallbackIcon: Icons.support_agent_rounded,
                         ),
                         _buildProfileItem(
@@ -649,12 +664,11 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
 
                         _buildProfileItem(
                           label: 'Configurações',
-                          imageAsset: 'assets/images/Configuracoes_Cinza.png',
                           fallbackIcon: Icons.settings_outlined,
                         ),
                         _buildProfileItem(
                           label: 'Termos de Uso',
-                          fallbackIcon: Icons.description_outlined,
+                          semIcone: true,
                           onTap: () {
                             Navigator.push(
                               context,
@@ -666,7 +680,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                         ),
                         _buildProfileItem(
                           label: 'Política de Privacidade',
-                          fallbackIcon: Icons.privacy_tip_outlined,
+                          semIcone: true,
                           onTap: () {
                             Navigator.push(
                               context,
