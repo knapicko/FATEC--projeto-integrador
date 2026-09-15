@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'services/cor_dominante_service.dart';
 import 'utils/iniciais.dart';
 
 class ModificarContaProfissionalPage extends StatefulWidget {
@@ -43,6 +44,7 @@ class _ModificarContaProfissionalPageState
   bool _enviandoFoto = false;
 
   String? _fotoPerfilUrl;
+  Color _corBanner = const Color(0xFF0A6E9D);
   String _nomeCompleto = 'Nome não encontrado';
   String? _anosExperienciaSelecionado;
   _TipoConta _tipoConta = _TipoConta.independente;
@@ -122,12 +124,15 @@ class _ModificarContaProfissionalPageState
         if (_idPerfil != null) {
           final perfil = await _supabase
               .from('perfil')
-              .select('descricao_perfil, tipo_perfil')
+              .select('descricao_perfil, tipo_perfil, cor_banner')
               .eq('id_perfil', _idPerfil!)
               .maybeSingle();
 
           _descricaoController.text =
               perfil?['descricao_perfil']?.toString().trim() ?? '';
+          _corBanner = CorDominanteService.paraColor(
+            perfil?['cor_banner']?.toString(),
+          );
 
           final tipoPerfilRaw = perfil?['tipo_perfil']?.toString();
           if (tipoPerfilRaw == 'Loja') {
@@ -158,6 +163,7 @@ class _ModificarContaProfissionalPageState
       await _supabase.from('perfil').upsert({
         'id_perfil': _idProfissional,
         'descricao_perfil': null,
+        'cor_banner': CorDominanteService.corPadrao,
       });
 
       await _supabase
@@ -218,12 +224,14 @@ class _ModificarContaProfissionalPageState
 
       setState(() => _enviandoFoto = true);
 
+      final Uint8List bytes = await pickedFile.readAsBytes();
+      final corBanner = CorDominanteService.extrair(bytes);
+
       final fileName =
           '${user.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
       const bucketName = 'Foto Perfil';
 
       if (kIsWeb) {
-        final Uint8List bytes = await pickedFile.readAsBytes();
         await _supabase.storage
             .from(bucketName)
             .uploadBinary(
@@ -257,9 +265,18 @@ class _ModificarContaProfissionalPageState
           .update({'foto_perfil_url': publicUrl})
           .eq('auth_id', user.id);
 
+      final idPerfil = await _obterOuCriarPerfil();
+      if (idPerfil != null) {
+        await _supabase
+            .from('perfil')
+            .update({'cor_banner': corBanner})
+            .eq('id_perfil', idPerfil);
+      }
+
       if (mounted) {
         setState(() {
           _fotoPerfilUrl = publicUrl;
+          _corBanner = CorDominanteService.paraColor(corBanner);
           _enviandoFoto = false;
         });
       }
@@ -396,19 +413,7 @@ class _ModificarContaProfissionalPageState
             SizedBox(
               width: double.infinity,
               height: 128,
-              child: Image.asset(
-                'assets/images/login_img.png',
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Color(0xFFDCE9F4), Color(0xFFC8DDEE)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                ),
-              ),
+              child: ColoredBox(color: _corBanner),
             ),
             Positioned(
               top: 10,
