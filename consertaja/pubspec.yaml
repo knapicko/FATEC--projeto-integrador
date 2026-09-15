@@ -27,6 +27,7 @@ dependencies:
   google_mlkit_text_recognition: ^0.17.1
   crypto: ^3.0.3
   image_picker: ^1.2.2
+  image: ^4.5.4
   record: ^5.2.1
   audioplayers: ^6.5.1
   flutter_map: ^8.3.1
