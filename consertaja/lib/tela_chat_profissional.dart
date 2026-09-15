@@ -99,7 +99,19 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     );
   }
 
-  /// Abre o menu de anexos: foto da galeria, câmera ou documento.
+  /// Botão da câmera (ao lado do input): abre a câmera direto,
+  /// sem passar pelo menu de anexos.
+  Future<void> _abrirCamera() async {
+    if (_enviando) return;
+    if (_idConversa == null || _idUsuarioLogado == null) {
+      _mostrarAviso('Aguarde o carregamento da conversa.');
+      return;
+    }
+    await _enviarImagem(ImageSource.camera);
+  }
+
+  /// Abre o menu de anexos: foto da galeria ou documento.
+  /// (A câmera tem botão próprio e abre direto.)
   Future<void> _abrirAnexos() async {
     if (_enviando) return;
     if (_idConversa == null || _idUsuarioLogado == null) {
@@ -137,14 +149,6 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
             ),
             ListTile(
               leading: const Icon(
-                Icons.photo_camera_outlined,
-                color: _primaryBlue,
-              ),
-              title: const Text('Tirar foto'),
-              onTap: () => Navigator.pop(sheetContext, _OpcaoAnexo.camera),
-            ),
-            ListTile(
-              leading: const Icon(
                 Icons.attach_file_rounded,
                 color: _primaryBlue,
               ),
@@ -161,8 +165,6 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     if (!mounted || opcao == null) return;
     if (opcao == _OpcaoAnexo.galeria) {
       await _enviarImagem(ImageSource.gallery);
-    } else if (opcao == _OpcaoAnexo.camera) {
-      await _enviarImagem(ImageSource.camera);
     } else {
       await _enviarDocumento();
     }
@@ -188,7 +190,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       );
     } catch (e) {
       debugPrint('Erro ao escolher foto: $e');
-      _mostrarAviso('Não foi possível abrir a galeria/câmera.');
+      _mostrarAviso('Não foi possível abrir a câmera/galeria.');
     }
   }
 
@@ -1950,7 +1952,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                       ),
                     ),
                     IconButton(
-                      onPressed: _abrirAnexos,
+                      onPressed: _abrirCamera,
                       icon: const Icon(
                         Icons.camera_alt_outlined,
                         color: Color(0xFF94A3B8),
@@ -2082,7 +2084,7 @@ class _Mensagem {
 }
 
 /// Opções do menu de anexos do chat.
-enum _OpcaoAnexo { galeria, camera, documento }
+enum _OpcaoAnexo { galeria, documento }
 
 /// Animação de 3 pontinhos brancos pulando indicando digitação do contato
 class _IndicadorDigitando extends StatefulWidget {
