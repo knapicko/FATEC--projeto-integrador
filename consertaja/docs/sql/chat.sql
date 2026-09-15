@@ -176,6 +176,10 @@ CREATE POLICY "usuarios_update_proprio_auth"
   USING (auth_id = auth.uid())
   WITH CHECK (auth_id = auth.uid());
 
+-- 6.1) Duração das mensagens de áudio (segundos)
+ALTER TABLE public.mensagens
+  ADD COLUMN IF NOT EXISTS duracao_audio integer;
+
 -- 7) Realtime da lista de conversas (novos chats / status)
 DO $$
 BEGIN

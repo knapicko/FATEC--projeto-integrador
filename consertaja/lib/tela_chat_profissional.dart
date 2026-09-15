@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart'
     show FilePicker, FileType, WindowsOptions;
 import 'package:file_selector/file_selector.dart'
@@ -12,6 +14,8 @@ import 'package:flutter/services.dart'
     show Clipboard, ClipboardData, MissingPluginException;
 import 'package:image_picker/image_picker.dart' show ImagePicker, ImageSource;
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart' show LaunchMode, launchUrl;
 
@@ -67,11 +71,50 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
   Timer? _timerDigitandoTimeout;
   Timer? _debounceDigitandoEnvio;
 
+  // ---- Gravação de áudio (estilo WhatsApp) ----
+  final _gravador = AudioRecorder();
+  bool _gravando = false;
+  int _segundosGravando = 0;
+  String _caminhoGravacao = '';
+  double _deslizeCancelarDx = 0;
+  Timer? _timerGravacao;
+  StreamSubscription? _subAmplitude;
+  final ValueNotifier<double> _nivelGravacao = ValueNotifier(0);
+
+  // ---- Reprodução de áudio ----
+  final _player = AudioPlayer();
+  Duration _posicaoTocando = Duration.zero;
+  Duration _duracaoTocando = Duration.zero;
+  bool _audioPausado = false;
+
   @override
   void initState() {
     super.initState();
     _mensagemController.addListener(_atualizarEstadoTexto);
+    _configurarPlayer();
     _inicializarChat();
+  }
+
+  /// Escutas do player para atualizar o balão de áudio em reprodução.
+  void _configurarPlayer() {
+    _player.onDurationChanged.listen((duracao) {
+      if (!mounted) return;
+      setState(() => _duracaoTocando = duracao);
+    });
+    _player.onPositionChanged.listen((posicao) {
+      if (!mounted) return;
+      setState(() => _posicaoTocando = posicao);
+    });
+    _player.onPlayerStateChanged.listen((estado) {
+      if (!mounted) return;
+      if (estado == PlayerState.completed) {
+        setState(() {
+          _idAudioTocando = null;
+          _audioPausado = false;
+          _posicaoTocando = Duration.zero;
+        });
+      }
+    });
   }
 
   void _atualizarEstadoTexto() {
@@ -97,13 +140,204 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     });
   }
 
-  void _onGravarAudio() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Gravação de áudio em breve.'),
-        duration: Duration(seconds: 2),
-      ),
+  /// Inicia a gravação de áudio (estilo WhatsApp: o input vira a barra de
+  /// gravação com cronômetro, cancelar e enviar).
+  Future<void> _onGravarAudio() async {
+    if (_gravando || _enviando) return;
+    if (_idConversa == null || _idUsuarioLogado == null) {
+      _mostrarAviso('Aguarde o carregamento da conversa.');
+      return;
+    }
+
+    try {
+      if (!await _gravador.hasPermission()) {
+        _mostrarAviso(
+          'Permita o acesso ao microfone para gravar mensagens de áudio.',
+        );
+        return;
+      }
+
+      final dir = await getTemporaryDirectory();
+      _caminhoGravacao =
+          '${dir.path}/audio_chat_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+      await _gravador.start(
+        const RecordConfig(encoder: AudioEncoder.aacLc),
+        path: _caminhoGravacao,
+      );
+
+      _segundosGravando = 0;
+      _subAmplitude?.cancel();
+      _subAmplitude = _gravador
+          .onAmplitudeChanged(const Duration(milliseconds: 150))
+          .listen((amplitude) {
+            // amplitude.current vai de 0 (silêncio) a -60dB (máximo).
+            final nivel = ((amplitude.current + 60) / 60).clamp(0.0, 1.0);
+            _nivelGravacao.value = nivel;
+          });
+
+      if (!mounted) return;
+      setState(() {
+        _gravando = true;
+      });
+      FocusScope.of(context).unfocus();
+      _timerGravacao = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        setState(() => _segundosGravando += 1);
+      });
+    } catch (e) {
+      debugPrint('Erro ao iniciar gravação: $e');
+      if (mounted) {
+        _mostrarAviso('Não foi possível iniciar a gravação de áudio.');
+      }
+    }
+  }
+
+  /// Para a gravação: [enviar] = true envia o áudio, false cancela e apaga.
+  Future<void> _pararGravacao({required bool enviar}) async {
+    if (!_gravando) return;
+
+    _timerGravacao?.cancel();
+    _timerGravacao = null;
+    await _subAmplitude?.cancel();
+    _subAmplitude = null;
+    _nivelGravacao.value = 0;
+
+    final caminho = _caminhoGravacao;
+    final segundos = _segundosGravando;
+    _caminhoGravacao = '';
+    if (mounted) setState(() => _gravando = false);
+
+    try {
+      await _gravador.stop();
+    } catch (e) {
+      debugPrint('Erro ao parar gravação: $e');
+    }
+
+    // Cancelamento (ou gravação curta demais): apaga o arquivo.
+    if (!enviar || segundos < 1) {
+      try {
+        final arquivo = File(caminho);
+        if (await arquivo.exists()) await arquivo.delete();
+      } catch (_) {}
+      return;
+    }
+
+    try {
+      final bytes = await File(caminho).readAsBytes();
+      try {
+        final arquivo = File(caminho);
+        if (await arquivo.exists()) await arquivo.delete();
+      } catch (_) {}
+      await _enviarAnexoAudio(bytes: bytes, duracaoSegundos: segundos);
+    } catch (e) {
+      debugPrint('Erro ao ler áudio gravado: $e');
+      _mostrarAviso('Não foi possível enviar o áudio. Tente de novo.');
+    }
+  }
+
+  /// Mostra a bolha otimista, faz o upload e replaceia pela mensagem real.
+  Future<void> _enviarAnexoAudio({
+    required Uint8List bytes,
+    required int duracaoSegundos,
+  }) async {
+    if (_idConversa == null || _idUsuarioLogado == null || _enviando) return;
+
+    final tempId = -DateTime.now().millisecondsSinceEpoch;
+    final otimista = _Mensagem(
+      id: tempId,
+      conteudo: '',
+      dataEnvio: DateTime.now(),
+      ehRemetente: true,
+      tipoMensagem: 'Audio',
+      lida: false,
+      enviando: true,
     );
+    setState(() {
+      _enviando = true;
+      _mensagens = [..._mensagens, otimista];
+    });
+    _scrollToBottom();
+
+    try {
+      final resultado = await ChatAnexosService.enviarAudio(
+        idConversa: _idConversa!,
+        idUsuarioLogado: _idUsuarioLogado!,
+        bytes: bytes,
+        duracaoSegundos: duracaoSegundos,
+      );
+      if (!mounted) return;
+
+      if (resultado.sucesso && resultado.linha != null) {
+        final real = _mensagemDoMap(resultado.linha!) ?? otimista;
+        setState(() {
+          _mensagens = _mensagens
+              .map((m) => m.id == tempId ? real : m)
+              .toList();
+        });
+        _scrollToBottom();
+      } else {
+        setState(() {
+          _mensagens = _mensagens.where((m) => m.id != tempId).toList();
+        });
+        _mostrarAviso(resultado.erro ?? 'Não foi possível enviar o áudio.');
+      }
+    } catch (e) {
+      debugPrint('Erro ao enviar áudio: $e');
+      if (!mounted) return;
+      setState(() {
+        _mensagens = _mensagens.where((m) => m.id != tempId).toList();
+      });
+      _mostrarAviso('Não foi possível enviar o áudio. Tente de novo.');
+    } finally {
+      if (mounted) setState(() => _enviando = false);
+    }
+  }
+
+  /// Formata segundos em `m:ss`.
+  static String _formatarDuracao(int segundos) {
+    final m = segundos ~/ 60;
+    final s = segundos % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
+  /// Toca ou pausa o áudio de uma mensagem no balão.
+  Future<void> _alternarTocarAudio(_Mensagem mensagem) async {
+    final url = (mensagem.urlArquivo?.trim().isNotEmpty ?? false)
+        ? mensagem.urlArquivo!.trim()
+        : mensagem.conteudo.trim();
+    if (url.isEmpty) {
+      _mostrarAviso('Áudio indisponível.');
+      return;
+    }
+
+    try {
+      if (_idAudioTocando == mensagem.id) {
+        // Mesma mensagem: pausa ou retoma de onde parou.
+        if (_audioPausado) {
+          await _player.resume();
+          if (mounted) setState(() => _audioPausado = false);
+        } else {
+          await _player.pause();
+          if (mounted) setState(() => _audioPausado = true);
+        }
+        return;
+      }
+
+      await _player.stop();
+      setState(() {
+        _idAudioTocando = mensagem.id;
+        _audioPausado = false;
+        _posicaoTocando = Duration.zero;
+      });
+      await _player.play(UrlSource(url));
+    } catch (e) {
+      debugPrint('Erro ao tocar áudio: $e');
+      if (mounted) {
+        setState(() => _idAudioTocando = null);
+        _mostrarAviso('Não foi possível reproduzir o áudio.');
+      }
+    }
   }
 
   /// Botão da câmera (ao lado do input): abre a câmera direto,
@@ -462,6 +696,11 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     _timerStatusContato = null;
     _timerDigitandoTimeout?.cancel();
     _debounceDigitandoEnvio?.cancel();
+    _timerGravacao?.cancel();
+    _subAmplitude?.cancel();
+    _nivelGravacao.dispose();
+    _gravador.dispose();
+    _player.dispose();
     if (_canalMensagens != null) {
       _supabase.removeChannel(_canalMensagens!);
       _canalMensagens = null;
@@ -713,19 +952,18 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
           final nova = _mensagemDoMap(row);
           if (nova == null) return;
           setState(() {
-            final temOtimista = _mensagens.any(
-              (m) =>
-                  m.id < 0 &&
-                  m.conteudo == nova.conteudo &&
-                  m.ehRemetente == nova.ehRemetente,
-            );
+            bool ehOtimista(_Mensagem m) =>
+                m.id < 0 &&
+                m.ehRemetente == nova.ehRemetente &&
+                (m.conteudo == nova.conteudo ||
+                    // Anexo em upload: o conteudo otimista ainda é vazio/nome,
+                    // casa pelo tipo enquanto `enviando` é verdadeiro.
+                    (m.enviando && m.tipoMensagem == nova.tipoMensagem));
+            final temOtimista = _mensagens.any(ehOtimista);
             if (temOtimista) {
               var trocou = false;
               _mensagens = _mensagens.map((m) {
-                if (!trocou &&
-                    m.id < 0 &&
-                    m.conteudo == nova.conteudo &&
-                    m.ehRemetente == nova.ehRemetente) {
+                if (!trocou && ehOtimista(m)) {
                   trocou = true;
                   return nova;
                 }
@@ -802,7 +1040,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       lida: msg['lida'] == true,
       urlArquivo: msg['url_arquivo']?.toString(),
       legenda: msg['legenda']?.toString(),
-      duracaoAudio: msg['duracao_audio']?.toString(),
+      duracaoAudio: (msg['duracao_audio'] as num?)?.toInt(),
     );
   }
 
@@ -849,8 +1087,18 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       final mesclada = [...lista];
       for (final o in otimistas) {
         final jaConfirmada = lista.any(
-          (m) => m.conteudo == o.conteudo && m.ehRemetente,
-        );
+              (m) => m.conteudo == o.conteudo && m.ehRemetente,
+            ) ||
+            // Anexo em upload: enquanto `enviando`, casa pelo tipo recente.
+            (o.enviando &&
+                lista.any(
+                  (m) =>
+                      m.ehRemetente &&
+                      m.tipoMensagem == o.tipoMensagem &&
+                      m.dataEnvio.isAfter(
+                        o.dataEnvio.subtract(const Duration(minutes: 2)),
+                      ),
+                ));
         if (!jaConfirmada) mesclada.add(o);
       }
       mesclada.sort((a, b) {
@@ -1495,9 +1743,12 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
 
   /// Bolha temporária exibida enquanto o anexo é enviado para o Supabase.
   Widget _buildBalaoEnviando(_Mensagem mensagem) {
-    final texto = mensagem.tipoMensagem.toLowerCase() == 'imagem'
+    final tipo = mensagem.tipoMensagem.toLowerCase();
+    final texto = tipo == 'imagem'
         ? 'Enviando foto...'
-        : 'Enviando arquivo...';
+        : tipo == 'audio'
+            ? 'Enviando áudio...'
+            : 'Enviando arquivo...';
 
     return Align(
       alignment: Alignment.centerRight,
@@ -1905,11 +2156,28 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
   }
 
   Widget _buildBalaoAudio(_Mensagem mensagem) {
-    final tocando = _idAudioTocando == mensagem.id;
+    final ativa = _idAudioTocando == mensagem.id;
+    final tocando = ativa && !_audioPausado;
     final barras = [10, 16, 22, 18, 14, 26, 30, 20, 14, 18, 24, 16, 12, 8, 14];
 
+    // Progresso da reprodução (0 a 1) para pintar as barras.
+    final totalMs = _duracaoTocando.inMilliseconds;
+    final progresso = ativa && totalMs > 0
+        ? (_posicaoTocando.inMilliseconds / totalMs).clamp(0.0, 1.0)
+        : 0.0;
+    final barrasTocadas = (progresso * barras.length).round();
+
+    final duracaoTotal = mensagem.duracaoAudio != null
+        ? _formatarDuracao(mensagem.duracaoAudio!)
+        : (ativa ? _formatarDuracao(_duracaoTocando.inSeconds) : '0:00');
+    final rotulo = ativa
+        ? '${_formatarDuracao(_posicaoTocando.inSeconds)} / $duracaoTotal'
+        : duracaoTotal;
+
     return Align(
-      alignment: Alignment.centerLeft,
+      alignment: mensagem.ehRemetente
+          ? Alignment.centerRight
+          : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 4),
         padding: const EdgeInsets.fromLTRB(10, 10, 12, 8),
@@ -1917,7 +2185,9 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
           maxWidth: MediaQuery.of(context).size.width * 0.76,
         ),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: mensagem.ehRemetente
+              ? _primaryBlue
+              : Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -1934,16 +2204,14 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _idAudioTocando = tocando ? null : mensagem.id;
-                    });
-                  },
+                  onTap: () => _alternarTocarAudio(mensagem),
                   child: Container(
                     width: 38,
                     height: 38,
-                    decoration: const BoxDecoration(
-                      color: _primaryBlue,
+                    decoration: BoxDecoration(
+                      color: mensagem.ehRemetente
+                          ? Colors.white.withValues(alpha: 0.22)
+                          : _primaryBlue,
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
@@ -1961,15 +2229,17 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: List.generate(barras.length, (index) {
-                        final ehParteTocada = index < 6;
+                        final ehParteTocada = index < barrasTocadas;
                         return Container(
                           margin: const EdgeInsets.symmetric(horizontal: 1.2),
                           width: 2.8,
                           height: barras[index].toDouble(),
                           decoration: BoxDecoration(
                             color: ehParteTocada
-                                ? _primaryBlue
-                                : const Color(0xFFD1D5DB),
+                                ? Colors.white
+                                : (mensagem.ehRemetente
+                                    ? Colors.white.withValues(alpha: 0.35)
+                                    : const Color(0xFFD1D5DB)),
                             borderRadius: BorderRadius.circular(2),
                           ),
                         );
@@ -1977,29 +2247,35 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                     ),
                     const SizedBox(height: 5),
                     Text(
-                      mensagem.duracaoAudio ?? '0:42 / 1:32',
-                      style: const TextStyle(
+                      rotulo,
+                      style: TextStyle(
                         fontSize: 11,
-                        color: Color(0xFF6B7280),
+                        color: mensagem.ehRemetente
+                            ? Colors.white.withValues(alpha: 0.85)
+                            : const Color(0xFF6B7280),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: 26,
-                  height: 26,
-                  child: _buildMiniAvatarContato(),
-                ),
+                if (!mensagem.ehRemetente) ...[
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: 26,
+                    height: 26,
+                    child: _buildMiniAvatarContato(),
+                  ),
+                ],
               ],
             ),
             const SizedBox(height: 2),
             Text(
               DateFormat('HH:mm').format(mensagem.dataEnvio),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
-                color: Color(0xFF9CA3AF),
+                color: mensagem.ehRemetente
+                    ? Colors.white.withValues(alpha: 0.7)
+                    : const Color(0xFF9CA3AF),
               ),
             ),
           ],
@@ -2009,6 +2285,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
   }
 
   Widget _buildBarraInput() {
+    if (_gravando) return _buildBarraGravando();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: const BoxDecoration(
@@ -2132,6 +2409,100 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     );
   }
 
+  /// Barra de gravação (estilo WhatsApp): lixeira = cancelar, botão azul =
+  /// parar e enviar. Mostra cronômetro e onda animada com o volume real.
+  Widget _buildBarraGravando() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          top: BorderSide(color: Color(0xFFEDF2F7), width: 1),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            IconButton(
+              onPressed: () => _pararGravacao(enviar: false),
+              tooltip: 'Cancelar gravação',
+              splashRadius: 22,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+              icon: const Icon(
+                Icons.delete_outline_rounded,
+                color: Color(0xFFEF4444),
+                size: 26,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              // Deslizar para a esquerda cancela a gravação (estilo WhatsApp).
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onHorizontalDragUpdate: (detalhes) =>
+                    _deslizeCancelarDx += detalhes.delta.dx,
+                onHorizontalDragEnd: (_) {
+                  final cancelou = _deslizeCancelarDx < -100;
+                  _deslizeCancelarDx = 0;
+                  if (cancelou) _pararGravacao(enviar: false);
+                },
+                child: Container(
+                  height: 48,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const _PulsoVermelho(),
+                      const SizedBox(width: 8),
+                      Text(
+                        _formatarDuracao(_segundosGravando),
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFEF4444),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _OndaGravacao(nivel: _nivelGravacao),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            GestureDetector(
+              onTap: () => _pararGravacao(enviar: true),
+              child: Container(
+                width: 48,
+                height: 48,
+                decoration: const BoxDecoration(
+                  color: _primaryBlue,
+                  shape: BoxShape.circle,
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.send_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _rolarParaFim({bool animado = true}) {
     if (_mensagens.isEmpty) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -2180,7 +2551,7 @@ class _Mensagem {
   final bool lida;
   final String? urlArquivo;
   final String? legenda;
-  final String? duracaoAudio;
+  final int? duracaoAudio;
 
   /// `true` enquanto o anexo ainda está subindo para o Supabase Storage.
   final bool enviando;
@@ -2201,6 +2572,84 @@ class _Mensagem {
 
 /// Opções do menu de anexos do chat.
 enum _OpcaoAnexo { galeria, documento }
+
+/// Bolinha vermelha pulsando indicando gravação em andamento.
+class _PulsoVermelho extends StatefulWidget {
+  const _PulsoVermelho();
+
+  @override
+  State<_PulsoVermelho> createState() => _PulsoVermelhoState();
+}
+
+class _PulsoVermelhoState extends State<_PulsoVermelho>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: Tween<double>(begin: 0.3, end: 1.0).animate(_controller),
+      child: Container(
+        width: 10,
+        height: 10,
+        decoration: const BoxDecoration(
+          color: Color(0xFFEF4444),
+          shape: BoxShape.circle,
+        ),
+      ),
+    );
+  }
+}
+
+/// Onda de barras que reage ao volume do microfone em tempo real.
+class _OndaGravacao extends StatelessWidget {
+  final ValueNotifier<double> nivel;
+
+  const _OndaGravacao({required this.nivel});
+
+  @override
+  Widget build(BuildContext context) {
+    const barras = [12, 20, 28, 22, 16, 24, 30, 20, 14, 26, 18, 22, 12];
+    return ValueListenableBuilder<double>(
+      valueListenable: nivel,
+      builder: (context, valor, _) {
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: List.generate(barras.length, (index) {
+            final fator = 0.35 + (valor * 0.65);
+            final base = barras[index] * fator;
+            // Onda senoidal para dar movimento mesmo com volume constante.
+            final onda =
+                1 + 0.25 * (index % 2 == 0 ? valor : -valor * 0.5);
+            return Container(
+              width: 3,
+              height: (base * onda).clamp(4.0, 30.0),
+              decoration: BoxDecoration(
+                color: const Color(0xFF94A3B8),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            );
+          }),
+        );
+      },
+    );
+  }
+}
 
 /// Animação de 3 pontinhos brancos pulando indicando digitação do contato
 class _IndicadorDigitando extends StatefulWidget {
