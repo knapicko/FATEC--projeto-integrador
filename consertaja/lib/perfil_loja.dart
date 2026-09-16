@@ -138,23 +138,20 @@ class _PerfilLojaState extends State<PerfilLoja> {
               final fotoDono =
                   usuarioDono?['foto_perfil_url']?.toString().trim() ?? '';
 
-              // Ofícios do proprietário (todos)
-              final assOficios = await supabase
-                  .from('ass_oficio_profissional')
+              final List<OficioInfo> oficiosDono = [];
+                if (_idGrupoEmpresa != null) {
+                final assOficios = await supabase
+                  .from('ass_oficio_grupo_empresa')
                   .select('fk_oficio')
-                  .eq('fk_profissional', idProfDono);
-
-              final idsOficios = assOficios
+                  .eq('fk_grupo_empresa', _idGrupoEmpresa!);
+                final idsOficios = assOficios
                   .map((e) => e['fk_oficio'])
                   .whereType<num>()
                   .map((e) => e.toInt())
                   .toList();
-
-              final List<OficioInfo> oficiosDono = [];
-              if (idsOficios.isNotEmpty) {
                 final oficiosData = await supabase
                     .from('oficios')
-                    .select('funcao, cor')
+                  .select('funcao, categoria, cor')
                     .inFilter('id_oficio', idsOficios);
                 for (final row in oficiosData) {
                   final info = OficioInfo.fromMap(row);
@@ -214,23 +211,20 @@ class _PerfilLojaState extends State<PerfilLoja> {
                 u?['nome']?.toString().trim() ?? 'Profissional da Equipe';
             final foto = u?['foto_perfil_url']?.toString().trim() ?? '';
 
-            // Ofícios do membro (todos)
-            final assOficios = await supabase
-                .from('ass_oficio_profissional')
+            final List<OficioInfo> oficiosMembro = [];
+            if (_idGrupoEmpresa != null) {
+              final assOficios = await supabase
+                .from('ass_oficio_grupo_empresa')
                 .select('fk_oficio')
-                .eq('fk_profissional', idProf);
-
-            final idsOficios = assOficios
+                .eq('fk_grupo_empresa', _idGrupoEmpresa!);
+              final idsOficios = assOficios
                 .map((e) => e['fk_oficio'])
                 .whereType<num>()
                 .map((e) => e.toInt())
                 .toList();
-
-            final List<OficioInfo> oficiosMembro = [];
-            if (idsOficios.isNotEmpty) {
               final oficiosData = await supabase
                   .from('oficios')
-                  .select('funcao, cor')
+                .select('funcao, categoria, cor')
                   .inFilter('id_oficio', idsOficios);
               for (final row in oficiosData) {
                 final info = OficioInfo.fromMap(row);
