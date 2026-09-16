@@ -1,9 +1,11 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
+import 'services/cor_dominante_service.dart';
 import 'services/validacao_telefone.dart';
 import 'services/formatacao_data.dart';
 import 'utils/iniciais.dart';
@@ -253,47 +255,79 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
       setState(() => _isUploading = true);
 
       final user = _supabase.auth.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        if (mounted) setState(() => _isUploading = false);
+        return;
+      }
 
-      final fileName =
-          '${user.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final bucketName = 'Foto Perfil';
-
-      // Fazer upload para o Supabase Storage (compatível com Web e Mobile)
+      // Lê os bytes uma única vez: usa no upload (web) e para extrair
+      // a cor dominante (toda troca de foto recalcula o banner).
+      Uint8List bytes;
       try {
-        if (kIsWeb) {
-          final Uint8List bytes = await pickedFile.readAsBytes();
-          await _supabase.storage
-              .from(bucketName)
-              .uploadBinary(
-                fileName,
-                bytes,
-                fileOptions: const FileOptions(
-                  contentType: 'image/jpeg',
-                  upsert: true,
-                ),
-              );
-        } else {
-          final file = File(pickedFile.path);
-          await _supabase.storage
-              .from(bucketName)
-              .upload(
-                fileName,
-                file,
-                fileOptions: const FileOptions(
-                  contentType: 'image/jpeg',
-                  upsert: true,
-                ),
-              );
-        }
-      } catch (bucketError) {
-        // Se o bucket não existir, apenas ignora o erro de upload
+        bytes = await pickedFile.readAsBytes();
+      } catch (_) {
+        bytes = Uint8List(0);
+      }
+      if (bytes.isEmpty) {
         if (mounted) {
           setState(() => _isUploading = false);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            const SnackBar(content: Text('Não foi possível ler a imagem.')),
+          );
+        }
+        return;
+      }
+
+      final fileName =
+          '${user.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      const bucketNovo = 'foto-perfil';
+      const bucketLegado = 'Foto Perfil';
+
+      String? publicUrl;
+      Object? ultimoErro;
+
+      // Fazer upload para o Supabase Storage (compatível Web e Mobile).
+      // Tenta o bucket novo (sem espaço) e cai para o legado.
+      for (final bucketName in [bucketNovo, bucketLegado]) {
+        try {
+          if (kIsWeb) {
+            await _supabase.storage.from(bucketName).uploadBinary(
+                  fileName,
+                  bytes,
+                  fileOptions: const FileOptions(
+                    contentType: 'image/jpeg',
+                    upsert: true,
+                  ),
+                );
+          } else {
+            final file = File(pickedFile.path);
+            await _supabase.storage.from(bucketName).upload(
+                  fileName,
+                  file,
+                  fileOptions: const FileOptions(
+                    contentType: 'image/jpeg',
+                    upsert: true,
+                  ),
+                );
+          }
+          publicUrl =
+              _supabase.storage.from(bucketName).getPublicUrl(fileName);
+          ultimoErro = null;
+          break;
+        } catch (bucketError) {
+          ultimoErro = bucketError;
+          debugPrint('Upload falhou no bucket "$bucketName": $bucketError');
+        }
+      }
+
+      if (publicUrl == null) {
+        if (mounted) {
+          setState(() => _isUploading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
               content: Text(
-                'Ocorreu um erro ao fazer upload da foto. Contate o suporte.',
+                'Erro ao fazer upload da foto ($ultimoErro). '
+                'Verifique o bucket "foto-perfil".',
               ),
             ),
           );
@@ -301,16 +335,14 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
         return;
       }
 
-      // Obter URL pública
-      final publicUrl = _supabase.storage
-          .from(bucketName)
-          .getPublicUrl(fileName);
-
       // Atualizar no banco
       await _supabase
           .from('usuarios')
           .update({'foto_perfil_url': publicUrl})
           .eq('auth_id', user.id);
+
+      // Profissional: toda troca de foto recalcula o cor_banner.
+      await _atualizarCorBannerDoProfissional(bytes);
 
       if (mounted) {
         setState(() {
@@ -331,6 +363,36 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
     }
   }
 
+  /// Se o usuário logado for profissional, recalcula o `cor_banner`
+  /// a partir dos [bytes] da nova foto. Sem perfil: não faz nada.
+  Future<void> _atualizarCorBannerDoProfissional(Uint8List bytes) async {
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) return;
+      final usuario = await _supabase
+          .from('usuarios')
+          .select('id_usuario')
+          .eq('auth_id', user.id)
+          .maybeSingle();
+      final idUsuario = (usuario?['id_usuario'] as num?)?.toInt();
+      if (idUsuario == null) return;
+      final dadosProf = await _supabase
+          .from('dados_profissionais')
+          .select('fk_perfil')
+          .eq('fk_usuario', idUsuario)
+          .maybeSingle();
+      final idPerfil = (dadosProf?['fk_perfil'] as num?)?.toInt();
+      if (idPerfil == null) return;
+      await CorDominanteService.atualizarCorBanner(
+        supabase: _supabase,
+        idPerfil: idPerfil,
+        fotoBytes: bytes,
+      );
+    } catch (e) {
+      debugPrint('Falha ao atualizar cor_banner: $e');
+    }
+  }
+
   Future<void> _removerFoto() async {
     try {
       final user = _supabase.auth.currentUser;
@@ -340,6 +402,31 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
           .from('usuarios')
           .update({'foto_perfil_url': null})
           .eq('auth_id', user.id);
+
+      // Sem foto -> volta para o default 0xFF0FB3FF.
+      try {
+        final usuario = await _supabase
+            .from('usuarios')
+            .select('id_usuario')
+            .eq('auth_id', user.id)
+            .maybeSingle();
+        final idUsuario = (usuario?['id_usuario'] as num?)?.toInt();
+        if (idUsuario != null) {
+          final dadosProf = await _supabase
+              .from('dados_profissionais')
+              .select('fk_perfil')
+              .eq('fk_usuario', idUsuario)
+              .maybeSingle();
+          final idPerfil = (dadosProf?['fk_perfil'] as num?)?.toInt();
+          if (idPerfil != null) {
+            await _supabase.from('perfil').update(
+              {'cor_banner': CorDominanteService.corPadrao},
+            ).eq('id_perfil', idPerfil);
+          }
+        }
+      } catch (e) {
+        debugPrint('Falha ao resetar cor_banner: $e');
+      }
 
       if (mounted) {
         setState(() => _fotoPerfilUrl = null);

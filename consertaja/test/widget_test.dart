@@ -1,30 +1,59 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
+import 'dart:typed_data';
 
+import 'package:consertaja/services/cor_dominante_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 
-import 'package:consertaja/main.dart';
+Uint8List _pngCorSolida(int r, int g, int b) {
+  final imagem = img.Image(width: 32, height: 32);
+  for (int y = 0; y < imagem.height; y++) {
+    for (int x = 0; x < imagem.width; x++) {
+      imagem.setPixelRgb(x, y, r, g, b);
+    }
+  }
+  return Uint8List.fromList(img.encodePng(imagem));
+}
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  group('CorDominanteService', () {
+    test('extrair retorna a cor dominante da imagem', () {
+      final bytes = _pngCorSolida(255, 0, 0);
+      expect(CorDominanteService.extrair(bytes), '0xFFE00000');
+    });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    test('extrair com bytes invalidos retorna o default', () {
+      expect(
+        CorDominanteService.extrair(Uint8List(0)),
+        CorDominanteService.corPadrao,
+      );
+      expect(
+        CorDominanteService.extrair(Uint8List.fromList([1, 2, 3])),
+        CorDominanteService.corPadrao,
+      );
+    });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    test('extrairDaUrl nula/vazia retorna o default', () async {
+      expect(await CorDominanteService.extrairDaUrl(null), '0xFF0FB3FF');
+      expect(await CorDominanteService.extrairDaUrl(''), '0xFF0FB3FF');
+      expect(await CorDominanteService.extrairDaUrl('null'), '0xFF0FB3FF');
+    });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    test('corPadrao e 0xFF0FB3FF', () {
+      expect(CorDominanteService.corPadrao, '0xFF0FB3FF');
+    });
+
+    test('paraColor converte e usa default 0xFF0FB3FF', () {
+      expect(
+        CorDominanteService.paraColor('0xFFFF0000'),
+        const Color(0xFFFF0000),
+      );
+      expect(CorDominanteService.paraColor(null), const Color(0xFF0FB3FF));
+      expect(
+        CorDominanteService.paraColor('invalida'),
+        const Color(0xFF0FB3FF),
+      );
+    });
   });
 }
+
