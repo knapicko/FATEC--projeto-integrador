@@ -6,9 +6,12 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'configuracoes_empresa.dart';
+import 'adicionar_servico_profissional.dart';
 import 'modificar_conta_profissional.dart';
+import 'models/servico_profissional.dart';
 import 'services/consulta_cadastro_service.dart';
 import 'services/profissional_equipe_service.dart';
+import 'services/servicos_profissional_service.dart';
 import 'services/validacao_documento.dart';
 import 'utils/cor_oficio.dart';
 import 'widgets/tag_oficio.dart';
@@ -99,6 +102,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
   String? _fotoPerfilProprietario;
   String? _nomeProprietario;
   List<OficioInfo> _oficiosEquipe = [];
+  List<ServicoProfissional> _servicosEmpresa = [];
 
   bool _carregandoEmpresa = false;
   bool _enviandoFotoEmpresa = false;
@@ -498,58 +502,44 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
         }
       }
 
-      // 4. Carregar Ofícios herdados dos profissionais membros da equipe (sem repetições)
+      // 4. Carregar somente os ofícios definidos para a empresa.
       List<OficioInfo> oficiosEquipe = [];
-      final Set<int> idsProfissionais = {};
-      if (_idProfissional != null) {
-        idsProfissionais.add(_idProfissional!);
-      }
-      for (final m in lista) {
-        if (!m.isPendente && m.idProfissional != null) {
-          idsProfissionais.add(m.idProfissional!);
-        }
-      }
-
-      if (idsProfissionais.isNotEmpty) {
+      if (_idGrupoEmpresa != null) {
         try {
-          final assOficios = await supabase
-              .from('ass_oficio_profissional')
+          final idsOficios = await supabase
+              .from('ass_oficio_grupo_empresa')
               .select('fk_oficio')
-              .inFilter('fk_profissional', idsProfissionais.toList());
-
-          final idsOficios = assOficios
-              .map((e) => e['fk_oficio'])
-              .whereType<num>()
-              .map((e) => e.toInt())
-              .toSet()
+              .eq('fk_grupo_empresa', _idGrupoEmpresa!);
+          final ids = idsOficios
+              .map((row) => (row['fk_oficio'] as num?)?.toInt())
+              .whereType<int>()
               .toList();
-
-          if (idsOficios.isNotEmpty) {
+          if (ids.isNotEmpty) {
             final oficiosData = await supabase
                 .from('oficios')
-                .select('funcao, cor')
-                .inFilter('id_oficio', idsOficios);
-
-            final Set<String> funcoesVistas = {};
-            for (final row in oficiosData) {
-              final info = OficioInfo.fromMap(row);
-              final chave = info.funcao.trim().toLowerCase();
-              if (info.funcao.trim().isNotEmpty &&
-                  !funcoesVistas.contains(chave)) {
-                funcoesVistas.add(chave);
-                oficiosEquipe.add(info);
-              }
-            }
+                .select('funcao, categoria, cor')
+                .inFilter('id_oficio', ids);
+            oficiosEquipe = oficiosData
+                .map<OficioInfo>(OficioInfo.fromMap)
+                .where((oficio) => oficio.funcao.isNotEmpty)
+                .toList();
           }
         } catch (e) {
-          debugPrint('Erro ao carregar ofícios da equipe: $e');
+          debugPrint('Erro ao carregar ofícios da empresa: $e');
         }
       }
+
+      final servicosEmpresa = _idGrupoEmpresa == null
+          ? <ServicoProfissional>[]
+          : await ServicosProfissionalService.buscarServicosEmpresa(
+              _idGrupoEmpresa!,
+            );
 
       if (mounted) {
         setState(() {
           _membros = lista;
           _oficiosEquipe = oficiosEquipe;
+          _servicosEmpresa = servicosEmpresa;
         });
       }
     } catch (e) {
@@ -2082,6 +2072,8 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
 
             // Lista de Cards dos Membros
             ..._membros.map((membro) => _buildMembroCard(membro)),
+            const SizedBox(height: 24),
+            _buildServicosDisponibilizados(),
             const SizedBox(height: 30),
           ],
         ),
@@ -2155,6 +2147,258 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
           // Ações à direita
           _buildAcoesMembro(membro),
         ],
+      ),
+    );
+  }
+
+  Widget _buildServicosDisponibilizados() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Serviços Disponibilizados',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: _titleDark,
+                ),
+              ),
+            ),
+            TextButton.icon(
+              onPressed: _idGrupoEmpresa == null
+                  ? null
+                  : () async {
+                      final atualizou = await Navigator.push<bool>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AdicionarServicoProfissionalPage(
+                            idGrupoEmpresaInicial: _idGrupoEmpresa,
+                            associacaoEmpresaInicial: true,
+                            abrirFormularioInicial: true,
+                          ),
+                        ),
+                      );
+                      if (atualizou == true) _carregarMembrosEConvites();
+                    },
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: const Text('Adicionar serviço'),
+              style: TextButton.styleFrom(
+                foregroundColor: _primaryBlue,
+                padding: EdgeInsets.zero,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (_servicosEmpresa.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _cardBorder),
+            ),
+            child: const Text(
+              'Esta empresa ainda não possui serviços',
+              style: TextStyle(fontSize: 14, color: _textMuted),
+            ),
+          )
+        else
+          ..._servicosEmpresa.map(_buildServicoEmpresaCard),
+      ],
+    );
+  }
+
+  Widget _buildServicoEmpresaCard(ServicoProfissional servico) {
+    final cor = _corFromHex(servico.cor);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFCFBFA),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _cardBorder),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: servico.imagemUrl != null && servico.imagemUrl!.isNotEmpty
+                ? Image.network(
+                    servico.imagemUrl!,
+                    width: 78,
+                    height: 78,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => _buildImagemServicoFallback(),
+                  )
+                : _buildImagemServicoFallback(),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    _buildTagServico('#$_tagEmpresa', _corTagEmpresa),
+                    _buildTagServico(
+                      (servico.funcao ?? 'GERAL').toUpperCase(),
+                      cor,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        servico.titulo,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: Color(0xFF202124),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Editar serviço',
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 30,
+                        minHeight: 30,
+                      ),
+                      icon: const Icon(
+                        Icons.edit_outlined,
+                        color: _primaryBlue,
+                        size: 19,
+                      ),
+                      onPressed: () => _editarServicoEmpresa(servico),
+                    ),
+                    IconButton(
+                      tooltip: 'Excluir serviço',
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 30,
+                        minHeight: 30,
+                      ),
+                      icon: const Icon(
+                        Icons.delete_outline_rounded,
+                        color: Colors.redAccent,
+                        size: 20,
+                      ),
+                      onPressed: () => _excluirServicoEmpresa(servico),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  servico.descricao,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    height: 1.35,
+                    color: Color(0xFF4B4F58),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _editarServicoEmpresa(ServicoProfissional servico) async {
+    final atualizou = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AdicionarServicoProfissionalPage(
+          servicoParaEditar: servico,
+          idGrupoEmpresaInicial: _idGrupoEmpresa,
+        ),
+      ),
+    );
+    if (atualizou == true) _carregarMembrosEConvites();
+  }
+
+  Future<void> _excluirServicoEmpresa(ServicoProfissional servico) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Excluir serviço?'),
+        content: Text('Deseja excluir "${servico.titulo}" da empresa?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true) return;
+
+    final excluiu = await ServicosProfissionalService.desativarServico(
+      servico.id,
+    );
+    if (!mounted) return;
+    if (excluiu) {
+      await _carregarMembrosEConvites();
+      if (!mounted) return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          excluiu ? 'Serviço excluído da empresa.' : 'Não foi possível excluir o serviço.',
+        ),
+        backgroundColor: excluiu ? const Color(0xFF10B981) : Colors.redAccent,
+      ),
+    );
+  }
+
+  Widget _buildTagServico(String texto, Color cor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: cor,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        texto,
+        style: TextStyle(
+          color: _corContraste(cor),
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImagemServicoFallback() {
+    return Container(
+      width: 78,
+      height: 78,
+      color: const Color(0xFFE9E7E4),
+      child: const Icon(
+        Icons.home_repair_service_rounded,
+        color: Color(0xFF64748B),
+        size: 30,
       ),
     );
   }
