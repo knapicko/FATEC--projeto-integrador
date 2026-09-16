@@ -28,11 +28,17 @@ class AdicionarServicoProfissionalPage extends StatefulWidget {
   /// Quando fornecido (via catálogo), pré-preenche o formulário com os
   /// dados do serviço padrão.
   final ServicoCatalogo? sugestao;
+  final int? idGrupoEmpresaInicial;
+  final bool associacaoEmpresaInicial;
+  final bool abrirFormularioInicial;
 
   const AdicionarServicoProfissionalPage({
     super.key,
     this.servicoParaEditar,
     this.sugestao,
+    this.idGrupoEmpresaInicial,
+    this.associacaoEmpresaInicial = false,
+    this.abrirFormularioInicial = false,
   });
 
   @override
@@ -55,21 +61,35 @@ class _AdicionarServicoProfissionalPageState
   List<ServicoProfissional> _servicosAtivos = [];
   List<ServicoCatalogo> _catalogo = [];
   bool _carregando = true;
+  bool _ehLoja = false;
+  int? _idGrupoEmpresa;
 
   @override
   void initState() {
     super.initState();
-    // Se recebeu serviço para editar ou sugestão do catálogo,
-    // abre o formulário automaticamente
-    if (widget.servicoParaEditar != null || widget.sugestao != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+    _carregar();
+    _carregarContextoAssociacao();
+    if (widget.abrirFormularioInicial ||
+        widget.servicoParaEditar != null ||
+        widget.sugestao != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await _carregarContextoAssociacao();
+        if (!mounted) return;
         _abrirFormulario(
           servicoParaEditar: widget.servicoParaEditar,
           sugestao: widget.sugestao,
         );
       });
     }
-    _carregar();
+  }
+
+  Future<void> _carregarContextoAssociacao() async {
+    final contexto = await ServicosProfissionalService.buscarContextoAssociacao();
+    if (!mounted || contexto == null) return;
+    setState(() {
+      _ehLoja = contexto.ehLoja;
+      _idGrupoEmpresa = widget.idGrupoEmpresaInicial ?? contexto.idGrupoEmpresa;
+    });
   }
 
   Future<void> _carregar() async {
@@ -99,6 +119,9 @@ class _AdicionarServicoProfissionalPageState
       builder: (ctx) => _FormularioServicoSheet(
         servicoParaEditar: servicoParaEditar,
         sugestao: sugestao,
+        ehLoja: _ehLoja,
+        idGrupoEmpresa: widget.idGrupoEmpresaInicial ?? _idGrupoEmpresa,
+        associacaoEmpresaInicial: widget.associacaoEmpresaInicial,
       ),
     );
     if (mudou == true) {
@@ -642,8 +665,17 @@ class _AdicionarServicoProfissionalPageState
 class _FormularioServicoSheet extends StatefulWidget {
   final ServicoProfissional? servicoParaEditar;
   final ServicoCatalogo? sugestao;
+  final bool ehLoja;
+  final int? idGrupoEmpresa;
+  final bool associacaoEmpresaInicial;
 
-  const _FormularioServicoSheet({this.servicoParaEditar, this.sugestao});
+  const _FormularioServicoSheet({
+    this.servicoParaEditar,
+    this.sugestao,
+    required this.ehLoja,
+    this.idGrupoEmpresa,
+    this.associacaoEmpresaInicial = false,
+  });
 
   @override
   State<_FormularioServicoSheet> createState() =>
@@ -666,12 +698,14 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
   String _categoriaCor = '#1D2430';
   int? _fkOficioSelecionado;
   bool _salvando = false;
+  late bool _associacaoEmpresa;
+  int? _fkGrupoEmpresa;
 
   /// Controla se o usuário tentou salvar (para mostrar erro na categoria).
   bool _tentouSalvar = false;
 
   /// Lista de ofícios (categorias) carregada do banco.
-  List<({int id, String nome, String cor})> _oficios = [];
+  List<({int id, String funcao, String cor})> _oficios = [];
   bool _carregandoOficios = true;
 
   /// URL já salva no banco (edição)
@@ -687,9 +721,8 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
     super.initState();
     final s = widget.servicoParaEditar;
     final sug = widget.sugestao;
-
-    // Carrega ofícios para o seletor de categorias
-    _carregarOficios();
+    _associacaoEmpresa = widget.associacaoEmpresaInicial;
+    _fkGrupoEmpresa = widget.idGrupoEmpresa;
 
     if (s != null) {
       // Modo edição: pré-preenche com dados existentes
@@ -700,6 +733,8 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
       _categoriaCor = s.cor ?? '#1D2430';
       _fkOficioSelecionado = s.fkOficio;
       _imagemUrlExistente = s.imagemUrl;
+      _fkGrupoEmpresa = s.fkGrupoEmpresa;
+      _associacaoEmpresa = s.fkGrupoEmpresa != null;
     } else if (sug != null) {
       // Modo sugestão: pré-preenche com dados do catálogo
       _tituloCtrl.text = sug.titulo;
@@ -709,10 +744,15 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
       _fkOficioSelecionado = sug.fkOficio;
       _imagemUrlExistente = sug.imagemUrl;
     }
+    // Carrega as funções da associação inicialmente selecionada.
+    _carregarOficios();
   }
 
   Future<void> _carregarOficios() async {
-    final oficios = await ServicosProfissionalService.buscarOficios();
+    final oficios = await ServicosProfissionalService.buscarFuncoesParaServico(
+      associacaoEmpresa: _associacaoEmpresa,
+      idGrupoEmpresa: _fkGrupoEmpresa,
+    );
     if (mounted) {
       setState(() {
         _oficios = oficios;
@@ -804,7 +844,20 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
       setState(() => _tentouSalvar = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Selecione uma categoria'),
+          content: Text('Selecione uma função'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    final oficioPermitido = _oficios.any(
+      (oficio) => oficio.id == _fkOficioSelecionado,
+    );
+    if (!oficioPermitido) {
+      setState(() => _tentouSalvar = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Selecione um ofício associado ao seu perfil.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -827,6 +880,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
         fkOficio: _fkOficioSelecionado ?? 0,
         imagemUrl: _imagemUrlExistente,
         imagemLocal: _imagemLocalNova,
+        fkGrupoEmpresa: _associacaoEmpresa ? _fkGrupoEmpresa : null,
       );
     } else {
       final r = await ServicosProfissionalService.criarServico(
@@ -836,6 +890,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
         fkOficio: _fkOficioSelecionado ?? 0,
         imagemUrl: _imagemUrlExistente,
         imagemLocal: _imagemLocalNova,
+        fkGrupoEmpresa: _associacaoEmpresa ? _fkGrupoEmpresa : null,
       );
       resultado = (sucesso: r.sucesso, erro: r.erro);
     }
@@ -865,6 +920,84 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
     }
   }
 
+  Future<void> _selecionarAssociacao() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      backgroundColor: Colors.white,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'Associação do serviço',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: _textDark,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              leading: const CircleAvatar(
+                backgroundColor: Color(0xFFEAF9FF),
+                child: Icon(Icons.person_outline_rounded, color: _primaryBlue),
+              ),
+              title: const Text('Conta profissional'),
+              subtitle: const Text('O serviço ficará visível no seu perfil individual.'),
+              trailing: !_associacaoEmpresa
+                  ? const Icon(Icons.check_circle, color: _primaryBlue)
+                  : null,
+              onTap: () {
+                setState(() {
+                  _associacaoEmpresa = false;
+                });
+                _carregarOficios();
+                Navigator.of(ctx).pop();
+              },
+            ),
+            ListTile(
+              leading: const CircleAvatar(
+                backgroundColor: Color(0xFFEAF9FF),
+                child: Icon(Icons.business_outlined, color: _primaryBlue),
+              ),
+              title: const Text('Empresa'),
+              subtitle: Text(
+                _fkGrupoEmpresa == null
+                    ? 'Nenhuma empresa está associada a este perfil.'
+                    : 'O serviço ficará na conta da empresa vinculada ao seu CNPJ.',
+              ),
+              trailing: _associacaoEmpresa
+                  ? const Icon(Icons.check_circle, color: _primaryBlue)
+                  : null,
+              enabled: _fkGrupoEmpresa != null,
+              onTap: _fkGrupoEmpresa == null
+                  ? null
+                  : () {
+                      setState(() => _associacaoEmpresa = true);
+                      _carregarOficios();
+                      Navigator.of(ctx).pop();
+                    },
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _selecionarCategoria() {
     showModalBottomSheet(
       context: context,
@@ -885,7 +1018,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
           ),
           const SizedBox(height: 12),
           const Text(
-            'Selecionar Categoria',
+            'Selecionar Função',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
@@ -904,7 +1037,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
                     itemCount: _oficios.length,
                     itemBuilder: (ctx2, i) {
                       final cat = _oficios[i];
-                      final sel = cat.nome == _categoriaSelecionada;
+                      final sel = cat.funcao == _categoriaSelecionada;
                       final cor = _hexToColor(cat.cor);
                       return ListTile(
                         leading: CircleAvatar(
@@ -913,7 +1046,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
                           child: Icon(Icons.circle, color: cor, size: 12),
                         ),
                         title: Text(
-                          cat.nome,
+                          cat.funcao,
                           style: TextStyle(
                             fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
                             color: sel ? cor : const Color(0xFF1D2A39),
@@ -924,7 +1057,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
                             : null,
                         onTap: () {
                           setState(() {
-                            _categoriaSelecionada = cat.nome;
+                            _categoriaSelecionada = cat.funcao;
                             _categoriaCor = cat.cor;
                             _fkOficioSelecionado = cat.id;
                           });
@@ -1024,7 +1157,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
                   const SizedBox(height: 16),
 
                   // ── Categoria ────────────────────────────────────────
-                  _buildLabel('Categoria *'),
+                  _buildLabel('Função *'),
                   const SizedBox(height: 6),
                   GestureDetector(
                     onTap: _selecionarCategoria,
@@ -1052,7 +1185,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
                           Expanded(
                             child: Text(
                               _categoriaSelecionada.isEmpty
-                                  ? 'Selecione uma categoria'
+                                  ? 'Selecione uma função'
                                   : _categoriaSelecionada,
                               style: TextStyle(
                                 color: _categoriaSelecionada.isEmpty
@@ -1075,7 +1208,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
                     const Padding(
                       padding: EdgeInsets.only(top: 6, left: 4),
                       child: Text(
-                        'Selecione uma categoria',
+                        'Selecione uma função',
                         style: TextStyle(color: Colors.red, fontSize: 12),
                       ),
                     ),
@@ -1096,6 +1229,53 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
                         : null,
                   ),
                   const SizedBox(height: 16),
+
+                  if (widget.ehLoja || widget.associacaoEmpresaInicial) ...[
+                    _buildLabel('Associação *'),
+                    const SizedBox(height: 6),
+                    GestureDetector(
+                      onTap: _selecionarAssociacao,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 14,
+                        ),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: _border),
+                          borderRadius: BorderRadius.circular(12),
+                            color: Colors.white,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              _associacaoEmpresa
+                                  ? Icons.business_outlined
+                                  : Icons.person_outline_rounded,
+                              color: _primaryBlue,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                _associacaoEmpresa
+                                    ? 'Empresa'
+                                    : 'Conta profissional',
+                                style: const TextStyle(
+                                  color: _textDark,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            const Icon(
+                              Icons.keyboard_arrow_down_rounded,
+                              color: _textMuted,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
 
                   // ── Valor mínimo ─────────────────────────────────────
                   _buildLabel('Valor mínimo (R\$) *'),
