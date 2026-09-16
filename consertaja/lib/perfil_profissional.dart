@@ -130,6 +130,8 @@ class PerfilProfissionalPage extends StatefulWidget {
   final String profissao;
   final double avaliacao;
   final int totalAvaliacoes;
+  final Color? corBannerInicial;
+  final String? corBannerHexInicial;
 
   const PerfilProfissionalPage({
     super.key,
@@ -138,6 +140,8 @@ class PerfilProfissionalPage extends StatefulWidget {
     this.profissao = 'Profissional independente',
     this.avaliacao = 4.9,
     this.totalAvaliacoes = 120,
+    this.corBannerInicial,
+    this.corBannerHexInicial,
   });
 
   @override
@@ -145,6 +149,10 @@ class PerfilProfissionalPage extends StatefulWidget {
 }
 
 class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
+  // Cache em memória da cor do banner por profissional (evita "piscar"
+  // do azul padrão -> cor real ao reabrir o mesmo perfil).
+  static final Map<String, Color> _cacheCorBannerPorNome = {};
+
   // Cores do design system das imagens
   static const Color _primaryBlue = Color(0xFF0FB3FF);
   static const Color _starGold = Color(0xFFF59E0B);
@@ -182,7 +190,9 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   String _nome = '';
   String? _fotoUrl;
   Color _corBanner = CorDominanteService.corPadraoColor;
-  bool _carregandoPerfil = true;
+  // Quando false, o cabeçalho já nasce com os dados iniciais (nome/foto/cor)
+  // em vez de mostrar spinner -> nada "pisca" na abertura.
+  bool _carregandoPerfil = false;
 
   String _filtroComentario = 'Principais';
   String _categoriaServico = 'Todos';
@@ -268,6 +278,30 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
     if (widget.imagemInicial.startsWith('http://') ||
         widget.imagemInicial.startsWith('https://')) {
       _fotoUrl = widget.imagemInicial;
+    }
+    // Cor inicial do banner: parâmetro -> hex -> cache -> padrão.
+    // Assim o primeiro frame já nasce com a cor certa e não "pisca".
+    final chaveCache = _nome.trim().toLowerCase();
+    if (widget.corBannerInicial != null) {
+      _corBanner = widget.corBannerInicial!;
+    } else if (widget.corBannerHexInicial != null &&
+        widget.corBannerHexInicial!.trim().isNotEmpty) {
+      _corBanner = CorDominanteService.paraColor(
+        widget.corBannerHexInicial,
+      );
+    } else if (_cacheCorBannerPorNome.containsKey(chaveCache)) {
+      _corBanner = _cacheCorBannerPorNome[chaveCache]!;
+    }
+    _tipoPerfil = widget.profissao.isNotEmpty
+        ? widget.profissao
+        : 'Profissional independente';
+    // Foto já vinda da lista: pré-carrega para o avatar não piscar.
+    final fotoInicial = _fotoUrl;
+    if (fotoInicial != null && fotoInicial.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        precacheImage(NetworkImage(fotoInicial), context).catchError((_) {});
+      });
     }
     _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -666,14 +700,35 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
         setState(() {
           _nome = response['nome']?.toString() ?? 'Profissional não encontrado';
           final foto = response['foto_perfil_url']?.toString();
+          String? novaFoto;
           if (foto != null && foto.isNotEmpty && foto != 'null') {
-            _fotoUrl = foto;
+            novaFoto = foto;
           } else {
-            _fotoUrl = null;
+            novaFoto = null;
+          }
+          // Só troca a foto se mudou: evita o avatar "piscar"/recarregar.
+          if (novaFoto != _fotoUrl) {
+            _fotoUrl = novaFoto;
+            final f = novaFoto;
+            if (f != null && f.isNotEmpty && mounted) {
+              // Pré-carrega a foto real em background; quando chegar,
+              // o Image com gaplessPlayback troca sem piscar.
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                precacheImage(NetworkImage(f), context).catchError((_) {});
+              });
+            }
           }
           _idProfissional = idProfissional;
           _idPerfilProfissional = fkPerfil;
-          _corBanner = CorDominanteService.paraColor(corBanner);
+          final novaCor = CorDominanteService.paraColor(corBanner);
+          // Só atualiza a cor se for diferente da que já está na tela
+          // (inicial/cache). O banner usa AnimatedContainer, então mesmo
+          // na primeira vez sem cache a transição é suave, sem "piscar".
+          if (novaCor != _corBanner) {
+            _corBanner = novaCor;
+          }
+          _cacheCorBannerPorNome[_nome.trim().toLowerCase()] = _corBanner;
           _metodosEntrega = _parseMetodosEntrega(metodoEntregaRaw);
           if (tipoPerfil != null && tipoPerfil.isNotEmpty) {
             _tipoPerfil = tipoPerfil;
@@ -729,10 +784,15 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
             final corRecalculada =
                 await CorDominanteService.extrairDaUrl(fotoAtual);
             if (mounted) {
-              setState(() {
-                _corBanner =
-                    CorDominanteService.paraColor(corRecalculada);
-              });
+              final corNova =
+                  CorDominanteService.paraColor(corRecalculada);
+              // Só dá setState se a cor realmente mudou -> sem "piscar".
+              if (corNova != _corBanner) {
+                setState(() {
+                  _corBanner = corNova;
+                });
+              }
+              _cacheCorBannerPorNome[_nome.trim().toLowerCase()] = _corBanner;
             }
             try {
               await supabase.from('perfil').update(
@@ -768,11 +828,16 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
       }
     } finally {
       if (mounted) {
-        setState(() {
-          _carregandoPerfil = false;
-          _enderecoCarregado = true;
-          _carregandoServicos = false;
-        });
+        // _carregandoPerfil já nasce false (cabeçalho instantâneo):
+        // só marca rebuild se algo ainda pendente mudou, sem
+        // recriar o header e sem "piscar".
+        final precisaAtualizar = _carregandoPerfil || !_enderecoCarregado;
+        _carregandoPerfil = false;
+        _enderecoCarregado = true;
+        _carregandoServicos = false;
+        if (precisaAtualizar) {
+          setState(() {});
+        }
       }
     }
   }
@@ -2190,14 +2255,22 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
           alignment: Alignment.bottomCenter,
           children: [
             // Fundo escuro estendido para cima que acompanha o pull-to-refresh / overscroll
+            // AnimatedContainer: se a cor real chegar depois (primeira vez sem
+            // cache), a transição é suave em vez de "piscar".
             Positioned(
               top: -1000,
               left: 0,
               right: 0,
               bottom: 0,
-              child: Container(color: _corBanner),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 350),
+                curve: Curves.easeOut,
+                color: _corBanner,
+              ),
             ),
-            Container(
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 350),
+              curve: Curves.easeOut,
               height: 140,
               width: double.infinity,
               color: _corBanner,
@@ -2277,29 +2350,17 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
         ),
         const SizedBox(height: 64),
 
-        // Nome do Profissional
-        if (_carregandoPerfil)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 4),
-            child: SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: _primaryBlue,
-              ),
-            ),
-          )
-        else
-          Text(
-            _nome,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: _textDark,
-              letterSpacing: -0.2,
-            ),
+        // Nome do Profissional (já nasce com o nome inicial -> instantâneo,
+        // sem spinner que fazia o layout "pular" na abertura).
+        Text(
+          _nome,
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: _textDark,
+            letterSpacing: -0.2,
           ),
+        ),
         const SizedBox(height: 6),
 
         // Tipo de Profissional (Independente ou Loja do perfil)
@@ -2683,15 +2744,15 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
         imagemParaExibir,
         fit: BoxFit.cover,
         cacheWidth: 250,
+        // Mantém a imagem anterior/inicial enquanto a nova carrega:
+        // nada "pisca" ao trocar da foto inicial para a do Supabase.
+        gaplessPlayback: true,
         errorBuilder: (_, _, _) => _buildIniciaisPerfil(),
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
-          return const Center(
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: _primaryBlue,
-            ),
-          );
+          // Enquanto carrega, mostra as iniciais (estático) em vez de
+          // spinner — parece que nem carregou, sem piscar.
+          return _buildIniciaisPerfil();
         },
       );
     }
