@@ -10,6 +10,7 @@ class ServicoProfissional {
     this.imagemUrl,
     required this.ativo,
     required this.fkProfissional,
+    this.fkGrupoEmpresa,
     required this.dataCriacao,
   });
 
@@ -30,6 +31,8 @@ class ServicoProfissional {
   final String? imagemUrl;
   final bool ativo;
   final int fkProfissional;
+  /// Grupo proprietário do serviço; nulo quando o serviço é individual.
+  final int? fkGrupoEmpresa;
   final DateTime dataCriacao;
 
   factory ServicoProfissional.fromMap(Map<String, dynamic> map) {
@@ -44,7 +47,7 @@ class ServicoProfissional {
         ? oficioMap['funcao']?.toString()
         : null;
     final cor = oficioMap is Map<String, dynamic>
-        ? oficioMap['cod_cor']?.toString()
+        ? (oficioMap['cod_cor'] ?? oficioMap['cor'])?.toString()
         : null;
 
     return ServicoProfissional(
@@ -58,6 +61,7 @@ class ServicoProfissional {
       imagemUrl: map['imagem_url']?.toString(),
       ativo: map['ativo'] == true,
       fkProfissional: (map['fk_profissional'] as num).toInt(),
+      fkGrupoEmpresa: (map['fk_grupo_empresa'] as num?)?.toInt(),
       dataCriacao: map['data_criacao'] != null
           ? DateTime.tryParse(map['data_criacao'].toString()) ?? DateTime.now()
           : DateTime.now(),
@@ -73,6 +77,7 @@ class ServicoProfissional {
       'imagem_url': imagemUrl,
       'ativo': ativo,
       'fk_profissional': fkProfissional,
+      'fk_grupo_empresa': fkGrupoEmpresa,
     };
   }
 }
