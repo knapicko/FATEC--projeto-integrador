@@ -181,7 +181,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
 
   String _nome = '';
   String? _fotoUrl;
-  Color _corBanner = const Color(0xFF0A6E9D);
+  Color _corBanner = CorDominanteService.corPadraoColor;
   bool _carregandoPerfil = true;
 
   String _filtroComentario = 'Principais';
@@ -668,6 +668,8 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
           final foto = response['foto_perfil_url']?.toString();
           if (foto != null && foto.isNotEmpty && foto != 'null') {
             _fotoUrl = foto;
+          } else {
+            _fotoUrl = null;
           }
           _idProfissional = idProfissional;
           _idPerfilProfissional = fkPerfil;
@@ -712,6 +714,34 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
         }
         if (tarefas.isNotEmpty) {
           await Future.wait(tarefas);
+        }
+
+        // Se o banco ainda está com o default antigo ou nulo/vazio,
+        // recalcula a partir da foto atual (ou usa o novo default
+        // 0xFF0FB3FF quando não há foto) e salva no Supabase.
+        if (fkPerfil != null && mounted) {
+          final precisaRecalcular = corBanner == null ||
+              corBanner.trim().isEmpty ||
+              corBanner.trim().toLowerCase() == 'null' ||
+              corBanner.trim().toUpperCase() == '0XFF0A6E9D';
+          if (precisaRecalcular) {
+            final fotoAtual = _fotoUrl;
+            final corRecalculada =
+                await CorDominanteService.extrairDaUrl(fotoAtual);
+            if (mounted) {
+              setState(() {
+                _corBanner =
+                    CorDominanteService.paraColor(corRecalculada);
+              });
+            }
+            try {
+              await supabase.from('perfil').update(
+                {'cor_banner': corRecalculada},
+              ).eq('id_perfil', fkPerfil);
+            } catch (e) {
+              debugPrint('⚠️ [PerfilProfissional] Falha ao salvar cor recalculada: $e');
+            }
+          }
         }
       } else {
         debugPrint(
