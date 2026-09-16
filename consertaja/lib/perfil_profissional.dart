@@ -1828,6 +1828,19 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
 
   Future<void> _carregarServicosProfissional(int idProfissional) async {
     try {
+      final ehMembroEmpresa = await ServicosProfissionalService
+          .profissionalEhMembroEmpresa(idProfissional);
+      if (ehMembroEmpresa) {
+        if (mounted) {
+          setState(() {
+            _servicos = [];
+            _categorias = ['Todos'];
+            _categoriaServico = 'Todos';
+            _carregandoServicos = false;
+          });
+        }
+        return;
+      }
       debugPrint(
         '🔎 [PerfilProfissional] Buscando serviços para id_profissional=$idProfissional',
       );
