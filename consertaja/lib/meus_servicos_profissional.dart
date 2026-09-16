@@ -33,10 +33,13 @@ class _MeusServicosProfissionalPageState
   // ── Estado ─────────────────────────────────────────────────────────────
   List<ServicoProfissional> _todosServicos = [];
   bool _carregando = true;
+  bool _ehLoja = false;
+  bool _ehMembroEmpresa = false;
 
   final TextEditingController _buscaController = TextEditingController();
   String _termoBusca = '';
   String _categoriaAtiva = 'Todos';
+  String _associacaoAtiva = 'Todos';
 
   @override
   void initState() {
@@ -52,14 +55,40 @@ class _MeusServicosProfissionalPageState
 
   Future<void> _carregar() async {
     setState(() => _carregando = true);
-    final servicos = await ServicosProfissionalService.buscarServicos();
+    final resultados = await Future.wait([
+      ServicosProfissionalService.buscarServicos(),
+      ServicosProfissionalService.buscarContextoAssociacao(),
+    ]);
+    final servicos = resultados[0] as List<ServicoProfissional>;
+    final contexto = resultados[1]
+        as ({
+          int idProfissional,
+          int? idGrupoEmpresa,
+          bool ehLoja,
+          bool ehMembroEmpresa,
+          bool ehDonoEmpresa,
+        })?;
+    final servicosExibidos = contexto?.ehMembroEmpresa == true &&
+            contexto?.idGrupoEmpresa != null
+        ? await ServicosProfissionalService.buscarServicosEmpresa(
+            contexto!.idGrupoEmpresa!,
+          )
+        : servicos;
     if (mounted) {
       setState(() {
-        _todosServicos = servicos;
+        _ehMembroEmpresa = contexto?.ehMembroEmpresa ?? false;
+        _todosServicos = _ehMembroEmpresa
+            ? servicosExibidos
+            : [
+                ...servicosExibidos.where((s) => s.fkGrupoEmpresa == null),
+                ...servicosExibidos.where((s) => s.fkGrupoEmpresa != null),
+              ];
+        _ehLoja = contexto?.ehLoja ?? false;
         _carregando = false;
         // Reseta filtro se a categoria ativa sumiu
         final cats = _categorias();
         if (!cats.contains(_categoriaAtiva)) _categoriaAtiva = 'Todos';
+        if (!_ehLoja) _associacaoAtiva = 'Todos';
       });
     }
   }
@@ -74,6 +103,12 @@ class _MeusServicosProfissionalPageState
     return ['Todos', ...cats.toList()..sort()];
   }
 
+  List<String> get _categoriasAssociacao => const [
+    'Todos',
+    'Profissional',
+    'Empresa',
+  ];
+
   // Filtra serviços por busca e categoria
   List<ServicoProfissional> get _servicosFiltrados {
     return _todosServicos.where((s) {
@@ -83,14 +118,60 @@ class _MeusServicosProfissionalPageState
           s.descricao.toLowerCase().contains(_termoBusca.toLowerCase());
       final matchCat =
           _categoriaAtiva == 'Todos' || (s.funcao?.trim() == _categoriaAtiva);
-      return matchBusca && matchCat;
+      final matchAssociacao =
+          !_ehLoja ||
+          _associacaoAtiva == 'Todos' ||
+          (_associacaoAtiva == 'Empresa' && s.fkGrupoEmpresa != null) ||
+          (_associacaoAtiva == 'Profissional' && s.fkGrupoEmpresa == null);
+      return matchBusca && matchCat && matchAssociacao;
     }).toList();
+  }
+
+  Widget _buildAssociationChips() {
+    return SizedBox(
+      height: 36,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: _categoriasAssociacao.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final categoria = _categoriasAssociacao[index];
+          final ativa = categoria == _associacaoAtiva;
+          return GestureDetector(
+            onTap: () => setState(() => _associacaoAtiva = categoria),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+              decoration: BoxDecoration(
+                color: ativa ? const Color(0xFFD6EDF8) : Colors.white,
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(
+                  color: ativa
+                      ? const Color(0xFF0A6E9D)
+                      : const Color(0xFFDDE1E7),
+                ),
+              ),
+              child: Text(
+                categoria,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: ativa ? _blue : const Color(0xFF6B7280),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   /// Abre a tela de adicionar/editar serviço.
   Future<void> _abrirTelaServico({
     ServicoProfissional? servicoParaEditar,
   }) async {
+    if (_ehMembroEmpresa) return;
     final mudou = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => AdicionarServicoProfissionalPage(
@@ -147,6 +228,10 @@ class _MeusServicosProfissionalPageState
                 ),
                 // Chips de categoria
                 if (!_carregando && _todosServicos.isNotEmpty)
+                  if (_ehLoja) _buildAssociationChips(),
+                if (!_carregando && _todosServicos.isNotEmpty && _ehLoja)
+                  const SizedBox(height: 8),
+                if (!_carregando && _todosServicos.isNotEmpty)
                   _buildCategoryChips(categorias),
                 if (!_carregando && _todosServicos.isNotEmpty)
                   const SizedBox(height: 12),
@@ -163,11 +248,27 @@ class _MeusServicosProfissionalPageState
                   ? const Center(child: CircularProgressIndicator(color: _blue))
                   : _servicosFiltrados.isEmpty
                   ? _buildEmptyState()
-                  : ListView.builder(
+                  : ListView.separated(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                       itemCount: _servicosFiltrados.length,
                       itemBuilder: (context, index) {
                         return _buildCardServico(_servicosFiltrados[index]);
+                      },
+                      separatorBuilder: (context, index) {
+                        final atual = _servicosFiltrados[index];
+                        final proximo = _servicosFiltrados[index + 1];
+                        if (atual.fkGrupoEmpresa == null &&
+                            proximo.fkGrupoEmpresa != null) {
+                          return const Padding(
+                            padding: EdgeInsets.only(bottom: 16),
+                            child: Divider(
+                              height: 1,
+                              thickness: 1,
+                              color: Color(0xFFDDE1E7),
+                            ),
+                          );
+                        }
+                        return const SizedBox(height: 0);
                       },
                     ),
             ),
@@ -176,7 +277,9 @@ class _MeusServicosProfissionalPageState
       ),
 
       // ── FAB ─────────────────────────────────────────────────────────────
-      floatingActionButton: FloatingActionButton.extended(
+        floatingActionButton: _ehMembroEmpresa
+          ? null
+          : FloatingActionButton.extended(
         onPressed: () => _abrirTelaServico(),
         backgroundColor: _blue,
         foregroundColor: Colors.white,
@@ -187,7 +290,7 @@ class _MeusServicosProfissionalPageState
           'Novo Serviço',
           style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         ),
-      ),
+        ),
     );
   }
 
