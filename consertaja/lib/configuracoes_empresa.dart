@@ -229,12 +229,12 @@ class _ConfiguracoesEmpresaPageState extends State<ConfiguracoesEmpresaPage> {
 
       _oficiosDisponiveis = List<Map<String, dynamic>>.from(oficiosResponse);
 
-      // 5. Carrega ofícios associados ao profissional
-      if (_idProfissional != null) {
+      // 5. Carrega os ofícios próprios da empresa
+      if (_idGrupoEmpresa != null) {
         final associacoes = await _supabase
-            .from('ass_oficio_profissional')
+        .from('ass_oficio_grupo_empresa')
             .select('fk_oficio')
-            .eq('fk_profissional', _idProfissional!);
+        .eq('fk_grupo_empresa', _idGrupoEmpresa!);
 
         final idsOficios = associacoes
             .map((e) => (e['fk_oficio'] as num?)?.toInt())
@@ -349,17 +349,17 @@ class _ConfiguracoesEmpresaPageState extends State<ConfiguracoesEmpresaPage> {
   Future<void> _salvarOficios() async {
     try {
       await _garantirGrupoEmpresa();
-      if (_idProfissional != null) {
+      if (_idGrupoEmpresa != null) {
         await _supabase
-            .from('ass_oficio_profissional')
+            .from('ass_oficio_grupo_empresa')
             .delete()
-            .eq('fk_profissional', _idProfissional!);
+            .eq('fk_grupo_empresa', _idGrupoEmpresa!);
 
         for (final oficio in _oficiosSelecionados) {
           final idOficio = (oficio['id_oficio'] as num?)?.toInt();
           if (idOficio == null) continue;
-          await _supabase.from('ass_oficio_profissional').insert({
-            'fk_profissional': _idProfissional,
+          await _supabase.from('ass_oficio_grupo_empresa').insert({
+            'fk_grupo_empresa': _idGrupoEmpresa,
             'fk_oficio': idOficio,
           });
         }
