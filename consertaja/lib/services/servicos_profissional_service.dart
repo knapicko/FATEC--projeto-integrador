@@ -333,12 +333,455 @@ class ServicosProfissionalService {
           .eq('fk_grupo_empresa', idGrupoEmpresa)
           .eq('ativo', true)
           .order('data_criacao', ascending: false);
-      return rows
+      final List<ServicoProfissional> servicos = rows
           .map<ServicoProfissional>(ServicoProfissional.fromMap)
           .toList();
+
+      final Set<int> idsExistentes = servicos.map((s) => s.id).toSet();
+
+      // Busca profissionais vinculados à empresa (membros e proprietário)
+      final List<int> profIds = [];
+
+      final membros = await _supabase
+          .from('dados_profissionais')
+          .select('id_profissional')
+          .eq('fk_grupo_empresa', idGrupoEmpresa);
+      for (final m in membros) {
+        final id = (m['id_profissional'] as num?)?.toInt();
+        if (id != null) profIds.add(id);
+      }
+
+      final grupoRow = await _supabase
+          .from('grupo_empresa')
+          .select('fk_perfil')
+          .eq('id_grupo_empresa', idGrupoEmpresa)
+          .maybeSingle();
+
+      if (grupoRow != null && grupoRow['fk_perfil'] != null) {
+        final fkPerfilDono = (grupoRow['fk_perfil'] as num).toInt();
+        final dono = await _supabase
+            .from('dados_profissionais')
+            .select('id_profissional')
+            .eq('fk_perfil', fkPerfilDono)
+            .maybeSingle();
+        if (dono != null) {
+          final id = (dono['id_profissional'] as num?)?.toInt();
+          if (id != null && !profIds.contains(id)) profIds.add(id);
+        }
+      }
+
+      if (profIds.isNotEmpty) {
+        final rowsProf = await _supabase
+            .from('servicos_profissional')
+            .select('*, oficios(funcao, cod_cor)')
+            .filter('fk_profissional', 'in', profIds)
+            .eq('ativo', true)
+            .order('data_criacao', ascending: false);
+
+        for (final r in rowsProf) {
+          final s = ServicoProfissional.fromMap(r);
+          if (!idsExistentes.contains(s.id)) {
+            servicos.add(s);
+            idsExistentes.add(s.id);
+          }
+        }
+      }
+
+      return servicos;
     } catch (e) {
       debugPrint('❌ [ServicosSvc] buscarServicosEmpresa ERROR: $e');
       return [];
+    }
+  }
+
+  static Future<DetalheServicoPublico?> buscarDetalhePublico(int idServico) async {
+    try {
+      final row = await _supabase
+          .from('servicos_profissional')
+          .select('*, oficios(funcao, cod_cor)')
+          .eq('id_servico_prof', idServico)
+          .eq('ativo', true)
+          .maybeSingle();
+      if (row == null) return null;
+
+      final servico = ServicoProfissional.fromMap(row);
+      final dadosProf = await _supabase
+          .from('dados_profissionais')
+          .select('id_profissional, fk_usuario, fk_grupo_empresa, fk_perfil')
+          .eq('id_profissional', servico.fkProfissional)
+          .maybeSingle();
+      if (dadosProf == null) return null;
+
+      final idPerfilProf = (dadosProf['fk_perfil'] as num?)?.toInt();
+      final idUsuarioProf = (dadosProf['fk_usuario'] as num?)?.toInt();
+      final idGrupoProf = (dadosProf['fk_grupo_empresa'] as num?)?.toInt();
+      final idGrupo = servico.fkGrupoEmpresa ?? idGrupoProf;
+
+      Map<String, dynamic>? grupo;
+      if (idGrupo != null) {
+        grupo = await _supabase
+            .from('grupo_empresa')
+            .select(
+              'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, fk_perfil',
+            )
+            .eq('id_grupo_empresa', idGrupo)
+            .maybeSingle();
+      }
+
+      String tipoPerfil = '';
+      if (idPerfilProf != null) {
+        final perfil = await _supabase
+            .from('perfil')
+            .select('tipo_perfil')
+            .eq('id_perfil', idPerfilProf)
+            .maybeSingle();
+        tipoPerfil = perfil?['tipo_perfil']?.toString().trim().toLowerCase() ?? '';
+      }
+
+      final ehLoja = tipoPerfil == 'loja' || idGrupo != null && grupo != null;
+
+      String nomePrestador = 'Profissional';
+      String? fotoPrestador;
+      int? idPerfilPrestador = idPerfilProf;
+      int? idUsuarioEndereco = idUsuarioProf;
+
+      if (ehLoja && grupo != null) {
+        nomePrestador = grupo['nome_empresa']?.toString().trim().isNotEmpty == true
+            ? grupo['nome_empresa'].toString().trim()
+            : 'Loja';
+        fotoPrestador = grupo['foto_url_empresa']?.toString();
+        idPerfilPrestador = (grupo['fk_perfil'] as num?)?.toInt() ?? idPerfilProf;
+        if (idPerfilPrestador != null) {
+          final dono = await _supabase
+              .from('dados_profissionais')
+              .select('fk_usuario')
+              .eq('fk_perfil', idPerfilPrestador)
+              .maybeSingle();
+          idUsuarioEndereco = (dono?['fk_usuario'] as num?)?.toInt() ?? idUsuarioProf;
+        }
+      } else if (idUsuarioProf != null) {
+        final usuario = await _supabase
+            .from('usuarios')
+            .select('nome, foto_perfil_url')
+            .eq('id_usuario', idUsuarioProf)
+            .maybeSingle();
+        nomePrestador = usuario?['nome']?.toString().trim() ?? nomePrestador;
+        fotoPrestador = usuario?['foto_perfil_url']?.toString();
+      }
+
+      int seguidores = 0;
+      if (idPerfilPrestador != null) {
+        final lista = await _supabase
+            .from('seguidores_profissional')
+            .select('id_seguidor_profissional')
+            .eq('fk_perfil', idPerfilPrestador);
+        seguidores = lista.length;
+      }
+
+      final endereco = idUsuarioEndereco == null
+          ? null
+          : await _buscarEnderecoPrincipalUsuario(idUsuarioEndereco);
+
+      String? tagEmpresa = grupo?['tag_empresa']?.toString().trim();
+      if (tagEmpresa != null && tagEmpresa.isNotEmpty && !tagEmpresa.startsWith('#')) {
+        tagEmpresa = '#$tagEmpresa';
+      }
+
+      return DetalheServicoPublico(
+        servico: servico,
+        nomePrestador: nomePrestador,
+        fotoPrestador: fotoPrestador,
+        ehLoja: ehLoja,
+        tagEmpresa: (tagEmpresa == null || tagEmpresa.isEmpty) ? null : tagEmpresa,
+        corTagEmpresa: grupo?['cor_tag_empresa']?.toString(),
+        idGrupoEmpresa: idGrupo,
+        idProfissional: servico.fkProfissional,
+        idPerfilPrestador: idPerfilPrestador,
+        fotoBannerEmpresa: grupo?['foto_url_empresa']?.toString(),
+        seguidores: seguidores,
+        enderecoFormatado: endereco?.texto ?? 'Endereço não cadastrado',
+        latitude: endereco?.lat ?? -23.5505,
+        longitude: endereco?.lng ?? -46.6333,
+        temCoordenadas: endereco?.temCoords ?? false,
+      );
+    } catch (e) {
+      debugPrint('❌ [ServicosSvc] buscarDetalhePublico ERROR: $e');
+      return null;
+    }
+  }
+
+  static Future<List<ServicoBuscaPublico>> buscarServicosPublicos(String termo) async {
+    try {
+      final rows = await _supabase
+          .from('servicos_profissional')
+          .select('*, oficios(funcao, cod_cor)')
+          .eq('ativo', true)
+          .order('data_criacao', ascending: false);
+
+      final servicos = rows
+          .map<ServicoProfissional>(ServicoProfissional.fromMap)
+          .toList();
+      if (servicos.isEmpty) return [];
+
+      final idsProf = servicos.map((s) => s.fkProfissional).toSet().toList();
+      final dadosRows = await _supabase
+          .from('dados_profissionais')
+          .select('id_profissional, fk_usuario, fk_grupo_empresa, fk_perfil')
+          .inFilter('id_profissional', idsProf);
+
+      final dadosPorProf = <int, Map<String, dynamic>>{};
+      final idsPerfil = <int>{};
+      final idsUsuario = <int>{};
+      final idsGrupo = <int>{};
+      for (final row in dadosRows) {
+        final idProf = (row['id_profissional'] as num?)?.toInt();
+        if (idProf == null) continue;
+        dadosPorProf[idProf] = Map<String, dynamic>.from(row);
+        final idPerfil = (row['fk_perfil'] as num?)?.toInt();
+        final idUsuario = (row['fk_usuario'] as num?)?.toInt();
+        final idGrupo = (row['fk_grupo_empresa'] as num?)?.toInt();
+        if (idPerfil != null) idsPerfil.add(idPerfil);
+        if (idUsuario != null) idsUsuario.add(idUsuario);
+        if (idGrupo != null) idsGrupo.add(idGrupo);
+      }
+      for (final servico in servicos) {
+        if (servico.fkGrupoEmpresa != null) idsGrupo.add(servico.fkGrupoEmpresa!);
+      }
+
+      final tipoPorPerfil = <int, String>{};
+      if (idsPerfil.isNotEmpty) {
+        final perfis = await _supabase
+            .from('perfil')
+            .select('id_perfil, tipo_perfil')
+            .inFilter('id_perfil', idsPerfil.toList());
+        for (final perfil in perfis) {
+          final id = (perfil['id_perfil'] as num?)?.toInt();
+          if (id != null) {
+            tipoPorPerfil[id] =
+                perfil['tipo_perfil']?.toString().trim().toLowerCase() ?? '';
+          }
+        }
+      }
+
+      final gruposPorId = <int, Map<String, dynamic>>{};
+      if (idsGrupo.isNotEmpty) {
+        final grupos = await _supabase
+            .from('grupo_empresa')
+            .select(
+              'id_grupo_empresa, nome_empresa, tag_empresa, fk_perfil',
+            )
+            .inFilter('id_grupo_empresa', idsGrupo.toList());
+        for (final grupo in grupos) {
+          final id = (grupo['id_grupo_empresa'] as num?)?.toInt();
+          if (id != null) gruposPorId[id] = Map<String, dynamic>.from(grupo);
+        }
+      }
+
+      Map<String, dynamic>? dadosPorPerfil(int? idPerfil) {
+        if (idPerfil == null) return null;
+        for (final dados in dadosPorProf.values) {
+          if ((dados['fk_perfil'] as num?)?.toInt() == idPerfil) return dados;
+        }
+        return null;
+      }
+
+      final idsUsuarioEndereco = <int>{...idsUsuario};
+      for (final grupo in gruposPorId.values) {
+        final dono = dadosPorPerfil((grupo['fk_perfil'] as num?)?.toInt());
+        final idUsuarioDono = (dono?['fk_usuario'] as num?)?.toInt();
+        if (idUsuarioDono != null) idsUsuarioEndereco.add(idUsuarioDono);
+      }
+
+      final enderecoPorUsuario = <int, String>{};
+      for (final idUsuario in idsUsuarioEndereco) {
+        final endereco = await _buscarEnderecoPrincipalUsuario(idUsuario);
+        if (endereco != null) {
+          enderecoPorUsuario[idUsuario] = endereco.resumo;
+        }
+      }
+
+      String normalizar(String texto) {
+        return texto
+            .toLowerCase()
+            .replaceAll('á', 'a')
+            .replaceAll('à', 'a')
+            .replaceAll('ã', 'a')
+            .replaceAll('â', 'a')
+            .replaceAll('é', 'e')
+            .replaceAll('ê', 'e')
+            .replaceAll('í', 'i')
+            .replaceAll('ó', 'o')
+            .replaceAll('ô', 'o')
+            .replaceAll('õ', 'o')
+            .replaceAll('ú', 'u')
+            .replaceAll('ç', 'c');
+      }
+
+      final termoNorm = normalizar(termo);
+      final palavras = termoNorm
+          .split(RegExp(r'\s+'))
+          .where((p) => p.length > 1)
+          .toList();
+
+      bool corresponde(List<String> termos) {
+        bool combina(String item) {
+          final itemNorm = normalizar(item);
+          return itemNorm.contains(termoNorm) || termoNorm.contains(itemNorm);
+        }
+
+        if (palavras.isEmpty) return termos.any(combina);
+        return palavras.any(
+          (palavra) => termos.any((t) {
+            final tNorm = normalizar(t);
+            return tNorm.contains(palavra) || palavra.contains(tNorm);
+          }),
+        );
+      }
+
+      final resultado = <ServicoBuscaPublico>[];
+      for (final servico in servicos) {
+        final dados = dadosPorProf[servico.fkProfissional];
+        final idPerfil = (dados?['fk_perfil'] as num?)?.toInt();
+        final idGrupoProf = (dados?['fk_grupo_empresa'] as num?)?.toInt();
+        final tipo = idPerfil == null ? '' : (tipoPorPerfil[idPerfil] ?? '');
+        final ehLoja = tipo == 'loja' || servico.fkGrupoEmpresa != null;
+        final ehIndependente = tipo.contains('independente') || (!ehLoja && tipo.isEmpty);
+
+        // Se o profissional faz parte de alguma empresa/loja, seus serviços não devem aparecer individualmente
+        if (!ehLoja && idGrupoProf != null) {
+          continue;
+        }
+
+        // Permite apenas serviços de profissionais independentes (sem empresa) ou de lojas
+        if (!ehLoja && !ehIndependente) {
+          continue;
+        }
+
+        final idGrupoServico =
+            servico.fkGrupoEmpresa ?? (ehLoja ? idGrupoProf : null);
+        final grupo = idGrupoServico != null ? gruposPorId[idGrupoServico] : null;
+        var tag = grupo?['tag_empresa']?.toString().trim();
+        if (tag != null && tag.isNotEmpty && !tag.startsWith('#')) {
+          tag = '#$tag';
+        }
+        final nomeEmpresa = grupo?['nome_empresa']?.toString() ?? '';
+        final categoria = servico.funcao?.trim().isNotEmpty == true
+            ? servico.funcao!.trim()
+            : 'Serviço';
+
+        final termos = <String>[
+          servico.titulo,
+          categoria,
+          tag ?? '',
+          nomeEmpresa,
+        ];
+        if (!corresponde(termos)) continue;
+
+        int? idUsuarioEndereco = (dados?['fk_usuario'] as num?)?.toInt();
+        if (grupo != null) {
+          final dono = dadosPorPerfil((grupo['fk_perfil'] as num?)?.toInt());
+          idUsuarioEndereco =
+              (dono?['fk_usuario'] as num?)?.toInt() ?? idUsuarioEndereco;
+        }
+
+        resultado.add(
+          ServicoBuscaPublico(
+            id: servico.id,
+            titulo: servico.titulo,
+            preco: servico.valor,
+            categoria: categoria,
+            tagEmpresa: (tag == null || tag.isEmpty) ? null : tag,
+            imagemUrl: servico.imagemUrl,
+            localizacao: idUsuarioEndereco == null
+                ? 'Localização não informada'
+                : (enderecoPorUsuario[idUsuarioEndereco] ??
+                      'Localização não informada'),
+          ),
+        );
+      }
+      return resultado;
+    } catch (e) {
+      debugPrint('❌ [ServicosSvc] buscarServicosPublicos ERROR: $e');
+      return [];
+    }
+  }
+
+  static Future<
+    ({String texto, String resumo, double lat, double lng, bool temCoords})?
+  >
+  _buscarEnderecoPrincipalUsuario(int idUsuario) async {
+    try {
+      final assList = await _supabase
+          .from('ass_usuario_endereco')
+          .select('fk_endereco, apelido_endereco, tipo_endereco, endereco_ativo')
+          .eq('fk_usuario', idUsuario)
+          .eq('endereco_ativo', true)
+          .limit(1);
+      if (assList.isEmpty) return null;
+      final fkEndereco = assList.first['fk_endereco'];
+      final idEndereco = fkEndereco is int
+          ? fkEndereco
+          : int.tryParse(fkEndereco?.toString() ?? '');
+      if (idEndereco == null) return null;
+
+      final endereco = await _supabase
+          .from('enderecos')
+          .select(
+            'cep, logradouro, numero, bairro, complemento, fk_cidade, latitude, longitude',
+          )
+          .eq('id_endereco', idEndereco)
+          .maybeSingle();
+      if (endereco == null) return null;
+
+      String cidade = '';
+      String estado = '';
+      final idCidade = (endereco['fk_cidade'] as num?)?.toInt();
+      if (idCidade != null) {
+        final cidadeRow = await _supabase
+            .from('cidades')
+            .select('nome_cidade, fk_estado')
+            .eq('id_cidade', idCidade)
+            .maybeSingle();
+        cidade = cidadeRow?['nome_cidade']?.toString() ?? '';
+        final idEstado = (cidadeRow?['fk_estado'] as num?)?.toInt();
+        if (idEstado != null) {
+          final estadoRow = await _supabase
+              .from('estados')
+              .select('sigla_estado')
+              .eq('id_estado', idEstado)
+              .maybeSingle();
+          estado = estadoRow?['sigla_estado']?.toString() ?? '';
+        }
+      }
+
+      final logradouro = endereco['logradouro']?.toString() ?? '';
+      final numero = endereco['numero']?.toString() ?? '';
+      final bairro = endereco['bairro']?.toString() ?? '';
+      final cep = endereco['cep']?.toString() ?? '';
+      final partes = <String>[];
+      if (logradouro.isNotEmpty) {
+        partes.add(numero.isNotEmpty ? '$logradouro, $numero' : logradouro);
+      }
+      if (bairro.isNotEmpty) partes.add(bairro);
+      if (cidade.isNotEmpty) {
+        partes.add(estado.isNotEmpty ? '$cidade, $estado' : cidade);
+      }
+      if (cep.isNotEmpty) partes.add(cep);
+
+      final lat = double.tryParse(endereco['latitude']?.toString() ?? '');
+      final lng = double.tryParse(endereco['longitude']?.toString() ?? '');
+      return (
+        texto: partes.join(', '),
+        resumo: bairro.isNotEmpty
+            ? bairro
+            : (cidade.isNotEmpty ? cidade : (logradouro.isNotEmpty ? logradouro : 'Localização não informada')),
+        lat: lat ?? -23.5505,
+        lng: lng ?? -46.6333,
+        temCoords: lat != null && lng != null,
+      );
+    } catch (e) {
+      debugPrint('❌ [ServicosSvc] _buscarEnderecoPrincipalUsuario ERROR: $e');
+      return null;
     }
   }
 

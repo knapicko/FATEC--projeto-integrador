@@ -89,3 +89,59 @@ class ServicoProfissional {
     };
   }
 }
+
+class ServicoBuscaPublico {
+  const ServicoBuscaPublico({
+    required this.id,
+    required this.titulo,
+    required this.preco,
+    required this.categoria,
+    this.tagEmpresa,
+    this.imagemUrl,
+    required this.localizacao,
+  });
+
+  final int id;
+  final String titulo;
+  final double preco;
+  final String categoria;
+  final String? tagEmpresa;
+  final String? imagemUrl;
+  final String localizacao;
+}
+
+class DetalheServicoPublico {
+  const DetalheServicoPublico({
+    required this.servico,
+    required this.nomePrestador,
+    this.fotoPrestador,
+    required this.ehLoja,
+    this.tagEmpresa,
+    this.corTagEmpresa,
+    this.idGrupoEmpresa,
+    required this.idProfissional,
+    this.idPerfilPrestador,
+    this.fotoBannerEmpresa,
+    required this.seguidores,
+    required this.enderecoFormatado,
+    required this.latitude,
+    required this.longitude,
+    required this.temCoordenadas,
+  });
+
+  final ServicoProfissional servico;
+  final String nomePrestador;
+  final String? fotoPrestador;
+  final bool ehLoja;
+  final String? tagEmpresa;
+  final String? corTagEmpresa;
+  final int? idGrupoEmpresa;
+  final int idProfissional;
+  final int? idPerfilPrestador;
+  final String? fotoBannerEmpresa;
+  final int seguidores;
+  final String enderecoFormatado;
+  final double latitude;
+  final double longitude;
+  final bool temCoordenadas;
+}

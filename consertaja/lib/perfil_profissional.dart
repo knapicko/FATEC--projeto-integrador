@@ -11,6 +11,7 @@ import 'services/postagens_profissional_service.dart';
 import 'services/servicos_profissional_service.dart';
 import 'solicitar_servico.dart';
 import 'tela_chat_profissional.dart';
+import 'tela_servico.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/icone_oficio.dart';
 import 'utils/iniciais.dart';
@@ -133,6 +134,8 @@ class PerfilProfissionalPage extends StatefulWidget {
   final int totalAvaliacoes;
   final Color? corBannerInicial;
   final String? corBannerHexInicial;
+  final int? idGrupoEmpresa;
+  final int? idProfissional;
 
   const PerfilProfissionalPage({
     super.key,
@@ -143,6 +146,8 @@ class PerfilProfissionalPage extends StatefulWidget {
     this.totalAvaliacoes = 120,
     this.corBannerInicial,
     this.corBannerHexInicial,
+    this.idGrupoEmpresa,
+    this.idProfissional,
   });
 
   @override
@@ -213,6 +218,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   );
 
   int? _idProfissional;
+  int? _idGrupoEmpresa;
   int? _idPerfilProfissional;
   int? _idUsuarioLogado;
   _DadosEnderecoProfissional? _enderecoProfissional;
@@ -273,6 +279,8 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   @override
   void initState() {
     super.initState();
+    _idGrupoEmpresa = widget.idGrupoEmpresa;
+    _idProfissional = widget.idProfissional;
     _nome = widget.nomeInicial.isNotEmpty
         ? widget.nomeInicial
         : 'Profissional não encontrado';
@@ -644,26 +652,51 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   Future<void> _carregarDadosProfissional() async {
     try {
       debugPrint(
-        '🔎 [PerfilProfissional] Iniciando busca para nome: "${widget.nomeInicial}"',
+        '🔎 [PerfilProfissional] Iniciando busca para nome: "${widget.nomeInicial}", idProf: ${widget.idProfissional}',
       );
       final supabase = Supabase.instance.client;
-      final response = await supabase
-          .from('usuarios')
-          .select('nome, foto_perfil_url, id_usuario')
-          .eq('tipo_conta', 'Profissional')
-          .ilike('nome', '%${widget.nomeInicial}%')
-          .maybeSingle();
+      Map<String, dynamic>? response;
+      int? idProfissionalEncontrado = widget.idProfissional;
+
+      if (idProfissionalEncontrado != null) {
+        final dp = await supabase
+            .from('dados_profissionais')
+            .select('fk_usuario')
+            .eq('id_profissional', idProfissionalEncontrado)
+            .maybeSingle();
+        final fkU = dp?['fk_usuario'];
+        if (fkU != null) {
+          response = await supabase
+              .from('usuarios')
+              .select('nome, foto_perfil_url, id_usuario')
+              .eq('id_usuario', fkU)
+              .maybeSingle();
+        }
+      }
+
+      if (response == null) {
+        final query = await supabase
+            .from('usuarios')
+            .select('nome, foto_perfil_url, id_usuario')
+            .eq('tipo_conta', 'Profissional')
+            .ilike('nome', '%${widget.nomeInicial}%')
+            .limit(1);
+        if (query.isNotEmpty) {
+          response = query.first;
+        }
+      }
 
       debugPrint(
         '🔎 [PerfilProfissional] Usuário encontrado: ${response != null}',
       );
       if (response != null && mounted) {
-        int? idProfissional;
+        int? idProfissional = idProfissionalEncontrado;
         int? fkPerfil;
         String? anosExperiencia;
         String? descricaoPerfil;
         String? tipoPerfil;
         String? corBanner;
+        int? idGrupoEmpresa = widget.idGrupoEmpresa;
 
         final fkUsuario = response['id_usuario'];
         final idUsuarioProf = (fkUsuario as num?)?.toInt();
@@ -675,21 +708,33 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
           final dadosProf = await supabase
               .from('dados_profissionais')
               .select(
-                'id_profissional, fk_perfil, anos_experiencia',
+                'id_profissional, fk_perfil, fk_grupo_empresa, anos_experiencia',
               )
               .eq('fk_usuario', fkUsuario)
               .maybeSingle();
           idProfissional = (dadosProf?['id_profissional'] as num?)?.toInt();
           fkPerfil = (dadosProf?['fk_perfil'] as num?)?.toInt();
+          idGrupoEmpresa = (dadosProf?['fk_grupo_empresa'] as num?)?.toInt() ?? idGrupoEmpresa;
           anosExperiencia = dadosProf?['anos_experiencia']?.toString();
           debugPrint(
-            '🔎 [PerfilProfissional] id_profissional encontrado: $idProfissional; fk_perfil: $fkPerfil',
+            '🔎 [PerfilProfissional] id_profissional: $idProfissional; fk_perfil: $fkPerfil; fk_grupo_empresa: $idGrupoEmpresa',
           );
+
+          if (idGrupoEmpresa == null && fkPerfil != null) {
+            final grupoDono = await supabase
+                .from('grupo_empresa')
+                .select('id_grupo_empresa')
+                .eq('fk_perfil', fkPerfil)
+                .maybeSingle();
+            if (grupoDono != null) {
+              idGrupoEmpresa = (grupoDono['id_grupo_empresa'] as num?)?.toInt();
+            }
+          }
 
           if (fkPerfil != null) {
             final perfil = await supabase
                 .from('perfil')
-              .select('descricao_perfil, tipo_perfil, cor_banner')
+                .select('descricao_perfil, tipo_perfil, cor_banner')
                 .eq('id_perfil', fkPerfil)
                 .maybeSingle();
             descricaoPerfil = perfil?['descricao_perfil']?.toString();
@@ -699,8 +744,9 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
         }
 
         setState(() {
-          _nome = response['nome']?.toString() ?? 'Profissional não encontrado';
-          final foto = response['foto_perfil_url']?.toString();
+          _idGrupoEmpresa = idGrupoEmpresa;
+          _nome = response?['nome']?.toString() ?? 'Profissional não encontrado';
+          final foto = response?['foto_perfil_url']?.toString();
           String? novaFoto;
           if (foto != null && foto.isNotEmpty && foto != 'null') {
             novaFoto = foto;
@@ -1829,6 +1875,17 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
 
   Future<void> _carregarServicosProfissional(int idProfissional) async {
     try {
+      if (_idGrupoEmpresa != null) {
+        if (mounted) {
+          setState(() {
+            _servicos = [];
+            _categorias = ['Todos'];
+            _categoriaServico = 'Todos';
+            _carregandoServicos = false;
+          });
+        }
+        return;
+      }
       final ehMembroEmpresa = await ServicosProfissionalService
           .profissionalEhMembroEmpresa(idProfissional);
       if (ehMembroEmpresa) {
@@ -2242,9 +2299,6 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
               SliverToBoxAdapter(
                 key: _detalhesKey,
                 child: RepaintBoundary(child: _buildSecaoDetalhes()),
-              ),
-              SliverToBoxAdapter(
-                child: RepaintBoundary(child: _buildCatalogoServicos()),
               ),
               SliverToBoxAdapter(
                 key: _footerButtonKey,
@@ -3913,6 +3967,12 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
             ),
           const SizedBox(height: 24),
 
+          // Serviços Oferecidos abaixo da descrição
+          if (_idGrupoEmpresa == null) ...[
+            _buildCatalogoServicos(embutido: true),
+            const SizedBox(height: 24),
+          ],
+
           // Tipos de serviços oferecidos (vindos de _oficios do profissional)
           const Text(
             'Tipos de serviços oferecidos',
@@ -3995,9 +4055,10 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
             ),
           const SizedBox(height: 24),
 
-          // Métodos de Entrega
-          _buildSecaoMetodosEntrega(),
-          const SizedBox(height: 24),
+          if (_idGrupoEmpresa == null) ...[
+            _buildSecaoMetodosEntrega(),
+            const SizedBox(height: 24),
+          ],
 
           // Galeria de Postagens (carregada do Supabase)
           const Text(
@@ -4365,13 +4426,15 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   }
 
   // 5. Conteúdo das Abas: Serviços Oferecidos
-  Widget _buildCatalogoServicos() {
+  Widget _buildCatalogoServicos({bool embutido = false}) {
     final servicosFiltrados = _categoriaServico == 'Todos'
         ? _servicos
         : _servicos.where((s) => s.funcao == _categoriaServico).toList();
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      padding: embutido
+          ? EdgeInsets.zero
+          : const EdgeInsets.fromLTRB(16, 8, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -4501,9 +4564,23 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   Widget _buildCardServicoVisual(ServicoProfissional servico) {
     final corTag = servico.cor != null && servico.cor!.isNotEmpty
         ? CorOficio.parse(servico.cor)
-        : _primaryBlue;
+        : (servico.funcao != null && servico.funcao!.isNotEmpty
+            ? CorOficio.parse(servico.funcao!)
+            : _primaryBlue);
 
-    return Container(
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => TelaServico(
+              idServico: servico.id,
+              servicoInicial: servico,
+            ),
+          ),
+        );
+      },
+      child: Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -4545,15 +4622,15 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                         vertical: 3,
                       ),
                       decoration: BoxDecoration(
-                        color: corTag,
+                        color: CorOficio.corFundo(corTag),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         servico.funcao!,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: CorOficio.corTexto(corTag),
                         ),
                       ),
                     ),
@@ -4640,16 +4717,17 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
           ),
         ],
       ),
+      ),
     );
   }
 
   Widget _buildFallbackImagemServico() {
     return Container(
-      color: const Color(0xFFF1F5F9),
+      color: const Color(0xFFEAF4FB),
       child: const Center(
         child: Icon(
-          Icons.handyman_rounded,
-          color: Color(0xFF94A3B8),
+          Icons.home_repair_service_rounded,
+          color: Color(0xFF0A6E9D),
           size: 36,
         ),
       ),
