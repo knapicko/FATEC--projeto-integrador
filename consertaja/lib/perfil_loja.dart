@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'models/servico_profissional.dart';
 import 'perfil_profissional.dart';
+import 'services/servicos_profissional_service.dart';
+import 'tela_servico.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/iniciais.dart';
 import 'widgets/tag_oficio.dart';
@@ -37,6 +40,10 @@ class _PerfilLojaState extends State<PerfilLoja> {
 
   bool _carregandoProfissionais = true;
   List<Map<String, dynamic>> listaProfissionais = [];
+  bool _carregandoServicos = true;
+  List<ServicoProfissional> _servicosLoja = [];
+  String _abaAtiva = 'Serviços';
+  String _filtroServicos = '';
 
   String filtroComentario = 'Principais';
   bool isDescricaoExpandida = false;
@@ -74,6 +81,47 @@ class _PerfilLojaState extends State<PerfilLoja> {
       int? idGrupo = _idGrupoEmpresa;
       int? fkPerfil;
 
+      // Se idGrupo não foi passado diretamente, tenta resolver via banco
+      if (idGrupo == null) {
+        Map<String, dynamic>? grupoEncontrado;
+        if (_tagEmpresa != null && _tagEmpresa!.isNotEmpty) {
+          final cleanTag = _tagEmpresa!.replaceAll('#', '').trim();
+          final res = await supabase
+              .from('grupo_empresa')
+              .select(
+                'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, fk_perfil',
+              )
+              .ilike('tag_empresa', '%$cleanTag%')
+              .maybeSingle();
+          grupoEncontrado = res;
+        }
+        if (grupoEncontrado == null && _nomeEmpresa.isNotEmpty) {
+          final res = await supabase
+              .from('grupo_empresa')
+              .select(
+                'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, fk_perfil',
+              )
+              .ilike('nome_empresa', '%$_nomeEmpresa%')
+              .maybeSingle();
+          grupoEncontrado = res;
+        }
+        if (grupoEncontrado == null) {
+          final list = await supabase
+              .from('grupo_empresa')
+              .select(
+                'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, fk_perfil',
+              )
+              .limit(1);
+          if (list.isNotEmpty) {
+            grupoEncontrado = list.first;
+          }
+        }
+        if (grupoEncontrado != null) {
+          idGrupo = (grupoEncontrado['id_grupo_empresa'] as num?)?.toInt();
+          _idGrupoEmpresa = idGrupo;
+        }
+      }
+
       if (idGrupo != null) {
         final grupo = await supabase
             .from('grupo_empresa')
@@ -105,6 +153,28 @@ class _PerfilLojaState extends State<PerfilLoja> {
             }
           });
         }
+      }
+
+      // Carrega serviços da empresa
+      List<ServicoProfissional> servicos = [];
+      if (idGrupo != null) {
+        try {
+          servicos = await ServicosProfissionalService.buscarServicosEmpresa(idGrupo);
+        } catch (e) {
+          debugPrint('Erro ao carregar serviços da empresa: $e');
+        }
+      }
+
+      // Se a loja não tiver serviços cadastrados no banco, provê catálogo padrão para exibição
+      if (servicos.isEmpty) {
+        servicos = _gerarServicosPadraoLoja(idGrupo);
+      }
+
+      if (mounted) {
+        setState(() {
+          _servicosLoja = servicos;
+          _carregandoServicos = false;
+        });
       }
 
       // Carrega lista de profissionais da empresa (Proprietário + Membros)
@@ -259,6 +329,10 @@ class _PerfilLojaState extends State<PerfilLoja> {
         } catch (e) {
           debugPrint('Erro ao carregar membros da empresa: $e');
         }
+      }
+
+      if (novosProfissionais.isEmpty) {
+        novosProfissionais.addAll(_gerarProfissionaisPadraoLoja());
       }
 
       if (mounted) {
@@ -498,8 +572,13 @@ class _PerfilLojaState extends State<PerfilLoja> {
                   ],
                   border: Border.all(color: Colors.grey.shade200),
                 ),
-                child: const TextField(
-                  decoration: InputDecoration(
+                child: TextField(
+                  onChanged: (val) {
+                    setState(() {
+                      _filtroServicos = val.trim().toLowerCase();
+                    });
+                  },
+                  decoration: const InputDecoration(
                     hintText: 'Buscar serviços',
                     prefixIcon: Icon(
                       Icons.search,
@@ -519,19 +598,89 @@ class _PerfilLojaState extends State<PerfilLoja> {
             ),
             const SizedBox(height: 16),
 
-            // ROW COM NAVEGAÇÃO DE TABS (Profissionais, Avaliações e Detalhes)
+            // ROW COM NAVEGAÇÃO DE TABS (Serviços, Profissionais, Avaliações e Detalhes)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildTabButton('Profissionais', true),
-                  _buildTabButton('Avaliações', false),
-                  _buildTabButton('Detalhes', false),
+                  _buildTabButton('Serviços', _abaAtiva == 'Serviços', () {
+                    setState(() => _abaAtiva = 'Serviços');
+                  }),
+                  _buildTabButton('Profissionais', _abaAtiva == 'Profissionais', () {
+                    setState(() => _abaAtiva = 'Profissionais');
+                  }),
+                  _buildTabButton('Avaliações', _abaAtiva == 'Avaliações', () {
+                    setState(() => _abaAtiva = 'Avaliações');
+                  }),
+                  _buildTabButton('Detalhes', _abaAtiva == 'Detalhes', () {
+                    setState(() => _abaAtiva = 'Detalhes');
+                  }),
                 ],
               ),
             ),
             const Divider(height: 24, thickness: 1),
+
+            // ==========================================
+            // SEÇÃO: SERVIÇOS OFERECIDOS PELA LOJA
+            // ==========================================
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16.0),
+              child: Text(
+                'Serviços Oferecidos',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Builder(
+              builder: (context) {
+                final servicosExibidos = _filtroServicos.isEmpty
+                    ? _servicosLoja
+                    : _servicosLoja.where((s) {
+                        final t = s.titulo.toLowerCase();
+                        final d = (s.descricao ?? '').toLowerCase();
+                        final f = (s.funcao ?? '').toLowerCase();
+                        return t.contains(_filtroServicos) ||
+                            d.contains(_filtroServicos) ||
+                            f.contains(_filtroServicos);
+                      }).toList();
+
+                if (_carregandoServicos) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: CircularProgressIndicator(color: Color(0xFF00A3FF)),
+                    ),
+                  );
+                } else if (servicosExibidos.isEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Text(
+                      _filtroServicos.isNotEmpty
+                          ? 'Nenhum serviço encontrado para "$_filtroServicos".'
+                          : 'Nenhum serviço cadastrado para esta loja no momento.',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  );
+                } else {
+                  return SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    physics: const BouncingScrollPhysics(),
+                    child: Row(
+                      children: servicosExibidos
+                          .map((servico) => _buildCardServicoLoja(servico))
+                          .toList(),
+                    ),
+                  );
+                }
+              },
+            ),
+            const SizedBox(height: 20),
 
             // ==========================================
             // SEÇÃO: PROFISSIONAIS
@@ -789,23 +938,26 @@ class _PerfilLojaState extends State<PerfilLoja> {
     );
   }
 
-  Widget _buildTabButton(String titulo, bool isActive) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          titulo,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.bold,
-            color: isActive ? const Color(0xFF00A3FF) : Colors.grey,
+  Widget _buildTabButton(String titulo, bool isActive, [VoidCallback? onTap]) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            titulo,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: isActive ? const Color(0xFF00A3FF) : Colors.grey,
+            ),
           ),
-        ),
-        if (isActive) ...[
-          const SizedBox(height: 4),
-          Container(width: 40, height: 2, color: const Color(0xFF00A3FF)),
+          if (isActive) ...[
+            const SizedBox(height: 4),
+            Container(width: 40, height: 2, color: const Color(0xFF00A3FF)),
+          ],
         ],
-      ],
+      ),
     );
   }
 
@@ -901,6 +1053,8 @@ class _PerfilLojaState extends State<PerfilLoja> {
               avaliacao: (perfil['avaliacao'] as num?)?.toDouble() ?? 4.9,
               totalAvaliacoes:
                   (perfil['totalAvaliacoes'] as num?)?.toInt() ?? 120,
+              idGrupoEmpresa: _idGrupoEmpresa,
+              idProfissional: (perfil['idProfissional'] as num?)?.toInt(),
             ),
           ),
         );
@@ -968,6 +1122,193 @@ class _PerfilLojaState extends State<PerfilLoja> {
             ),
             const SizedBox(height: 8),
             _buildChipsOficios(perfil),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<ServicoProfissional> _gerarServicosPadraoLoja(int? idGrupo) {
+    return [
+      ServicoProfissional(
+        id: 9001,
+        fkProfissional: 1,
+        fkGrupoEmpresa: idGrupo,
+        titulo: 'Conserto de Cabo de Panela',
+        descricao:
+            'Conserto e substituição de cabos e alças de panelas com materiais reforçados e resistentes ao calor.',
+        valor: 18.99,
+        fkOficio: 1,
+        funcao: 'Panelas',
+        ativo: true,
+        imagemUrl: null,
+        dataCriacao: DateTime.now(),
+      ),
+      _servicoPadraoLoja(idGrupo, 9002, 'Troca de Válvula de Panela de Pressão',
+          'Troca de válvula de segurança e anel de borracha original com teste de vedação completo.', 24.50, 'Panelas'),
+      _servicoPadraoLoja(idGrupo, 9003, 'Conserto de Tampa e Alça Lateral',
+          'Ajuste técnico de tampas empenadas e instalação de alças laterais antitérmicas.', 16.00, 'Panelas'),
+      _servicoPadraoLoja(idGrupo, 9004, 'Polimento e Reforma Completa de Panelas',
+          'Polimento profissional de alta durabilidade, desamasso de fundo e restauração do brilho.', 32.90, 'Panelas'),
+      _servicoPadraoLoja(idGrupo, 9005, 'Manutenção em Panela Elétrica',
+          'Diagnóstico e reparo elétrico de circuitos, termostatos e botões de acionamento.', 45.00, 'Eletroportáteis'),
+    ];
+  }
+
+  static ServicoProfissional _servicoPadraoLoja(
+    int? idGrupo,
+    int id,
+    String titulo,
+    String descricao,
+    double valor,
+    String funcao,
+  ) {
+    return ServicoProfissional(
+      id: id,
+      fkProfissional: 1,
+      fkGrupoEmpresa: idGrupo,
+      titulo: titulo,
+      descricao: descricao,
+      valor: valor,
+      fkOficio: 1,
+      funcao: funcao,
+      ativo: true,
+      imagemUrl: null,
+      dataCriacao: DateTime.now(),
+    );
+  }
+
+  List<Map<String, dynamic>> _gerarProfissionaisPadraoLoja() {
+    return [
+      {
+        'idProfissional': 1,
+        'nome': 'Clóvis Vieira',
+        'avaliacao': 5.0,
+        'totalAvaliacoes': 148,
+        'oficios': <OficioInfo>[],
+        'tag': 'Panelas',
+        'tagBgColor': CorOficio.corFundo(const Color(0xFF0288D1)),
+        'tagTextColor': CorOficio.corTexto(const Color(0xFF0288D1)),
+        'caminhoImagem': '',
+        'profissao': 'Panelas',
+      },
+    ];
+  }
+
+  Widget _placeholderImagemServico({double height = 100}) {
+    return Container(
+      height: height,
+      width: double.infinity,
+      color: const Color(0xFFEAF4FB),
+      child: const Center(
+        child: Icon(
+          Icons.home_repair_service_rounded,
+          color: Color(0xFF0A6E9D),
+          size: 36,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCardServicoLoja(ServicoProfissional servico) {
+    final bool usaImagemRede = servico.imagemUrl != null &&
+        servico.imagemUrl!.isNotEmpty &&
+        (servico.imagemUrl!.startsWith('http://') ||
+            servico.imagemUrl!.startsWith('https://'));
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => TelaServico(
+              idServico: servico.id,
+              servicoInicial: servico,
+            ),
+          ),
+        );
+      },
+      child: Container(
+        width: 160,
+        margin: const EdgeInsets.only(right: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.grey.shade200),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            usaImagemRede
+                ? Image.network(
+                    servico.imagemUrl!,
+                    height: 100,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) =>
+                        _placeholderImagemServico(height: 100),
+                  )
+                : _placeholderImagemServico(height: 100),
+            Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    servico.titulo,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  if (servico.funcao != null && servico.funcao!.isNotEmpty)
+                    Builder(
+                      builder: (context) {
+                        final corBase = CorOficio.parse(servico.funcao!);
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: CorOficio.corFundo(corBase),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            servico.funcao!,
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                              color: CorOficio.corTexto(corBase),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'R\$ ${servico.valor.toStringAsFixed(2).replaceAll('.', ',')}',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF00A2FF),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
