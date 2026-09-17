@@ -9,6 +9,7 @@ import 'models/servico_profissional.dart';
 import 'services/cor_dominante_service.dart';
 import 'services/postagens_profissional_service.dart';
 import 'services/servicos_profissional_service.dart';
+import 'solicitar_servico.dart';
 import 'tela_chat_profissional.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/icone_oficio.dart';
@@ -2519,6 +2520,55 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
           ),
         const SizedBox(height: 16),
 
+        if (_idProfissional != null) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAF8FF),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFB9E8FF)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.handyman_outlined,
+                    color: _primaryBlue,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Encontrou o serviço que precisa?',
+                      style: TextStyle(
+                        color: _textDark,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: _abrirSolicitacaoServico,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _primaryBlue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text('Solicitar Serviço'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
+
         // Botões de Ação: "+ Seguir" e "Conversar"
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -2696,6 +2746,23 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _abrirSolicitacaoServico() async {
+    if (_idProfissional == null) return;
+    await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => FractionallySizedBox(
+        heightFactor: 0.96,
+        child: SolicitarServicoPage(
+          idProfissional: _idProfissional!,
+          servicos: List<ServicoProfissional>.unmodifiable(_servicos),
+        ),
       ),
     );
   }
@@ -4512,6 +4579,15 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                       height: 1.2,
                     ),
                     maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    '${servico.tipoExecucao} • Carga ${servico.cargaServico}',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: Color(0xFF64748B),
+                    ),
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   Row(

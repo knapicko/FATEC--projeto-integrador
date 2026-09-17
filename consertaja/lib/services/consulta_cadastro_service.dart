@@ -68,6 +68,17 @@ class ResultadoCadastroCliente {
   });
 }
 
+class _CredencialAuth {
+  final String? email;
+  final String? phone;
+
+  const _CredencialAuth({this.email, this.phone});
+
+  bool get existe =>
+      (email != null && email!.isNotEmpty) ||
+      (phone != null && phone!.isNotEmpty);
+}
+
 /// Consultas e cadastro já usados em [cadastro_cliente.dart], [cadastro_profissional.dart] e [login.dart].
 class ConsultaCadastroService {
   ConsultaCadastroService({SupabaseClient? client})
@@ -234,61 +245,89 @@ class ConsultaCadastroService {
     return null;
   }
 
-  Future<String?> _emailPorDocumento(String digits) async {
+  Future<_CredencialAuth?> _credencialPorDocumento(String digits) async {
     try {
       int? tipoPessoaId;
       if (digits.length == 11) {
-        final pf = await _supabase
+        final pessoas = await _supabase
             .from('pessoa_fisica')
-            .select('id_pessoa_fisica')
-            .eq('cpf', digits)
-            .maybeSingle();
+            .select('id_pessoa_fisica, cpf');
+        final pf = pessoas.cast<Map<String, dynamic>>().where((pessoa) {
+          return somenteDigitos(pessoa['cpf']?.toString() ?? '') == digits;
+        }).firstOrNull;
         final pfId = pf?['id_pessoa_fisica'];
         if (pfId == null) return null;
-        final ass = await _supabase
+        final vinculos = await _supabase
             .from('ass_tipo_pessoa')
             .select('id_tipo_pessoa')
-            .eq('fk_pessoa_fisica', pfId)
-            .maybeSingle();
-        tipoPessoaId = (ass?['id_tipo_pessoa'] as num?)?.toInt();
+            .eq('fk_pessoa_fisica', pfId);
+        tipoPessoaId = vinculos.isEmpty
+            ? null
+            : (vinculos.first['id_tipo_pessoa'] as num?)?.toInt();
       } else if (digits.length == 14) {
-        final pj = await _supabase
+        final empresas = await _supabase
             .from('pessoa_juridica')
-            .select('id_pessoa_juridica')
-            .eq('cnpj', digits)
-            .maybeSingle();
+            .select('id_pessoa_juridica, cnpj');
+        final pj = empresas.cast<Map<String, dynamic>>().where((empresa) {
+          return somenteDigitos(empresa['cnpj']?.toString() ?? '') == digits;
+        }).firstOrNull;
         final pjId = pj?['id_pessoa_juridica'];
         if (pjId == null) return null;
-        final ass = await _supabase
+        final vinculos = await _supabase
             .from('ass_tipo_pessoa')
             .select('id_tipo_pessoa')
-            .eq('fk_pessoa_juridica', pjId)
-            .maybeSingle();
-        tipoPessoaId = (ass?['id_tipo_pessoa'] as num?)?.toInt();
+            .eq('fk_pessoa_juridica', pjId);
+        tipoPessoaId = vinculos.isEmpty
+            ? null
+            : (vinculos.first['id_tipo_pessoa'] as num?)?.toInt();
       }
       if (tipoPessoaId == null) return null;
 
-      final usuario = await _supabase
+      final usuarios = await _supabase
           .from('usuarios')
-          .select('fk_email')
-          .eq('fk_tipo_pessoa', tipoPessoaId)
-          .maybeSingle();
-      final emailId = usuario?['fk_email'];
-      if (emailId == null) return null;
+          .select('fk_email, fk_telefone')
+          .eq('fk_tipo_pessoa', tipoPessoaId);
+      final usuario = usuarios.isEmpty ? null : usuarios.first;
+      if (usuario == null) return null;
 
-      final emailRow = await _supabase
-          .from('emails')
-          .select('endereco_email')
-          .eq('id_email', emailId)
-          .maybeSingle();
-      return emailRow?['endereco_email'] as String?;
+      final emailId = usuario['fk_email'];
+      String? email;
+      if (emailId != null) {
+        final emails = await _supabase
+            .from('emails')
+            .select('endereco_email')
+            .eq('id_email', emailId);
+        if (emails.isNotEmpty) {
+          email = emails.first['endereco_email'] as String?;
+        }
+      }
+
+      final telefoneId = usuario['fk_telefone'];
+      String? phone;
+      if (telefoneId != null) {
+        final telefones = await _supabase
+            .from('telefones')
+            .select('ddd, numero')
+            .eq('id_telefone', telefoneId);
+        if (telefones.isNotEmpty) {
+          final telefone = telefones.first;
+          final ddd = somenteDigitos(telefone['ddd']?.toString() ?? '');
+          final numero = somenteDigitos(telefone['numero']?.toString() ?? '');
+          if (ddd.isNotEmpty && numero.isNotEmpty) {
+            phone = '+55$ddd$numero';
+          }
+        }
+      }
+
+      final credencial = _CredencialAuth(email: email, phone: phone);
+      return credencial.existe ? credencial : null;
     } catch (e) {
-      debugPrint('Erro ao resolver e-mail do documento: $e');
+      debugPrint('Erro ao resolver email por documento: $e');
       return null;
     }
   }
 
-  Future<String?> _emailPorTelefone(String value) async {
+  Future<_CredencialAuth?> _credencialPorTelefone(String value) async {
     final digits = somenteDigitos(value);
     if (digits.length < 10) return null;
 
@@ -304,22 +343,29 @@ class ConsultaCadastroService {
       final telefoneId = telefone?['id_telefone'];
       if (telefoneId == null) return null;
 
-      final usuario = await _supabase
+      final usuarios = await _supabase
           .from('usuarios')
-          .select('fk_email')
-          .eq('fk_telefone', telefoneId)
-          .maybeSingle();
-      final emailId = usuario?['fk_email'];
-      if (emailId == null) return null;
+          .select('fk_email, fk_telefone')
+          .eq('fk_telefone', telefoneId);
+      if (usuarios.isEmpty) return null;
+      final usuario = usuarios.first;
 
-      final email = await _supabase
-          .from('emails')
-          .select('endereco_email')
-          .eq('id_email', emailId)
-          .maybeSingle();
-      return email?['endereco_email'] as String?;
+      final emailId = usuario['fk_email'];
+      if (emailId != null) {
+        final emails = await _supabase
+            .from('emails')
+            .select('endereco_email')
+            .eq('id_email', emailId);
+        if (emails.isNotEmpty) {
+          return _CredencialAuth(
+            email: emails.first['endereco_email'] as String?,
+          );
+        }
+      }
+
+      return _CredencialAuth(phone: '+55$ddd$numero');
     } catch (e) {
-      debugPrint('Erro ao resolver e-mail do telefone: $e');
+      debugPrint('Erro ao resolver credencial do telefone: $e');
       return null;
     }
   }
@@ -332,37 +378,45 @@ class ConsultaCadastroService {
     if (identificador.trim().isEmpty || senha.isEmpty) {
       return const ResultadoLogin(
         sucesso: false,
-        mensagem: 'Preencha email e senha para entrar.',
+        mensagem: 'Preencha o identificador e a senha para entrar.',
       );
     }
 
-    var email = identificador.trim();
-    if (!_emailRegex.hasMatch(email)) {
+    String? email;
+    String? phone;
+    final identificadorLimpo = identificador.trim();
+    if (_emailRegex.hasMatch(identificadorLimpo)) {
+      email = identificadorLimpo;
+    }
+    else {
       final digits = somenteDigitos(identificador);
-          final resolvido = digits.length == 14
-            ? await _emailPorDocumento(digits)
-            : digits.length == 11
-            ? await _emailPorDocumento(digits) ?? await _emailPorTelefone(digits)
-            : await _emailPorTelefone(digits);
-      if (resolvido == null || resolvido.isEmpty) {
+      final credencial = digits.length == 11 || digits.length == 14
+          ? await _credencialPorDocumento(digits) ??
+                await _credencialPorTelefone(digits)
+          : await _credencialPorTelefone(digits);
+      if (credencial == null || !credencial.existe) {
         return const ResultadoLogin(
           sucesso: false,
-          mensagem: 'Não foi possível localizar o e-mail desta conta. Use o e-mail de cadastro.',
+            mensagem:
+              'Não foi possível localizar uma conta com esse identificador. '
+              'Use o e-mail, telefone, CPF ou CNPJ cadastrado.',
         );
       }
-      email = resolvido;
+      email = credencial.email;
+      phone = credencial.phone;
     }
 
     try {
       final response = await _supabase.auth.signInWithPassword(
         email: email,
+        phone: phone,
         password: senha,
       );
 
       if (response.user == null) {
         return const ResultadoLogin(
           sucesso: false,
-          mensagem: 'Email ou senha incorretos.',
+          mensagem: 'Identificador ou senha incorretos.',
         );
       }
 
@@ -379,7 +433,7 @@ class ConsultaCadastroService {
         perfilIncompleto: usuarioResponse == null,
       );
     } on AuthException catch (e) {
-      var mensagem = 'Email ou senha incorretos.';
+      var mensagem = 'Identificador ou senha incorretos.';
       if (e.message.contains('Email not confirmed')) {
         mensagem = 'Confirme seu email antes de fazer login.';
       }

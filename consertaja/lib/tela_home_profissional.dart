@@ -13,6 +13,7 @@ import 'meus_servicos_profissional.dart';
 import 'minhas_postagens_profissional.dart';
 import 'models/postagem_resumo.dart';
 import 'services/postagens_profissional_service.dart';
+import 'services/solicitacoes_service.dart';
 import 'services/completar_cadastro_equipe.dart';
 import 'tela_meu_perfil_profissional.dart';
 import 'tela_mensagens.dart';
@@ -134,6 +135,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   late Future<List<PostagemResumo>> _postagensFuture;
   late Future<List<_DiaAgendaCalendario>> _agendaSemanaFuture;
   late Future<List<Map<String, dynamic>>> _convitesEmpresaFuture;
+  late Future<List<Map<String, dynamic>>> _solicitacoesFuture;
 
   // Estado da criação de postagem
   List<XFile> _imagensSelecionadas = [];
@@ -171,6 +173,86 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     _postagensFuture = PostagensProfissionalService.buscarPostagens(limit: 10);
     _agendaSemanaFuture = _carregarAgendaSemana();
     _convitesEmpresaFuture = _buscarConvitesEmpresa();
+    _solicitacoesFuture = _buscarSolicitacoes();
+  }
+
+  Future<List<Map<String, dynamic>>> _buscarSolicitacoes() async {
+    final idProfissional = await _buscarIdProfissional();
+    if (idProfissional == null) return [];
+    return SolicitacoesService.buscarParaProfissional(idProfissional);
+  }
+
+  Future<void> _aceitarSolicitacao(Map<String, dynamic> solicitacao) async {
+    final idProfissional = await _buscarIdProfissional();
+    final idSolicitacao = (solicitacao['id_solicitacao'] as num?)?.toInt();
+    if (idProfissional == null || idSolicitacao == null) return;
+    try {
+      await SolicitacoesService.aceitar(
+        idSolicitacao: idSolicitacao,
+        idProfissional: idProfissional,
+      );
+      if (!mounted) return;
+      setState(() => _solicitacoesFuture = _buscarSolicitacoes());
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Solicitação aceita com sucesso.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Essa solicitação já foi aceita ou não está disponível.')),
+      );
+    }
+  }
+
+  Widget _buildSolicitacoes() {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _solicitacoesFuture,
+      builder: (context, snapshot) {
+        final pedidos = snapshot.data ?? const <Map<String, dynamic>>[];
+        if (pedidos.isEmpty) return const SizedBox.shrink();
+        return Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.all(14),
+          decoration: _cardDecoration(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Solicitações de serviço',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              ...pedidos.map((pedido) {
+                final servico = pedido['servicos_profissional'];
+                final titulo = servico is Map
+                    ? servico['titulo']?.toString() ?? 'Serviço'
+                    : 'Serviço';
+                final daLoja = pedido['fk_grupo_empresa'] != null;
+                final aceita = pedido['data_aceite'] == null;
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    daLoja ? Icons.store_outlined : Icons.handyman_outlined,
+                    color: _primaryBlue,
+                  ),
+                  title: Text(titulo),
+                  subtitle: Text(
+                    '${daLoja ? 'Pedido da loja' : 'Pedido direto'} • '
+                    '${pedido['data_agendada'] ?? 'Data não informada'}',
+                  ),
+                  trailing: aceita
+                      ? TextButton(
+                          onPressed: () => _aceitarSolicitacao(pedido),
+                          child: const Text('Aceitar'),
+                        )
+                      : const Text('Aceito'),
+                );
+              }),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -1354,6 +1436,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            _buildSolicitacoes(),
             // ================= CARTÃO DE PERFIL =================
             FutureBuilder<Map<String, dynamic>?>(
               future: _dadosProfissionalFuture,

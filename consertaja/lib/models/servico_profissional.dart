@@ -11,6 +11,8 @@ class ServicoProfissional {
     required this.ativo,
     required this.fkProfissional,
     this.fkGrupoEmpresa,
+    this.tipoExecucao = 'Execução',
+    this.cargaServico = 'Médio',
     required this.dataCriacao,
   });
 
@@ -33,6 +35,8 @@ class ServicoProfissional {
   final int fkProfissional;
   /// Grupo proprietário do serviço; nulo quando o serviço é individual.
   final int? fkGrupoEmpresa;
+  final String tipoExecucao;
+  final String cargaServico;
   final DateTime dataCriacao;
 
   factory ServicoProfissional.fromMap(Map<String, dynamic> map) {
@@ -62,6 +66,8 @@ class ServicoProfissional {
       ativo: map['ativo'] == true,
       fkProfissional: (map['fk_profissional'] as num).toInt(),
       fkGrupoEmpresa: (map['fk_grupo_empresa'] as num?)?.toInt(),
+      tipoExecucao: map['tipo_execucao']?.toString() ?? 'Execução',
+      cargaServico: map['carga_servico']?.toString() ?? 'Médio',
       dataCriacao: map['data_criacao'] != null
           ? DateTime.tryParse(map['data_criacao'].toString()) ?? DateTime.now()
           : DateTime.now(),
@@ -78,6 +84,8 @@ class ServicoProfissional {
       'ativo': ativo,
       'fk_profissional': fkProfissional,
       'fk_grupo_empresa': fkGrupoEmpresa,
+      'tipo_execucao': tipoExecucao,
+      'carga_servico': cargaServico,
     };
   }
 }

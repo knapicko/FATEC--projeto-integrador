@@ -696,6 +696,8 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
 
   String _categoriaSelecionada = '';
   String _categoriaCor = '#1D2430';
+  String _tipoExecucao = 'Execução';
+  String _cargaServico = 'Médio';
   int? _fkOficioSelecionado;
   bool _salvando = false;
   late bool _associacaoEmpresa;
@@ -733,6 +735,8 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
       _categoriaCor = s.cor ?? '#1D2430';
       _fkOficioSelecionado = s.fkOficio;
       _imagemUrlExistente = s.imagemUrl;
+      _tipoExecucao = s.tipoExecucao;
+      _cargaServico = s.cargaServico;
       _fkGrupoEmpresa = s.fkGrupoEmpresa;
       _associacaoEmpresa = s.fkGrupoEmpresa != null;
     } else if (sug != null) {
@@ -881,6 +885,8 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
         imagemUrl: _imagemUrlExistente,
         imagemLocal: _imagemLocalNova,
         fkGrupoEmpresa: _associacaoEmpresa ? _fkGrupoEmpresa : null,
+        tipoExecucao: _tipoExecucao,
+        cargaServico: _cargaServico,
       );
     } else {
       final r = await ServicosProfissionalService.criarServico(
@@ -891,6 +897,8 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
         imagemUrl: _imagemUrlExistente,
         imagemLocal: _imagemLocalNova,
         fkGrupoEmpresa: _associacaoEmpresa ? _fkGrupoEmpresa : null,
+        tipoExecucao: _tipoExecucao,
+        cargaServico: _cargaServico,
       );
       resultado = (sucesso: r.sucesso, erro: r.erro);
     }
@@ -1212,6 +1220,43 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
                         style: TextStyle(color: Colors.red, fontSize: 12),
                       ),
                     ),
+                  const SizedBox(height: 16),
+
+                  _buildLabel('Tipo de execução *'),
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<String>(
+                    initialValue: _tipoExecucao,
+                    decoration: _inputDec(hint: 'Selecione o tipo'),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'Entrega',
+                        child: Text('Entrega'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Execução',
+                        child: Text('Execução'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) setState(() => _tipoExecucao = value);
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  _buildLabel('Carga do serviço *'),
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<String>(
+                    initialValue: _cargaServico,
+                    decoration: _inputDec(hint: 'Selecione a carga'),
+                    items: const [
+                      DropdownMenuItem(value: 'Leve', child: Text('Leve')),
+                      DropdownMenuItem(value: 'Médio', child: Text('Médio')),
+                      DropdownMenuItem(value: 'Alto', child: Text('Alto')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) setState(() => _cargaServico = value);
+                    },
+                  ),
                   const SizedBox(height: 16),
 
                   // ── Descrição ────────────────────────────────────────

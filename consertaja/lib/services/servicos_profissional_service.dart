@@ -220,6 +220,8 @@ class ServicosProfissionalService {
     String? imagemUrl,
     XFile? imagemLocal,
     int? fkGrupoEmpresa,
+    String tipoExecucao = 'Execução',
+    String cargaServico = 'Médio',
   }) async {
     try {
       final contexto = await buscarContextoAssociacao();
@@ -256,6 +258,8 @@ class ServicosProfissionalService {
             'ativo': true,
             'fk_profissional': idProf,
             'fk_grupo_empresa': fkGrupoEmpresa,
+            'tipo_execucao': tipoExecucao,
+            'carga_servico': cargaServico,
           })
           .select('id_servico_prof')
           .single();
@@ -279,6 +283,8 @@ class ServicosProfissionalService {
     String? imagemUrl,
     XFile? imagemLocal,
     int? fkGrupoEmpresa,
+    String tipoExecucao = 'Execução',
+    String cargaServico = 'Médio',
   }) async {
     try {
       final contexto = await buscarContextoAssociacao();
@@ -303,6 +309,8 @@ class ServicosProfissionalService {
             'fk_oficios': fkOficio,
             'imagem_url': urlFinal,
             'fk_grupo_empresa': fkGrupoEmpresa,
+            'tipo_execucao': tipoExecucao,
+            'carga_servico': cargaServico,
             'data_alteracao': DateTime.now().toUtc().toIso8601String(),
           })
           .eq('id_servico_prof', id);
