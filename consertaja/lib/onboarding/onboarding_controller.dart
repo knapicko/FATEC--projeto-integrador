@@ -129,7 +129,11 @@ class OnboardingController extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool _persistBound = false;
+
   void _bindPersist() {
+    if (_persistBound) return;
+    _persistBound = true;
     for (final c in [
       documento,
       identificadorLogin,
@@ -273,8 +277,8 @@ class OnboardingController extends ChangeNotifier {
   }
 
   Future<void> limparRascunho() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_prefsKey);
+    _persistTimer?.cancel();
+    _persistTimer = null;
     _historico.clear();
     for (final c in [
       documento,
@@ -321,6 +325,9 @@ class OnboardingController extends ChangeNotifier {
     documentosValidados.clear();
     _applyVisuals();
     notifyListeners();
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_prefsKey);
   }
 
   Future<void> _transicionar(
