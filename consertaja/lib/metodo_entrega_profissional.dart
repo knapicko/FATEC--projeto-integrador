@@ -1,26 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'models/metodo_entrega.dart';
+
 class MetodoEntregaProfissionalPage extends StatefulWidget {
   const MetodoEntregaProfissionalPage({super.key});
 
   @override
   State<MetodoEntregaProfissionalPage> createState() =>
       _MetodoEntregaProfissionalPageState();
-}
-
-class _OpcaoEntrega {
-  const _OpcaoEntrega({
-    required this.valor,
-    required this.titulo,
-    required this.descricao,
-    required this.icone,
-  });
-
-  final String valor;
-  final String titulo;
-  final String descricao;
-  final IconData icone;
 }
 
 class _MetodoEntregaProfissionalPageState
@@ -30,33 +18,6 @@ class _MetodoEntregaProfissionalPageState
   static const Color _textMuted = Color(0xFF7D8595);
   static const Color _cardBorder = Color(0xFFE7EBF0);
   static const Color _cardFill = Color(0xFFF5F8FB);
-
-  static const List<_OpcaoEntrega> _opcoesEntrega = [
-    _OpcaoEntrega(
-      valor: 'Leva e Traz',
-      titulo: 'Leva e Traz',
-      descricao: 'Busco no cliente e entrego de volta.',
-      icone: Icons.local_shipping_outlined,
-    ),
-    _OpcaoEntrega(
-      valor: 'Retirado no Local',
-      titulo: 'Retirada no Local',
-      descricao: 'O cliente traz o item até mim e vem buscar depois.',
-      icone: Icons.storefront_outlined,
-    ),
-    _OpcaoEntrega(
-      valor: 'Receba em Casa',
-      titulo: 'Receba em Casa',
-      descricao: 'O cliente traz o item até mim, mas eu faço a entrega final.',
-      icone: Icons.home_outlined,
-    ),
-    _OpcaoEntrega(
-      valor: 'Atendimento em Domicílio',
-      titulo: 'Atendimento em Domicílio',
-      descricao: 'Vou até o endereço do cliente para realizar o serviço.',
-      icone: Icons.home_repair_service_outlined,
-    ),
-  ];
 
   final Set<String> _selecionadas = <String>{};
   bool _carregando = true;
@@ -223,7 +184,7 @@ class _MetodoEntregaProfissionalPageState
     );
   }
 
-  Widget _buildOpcaoEntrega(_OpcaoEntrega opcao) {
+  Widget _buildOpcaoEntrega(MetodoEntregaOpcao opcao) {
     final selecionada = _selecionadas.contains(opcao.valor);
 
     return Material(
@@ -348,7 +309,7 @@ class _MetodoEntregaProfissionalPageState
                             ),
                           ),
                           const SizedBox(height: 24),
-                          ..._opcoesEntrega
+                          ...metodosEntregaOpcoes
                               .where((opcao) => opcao.valor != 'Atendimento em Domicílio')
                               .map((opcao) => Padding(
                                     padding: const EdgeInsets.only(bottom: 12),
@@ -366,7 +327,7 @@ class _MetodoEntregaProfissionalPageState
                           Padding(
                             padding: const EdgeInsets.only(bottom: 12),
                             child: _buildOpcaoEntrega(
-                              _opcoesEntrega.firstWhere(
+                              metodosEntregaOpcoes.firstWhere(
                                 (opcao) => opcao.valor == 'Atendimento em Domicílio',
                               ),
                             ),
