@@ -4,8 +4,10 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'models/servico_catalogo.dart';
+import 'models/metodo_entrega.dart';
 import 'models/servico_profissional.dart';
 import 'services/servicos_profissional_service.dart';
 
@@ -696,7 +698,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
 
   String _categoriaSelecionada = '';
   String _categoriaCor = '#1D2430';
-  String _tipoExecucao = 'Execução';
+  final Set<String> _tiposExecucaoSelecionados = <String>{};
   String _cargaServico = 'Médio';
   int? _fkOficioSelecionado;
   bool _salvando = false;
@@ -709,6 +711,8 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
   /// Lista de ofícios (categorias) carregada do banco.
   List<({int id, String funcao, String cor})> _oficios = [];
   bool _carregandoOficios = true;
+  List<MetodoEntregaOpcao> _metodosEntregaDisponiveis = [];
+  bool _carregandoMetodosEntrega = true;
 
   /// URL já salva no banco (edição)
   String? _imagemUrlExistente;
@@ -735,7 +739,6 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
       _categoriaCor = s.cor ?? '#1D2430';
       _fkOficioSelecionado = s.fkOficio;
       _imagemUrlExistente = s.imagemUrl;
-      _tipoExecucao = s.tipoExecucao;
       _cargaServico = s.cargaServico;
       _fkGrupoEmpresa = s.fkGrupoEmpresa;
       _associacaoEmpresa = s.fkGrupoEmpresa != null;
@@ -750,6 +753,72 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
     }
     // Carrega as funções da associação inicialmente selecionada.
     _carregarOficios();
+    _carregarMetodosEntrega();
+  }
+
+  Future<void> _carregarMetodosEntrega() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        if (mounted) setState(() => _carregandoMetodosEntrega = false);
+        return;
+      }
+
+      final usuario = await supabase
+          .from('usuarios')
+          .select('id_usuario')
+          .eq('auth_id', user.id)
+          .maybeSingle();
+      final usuarioId = (usuario?['id_usuario'] as num?)?.toInt();
+      if (usuarioId == null) {
+        if (mounted) setState(() => _carregandoMetodosEntrega = false);
+        return;
+      }
+
+      final dados = await supabase
+          .from('dados_profissionais')
+          .select('metodo_entrega')
+          .eq('fk_usuario', usuarioId)
+          .maybeSingle();
+      final valoresSalvos = _separarValores(dados?['metodo_entrega']);
+      final disponiveis = metodosEntregaOpcoes
+          .where((opcao) => valoresSalvos.contains(opcao.valor))
+          .toList();
+
+      if (mounted) {
+        setState(() {
+          _metodosEntregaDisponiveis = disponiveis;
+          _tiposExecucaoSelecionados
+            ..clear()
+            ..addAll(
+              _separarValores(widget.servicoParaEditar?.tipoExecucao).where(
+                valoresSalvos.contains,
+              ),
+            );
+          _carregandoMetodosEntrega = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _carregandoMetodosEntrega = false);
+    }
+  }
+
+  List<String> _separarValores(dynamic raw) {
+    if (raw == null || raw.toString().trim().isEmpty) return <String>[];
+    return raw
+        .toString()
+        .split(',')
+        .map((valor) => valor.trim())
+        .where((valor) => valor.isNotEmpty)
+        .toList();
+  }
+
+  String _tipoExecucaoParaSalvar() {
+    return _metodosEntregaDisponiveis
+        .where((opcao) => _tiposExecucaoSelecionados.contains(opcao.valor))
+        .map((opcao) => opcao.valor)
+        .join(', ');
   }
 
   Future<void> _carregarOficios() async {
@@ -854,6 +923,20 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
       );
       return;
     }
+    if (_carregandoMetodosEntrega || _tiposExecucaoSelecionados.isEmpty) {
+      setState(() => _tentouSalvar = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _carregandoMetodosEntrega
+                ? 'Carregando métodos de entrega.'
+                : 'Selecione pelo menos um método de entrega.',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     final oficioPermitido = _oficios.any(
       (oficio) => oficio.id == _fkOficioSelecionado,
     );
@@ -885,7 +968,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
         imagemUrl: _imagemUrlExistente,
         imagemLocal: _imagemLocalNova,
         fkGrupoEmpresa: _associacaoEmpresa ? _fkGrupoEmpresa : null,
-        tipoExecucao: _tipoExecucao,
+        tipoExecucao: _tipoExecucaoParaSalvar(),
         cargaServico: _cargaServico,
       );
     } else {
@@ -897,7 +980,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
         imagemUrl: _imagemUrlExistente,
         imagemLocal: _imagemLocalNova,
         fkGrupoEmpresa: _associacaoEmpresa ? _fkGrupoEmpresa : null,
-        tipoExecucao: _tipoExecucao,
+        tipoExecucao: _tipoExecucaoParaSalvar(),
         cargaServico: _cargaServico,
       );
       resultado = (sucesso: r.sucesso, erro: r.erro);
@@ -1222,25 +1305,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
                     ),
                   const SizedBox(height: 16),
 
-                  _buildLabel('Tipo de execução *'),
-                  const SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
-                    initialValue: _tipoExecucao,
-                    decoration: _inputDec(hint: 'Selecione o tipo'),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'Entrega',
-                        child: Text('Entrega'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'Execução',
-                        child: Text('Execução'),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) setState(() => _tipoExecucao = value);
-                    },
-                  ),
+                  _buildTipoExecucao(),
                   const SizedBox(height: 16),
 
                   _buildLabel('Carga do serviço *'),
@@ -1512,6 +1577,68 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
         fontSize: 13,
         fontWeight: FontWeight.w600,
       ),
+    );
+  }
+
+  Widget _buildTipoExecucao() {
+    if (_carregandoMetodosEntrega) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 12),
+          child: CircularProgressIndicator(strokeWidth: 2.5),
+        ),
+      );
+    }
+
+    if (_metodosEntregaDisponiveis.isEmpty) {
+      return const Text(
+        'Nenhum método de entrega foi configurado no perfil.',
+        style: TextStyle(color: _textMuted, fontSize: 13),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildLabel('Tipo de execução *'),
+        const SizedBox(height: 6),
+        ..._metodosEntregaDisponiveis.map((opcao) {
+          final selecionado = _tiposExecucaoSelecionados.contains(opcao.valor);
+          return Material(
+            color: Colors.transparent,
+            child: CheckboxListTile(
+              value: selecionado,
+              fillColor: WidgetStateProperty.resolveWith<Color?>((states) {
+                if (states.contains(WidgetState.selected)) {
+                  return _primaryBlue;
+                }
+                return null;
+              }),
+              checkColor: Colors.white,
+              onChanged: (marcado) {
+                setState(() {
+                  if (marcado == true) {
+                    _tiposExecucaoSelecionados.add(opcao.valor);
+                  } else {
+                    _tiposExecucaoSelecionados.remove(opcao.valor);
+                  }
+                });
+              },
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              secondary: Icon(opcao.icone, color: _primaryBlue),
+              title: Text(
+                opcao.titulo,
+                style: const TextStyle(
+                  color: _textDark,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
     );
   }
 
