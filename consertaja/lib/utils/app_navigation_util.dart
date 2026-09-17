@@ -89,6 +89,13 @@ class AppNavigationUtil {
     }
   }
 
+  /// Remove uma rota já capturada antes da desmontagem do widget.
+  static void desregistrarRotaComoAuthPorRota(Route<dynamic>? route) {
+    if (route != null) {
+      _authRoutes.remove(route);
+    }
+  }
+
   /// Verifica se uma rota específica é de autenticação.
   static bool isRotaAuth(Route<dynamic>? route) {
     if (route == null) return false;
@@ -210,18 +217,21 @@ class AppBackHandler extends StatefulWidget {
 }
 
 class _AppBackHandlerState extends State<AppBackHandler> {
+  Route<dynamic>? _rotaRegistrada;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (widget.isAuth) {
+      _rotaRegistrada = ModalRoute.of(context);
       AppNavigationUtil.registrarRotaComoAuth(context);
     }
   }
 
   @override
   void dispose() {
-    if (widget.isAuth && mounted) {
-      AppNavigationUtil.desregistrarRotaComoAuth(context);
+    if (widget.isAuth) {
+      AppNavigationUtil.desregistrarRotaComoAuthPorRota(_rotaRegistrada);
     }
     super.dispose();
   }
