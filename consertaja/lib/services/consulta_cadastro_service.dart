@@ -516,14 +516,14 @@ class ConsultaCadastroService {
     } on AuthException catch (e) {
       var mensagemAmigavel = 'Ocorreu um erro ao registrar.';
 
-      if (e.toString().contains('AuthWeakPasswordException') ||
+        if (e.toString().contains('AuthWeakPasswordException') ||
           e.message.toLowerCase().contains('password should be at least') ||
-          e.statusCode == '422') {
+          e.message.toLowerCase().contains('weak password')) {
         final match = RegExp(
           r'at least (\d{1,3})',
           caseSensitive: false,
         ).firstMatch(e.message);
-        final requerido = match != null ? int.parse(match.group(1)!) : 8;
+        final requerido = match != null ? int.parse(match.group(1)!) : 12;
         mensagemAmigavel =
             'Senha muito fraca para o servidor! Ela precisa ter no mínimo '
             '$requerido caracteres, combinando letras maiúsculas, minúsculas, '

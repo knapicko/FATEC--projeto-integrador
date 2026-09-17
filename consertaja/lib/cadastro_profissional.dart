@@ -28,6 +28,7 @@ import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart
 import 'services/google_auth_service.dart';
 import 'services/validacao_telefone.dart';
 import 'services/validacao_documento.dart';
+import 'services/validacao_senha.dart';
 import 'services/formatacao_data.dart';
 import 'widgets/seletor_ddi.dart';
 import 'widgets/dialogo_documento.dart';
@@ -151,12 +152,11 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
   }
 
   // Getters para os requisitos da senha
-  bool get _temOitoCaracteres => _senhaController.text.length >= 8;
-  bool get _temMaiuscula => _senhaController.text.contains(RegExp(r'[A-Z]'));
-  bool get _temMinuscula => _senhaController.text.contains(RegExp(r'[a-z]'));
-  bool get _temSimbolo =>
-      _senhaController.text.contains(RegExp(r'[^A-Za-z0-9\s]'));
-  bool get _temNumero => _senhaController.text.contains(RegExp(r'[0-9]'));
+  bool get _temOitoCaracteres => senhaTemOitoCaracteres(_senhaController.text);
+  bool get _temMaiuscula => senhaTemMaiuscula(_senhaController.text);
+  bool get _temMinuscula => senhaTemMinuscula(_senhaController.text);
+  bool get _temSimbolo => senhaTemSimbolo(_senhaController.text);
+  bool get _temNumero => senhaTemNumero(_senhaController.text);
 
   @override
   void initState() {
@@ -704,7 +704,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildRequisitoItem(
-                        'No mínimo 8 caracteres',
+                        'No mínimo 12 caracteres',
                         _temOitoCaracteres,
                       ),
                       _buildRequisitoItem(
@@ -801,7 +801,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildRequisitoItem(
-                        'No mínimo 8 caracteres',
+                        'No mínimo 12 caracteres',
                         _temOitoCaracteres,
                       ),
                       _buildRequisitoItem(

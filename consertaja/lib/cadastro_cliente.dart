@@ -10,6 +10,7 @@ import 'tela_home.dart';
 import 'services/google_auth_service.dart';
 import 'services/validacao_telefone.dart';
 import 'services/validacao_documento.dart';
+import 'services/validacao_senha.dart';
 import 'services/formatacao_data.dart';
 import 'widgets/seletor_ddi.dart';
 import 'widgets/dialogo_documento.dart';
@@ -1370,12 +1371,11 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
   bool _carregando = false;
 
   // Getters para verificar os requisitos em tempo real
-  bool get _temOitoCaracteres => _senhaController.text.length >= 8;
-  bool get _temMaiuscula => _senhaController.text.contains(RegExp(r'[A-Z]'));
-  bool get _temMinuscula => _senhaController.text.contains(RegExp(r'[a-z]'));
-  bool get _temSimbolo =>
-      _senhaController.text.contains(RegExp(r'[^A-Za-z0-9\s]'));
-  bool get _temNumero => _senhaController.text.contains(RegExp(r'[0-9]'));
+  bool get _temOitoCaracteres => senhaTemOitoCaracteres(_senhaController.text);
+  bool get _temMaiuscula => senhaTemMaiuscula(_senhaController.text);
+  bool get _temMinuscula => senhaTemMinuscula(_senhaController.text);
+  bool get _temSimbolo => senhaTemSimbolo(_senhaController.text);
+  bool get _temNumero => senhaTemNumero(_senhaController.text);
 
   @override
   void initState() {
@@ -1558,16 +1558,16 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
     } on AuthException catch (e) {
       String mensagemAmigavel = 'Ocorreu um erro ao registrar.';
 
-      if (e.toString().contains('AuthWeakPasswordException') ||
+        if (e.toString().contains('AuthWeakPasswordException') ||
           e.message.toLowerCase().contains('password should be at least') ||
-          e.statusCode == '422') {
+          e.message.toLowerCase().contains('weak password')) {
         // Lê do servidor quantos caracteres ele exige de verdade (o Supabase pode
         // pedir um mínimo maior do que as regras locais do app).
         final match = RegExp(
           r'at least (\d{1,3})',
           caseSensitive: false,
         ).firstMatch(e.message);
-        final requerido = match != null ? int.parse(match.group(1)!) : 8;
+        final requerido = match != null ? int.parse(match.group(1)!) : 12;
         mensagemAmigavel =
             'Senha muito fraca para o servidor! Ela precisa ter no mínimo '
             '$requerido caracteres, combinando letras maiúsculas, minúsculas, '
@@ -1663,7 +1663,7 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildRequisitoItem(
-                    'No mínimo 8 caracteres',
+                    'No mínimo 12 caracteres',
                     _temOitoCaracteres,
                   ),
                   _buildRequisitoItem(
