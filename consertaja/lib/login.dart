@@ -34,7 +34,7 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _fazerLogin() async {
     if (_emailController.text.isEmpty || _senhaController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Preencha email e senha para entrar.')),
+        const SnackBar(content: Text('Preencha o identificador e a senha para entrar.')),
       );
       return;
     }
@@ -60,7 +60,9 @@ class _LoginPageState extends State<LoginPage> {
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(resultado.mensagem ?? 'Email ou senha incorretos.'),
+            content: Text(
+              resultado.mensagem ?? 'Identificador ou senha incorretos.',
+            ),
           ),
         );
       }
