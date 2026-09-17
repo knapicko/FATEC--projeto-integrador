@@ -923,7 +923,7 @@ class _ConversationalOnboardingScreenState
               child: Column(
                 children: [
                   PasswordRequirementItem(
-                    text: 'No mínimo 8 caracteres',
+                    text: 'No mínimo 12 caracteres',
                     valid: _controller.senhaTemOito,
                   ),
                   PasswordRequirementItem(
@@ -1127,7 +1127,7 @@ class _ConversationalOnboardingScreenState
               child: Column(
                 children: [
                   PasswordRequirementItem(
-                    text: 'No mínimo 8 caracteres',
+                    text: 'No mínimo 12 caracteres',
                     valid: _controller.senhaTemOito,
                   ),
                   PasswordRequirementItem(
