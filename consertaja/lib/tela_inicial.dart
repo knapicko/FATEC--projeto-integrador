@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'onboarding/conversational_onboarding_screen.dart';
 import 'onboarding/onboarding_controller.dart';
+import 'onboarding/onboarding_theme.dart';
 import 'tela_home.dart';
 import 'utils/app_navigation_util.dart';
 
@@ -16,12 +20,49 @@ class _TelaInicialState extends State<TelaInicial> {
   static const _blue = Color(0xFF12AEEC);
 
   bool _transicionando = false;
+  bool _aquecido = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Aquece em momento ocioso (após o primeiro frame) tudo que a primeira
+    // transição precisa: imagens da caixa/logo e SharedPreferences.
+    // Sem isso, esse custo cai no frame do toque e só a 1ª transição trava.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _aquecerTransicao());
+  }
+
+  Future<void> _aquecerTransicao() async {
+    for (final asset in [
+      CaixaAssets.normal,
+      CaixaAssets.falandoFechado,
+      CaixaAssets.falandoAberto,
+      'assets/images/icone/google-logo.png',
+    ]) {
+      try {
+        if (!mounted) return;
+        await precacheImage(AssetImage(asset), context);
+      } catch (_) {}
+    }
+    try {
+      await SharedPreferences.getInstance();
+    } catch (_) {}
+    _aquecido = true;
+  }
 
   Future<void> _abrirFluxo({required bool login}) async {
     if (_transicionando) return;
     setState(() => _transicionando = true);
-    await Future<void>.delayed(const Duration(milliseconds: 120));
-    await OnboardingController.instance.limparRascunho();
+    if (!mounted) return;
+    // Na primeira transição, o build da tela de onboarding (+ shaders) é
+    // pesado: espera o fade-out terminar e cede um frame antes de construir,
+    // para não travar no toque. Nas próximas vezes já está tudo em cache.
+    if (!_aquecido) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (!mounted) return;
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+    }
+    unawaited(OnboardingController.instance.limparRascunho());
     if (login) {
       OnboardingController.instance.iniciarFluxoLogin();
     } else {
