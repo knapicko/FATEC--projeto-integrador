@@ -21,17 +21,18 @@ ALTER TABLE public.servicos_profissional
   ALTER COLUMN carga_servico SET DEFAULT 'Médio',
   ALTER COLUMN carga_servico SET NOT NULL;
 
+ALTER TABLE public.servicos_profissional
+  DROP CONSTRAINT IF EXISTS servicos_profissional_tipo_execucao_check;
+
+ALTER TABLE public.servicos_profissional
+  ADD CONSTRAINT servicos_profissional_tipo_execucao_check
+  CHECK (
+    tipo_execucao IN ('Entrega', 'Execução')
+    OR tipo_execucao ~ '^(Leva e Traz|Retirado no Local|Receba em Casa|Atendimento em Domicílio)(, (Leva e Traz|Retirado no Local|Receba em Casa|Atendimento em Domicílio))*$'
+  );
+
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'servicos_profissional_tipo_execucao_check'
-  ) THEN
-    ALTER TABLE public.servicos_profissional
-      ADD CONSTRAINT servicos_profissional_tipo_execucao_check
-      CHECK (tipo_execucao IN ('Entrega', 'Execução'));
-  END IF;
-
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
     WHERE conname = 'servicos_profissional_carga_servico_check'
@@ -43,17 +44,6 @@ BEGIN
 END $$;
 
 -- O catalogo tambem guarda o tipo para que novos servicos ja nascam classificados.
-ALTER TABLE public.servicos_catalogo
-  ADD COLUMN IF NOT EXISTS tipo_execucao text;
-
-UPDATE public.servicos_catalogo
-SET tipo_execucao = 'Execução'
-WHERE tipo_execucao IS NULL;
-
-ALTER TABLE public.servicos_catalogo
-  ALTER COLUMN tipo_execucao SET DEFAULT 'Execução',
-  ALTER COLUMN tipo_execucao SET NOT NULL;
-
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -110,16 +100,16 @@ BEGIN
       ));
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'solicitacoes_tipo_execucao_check'
-  ) THEN
-      SECURITY DEFINER
-      SET search_path = public
-    ALTER TABLE public.solicitacoes
-      ADD CONSTRAINT solicitacoes_tipo_execucao_check
-      CHECK (tipo_execucao IS NULL OR tipo_execucao IN ('Entrega', 'Execução'));
-  END IF;
+  ALTER TABLE public.solicitacoes
+    DROP CONSTRAINT IF EXISTS solicitacoes_tipo_execucao_check;
+
+  ALTER TABLE public.solicitacoes
+    ADD CONSTRAINT solicitacoes_tipo_execucao_check
+    CHECK (
+      tipo_execucao IS NULL
+      OR tipo_execucao IN ('Entrega', 'Execução')
+      OR tipo_execucao ~ '^(Leva e Traz|Retirado no Local|Receba em Casa|Atendimento em Domicílio)(, (Leva e Traz|Retirado no Local|Receba em Casa|Atendimento em Domicílio))*$'
+    );
 END $$;
 
 CREATE INDEX IF NOT EXISTS solicitacoes_fk_usuario_idx
