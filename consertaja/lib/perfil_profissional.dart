@@ -221,6 +221,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   int? _idGrupoEmpresa;
   int? _idPerfilProfissional;
   int? _idUsuarioLogado;
+  int? _idUsuarioProf;
   _DadosEnderecoProfissional? _enderecoProfissional;
   bool _enderecoCarregado = false;
   bool _seguindoProfissional = false;
@@ -656,9 +657,21 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
       );
       final supabase = Supabase.instance.client;
       Map<String, dynamic>? response;
-      int? idProfissionalEncontrado = widget.idProfissional;
+      int? idUsuarioParaBuscar = _idUsuarioProf;
+      int? idProfissionalEncontrado = _idProfissional ?? widget.idProfissional;
+      int? idPerfilEncontrado = _idPerfilProfissional;
 
-      if (idProfissionalEncontrado != null) {
+      // 1. Se já conhecemos o id_usuario (por exemplo, de carregamento anterior)
+      if (idUsuarioParaBuscar != null) {
+        response = await supabase
+            .from('usuarios')
+            .select('nome, foto_perfil_url, id_usuario')
+            .eq('id_usuario', idUsuarioParaBuscar)
+            .maybeSingle();
+      }
+
+      // 2. Se não achou e temos id_profissional
+      if (response == null && idProfissionalEncontrado != null) {
         final dp = await supabase
             .from('dados_profissionais')
             .select('fk_usuario')
@@ -674,15 +687,46 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
         }
       }
 
+      // 3. Se não achou e temos fk_perfil
+      if (response == null && idPerfilEncontrado != null) {
+        final dp = await supabase
+            .from('dados_profissionais')
+            .select('fk_usuario')
+            .eq('fk_perfil', idPerfilEncontrado)
+            .maybeSingle();
+        final fkU = dp?['fk_usuario'];
+        if (fkU != null) {
+          response = await supabase
+              .from('usuarios')
+              .select('nome, foto_perfil_url, id_usuario')
+              .eq('id_usuario', fkU)
+              .maybeSingle();
+        }
+      }
+
+      // 4. Se ainda não achou, busca por nome (atual ou inicial)
       if (response == null) {
+        final nomeBusca = _nome.isNotEmpty && _nome != 'Profissional não encontrado'
+            ? _nome
+            : widget.nomeInicial;
         final query = await supabase
             .from('usuarios')
             .select('nome, foto_perfil_url, id_usuario')
             .eq('tipo_conta', 'Profissional')
-            .ilike('nome', '%${widget.nomeInicial}%')
+            .ilike('nome', '%$nomeBusca%')
             .limit(1);
         if (query.isNotEmpty) {
           response = query.first;
+        } else if (nomeBusca != widget.nomeInicial && widget.nomeInicial.isNotEmpty) {
+          final queryIni = await supabase
+              .from('usuarios')
+              .select('nome, foto_perfil_url, id_usuario')
+              .eq('tipo_conta', 'Profissional')
+              .ilike('nome', '%${widget.nomeInicial}%')
+              .limit(1);
+          if (queryIni.isNotEmpty) {
+            response = queryIni.first;
+          }
         }
       }
 
@@ -691,15 +735,16 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
       );
       if (response != null && mounted) {
         int? idProfissional = idProfissionalEncontrado;
-        int? fkPerfil;
+        int? fkPerfil = idPerfilEncontrado;
         String? anosExperiencia;
         String? descricaoPerfil;
         String? tipoPerfil;
         String? corBanner;
-        int? idGrupoEmpresa = widget.idGrupoEmpresa;
+        int? idGrupoEmpresa = widget.idGrupoEmpresa ?? _idGrupoEmpresa;
 
         final fkUsuario = response['id_usuario'];
         final idUsuarioProf = (fkUsuario as num?)?.toInt();
+        _idUsuarioProf = idUsuarioProf;
         debugPrint(
           '🔎 [PerfilProfissional] id_usuario encontrado: $idUsuarioProf',
         );
@@ -708,14 +753,15 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
           final dadosProf = await supabase
               .from('dados_profissionais')
               .select(
-                'id_profissional, fk_perfil, fk_grupo_empresa, anos_experiencia',
+                'id_profissional, fk_perfil, fk_grupo_empresa, anos_experiencia, metodo_entrega',
               )
               .eq('fk_usuario', fkUsuario)
               .maybeSingle();
-          idProfissional = (dadosProf?['id_profissional'] as num?)?.toInt();
-          fkPerfil = (dadosProf?['fk_perfil'] as num?)?.toInt();
+          idProfissional = (dadosProf?['id_profissional'] as num?)?.toInt() ?? idProfissional;
+          fkPerfil = (dadosProf?['fk_perfil'] as num?)?.toInt() ?? fkPerfil;
           idGrupoEmpresa = (dadosProf?['fk_grupo_empresa'] as num?)?.toInt() ?? idGrupoEmpresa;
           anosExperiencia = dadosProf?['anos_experiencia']?.toString();
+          metodoEntregaRaw = dadosProf?['metodo_entrega']?.toString();
           debugPrint(
             '🔎 [PerfilProfissional] id_profissional: $idProfissional; fk_perfil: $fkPerfil; fk_grupo_empresa: $idGrupoEmpresa',
           );
@@ -753,18 +799,13 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
           } else {
             novaFoto = null;
           }
-          // Só troca a foto se mudou: evita o avatar "piscar"/recarregar.
-          if (novaFoto != _fotoUrl) {
-            _fotoUrl = novaFoto;
-            final f = novaFoto;
-            if (f != null && f.isNotEmpty && mounted) {
-              // Pré-carrega a foto real em background; quando chegar,
-              // o Image com gaplessPlayback troca sem piscar.
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!mounted) return;
-                precacheImage(NetworkImage(f), context).catchError((_) {});
-              });
-            }
+          _fotoUrl = novaFoto;
+          final f = novaFoto;
+          if (f != null && f.isNotEmpty && mounted) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              precacheImage(NetworkImage(f), context).catchError((_) {});
+            });
           }
           _idProfissional = idProfissional;
           _idPerfilProfissional = fkPerfil;
@@ -2244,11 +2285,32 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   }
 
   Future<void> _recarregarPerfil() async {
+    // 1. Limpa cache em memória do Flutter para garantir que fotos e imagens atualizadas sejam recarregadas
+    PaintingBinding.instance.imageCache.clear();
+    PaintingBinding.instance.imageCache.clearLiveImages();
+    final fotoAtual = _fotoUrl;
+    if (fotoAtual != null &&
+        fotoAtual.isNotEmpty &&
+        (fotoAtual.startsWith('http://') || fotoAtual.startsWith('https://'))) {
+      await NetworkImage(fotoAtual).evict().catchError((_) => true);
+    }
+    if (widget.imagemInicial.isNotEmpty &&
+        (widget.imagemInicial.startsWith('http://') ||
+            widget.imagemInicial.startsWith('https://'))) {
+      await NetworkImage(widget.imagemInicial).evict().catchError((_) => true);
+    }
+
+    // 2. Destrava flags para permitir recarga completa
+    _carregandoSeguimento = false;
+
+    // 3. Recarrega os dados completos do usuário logado e do perfil profissional
     await Future.wait([
       _carregarUsuarioLogado(),
       _carregarDadosProfissional(),
     ]);
+
     if (mounted) {
+      setState(() {});
       _atualizarOffsetsSecoes();
     }
   }
@@ -2420,13 +2482,17 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
 
         // Nome do Profissional (já nasce com o nome inicial -> instantâneo,
         // sem spinner que fazia o layout "pular" na abertura).
-        Text(
-          _nome,
-          style: const TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: _textDark,
-            letterSpacing: -0.2,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Text(
+            _nome,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: _textDark,
+              letterSpacing: -0.2,
+            ),
           ),
         ),
         const SizedBox(height: 6),
