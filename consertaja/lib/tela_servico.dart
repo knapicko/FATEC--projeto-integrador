@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'models/servico_profissional.dart';
 import 'perfil_loja.dart';
 import 'perfil_profissional.dart';
 import 'services/servicos_profissional_service.dart';
-import 'solicitar_servico.dart';
 import 'tela_chat_profissional.dart';
 import 'utils/cor_oficio.dart';
+import 'utils/icone_oficio.dart';
 import 'utils/iniciais.dart';
 
 class TelaServico extends StatefulWidget {
@@ -38,6 +39,22 @@ class _TelaServicoState extends State<TelaServico> {
   DetalheServicoPublico? _detalhe;
   bool _carregando = true;
 
+  // Estado da Sheet "Adicionar Serviço" (persistido durante o ciclo de vida da tela)
+  int? _sheetIdUsuario;
+  List<_EnderecoUsuarioItem> _sheetEnderecosCliente = [];
+  _EnderecoUsuarioItem? _sheetEnderecoClienteSelecionado;
+  List<String> _sheetMetodosDisponiveis = [];
+  String? _sheetTipoExecucaoSelecionado;
+  bool _sheetDropdownMetodosAberto = false;
+  final TextEditingController _sheetDetalhesController = TextEditingController();
+  DateTime? _sheetDataSelecionada;
+  String? _sheetHorarioSelecionado;
+  String? _sheetHoraAgendadaSql;
+  List<Map<String, dynamic>> _sheetAgendasProfissional = [];
+  List<Map<String, dynamic>> _sheetExcecoesProfissional = [];
+  bool _sheetDadosCarregados = false;
+  bool _sheetEnviando = false;
+
   @override
   void initState() {
     super.initState();
@@ -47,6 +64,7 @@ class _TelaServicoState extends State<TelaServico> {
   @override
   void dispose() {
     _pageController.dispose();
+    _sheetDetalhesController.dispose();
     super.dispose();
   }
 
@@ -112,6 +130,7 @@ class _TelaServicoState extends State<TelaServico> {
       _detalhe = detalhe;
       _carregando = false;
     });
+    _carregarDadosSheet();
   }
 
   String _preco(double valor) {
@@ -1628,15 +1647,7 @@ class _TelaServicoState extends State<TelaServico> {
                 height: 48,
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => SolicitarServicoPage(
-                          idProfissional: servico.fkProfissional,
-                          servicos: [servico],
-                        ),
-                      ),
-                    );
+                    _abrirSheetAdicionarServico();
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _azul,
@@ -1662,4 +1673,1635 @@ class _TelaServicoState extends State<TelaServico> {
       ),
     );
   }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // FLUXO DE ADIÇÃO / SOLICITAÇÃO DE SERVIÇO (BOTTOM SHEET EXTENSÍVEL)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Future<void> _carregarDadosSheet() async {
+    final detalhe = _detalhe;
+    final servico = detalhe?.servico;
+    if (servico == null) return;
+
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user != null) {
+        final usuario = await supabase
+            .from('usuarios')
+            .select('id_usuario')
+            .eq('auth_id', user.id)
+            .maybeSingle();
+        _sheetIdUsuario = (usuario?['id_usuario'] as num?)?.toInt();
+
+        if (_sheetIdUsuario != null) {
+          final vinculos = await supabase
+              .from('ass_usuario_endereco')
+              .select('fk_endereco, apelido_endereco, tipo_endereco, endereco_ativo')
+              .eq('fk_usuario', _sheetIdUsuario!);
+
+          final enderecosCarregados = <_EnderecoUsuarioItem>[];
+          for (final v in vinculos) {
+            final idEnd = (v['fk_endereco'] as num?)?.toInt();
+            if (idEnd == null) continue;
+            final end = await supabase
+                .from('enderecos')
+                .select('logradouro, numero, complemento, bairro, cep, fk_cidade')
+                .eq('id_endereco', idEnd)
+                .maybeSingle();
+            if (end == null) continue;
+            final idCid = (end['fk_cidade'] as num?)?.toInt();
+            Map<String, dynamic>? cid;
+            Map<String, dynamic>? est;
+            if (idCid != null) {
+              cid = await supabase
+                  .from('cidades')
+                  .select('nome_cidade, fk_estado')
+                  .eq('id_cidade', idCid)
+                  .maybeSingle();
+              final idEst = (cid?['fk_estado'] as num?)?.toInt();
+              if (idEst != null) {
+                est = await supabase
+                    .from('estados')
+                    .select('sigla_estado')
+                    .eq('id_estado', idEst)
+                    .maybeSingle();
+              }
+            }
+            final logr = end['logradouro']?.toString().trim() ?? '';
+            final numStr = end['numero']?.toString().trim() ?? '';
+            final bairro = end['bairro']?.toString().trim() ?? '';
+            final cidNome = cid?['nome_cidade']?.toString().trim() ?? '';
+            final sigla = est?['sigla_estado']?.toString().trim() ?? '';
+
+            final partes = [
+              if (logr.isNotEmpty) (numStr.isNotEmpty ? '$logr, $numStr' : logr),
+              if (bairro.isNotEmpty) bairro,
+              if (cidNome.isNotEmpty) (sigla.isNotEmpty ? '$cidNome - $sigla' : cidNome),
+            ];
+            final linha = partes.join(', ');
+            final tipo = v['tipo_endereco']?.toString().trim().isNotEmpty == true
+                ? v['tipo_endereco'].toString().trim()
+                : (v['apelido_endereco']?.toString().trim().isNotEmpty == true
+                    ? v['apelido_endereco'].toString().trim()
+                    : 'Casa');
+
+            enderecosCarregados.add(
+              _EnderecoUsuarioItem(
+                id: idEnd,
+                tipoEndereco: tipo,
+                apelido: v['apelido_endereco']?.toString().trim() ?? '',
+                linhaFormatada: linha.isNotEmpty ? linha : 'Endereço cadastrado',
+                principal: v['endereco_ativo'] == true,
+              ),
+            );
+          }
+
+          if (mounted) {
+            setState(() {
+              _sheetEnderecosCliente = enderecosCarregados;
+              if (_sheetEnderecoClienteSelecionado == null && enderecosCarregados.isNotEmpty) {
+                _sheetEnderecoClienteSelecionado = enderecosCarregados.firstWhere(
+                  (e) => e.principal,
+                  orElse: () => enderecosCarregados.first,
+                );
+              }
+            });
+          }
+        }
+      }
+
+      // 2. Métodos de entrega disponíveis
+      final metodos = <String>[];
+      if (servico.tipoExecucao.isNotEmpty &&
+          servico.tipoExecucao != 'Execução' &&
+          servico.tipoExecucao != 'Geral') {
+        for (final m in servico.tipoExecucao.split(',')) {
+          final limpo = m.trim();
+          if (limpo.isNotEmpty && !metodos.contains(limpo)) {
+            metodos.add(limpo);
+          }
+        }
+      }
+
+      try {
+        final dadosProf = await supabase
+            .from('dados_profissionais')
+            .select('metodo_entrega')
+            .eq('id_profissional', servico.fkProfissional)
+            .maybeSingle();
+        final metodoProf = dadosProf?['metodo_entrega']?.toString();
+        if (metodoProf != null && metodoProf.isNotEmpty) {
+          for (final m in metodoProf.split(',')) {
+            final limpo = m.trim();
+            if (limpo.isNotEmpty && !metodos.contains(limpo)) {
+              metodos.add(limpo);
+            }
+          }
+        }
+      } catch (_) {}
+
+      if (metodos.isEmpty) {
+        metodos.addAll(['Leva e Traz', 'Retirado no Local', 'Receba em Casa', 'Atendimento em Domicílio']);
+      }
+
+      // 3. Agenda e Exceções
+      try {
+        final agendas = await supabase
+            .from('agenda_profissional')
+            .select('dias_semana, hora_ini, hora_fim')
+            .eq('fk_profissional', servico.fkProfissional);
+        _sheetAgendasProfissional = List<Map<String, dynamic>>.from(agendas);
+      } catch (_) {}
+
+      try {
+        final hoje = DateTime.now();
+        final dataInicio = DateTime(hoje.year, hoje.month, 1);
+        final dataFim = DateTime(hoje.year, hoje.month + 4, 0);
+        final excecoes = await supabase
+            .from('grade_horario_excecao')
+            .select('dia_semana, hora_ini, hora_fim, observacao')
+            .eq('fk_profissional', servico.fkProfissional)
+            .gte('dia_semana', _formatarDataSql(dataInicio))
+            .lte('dia_semana', _formatarDataSql(dataFim));
+        _sheetExcecoesProfissional = List<Map<String, dynamic>>.from(excecoes);
+      } catch (_) {}
+
+      if (mounted) {
+        setState(() {
+          _sheetMetodosDisponiveis = metodos;
+          if (_sheetTipoExecucaoSelecionado == null ||
+              !_sheetMetodosDisponiveis.contains(_sheetTipoExecucaoSelecionado)) {
+            _sheetTipoExecucaoSelecionado = _sheetMetodosDisponiveis.first;
+          }
+          _sheetDadosCarregados = true;
+        });
+      }
+    } catch (e) {
+      debugPrint('Erro ao carregar dados da sheet: $e');
+    }
+  }
+
+  void _abrirSheetAdicionarServico() {
+    if (!_sheetDadosCarregados) {
+      _carregarDadosSheet();
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return _buildSheetConteudo(setSheetState);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSheetConteudo(StateSetter setSheetState) {
+    final detalhe = _detalhe;
+    final servico = detalhe?.servico;
+    if (servico == null) {
+      return Container(
+        height: 200,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: const Center(child: CircularProgressIndicator(color: _azul)),
+      );
+    }
+
+    final tipoExecucao = _sheetTipoExecucaoSelecionado ?? 'Leva e Traz';
+    final bool ehRecebaEmCasa = tipoExecucao == 'Receba em Casa';
+    final bool ehRetiradoNoLocal = tipoExecucao == 'Retirado no Local' || tipoExecucao == 'Retirada no Local';
+    // Leva e Traz ou Atendimento em Domicílio
+    final bool ehApenasCliente = !ehRecebaEmCasa && !ehRetiradoNoLocal;
+
+    final int passoDetalhesNum = ehRecebaEmCasa ? 5 : 4;
+    final int passoAgendaNum = ehRecebaEmCasa ? 6 : 5;
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.94,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: Column(
+          children: [
+            _buildCabecalhoSheet(),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
+                children: [
+                  // Passo 1: O Serviço
+                  _buildRotuloPasso('PASSO 1: O SERVIÇO'),
+                  _buildPasso1Servico(servico),
+                  const SizedBox(height: 18),
+
+                  // Passo 2: Execução do Serviço
+                  _buildRotuloPasso('PASSO 2: EXECUÇÃO DO SERVIÇO'),
+                  _buildPasso2Execucao(setSheetState),
+                  const SizedBox(height: 18),
+
+                  // Passos de Endereço (condicionais conforme tipo de execução)
+                  if (ehRecebaEmCasa) ...[
+                    _buildRotuloPasso('PASSO 3: LOCALIZAÇÃO DO SERVIÇO'),
+                    _buildCardEnderecoProfissional(),
+                    const SizedBox(height: 18),
+                    _buildRotuloPasso('PASSO 4: ENTREGA DO SERVIÇO'),
+                    _buildCardEnderecoCliente(setSheetState),
+                    const SizedBox(height: 18),
+                  ] else if (ehRetiradoNoLocal) ...[
+                    _buildRotuloPasso('PASSO 3: LOCALIZAÇÃO DO SERVIÇO'),
+                    _buildCardEnderecoProfissional(),
+                    const SizedBox(height: 18),
+                  ] else if (ehApenasCliente) ...[
+                    _buildRotuloPasso('PASSO 3: ENTREGA DO SERVIÇO'),
+                    _buildCardEnderecoCliente(setSheetState),
+                    const SizedBox(height: 18),
+                  ],
+
+                  // Passo de Detalhes
+                  _buildPassoDetalhes(passoDetalhesNum, setSheetState),
+                  const SizedBox(height: 18),
+
+                  // Passo de Agendamento
+                  _buildPassoAgendamento(passoAgendaNum, setSheetState),
+                  const SizedBox(height: 10),
+                ],
+              ),
+            ),
+            _buildBarraInferiorSheet(servico),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCabecalhoSheet() {
+    final titulo = _detalhe?.servico.titulo.trim().isNotEmpty == true
+        ? _detalhe!.servico.titulo.trim()
+        : 'Conserto de Cabo de Panela';
+
+    return Container(
+      color: _azul,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      child: SafeArea(
+        bottom: false,
+        child: SizedBox(
+          height: 48,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.arrow_back, color: Colors.white, size: 24),
+                ),
+              ),
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 48),
+                  child: Text(
+                    titulo,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRotuloPasso(String texto) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(
+        texto,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF64748B),
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPasso1Servico(ServicoProfissional servico) {
+    final corOficio = servico.cor != null && servico.cor!.isNotEmpty
+        ? CorOficio.parse(servico.cor!)
+        : (servico.funcao != null ? CorOficio.parse(servico.funcao!) : const Color(0xFF0FB3FF));
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: corOficio,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            alignment: Alignment.center,
+            child: IconeOficio.imagemPorFuncao(
+              servico.funcao,
+              tamanho: 30,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Serviço Selecionado',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  servico.titulo,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1E293B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPasso2Execucao(StateSetter setSheetState) {
+    final metodo = _sheetTipoExecucaoSelecionado ?? 'Leva e Traz';
+    final temMaisDeUm = _sheetMetodosDisponiveis.length > 1;
+    final iconeMetodo = _obterIconeMetodo(metodo);
+
+    return Column(
+      children: [
+        InkWell(
+          onTap: temMaisDeUm
+              ? () {
+                  setSheetState(() {
+                    _sheetDropdownMetodosAberto = !_sheetDropdownMetodosAberto;
+                  });
+                  setState(() {});
+                }
+              : null,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: _sheetDropdownMetodosAberto ? _azul : const Color(0xFFE2E8F0),
+                width: _sheetDropdownMetodosAberto ? 1.5 : 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0FB3FF),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(iconeMetodo, color: Colors.white, size: 28),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Tipo de entrega',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        metodo,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (temMaisDeUm)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: Icon(
+                      _sheetDropdownMetodosAberto
+                          ? Icons.keyboard_arrow_up
+                          : Icons.keyboard_arrow_down,
+                      color: _azul,
+                      size: 26,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        if (_sheetDropdownMetodosAberto && temMaisDeUm) ...[
+          const SizedBox(height: 6),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              children: _sheetMetodosDisponiveis.map((m) {
+                final sel = m == metodo;
+                return InkWell(
+                  onTap: () {
+                    setSheetState(() {
+                      _sheetTipoExecucaoSelecionado = m;
+                      _sheetDropdownMetodosAberto = false;
+                    });
+                    setState(() {});
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _obterIconeMetodo(m),
+                          color: sel ? _azul : const Color(0xFF64748B),
+                          size: 22,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            m,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
+                              color: sel ? _azul : const Color(0xFF1E293B),
+                            ),
+                          ),
+                        ),
+                        if (sel)
+                          const Icon(Icons.check, color: _azul, size: 20),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildCardEnderecoProfissional() {
+    final endereco = _detalhe?.enderecoFormatado.isNotEmpty == true
+        ? _detalhe!.enderecoFormatado
+        : 'Endereço a combinar';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE2E8F0),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            alignment: Alignment.center,
+            child: const Icon(Icons.location_on, color: Color(0xFF64748B), size: 26),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Endereço do serviço',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  endereco,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1E293B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.only(right: 4),
+            child: Icon(Icons.map_outlined, color: Color(0xFF1E293B), size: 24),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCardEnderecoCliente(StateSetter setSheetState) {
+    final endereco = _sheetEnderecoClienteSelecionado;
+    final tipoEnd = endereco?.tipoEndereco.isNotEmpty == true
+        ? endereco!.tipoEndereco
+        : 'Casa';
+    final linha = endereco?.linhaFormatada.isNotEmpty == true
+        ? endereco!.linhaFormatada
+        : (_sheetIdUsuario == null
+            ? 'Faça login para selecionar seu endereço'
+            : 'Nenhum endereço cadastrado');
+
+    return InkWell(
+      onTap: () => _mostrarModalSelecaoEnderecos(context, setSheetState),
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE2E8F0),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              alignment: Alignment.center,
+              child: const Icon(Icons.home, color: Color(0xFF64748B), size: 26),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Endereço selecionado: $tipoEnd',
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      color: Color(0xFF64748B),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    linha,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.only(right: 4),
+              child: Icon(Icons.edit_outlined, color: Color(0xFF64748B), size: 22),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPassoDetalhes(int passoNum, StateSetter setSheetState) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildRotuloPasso('PASSO $passoNum: DETALHES DO SERVIÇO  (Opcional)'),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: _sheetDetalhesController,
+                maxLines: 4,
+                maxLength: 500,
+                onChanged: (_) => setSheetState(() {}),
+                style: const TextStyle(fontSize: 13.5, color: Color(0xFF1E293B)),
+                decoration: const InputDecoration(
+                  hintText: 'Descreva o seu serviço',
+                  hintStyle: TextStyle(
+                    color: Color(0xFF94A3B8),
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w400,
+                  ),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: EdgeInsets.zero,
+                  counterText: '',
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                '${_sheetDetalhesController.text.length}/500',
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFF94A3B8),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPassoAgendamento(int passoNum, StateSetter setSheetState) {
+    final textoData = _sheetDataSelecionada != null
+        ? _formatarDataVisual(_sheetDataSelecionada!)
+        : 'Selecione uma data';
+    final textoHorario = _sheetHorarioSelecionado != null &&
+            _sheetHorarioSelecionado!.isNotEmpty
+        ? _sheetHorarioSelecionado!
+        : 'Selecione um horário';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildRotuloPasso('PASSO $passoNum: AGENDAMENTO'),
+        // Container 1: Data
+        InkWell(
+          onTap: () => _mostrarModalCalendario(context, setSheetState),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Data',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        textoData,
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w800,
+                          color: _sheetDataSelecionada != null
+                              ? const Color(0xFF0F172A)
+                              : const Color(0xFF94A3B8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.calendar_today_outlined,
+                  color: Color(0xFF94A3B8),
+                  size: 18,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        // Container 2: Horário
+        InkWell(
+          onTap: () => _mostrarModalHorarios(context, setSheetState),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Horário',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        textoHorario,
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w800,
+                          color: _sheetHorarioSelecionado != null
+                              ? const Color(0xFF0F172A)
+                              : const Color(0xFF94A3B8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.access_time,
+                  color: Color(0xFF94A3B8),
+                  size: 18,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBarraInferiorSheet(ServicoProfissional servico) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: const Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _preco(servico.valor > 0 ? servico.valor : 18.99),
+                  style: const TextStyle(
+                    color: _azul,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 22,
+                  ),
+                ),
+                const Text(
+                  'Entregue em até 5 dias',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: SizedBox(
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: _sheetEnviando ? null : () => _confirmarSolicitacao(servico),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _azul,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: _sheetEnviando
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text(
+                          'Adicionar Serviço',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                          ),
+                        ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _mostrarModalSelecaoEnderecos(BuildContext parentContext, StateSetter setSheetState) {
+    showModalBottomSheet(
+      context: parentContext,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Seus Endereços',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (_sheetEnderecosCliente.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(
+                    child: Text(
+                      'Nenhum endereço cadastrado.',
+                      style: TextStyle(color: Color(0xFF64748B)),
+                    ),
+                  ),
+                )
+              else
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: _sheetEnderecosCliente.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                    itemBuilder: (context, i) {
+                      final item = _sheetEnderecosCliente[i];
+                      final selecionado = _sheetEnderecoClienteSelecionado?.id == item.id;
+                      final icone = item.tipoEndereco.toLowerCase().contains('trabalho')
+                          ? Icons.work_outline
+                          : Icons.home_outlined;
+
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                        leading: Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: selecionado ? const Color(0xFFE0F2FE) : const Color(0xFFF1F5F9),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(icone, color: selecionado ? _azul : const Color(0xFF64748B), size: 22),
+                        ),
+                        title: Text(
+                          item.tipoEndereco,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: selecionado ? FontWeight.w800 : FontWeight.w600,
+                            color: const Color(0xFF1E293B),
+                          ),
+                        ),
+                        subtitle: Text(
+                          item.linhaFormatada,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
+                        ),
+                        trailing: selecionado
+                            ? const Icon(Icons.check_circle, color: _azul)
+                            : const Icon(Icons.radio_button_unchecked, color: Color(0xFFCBD5E1)),
+                        onTap: () {
+                          setSheetState(() {
+                            _sheetEnderecoClienteSelecionado = item;
+                          });
+                          setState(() {});
+                          Navigator.pop(ctx);
+                        },
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _mostrarModalCalendario(BuildContext parentContext, StateSetter setSheetState) {
+    DateTime mesAtual = DateTime(
+      _sheetDataSelecionada?.year ?? DateTime.now().year,
+      _sheetDataSelecionada?.month ?? DateTime.now().month,
+    );
+
+    showModalBottomSheet(
+      context: parentContext,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final primeiroDia = DateTime(mesAtual.year, mesAtual.month, 1);
+            final ultimoDia = DateTime(mesAtual.year, mesAtual.month + 1, 0);
+            final diaInicioSemana = primeiroDia.weekday % 7;
+            final totalCelulas = ((diaInicioSemana + ultimoDia.day) / 7).ceil() * 7;
+            final hoje = DateTime.now();
+            final hojeSemHora = DateTime(hoje.year, hoje.month, hoje.day);
+
+            const meses = [
+              'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+              'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+            ];
+            const diasSemanaCabecalho = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
+
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFCBD5E1),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Mês / Ano e controles de navegação
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${meses[mesAtual.month - 1]} ${mesAtual.year}',
+                        style: const TextStyle(
+                          color: _azul,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 17,
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.chevron_left, color: Color(0xFF64748B)),
+                            onPressed: () {
+                              setModalState(() {
+                                mesAtual = DateTime(mesAtual.year, mesAtual.month - 1);
+                              });
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.chevron_right, color: Color(0xFF64748B)),
+                            onPressed: () {
+                              setModalState(() {
+                                mesAtual = DateTime(mesAtual.year, mesAtual.month + 1);
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Dias da semana
+                  Row(
+                    children: diasSemanaCabecalho.map((d) {
+                      return Expanded(
+                        child: Text(
+                          d,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: _azul,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 10),
+                  // Grid de dias
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 7,
+                      mainAxisSpacing: 8,
+                      crossAxisSpacing: 6,
+                      childAspectRatio: 1.05,
+                    ),
+                    itemCount: totalCelulas,
+                    itemBuilder: (context, index) {
+                      final ehAntes = index < diaInicioSemana;
+                      final diaNumero = index - diaInicioSemana + 1;
+                      final ehDepois = diaNumero > ultimoDia.day;
+
+                      if (ehAntes || ehDepois) {
+                        return const SizedBox.shrink();
+                      }
+
+                      final dataDia = DateTime(mesAtual.year, mesAtual.month, diaNumero);
+                      final dataSemHora = DateTime(dataDia.year, dataDia.month, dataDia.day);
+                      final isPassado = dataSemHora.isBefore(hojeSemHora);
+                      final isDisponivelAgenda = _isDiaDisponivelNaAgenda(dataDia);
+
+                      final exc = _buscarExcecaoData(dataDia);
+                      final bool temExcecao = exc != null;
+                      final bool isExcecaoDiaInteiro = temExcecao && _isExcecaoDiaInteiro(exc);
+
+                      final bool selecionado = _sheetDataSelecionada != null &&
+                          _sheetDataSelecionada!.year == dataDia.year &&
+                          _sheetDataSelecionada!.month == dataDia.month &&
+                          _sheetDataSelecionada!.day == dataDia.day;
+
+                      // 1. Exceção de dia inteiro (bloqueado em vermelho)
+                      if (!isPassado && temExcecao && isExcecaoDiaInteiro) {
+                        return InkWell(
+                          onTap: () {
+                            final obs = exc['observacao']?.toString();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  obs != null && obs.isNotEmpty
+                                      ? 'Indisponível nesta data: $obs'
+                                      : 'O profissional não atenderá nesta data.',
+                                ),
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          },
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF0F3),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFFCE4257)),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              '$diaNumero',
+                              style: const TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF9B2335),
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+
+                      // 2. Data disponível (agenda do profissional ou exceção parcial)
+                      final bool isEscolhavel = !isPassado && (isDisponivelAgenda || (temExcecao && !isExcecaoDiaInteiro));
+
+                      if (isEscolhavel) {
+                        return InkWell(
+                          onTap: () {
+                            setSheetState(() {
+                              _sheetDataSelecionada = dataDia;
+                              _sheetHorarioSelecionado = null;
+                              _sheetHoraAgendadaSql = null;
+                            });
+                            setState(() {});
+                            Navigator.pop(ctx);
+                          },
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: selecionado ? const Color(0xFF0FB3FF) : Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: const Color(0xFF0FB3FF),
+                                width: selecionado ? 2 : 1.5,
+                              ),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              '$diaNumero',
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w700,
+                                color: selecionado ? Colors.white : const Color(0xFF0F172A),
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+
+                      // 3. Dias não disponíveis ou passados (cinza)
+                      return Center(
+                        child: Text(
+                          '$diaNumero',
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFFCBD5E1),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _mostrarModalHorarios(BuildContext parentContext, StateSetter setSheetState) {
+    if (_sheetDataSelecionada == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Selecione uma data primeiro para escolher o horário.'),
+        ),
+      );
+      return;
+    }
+
+    final exc = _buscarExcecaoData(_sheetDataSelecionada!);
+    final bool temExcecaoParcial = exc != null && !_isExcecaoDiaInteiro(exc);
+    final TimeOfDay? excIni = temExcecaoParcial ? _parseTimeOfDay(exc['hora_ini']) : null;
+    final TimeOfDay? excFim = temExcecaoParcial ? _parseTimeOfDay(exc['hora_fim']) : null;
+
+    final todosSlots = [
+      _OpcaoHorarioItem(
+        label: '08:00 - 10:00 (Manhã)',
+        horaSql: '08:00:00',
+        inicio: const TimeOfDay(hour: 8, minute: 0),
+        fim: const TimeOfDay(hour: 10, minute: 0),
+      ),
+      _OpcaoHorarioItem(
+        label: '09:00 - 12:00 (Manhã)',
+        horaSql: '09:00:00',
+        inicio: const TimeOfDay(hour: 9, minute: 0),
+        fim: const TimeOfDay(hour: 12, minute: 0),
+      ),
+      _OpcaoHorarioItem(
+        label: '10:00 - 12:00 (Manhã)',
+        horaSql: '10:00:00',
+        inicio: const TimeOfDay(hour: 10, minute: 0),
+        fim: const TimeOfDay(hour: 12, minute: 0),
+      ),
+      _OpcaoHorarioItem(
+        label: '13:00 - 15:00 (Tarde)',
+        horaSql: '13:00:00',
+        inicio: const TimeOfDay(hour: 13, minute: 0),
+        fim: const TimeOfDay(hour: 15, minute: 0),
+      ),
+      _OpcaoHorarioItem(
+        label: '14:00 - 17:00 (Tarde)',
+        horaSql: '14:00:00',
+        inicio: const TimeOfDay(hour: 14, minute: 0),
+        fim: const TimeOfDay(hour: 17, minute: 0),
+      ),
+      _OpcaoHorarioItem(
+        label: '15:00 - 18:00 (Tarde)',
+        horaSql: '15:00:00',
+        inicio: const TimeOfDay(hour: 15, minute: 0),
+        fim: const TimeOfDay(hour: 18, minute: 0),
+      ),
+    ];
+
+    showModalBottomSheet(
+      context: parentContext,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Horários Disponíveis',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: todosSlots.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                  itemBuilder: (context, i) {
+                    final slot = todosSlots[i];
+                    final bloqueado = excIni != null &&
+                        excFim != null &&
+                        _intervalosColidem(slot.inicio, slot.fim, excIni, excFim);
+                    final selecionado = _sheetHorarioSelecionado == slot.label;
+
+                    return ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      enabled: !bloqueado,
+                      leading: Icon(
+                        Icons.access_time,
+                        color: bloqueado
+                            ? const Color(0xFFCBD5E1)
+                            : (selecionado ? _azul : const Color(0xFF64748B)),
+                      ),
+                      title: Text(
+                        slot.label,
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: selecionado ? FontWeight.w800 : FontWeight.w600,
+                          color: bloqueado
+                              ? const Color(0xFF94A3B8)
+                              : (selecionado ? _azul : const Color(0xFF1E293B)),
+                          decoration: bloqueado ? TextDecoration.lineThrough : null,
+                        ),
+                      ),
+                      subtitle: bloqueado
+                          ? const Text(
+                              'Indisponível neste horário por exceção do profissional',
+                              style: TextStyle(fontSize: 11.5, color: Color(0xFFCE4257)),
+                            )
+                          : null,
+                      trailing: selecionado
+                          ? const Icon(Icons.check_circle, color: _azul)
+                          : (bloqueado
+                              ? const Icon(Icons.block, color: Color(0xFFCBD5E1), size: 18)
+                              : const Icon(Icons.radio_button_unchecked, color: Color(0xFFCBD5E1))),
+                      onTap: bloqueado
+                          ? null
+                          : () {
+                              setSheetState(() {
+                                _sheetHorarioSelecionado = slot.label;
+                                _sheetHoraAgendadaSql = slot.horaSql;
+                              });
+                              setState(() {});
+                              Navigator.pop(ctx);
+                            },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmarSolicitacao(ServicoProfissional servico) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final nav = Navigator.of(context);
+    final supabase = Supabase.instance.client;
+    final user = supabase.auth.currentUser;
+    if (user == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Faça login para solicitar um serviço.')),
+      );
+      return;
+    }
+
+    if (_sheetIdUsuario == null) {
+      final usuario = await supabase
+          .from('usuarios')
+          .select('id_usuario')
+          .eq('auth_id', user.id)
+          .maybeSingle();
+      _sheetIdUsuario = (usuario?['id_usuario'] as num?)?.toInt();
+    }
+
+    if (_sheetIdUsuario == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Não foi possível identificar o usuário.')),
+      );
+      return;
+    }
+
+    final tipoExecucao = _sheetTipoExecucaoSelecionado ?? 'Leva e Traz';
+    final precisaEnderecoCliente = tipoExecucao != 'Retirado no Local' && tipoExecucao != 'Retirada no Local';
+
+    if (precisaEnderecoCliente && _sheetEnderecoClienteSelecionado == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Selecione um endereço para o atendimento.')),
+      );
+      return;
+    }
+
+    if (_sheetDataSelecionada == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Selecione uma data para o agendamento.')),
+      );
+      return;
+    }
+
+    if (_sheetHorarioSelecionado == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Selecione um horário para o agendamento.')),
+      );
+      return;
+    }
+
+    setState(() => _sheetEnviando = true);
+
+    try {
+      final dadosSolicitacao = {
+        'data_solicitacao': DateTime.now().toUtc().toIso8601String(),
+        'fk_usuario': _sheetIdUsuario,
+        'fk_profissional': servico.fkProfissional,
+        'fk_status': 1,
+        'fk_servico_prof': servico.id,
+        'fk_endereco': _sheetEnderecoClienteSelecionado?.id,
+        'tipo_execucao': tipoExecucao,
+        'tipo_entrega': tipoExecucao,
+        'detalhes': _sheetDetalhesController.text.trim().isEmpty
+            ? null
+            : _sheetDetalhesController.text.trim(),
+        'data_agendada': _formatarDataSql(_sheetDataSelecionada!),
+        'hora_agendada': _sheetHoraAgendadaSql ?? '09:00:00',
+        'valor_final': servico.valor > 0 ? servico.valor : 18.99,
+        'fk_grupo_empresa': servico.fkGrupoEmpresa,
+      };
+
+      try {
+        await supabase.from('solicitacoes').insert(dadosSolicitacao);
+      } catch (e) {
+        // Fallback para 'solicitacao' caso a tabela esteja no singular
+        await supabase.from('solicitacao').insert(dadosSolicitacao);
+      }
+
+      nav.pop(); // Fecha a sheet
+
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Solicitação criada com sucesso!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Erro ao criar solicitação: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _sheetEnviando = false);
+      }
+    }
+  }
+
+  IconData _obterIconeMetodo(String tipo) {
+    final limpo = tipo.trim().toLowerCase();
+    if (limpo.contains('leva') || limpo.contains('traz')) {
+      return Icons.two_wheeler_rounded;
+    } else if (limpo.contains('retirad') || limpo.contains('local')) {
+      return Icons.storefront_outlined;
+    } else if (limpo.contains('receba') || limpo.contains('casa')) {
+      return Icons.home_outlined;
+    } else if (limpo.contains('domic')) {
+      return Icons.home_repair_service_outlined;
+    }
+    return Icons.local_shipping_outlined;
+  }
+
+  bool _isDiaDisponivelNaAgenda(DateTime data) {
+    if (_sheetAgendasProfissional.isEmpty) {
+      return data.weekday >= 1 && data.weekday <= 5;
+    }
+    const nomes = [
+      'segunda',
+      'terca',
+      'quarta',
+      'quinta',
+      'sexta',
+      'sabado',
+      'domingo',
+    ];
+    final nomeDia = nomes[data.weekday - 1];
+    for (final agenda in _sheetAgendasProfissional) {
+      final texto = _removerAcentos(agenda['dias_semana']?.toString() ?? '').toLowerCase();
+      if (texto.contains(nomeDia)) return true;
+    }
+    return false;
+  }
+
+  String _removerAcentos(String valor) {
+    return valor
+        .replaceAll('á', 'a')
+        .replaceAll('ã', 'a')
+        .replaceAll('â', 'a')
+        .replaceAll('é', 'e')
+        .replaceAll('ê', 'e')
+        .replaceAll('í', 'i')
+        .replaceAll('ó', 'o')
+        .replaceAll('ô', 'o')
+        .replaceAll('õ', 'o')
+        .replaceAll('ú', 'u')
+        .replaceAll('ç', 'c');
+  }
+
+  Map<String, dynamic>? _buscarExcecaoData(DateTime data) {
+    final chave = _formatarDataSql(data);
+    for (final exc in _sheetExcecoesProfissional) {
+      final dia = exc['dia_semana']?.toString();
+      if (dia != null && dia.startsWith(chave)) {
+        return exc;
+      }
+    }
+    return null;
+  }
+
+  bool _isExcecaoDiaInteiro(Map<String, dynamic> exc) {
+    final horaIni = exc['hora_ini']?.toString().trim();
+    final horaFim = exc['hora_fim']?.toString().trim();
+    return horaIni == null ||
+        horaFim == null ||
+        horaIni.isEmpty ||
+        horaFim.isEmpty ||
+        horaIni == 'null' ||
+        horaFim == 'null';
+  }
+
+  String _formatarDataSql(DateTime data) {
+    final yyyy = data.year.toString().padLeft(4, '0');
+    final mm = data.month.toString().padLeft(2, '0');
+    final dd = data.day.toString().padLeft(2, '0');
+    return '$yyyy-$mm-$dd';
+  }
+
+  String _formatarDataVisual(DateTime data) {
+    final dd = data.day.toString().padLeft(2, '0');
+    final mm = data.month.toString().padLeft(2, '0');
+    final yyyy = data.year.toString();
+    return '$dd/$mm/$yyyy';
+  }
+
+  TimeOfDay? _parseTimeOfDay(dynamic raw) {
+    if (raw == null) return null;
+    final match = RegExp(r'^(\d{1,2}):(\d{2})').firstMatch(raw.toString().trim());
+    if (match == null) return null;
+    return TimeOfDay(
+      hour: int.parse(match.group(1)!),
+      minute: int.parse(match.group(2)!),
+    );
+  }
+
+  int _horaParaMinutos(TimeOfDay time) => time.hour * 60 + time.minute;
+
+  bool _intervalosColidem(TimeOfDay ini1, TimeOfDay fim1, TimeOfDay ini2, TimeOfDay fim2) {
+    final mIni1 = _horaParaMinutos(ini1);
+    final mFim1 = _horaParaMinutos(fim1);
+    final mIni2 = _horaParaMinutos(ini2);
+    final mFim2 = _horaParaMinutos(fim2);
+    return mIni1 < mFim2 && mFim1 > mIni2;
+  }
 }
+
+class _EnderecoUsuarioItem {
+  final int id;
+  final String tipoEndereco;
+  final String apelido;
+  final String linhaFormatada;
+  final bool principal;
+
+  const _EnderecoUsuarioItem({
+    required this.id,
+    required this.tipoEndereco,
+    required this.apelido,
+    required this.linhaFormatada,
+    this.principal = false,
+  });
+}
+
+class _OpcaoHorarioItem {
+  final String label;
+  final String horaSql;
+  final TimeOfDay inicio;
+  final TimeOfDay fim;
+
+  const _OpcaoHorarioItem({
+    required this.label,
+    required this.horaSql,
+    required this.inicio,
+    required this.fim,
+  });
+}
+

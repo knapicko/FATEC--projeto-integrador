@@ -97,6 +97,7 @@ class PerfilLoja extends StatefulWidget {
   final String? bannerUrlEmpresa;
   final String? tagEmpresa;
   final String? corTagEmpresa;
+  final bool? compartilharFuncionarios;
 
   const PerfilLoja({
     super.key,
@@ -106,6 +107,7 @@ class PerfilLoja extends StatefulWidget {
     this.bannerUrlEmpresa,
     this.tagEmpresa,
     this.corTagEmpresa,
+    this.compartilharFuncionarios,
   });
 
   @override
@@ -130,13 +132,14 @@ class _PerfilLojaState extends State<PerfilLoja> {
   String? _tagEmpresa = '#CAEDS';
   Color? _corTagEmpresa = const Color(0xFF0288D1);
 
+  bool _compartilharFuncionarios = false;
   bool _carregandoProfissionais = true;
   List<Map<String, dynamic>> listaProfissionais = [];
   bool _carregandoServicos = true;
   List<ServicoProfissional> _servicosLoja = [];
   List<OficioInfo> _oficiosEmpresa = [];
 
-  String _abaAtiva = 'Equipe';
+  String _abaAtiva = 'Serviços';
   String _filtroServicos = '';
   String _categoriaServicoSelecionada = 'Todos';
 
@@ -162,6 +165,10 @@ class _PerfilLojaState extends State<PerfilLoja> {
   void initState() {
     super.initState();
     _idGrupoEmpresa = widget.idGrupoEmpresa;
+    if (widget.compartilharFuncionarios != null) {
+      _compartilharFuncionarios = widget.compartilharFuncionarios!;
+    }
+    _abaAtiva = _compartilharFuncionarios ? 'Equipe' : 'Serviços';
     if (widget.nomeEmpresa != null && widget.nomeEmpresa!.trim().isNotEmpty) {
       _nomeEmpresa = widget.nomeEmpresa!.trim();
     }
@@ -217,7 +224,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
           final res = await supabase
               .from('grupo_empresa')
               .select(
-                'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, fk_perfil, seguidores_empresa',
+                'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, fk_perfil, seguidores_empresa, compartilhar_funcionarios',
               )
               .ilike('tag_empresa', '%$cleanTag%')
               .maybeSingle();
@@ -227,7 +234,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
           final res = await supabase
               .from('grupo_empresa')
               .select(
-                'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, fk_perfil, seguidores_empresa',
+                'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, fk_perfil, seguidores_empresa, compartilhar_funcionarios',
               )
               .ilike('nome_empresa', '%$_nomeEmpresa%')
               .maybeSingle();
@@ -237,7 +244,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
           final list = await supabase
               .from('grupo_empresa')
               .select(
-                'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, fk_perfil, seguidores_empresa',
+                'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, fk_perfil, seguidores_empresa, compartilhar_funcionarios',
               )
               .limit(1);
           if (list.isNotEmpty) {
@@ -254,7 +261,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
         final grupo = await supabase
             .from('grupo_empresa')
             .select(
-              'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, fk_perfil, seguidores_empresa',
+              'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, fk_perfil, seguidores_empresa, compartilhar_funcionarios',
             )
             .eq('id_grupo_empresa', idGrupo)
             .maybeSingle();
@@ -267,6 +274,8 @@ class _PerfilLojaState extends State<PerfilLoja> {
           final foto = grupo['foto_url_empresa']?.toString();
           final banner = grupo['banner_url_empresa']?.toString();
           final seguidores = (grupo['seguidores_empresa'] as num?)?.toInt() ?? 0;
+          final comp = grupo['compartilhar_funcionarios'];
+          final bool compBool = comp == true;
 
           setState(() {
             if (nome != null && nome.isNotEmpty) _nomeEmpresa = nome;
@@ -281,6 +290,12 @@ class _PerfilLojaState extends State<PerfilLoja> {
               _bannerUrlEmpresa = banner;
             }
             _totalSeguidores = seguidores >= 0 ? seguidores : 0;
+            _compartilharFuncionarios = compBool;
+            if (!compBool && _abaAtiva == 'Equipe') {
+              _abaAtiva = 'Serviços';
+            } else if (compBool && _abaAtiva == 'Serviços' && widget.compartilharFuncionarios == null) {
+              _abaAtiva = 'Equipe';
+            }
           });
         }
       }
@@ -680,14 +695,16 @@ class _PerfilLojaState extends State<PerfilLoja> {
                 servicosKey: _servicosKey,
                 sobreKey: _sobreKey,
                 avaliacoesKey: _avaliacoesKey,
+                mostrarEquipe: _compartilharFuncionarios,
               ),
             ),
 
-            // 3. Seção: Equipe de Especialistas
-            SliverToBoxAdapter(
-              key: _equipeKey,
-              child: _buildSecaoEquipe(),
-            ),
+            // 3. Seção: Equipe de Especialistas (exibida apenas se compartilhar_funcionarios == true)
+            if (_compartilharFuncionarios)
+              SliverToBoxAdapter(
+                key: _equipeKey,
+                child: _buildSecaoEquipe(),
+              ),
 
             // 4. Seção: Localização e Atendimento
             SliverToBoxAdapter(
@@ -2942,6 +2959,7 @@ class _AbasLojaDelegate extends SliverPersistentHeaderDelegate {
   final GlobalKey servicosKey;
   final GlobalKey sobreKey;
   final GlobalKey avaliacoesKey;
+  final bool mostrarEquipe;
 
   _AbasLojaDelegate({
     required this.abaAtiva,
@@ -2950,10 +2968,11 @@ class _AbasLojaDelegate extends SliverPersistentHeaderDelegate {
     required this.servicosKey,
     required this.sobreKey,
     required this.avaliacoesKey,
+    this.mostrarEquipe = true,
   });
 
-  static const List<String> _abas = [
-    'Equipe',
+  List<String> get _abas => [
+    if (mostrarEquipe) 'Equipe',
     'Serviços',
     'Sobre a Empresa',
     'Avaliações',
@@ -3042,6 +3061,7 @@ class _AbasLojaDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   bool shouldRebuild(covariant _AbasLojaDelegate oldDelegate) {
-    return oldDelegate.abaAtiva != abaAtiva;
+    return oldDelegate.abaAtiva != abaAtiva ||
+        oldDelegate.mostrarEquipe != mostrarEquipe;
   }
 }
