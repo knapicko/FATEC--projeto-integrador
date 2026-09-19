@@ -1094,10 +1094,14 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
     return widget.isProfissional
         ? BottomNavigationBarProfissional(
             currentIndex: 4,
+            // Tocar em Perfil/Empresa estando em Endereços recarrega a lista.
+            onReselecionarAbaAtual: (_) => _carregarEnderecos(),
             onTap: _onBottomNavigationTap,
           )
         : BottomNavigationBarCliente(
             currentIndex: 4,
+            // Tocar em Perfil estando em Endereços recarrega a lista.
+            onReselecionarAbaAtual: (_) => _carregarEnderecos(),
             onTap: _onBottomNavigationTap,
           );
   }

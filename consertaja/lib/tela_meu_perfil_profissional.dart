@@ -573,6 +573,11 @@ class _TelaMeuPerfilProfissionalPageState
   Widget _buildBottomNav() {
     return BottomNavigationBarProfissional(
       currentIndex: 4,
+      // Tocar em Perfil estando no Perfil recarrega os dados.
+      onReselecionarAbaAtual: (_) async {
+        await _carregarDadosPerfil();
+        if (mounted) setState(() {});
+      },
       onTap: (index) async {
         if (index == 0) {
           AppNavigationUtil.navegarAba(

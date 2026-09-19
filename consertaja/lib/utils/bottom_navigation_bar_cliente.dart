@@ -4,10 +4,17 @@ class BottomNavigationBarCliente extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
 
+  /// Chamado quando o usuário toca na aba em que já está
+  /// (ex: tocar em "Home" estando na Home). As telas usam para
+  /// recarregar os dados em vez de ignorar o toque.
+  /// Se null, o toque na aba atual apenas re-executa [onTap].
+  final ValueChanged<int>? onReselecionarAbaAtual;
+
   const BottomNavigationBarCliente({
     super.key,
     required this.currentIndex,
     required this.onTap,
+    this.onReselecionarAbaAtual,
   });
 
   static const _items = [
@@ -43,7 +50,18 @@ class BottomNavigationBarCliente extends StatelessWidget {
       selectedFontSize: 11,
       unselectedFontSize: 11,
       currentIndex: currentIndex,
-      onTap: onTap,
+      // Tocar na aba atual recarrega a página em vez de ser ignorado.
+      onTap: (index) {
+        if (index == currentIndex) {
+          if (onReselecionarAbaAtual != null) {
+            onReselecionarAbaAtual!(index);
+          } else {
+            onTap(index);
+          }
+          return;
+        }
+        onTap(index);
+      },
       items: _items,
     );
   }

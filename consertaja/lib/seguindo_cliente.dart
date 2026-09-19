@@ -216,6 +216,14 @@ class _SeguindoClientePageState extends State<SeguindoClientePage> {
         ),
       bottomNavigationBar: BottomNavigationBarCliente(
         currentIndex: 1,
+        // Tocar em Seguindo estando em Seguindo recarrega a lista.
+        onReselecionarAbaAtual: (_) {
+          if (mounted) {
+            setState(() {
+              _profissionaisFuture = _carregarProfissionais();
+            });
+          }
+        },
         onTap: _navegar,
       ),
     ),);

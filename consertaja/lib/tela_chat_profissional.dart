@@ -30,6 +30,10 @@ class TelaChatProfissional extends StatefulWidget {
   final String oficioPrincipal;
   final int? idProfissional;
 
+  /// Quando informado, o chat é da EMPRESA (grupo_empresa) e não do
+  /// profissional individual: a conversa usa fk_grupo_empresa.
+  final int? idGrupoEmpresa;
+
   /// Permite abrir um chat já existente a partir da lista de mensagens.
   final int? idConversa;
 
@@ -39,6 +43,7 @@ class TelaChatProfissional extends StatefulWidget {
     required this.fotoProfissional,
     required this.oficioPrincipal,
     this.idProfissional,
+    this.idGrupoEmpresa,
     this.idConversa,
   });
 
@@ -57,6 +62,8 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
   int? _idConversa;
   int? _idUsuarioLogado;
   bool _souProfissionalNaConversa = false;
+  bool _souEmpresaNaConversa = false;
+  int? _idGrupoEmpresaConversa;
   bool _carregando = true;
   bool _enviando = false;
   bool _temTexto = false;
@@ -799,14 +806,22 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
         await _carregarPapelNaConversa();
         await _carregarStatusContato();
       } else {
-        if (widget.idProfissional == null) {
-          setState(() {
-            _carregando = false;
-            _erroCarregamento = 'Profissional não identificado.';
-          });
-          return;
+        if (widget.idGrupoEmpresa != null) {
+          // Chat da EMPRESA (grupo_empresa): conversa cliente x empresa.
+          _souEmpresaNaConversa =
+              await _souMembroDoGrupo(widget.idGrupoEmpresa!);
+          _idGrupoEmpresaConversa = widget.idGrupoEmpresa;
+          await _obterOuCriarConversaEmpresa(widget.idGrupoEmpresa!);
+        } else {
+          if (widget.idProfissional == null) {
+            setState(() {
+              _carregando = false;
+              _erroCarregamento = 'Profissional não identificado.';
+            });
+            return;
+          }
+          await _abrirOuCriarConversa();
         }
-        await _abrirOuCriarConversa();
       }
 
       if (_idConversa == null) {
@@ -848,14 +863,49 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
 
   Future<void> _carregarPapelNaConversa() async {
     try {
+      // Primeiro tenta descobrir se a coluna fk_grupo_empresa existe.
+      bool temColunaGrupo = true;
+      try {
+        await _supabase
+            .from('conversas')
+            .select('id_conversa, fk_usuario, fk_profissional, fk_grupo_empresa')
+            .limit(0);
+      } catch (_) {
+        temColunaGrupo = false;
+      }
       final conversa = await _supabase
           .from('conversas')
-          .select('fk_usuario, fk_profissional')
+          .select(temColunaGrupo
+              ? 'fk_usuario, fk_profissional, fk_grupo_empresa'
+              : 'fk_usuario, fk_profissional')
           .eq('id_conversa', _idConversa!)
           .maybeSingle();
       if (conversa == null) return;
       final fkUsuario = (conversa['fk_usuario'] as num?)?.toInt();
       final fkProfissional = (conversa['fk_profissional'] as num?)?.toInt();
+      final fkGrupo = temColunaGrupo
+          ? (conversa['fk_grupo_empresa'] as num?)?.toInt()
+          : null;
+      if (fkGrupo != null) {
+        _idGrupoEmpresaConversa = fkGrupo;
+        _souEmpresaNaConversa = await _souMembroDoGrupo(fkGrupo);
+        // Numa conversa da empresa, o cliente é o fk_usuario.
+        if (fkUsuario != null && fkUsuario == _idUsuarioLogado) {
+          if (mounted) {
+            setState(() {
+              _souProfissionalNaConversa = false;
+              _souEmpresaNaConversa = false;
+            });
+          }
+          return;
+        }
+        if (mounted) {
+          setState(() => _souProfissionalNaConversa = _souEmpresaNaConversa);
+        }
+        return;
+      }
+      _idGrupoEmpresaConversa = null;
+      _souEmpresaNaConversa = false;
       if (fkUsuario != null && fkUsuario == _idUsuarioLogado) {
         if (mounted) setState(() => _souProfissionalNaConversa = false);
         return;
@@ -882,6 +932,80 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       }
     } catch (e) {
       debugPrint('Erro ao carregar papel na conversa: $e');
+    }
+  }
+
+  /// Verifica se o usuário logado é membro do grupo_empresa (dono/funcionário).
+  Future<bool> _souMembroDoGrupo(int idGrupo) async {
+    try {
+      if (_idUsuarioLogado == null) return false;
+      final vinculo = await _supabase
+          .from('dados_profissionais')
+          .select('id_profissional')
+          .eq('fk_usuario', _idUsuarioLogado!)
+          .eq('fk_grupo_empresa', idGrupo)
+          .maybeSingle();
+      return vinculo != null;
+    } catch (e) {
+      debugPrint('Erro ao verificar membro do grupo: $e');
+      return false;
+    }
+  }
+
+  /// Abre ou cria a conversa cliente x EMPRESA (fk_grupo_empresa).
+  /// Uma conversa por par (fk_usuario cliente, fk_grupo_empresa).
+  Future<void> _obterOuCriarConversaEmpresa(int idGrupo) async {
+    _souProfissionalNaConversa = _souEmpresaNaConversa;
+    // Se quem abre é da empresa, não há cliente definido aqui — a conversa
+    // da empresa só pode ser aberta via idConversa (lista de mensagens),
+    // onde o fk_usuario já é o cliente. Se sou cliente, crio/busco a minha.
+    if (_souEmpresaNaConversa) {
+      setState(() {
+        _carregando = false;
+        _erroCarregamento =
+            'Abra a conversa da empresa pela lista de mensagens.';
+      });
+      _idConversa = null;
+      return;
+    }
+
+    final conversaExistente = await _supabase
+        .from('conversas')
+        .select('id_conversa')
+        .eq('fk_usuario', _idUsuarioLogado!)
+        .eq('fk_grupo_empresa', idGrupo)
+        .maybeSingle();
+
+    if (conversaExistente != null) {
+      _idConversa = (conversaExistente['id_conversa'] as num?)?.toInt();
+    } else {
+      // Monta o insert pedindo fk_profissional NULL + fk_grupo_empresa;
+      // se o banco antigo ainda exige fk_profissional NOT NULL, cai para o
+      // fluxo do chat individual? Não — nesse caso avisa para rodar o SQL.
+      try {
+        final novaConversa = await _supabase
+            .from('conversas')
+            .insert({
+              'fk_usuario': _idUsuarioLogado!,
+              'fk_profissional': null,
+              'fk_grupo_empresa': idGrupo,
+            })
+            .select('id_conversa')
+            .maybeSingle();
+        _idConversa = (novaConversa?['id_conversa'] as num?)?.toInt();
+      } on PostgrestException catch (e) {
+        if (e.code == '23505') {
+          final conversaCriada = await _supabase
+              .from('conversas')
+              .select('id_conversa')
+              .eq('fk_usuario', _idUsuarioLogado!)
+              .eq('fk_grupo_empresa', idGrupo)
+              .maybeSingle();
+          _idConversa = (conversaCriada?['id_conversa'] as num?)?.toInt();
+        } else {
+          rethrow;
+        }
+      }
     }
   }
 

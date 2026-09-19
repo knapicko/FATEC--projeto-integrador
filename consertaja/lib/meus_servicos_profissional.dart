@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'adicionar_servico_profissional.dart';
 import 'models/servico_profissional.dart';
 import 'services/servicos_profissional_service.dart';
+import 'utils/bottom_navigation_bar_profissional.dart';
 
 // ── Helper ──────────────────────────────────────────────────────────────────
 Color _hexToColorMSP(String hex) {
@@ -33,13 +36,33 @@ class _MeusServicosProfissionalPageState
   // ── Estado ─────────────────────────────────────────────────────────────
   List<ServicoProfissional> _todosServicos = [];
   bool _carregando = true;
-  bool _ehLoja = false;
   bool _ehMembroEmpresa = false;
+
+  // ── Conta ativa (mesma flag da home) ───────────────────────────────
+  // false = profissional independente (CNPJ), true = empresa.
+  static const String _prefContaAtivaKey = 'consertaja_conta_empresa_ativa';
+  bool _contaEmpresaAtiva = false;
+
+  Future<bool> _lerContaEmpresaAtiva() async {
+    // Usa o cache da bottom bar (já aquecido pela home) — sem piscar.
+    final doCache =
+        BottomNavigationBarProfissional.leituraSincronaContaEmpresa();
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) return doCache;
+      final prefs = await SharedPreferences.getInstance();
+      final ativa = prefs.getBool('${_prefContaAtivaKey}_${user.id}');
+      if (ativa == null) return doCache;
+      BottomNavigationBarProfissional.notificarTrocaConta(ativa);
+      return ativa;
+    } catch (_) {
+      return doCache;
+    }
+  }
 
   final TextEditingController _buscaController = TextEditingController();
   String _termoBusca = '';
   String _categoriaAtiva = 'Todos';
-  String _associacaoAtiva = 'Todos';
 
   @override
   void initState() {
@@ -58,6 +81,7 @@ class _MeusServicosProfissionalPageState
     final resultados = await Future.wait([
       ServicosProfissionalService.buscarServicos(),
       ServicosProfissionalService.buscarContextoAssociacao(),
+      _lerContaEmpresaAtiva(),
     ]);
     final servicos = resultados[0] as List<ServicoProfissional>;
     final contexto = resultados[1]
@@ -68,27 +92,35 @@ class _MeusServicosProfissionalPageState
           bool ehMembroEmpresa,
           bool ehDonoEmpresa,
         })?;
-    final servicosExibidos = contexto?.ehMembroEmpresa == true &&
-            contexto?.idGrupoEmpresa != null
-        ? await ServicosProfissionalService.buscarServicosEmpresa(
-            contexto!.idGrupoEmpresa!,
-          )
-        : servicos;
+    // Distinção pela CONTA ATIVA (mesma flag da home):
+    // - empresa ativa: mostra SÓ serviços da empresa (fk_grupo_empresa).
+    // - profissional (CNPJ): mostra SÓ serviços individuais
+    //   (fk_grupo_empresa == null).
+    final contaEmpresa = resultados[2] as bool;
+    final idGrupo = contexto?.idGrupoEmpresa;
+    List<ServicoProfissional> servicosExibidos;
+    if (contaEmpresa) {
+      servicosExibidos = idGrupo == null
+          ? <ServicoProfissional>[]
+          : await ServicosProfissionalService.buscarServicosEmpresa(idGrupo);
+      // Garante: só serviços vinculados ao grupo (sem vazar individuais).
+      servicosExibidos = servicosExibidos
+          .where((s) => s.fkGrupoEmpresa != null && s.fkGrupoEmpresa == idGrupo)
+          .toList();
+    } else {
+      // Individuais do profissional logado (nunca os da empresa).
+      servicosExibidos =
+          servicos.where((s) => s.fkGrupoEmpresa == null).toList();
+    }
     if (mounted) {
       setState(() {
+        _contaEmpresaAtiva = contaEmpresa;
         _ehMembroEmpresa = contexto?.ehMembroEmpresa ?? false;
-        _todosServicos = _ehMembroEmpresa
-            ? servicosExibidos
-            : [
-                ...servicosExibidos.where((s) => s.fkGrupoEmpresa == null),
-                ...servicosExibidos.where((s) => s.fkGrupoEmpresa != null),
-              ];
-        _ehLoja = contexto?.ehLoja ?? false;
+        _todosServicos = servicosExibidos;
         _carregando = false;
         // Reseta filtro se a categoria ativa sumiu
         final cats = _categorias();
         if (!cats.contains(_categoriaAtiva)) _categoriaAtiva = 'Todos';
-        if (!_ehLoja) _associacaoAtiva = 'Todos';
       });
     }
   }
@@ -103,13 +135,9 @@ class _MeusServicosProfissionalPageState
     return ['Todos', ...cats.toList()..sort()];
   }
 
-  List<String> get _categoriasAssociacao => const [
-    'Todos',
-    'Profissional',
-    'Empresa',
-  ];
-
   // Filtra serviços por busca e categoria
+  // (a separação empresa x profissional já foi feita no _carregar;
+  // aqui resta só busca + categoria).
   List<ServicoProfissional> get _servicosFiltrados {
     return _todosServicos.where((s) {
       final matchBusca =
@@ -118,53 +146,8 @@ class _MeusServicosProfissionalPageState
           s.descricao.toLowerCase().contains(_termoBusca.toLowerCase());
       final matchCat =
           _categoriaAtiva == 'Todos' || (s.funcao?.trim() == _categoriaAtiva);
-      final matchAssociacao =
-          !_ehLoja ||
-          _associacaoAtiva == 'Todos' ||
-          (_associacaoAtiva == 'Empresa' && s.fkGrupoEmpresa != null) ||
-          (_associacaoAtiva == 'Profissional' && s.fkGrupoEmpresa == null);
-      return matchBusca && matchCat && matchAssociacao;
+      return matchBusca && matchCat;
     }).toList();
-  }
-
-  Widget _buildAssociationChips() {
-    return SizedBox(
-      height: 36,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: _categoriasAssociacao.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final categoria = _categoriasAssociacao[index];
-          final ativa = categoria == _associacaoAtiva;
-          return GestureDetector(
-            onTap: () => setState(() => _associacaoAtiva = categoria),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-              decoration: BoxDecoration(
-                color: ativa ? const Color(0xFFD6EDF8) : Colors.white,
-                borderRadius: BorderRadius.circular(30),
-                border: Border.all(
-                  color: ativa
-                      ? const Color(0xFF0A6E9D)
-                      : const Color(0xFFDDE1E7),
-                ),
-              ),
-              child: Text(
-                categoria,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: ativa ? _blue : const Color(0xFF6B7280),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
   }
 
   /// Abre a tela de adicionar/editar serviço.
@@ -176,6 +159,9 @@ class _MeusServicosProfissionalPageState
       MaterialPageRoute(
         builder: (_) => AdicionarServicoProfissionalPage(
           servicoParaEditar: servicoParaEditar,
+          // Conta empresa ativa => formulário já trava na Empresa.
+          associacaoEmpresaInicial: _contaEmpresaAtiva,
+          forcarContaAtiva: true,
         ),
       ),
     );
@@ -202,9 +188,11 @@ class _MeusServicosProfissionalPageState
             size: 20,
           ),
         ),
-        title: const Text(
-          'Meu Serviços Disponíveis',
-          style: TextStyle(
+        title: Text(
+          _contaEmpresaAtiva
+              ? 'Serviços da Empresa'
+              : 'Meu Serviços Disponíveis',
+          style: const TextStyle(
             color: _blue,
             fontSize: 17,
             fontWeight: FontWeight.w600,
@@ -227,10 +215,6 @@ class _MeusServicosProfissionalPageState
                   child: _buildSearchBar(),
                 ),
                 // Chips de categoria
-                if (!_carregando && _todosServicos.isNotEmpty)
-                  if (_ehLoja) _buildAssociationChips(),
-                if (!_carregando && _todosServicos.isNotEmpty && _ehLoja)
-                  const SizedBox(height: 8),
                 if (!_carregando && _todosServicos.isNotEmpty)
                   _buildCategoryChips(categorias),
                 if (!_carregando && _todosServicos.isNotEmpty)

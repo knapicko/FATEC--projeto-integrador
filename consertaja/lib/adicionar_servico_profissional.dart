@@ -2,14 +2,16 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'models/servico_catalogo.dart';
 import 'models/metodo_entrega.dart';
 import 'models/servico_profissional.dart';
 import 'services/servicos_profissional_service.dart';
+import 'utils/bottom_navigation_bar_profissional.dart';
+import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 Color _hexToColor(String hex) {
@@ -34,6 +36,10 @@ class AdicionarServicoProfissionalPage extends StatefulWidget {
   final bool associacaoEmpresaInicial;
   final bool abrirFormularioInicial;
 
+  /// Quando true, a associação segue a conta ativa e a outra opção fica
+  /// desabilitada (cinza, não clicável) no bottom sheet de associação.
+  final bool forcarContaAtiva;
+
   const AdicionarServicoProfissionalPage({
     super.key,
     this.servicoParaEditar,
@@ -41,6 +47,7 @@ class AdicionarServicoProfissionalPage extends StatefulWidget {
     this.idGrupoEmpresaInicial,
     this.associacaoEmpresaInicial = false,
     this.abrirFormularioInicial = false,
+    this.forcarContaAtiva = false,
   });
 
   @override
@@ -61,21 +68,21 @@ class _AdicionarServicoProfissionalPageState
   static const Color _border = Color(0xFFE6ECF2);
 
   List<ServicoProfissional> _servicosAtivos = [];
-  List<ServicoCatalogo> _catalogo = [];
+  List<ServicoCatalogo> _catalogoFiltrado = [];
   bool _carregando = true;
-  bool _ehLoja = false;
   int? _idGrupoEmpresa;
+  // Conta ativa (mesma flag da home): false = profissional (CNPJ),
+  // true = empresa. Resolve no _carregar() junto com o contexto.
+  bool _contaEmpresaAtiva = false;
 
   @override
   void initState() {
     super.initState();
     _carregar();
-    _carregarContextoAssociacao();
     if (widget.abrirFormularioInicial ||
         widget.servicoParaEditar != null ||
         widget.sugestao != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
-        await _carregarContextoAssociacao();
         if (!mounted) return;
         _abrirFormulario(
           servicoParaEditar: widget.servicoParaEditar,
@@ -85,27 +92,82 @@ class _AdicionarServicoProfissionalPageState
     }
   }
 
-  Future<void> _carregarContextoAssociacao() async {
-    final contexto = await ServicosProfissionalService.buscarContextoAssociacao();
-    if (!mounted || contexto == null) return;
-    setState(() {
-      _ehLoja = contexto.ehLoja;
-      _idGrupoEmpresa = widget.idGrupoEmpresaInicial ?? contexto.idGrupoEmpresa;
-    });
-  }
-
   Future<void> _carregar() async {
     setState(() => _carregando = true);
     final results = await Future.wait([
       ServicosProfissionalService.buscarServicos(),
       ServicosProfissionalService.buscarCatalogo(),
+      ServicosProfissionalService.buscarContextoAssociacao(),
+      _lerContaEmpresaAtiva(),
     ]);
+    final todosServicos = results[0] as List<ServicoProfissional>;
+    final catalogo = results[1] as List<ServicoCatalogo>;
+    final contexto = results[2]
+        as ({
+          int idProfissional,
+          int? idGrupoEmpresa,
+          bool ehLoja,
+          bool ehMembroEmpresa,
+          bool ehDonoEmpresa,
+        })?;
+    final contaEmpresa = results[3] as bool;
+    final idGrupo = widget.idGrupoEmpresaInicial ?? contexto?.idGrupoEmpresa;
+
+    // Distinção pela CONTA ATIVA:
+    // - empresa: SÓ serviços com fk_grupo_empresa do grupo.
+    // - profissional: SÓ serviços individuais (fk_grupo_empresa == null).
+    final servicos = contaEmpresa
+        ? todosServicos
+            .where((s) =>
+                s.fkGrupoEmpresa != null && s.fkGrupoEmpresa == idGrupo)
+            .toList()
+        : todosServicos.where((s) => s.fkGrupoEmpresa == null).toList();
+
+    // Ofícios da conta ativa (para filtrar as sugestões pelo mesmo ofício).
+    Set<int> oficiosConta = {};
+    if (contaEmpresa) {
+      if (idGrupo != null) {
+        final funcoes =
+            await ServicosProfissionalService.buscarFuncoesDaEmpresa(idGrupo);
+        oficiosConta = funcoes.map((f) => f.id).toSet();
+      }
+    } else {
+      final funcoes =
+          await ServicosProfissionalService.buscarFuncoesDoProfissional();
+      oficiosConta = funcoes.map((f) => f.id).toSet();
+    }
+
     if (mounted) {
       setState(() {
-        _servicosAtivos = results[0] as List<ServicoProfissional>;
-        _catalogo = results[1] as List<ServicoCatalogo>;
+        _contaEmpresaAtiva = contaEmpresa;
+        _idGrupoEmpresa = idGrupo;
+        _servicosAtivos = servicos;
+        // Sugestões: só as que têm o mesmo ofício da conta ativa.
+        // Se a conta não tem ofício cadastrado, mostra o catálogo cheio
+        // (evita tela vazia) — ajuste aqui para [] se preferir esconder.
+        _catalogoFiltrado = oficiosConta.isEmpty
+            ? catalogo
+            : catalogo.where((c) => oficiosConta.contains(c.fkOficio)).toList();
         _carregando = false;
       });
+    }
+  }
+
+  static const String _prefContaAtivaKey = 'consertaja_conta_empresa_ativa';
+
+  Future<bool> _lerContaEmpresaAtiva() async {
+    final doCache =
+        BottomNavigationBarProfissional.leituraSincronaContaEmpresa();
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) return doCache;
+      final prefs = await SharedPreferences.getInstance();
+      final ativa = prefs.getBool('${_prefContaAtivaKey}_${user.id}');
+      if (ativa == null) return doCache;
+      BottomNavigationBarProfissional.notificarTrocaConta(ativa);
+      return ativa;
+    } catch (_) {
+      return doCache;
     }
   }
 
@@ -114,6 +176,13 @@ class _AdicionarServicoProfissionalPageState
     ServicoProfissional? servicoParaEditar,
     ServicoCatalogo? sugestao,
   }) async {
+    // A associação padrão segue a conta ativa (não o parâmetro solto).
+    // Na EDIÇÃO, mantém a associação original do serviço (não troca o dono).
+    final associacaoPadrao = servicoParaEditar != null
+        ? servicoParaEditar.fkGrupoEmpresa != null
+        : (widget.forcarContaAtiva
+            ? _contaEmpresaAtiva
+            : widget.associacaoEmpresaInicial);
     final mudou = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -121,9 +190,11 @@ class _AdicionarServicoProfissionalPageState
       builder: (ctx) => _FormularioServicoSheet(
         servicoParaEditar: servicoParaEditar,
         sugestao: sugestao,
-        ehLoja: _ehLoja,
         idGrupoEmpresa: widget.idGrupoEmpresaInicial ?? _idGrupoEmpresa,
-        associacaoEmpresaInicial: widget.associacaoEmpresaInicial,
+        associacaoEmpresaInicial: associacaoPadrao,
+        // Trava na conta ativa: a outra opção aparece cinza/desabilitada.
+        travadaNaContaAtiva: widget.forcarContaAtiva,
+        contaEmpresaAtiva: _contaEmpresaAtiva,
       ),
     );
     if (mudou == true) {
@@ -243,7 +314,7 @@ class _AdicionarServicoProfissionalPageState
                           const SizedBox(height: 28),
 
                           // ── Seção 2: Sugestões do Catálogo ─────────────
-                          if (_catalogo.isNotEmpty) ...[
+                          if (_catalogoFiltrado.isNotEmpty) ...[
                             _buildSecaoSugestoes(),
                             const SizedBox(height: 28),
                           ],
@@ -425,6 +496,8 @@ class _AdicionarServicoProfissionalPageState
   }
 
   // ── Seção 2: Sugestões do Catálogo ───────────────────────────────────────
+  // Mostra SÓ sugestões do mesmo ofício da conta ativa
+  // (filtradas em _catalogoFiltrado no _carregar).
   Widget _buildSecaoSugestoes() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -447,9 +520,9 @@ class _AdicionarServicoProfissionalPageState
           height: 230,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            itemCount: _catalogo.length,
+            itemCount: _catalogoFiltrado.length,
             separatorBuilder: (ctx, i) => const SizedBox(width: 12),
-            itemBuilder: (ctx, i) => _buildCardCatalogo(_catalogo[i]),
+            itemBuilder: (ctx, i) => _buildCardCatalogo(_catalogoFiltrado[i]),
           ),
         ),
       ],
@@ -667,16 +740,24 @@ class _AdicionarServicoProfissionalPageState
 class _FormularioServicoSheet extends StatefulWidget {
   final ServicoProfissional? servicoParaEditar;
   final ServicoCatalogo? sugestao;
-  final bool ehLoja;
   final int? idGrupoEmpresa;
   final bool associacaoEmpresaInicial;
+
+  /// Quando true, a associação fica travada na conta ativa: o bottom sheet
+  /// de associação mostra as 2 opções, mas a que não bate com a conta
+  /// logada fica cinza e não pode ser escolhida.
+  final bool travadaNaContaAtiva;
+
+  /// Conta ativa no momento da abertura (true = empresa).
+  final bool contaEmpresaAtiva;
 
   const _FormularioServicoSheet({
     this.servicoParaEditar,
     this.sugestao,
-    required this.ehLoja,
     this.idGrupoEmpresa,
     this.associacaoEmpresaInicial = false,
+    this.travadaNaContaAtiva = false,
+    this.contaEmpresaAtiva = false,
   });
 
   @override
@@ -730,6 +811,12 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
     _associacaoEmpresa = widget.associacaoEmpresaInicial;
     _fkGrupoEmpresa = widget.idGrupoEmpresa;
 
+    // Travado na conta ativa: força o default da conta logada
+    // (empresa => Empresa; profissional => Conta profissional).
+    if (widget.travadaNaContaAtiva && s == null) {
+      _associacaoEmpresa = widget.contaEmpresaAtiva;
+    }
+
     if (s != null) {
       // Modo edição: pré-preenche com dados existentes
       _tituloCtrl.text = s.titulo;
@@ -757,6 +844,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
   }
 
   Future<void> _carregarMetodosEntrega() async {
+    if (mounted) setState(() => _carregandoMetodosEntrega = true);
     try {
       final supabase = Supabase.instance.client;
       final user = supabase.auth.currentUser;
@@ -776,12 +864,37 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
         return;
       }
 
-      final dados = await supabase
-          .from('dados_profissionais')
-          .select('metodo_entrega')
-          .eq('fk_usuario', usuarioId)
-          .maybeSingle();
-      final valoresSalvos = _separarValores(dados?['metodo_entrega']);
+      // Associação Empresa => puxa grupo_empresa.metodo_entrega_empresa;
+      // associação Profissional => puxa dados_profissionais.metodo_entrega.
+      // Default (vazio/sem linha/sem coluna) = 'Leva e Traz'.
+      List<String> valoresSalvos = <String>[];
+      if (_associacaoEmpresa) {
+        final idGrupo = _fkGrupoEmpresa ?? await _buscarIdGrupoDoUsuario(usuarioId);
+        if (idGrupo != null) {
+          if (mounted && _fkGrupoEmpresa == null) {
+            setState(() => _fkGrupoEmpresa = idGrupo);
+          }
+          try {
+            final grupo = await supabase
+                .from('grupo_empresa')
+                .select('metodo_entrega_empresa')
+                .eq('id_grupo_empresa', idGrupo)
+                .maybeSingle();
+            valoresSalvos = _separarValores(grupo?['metodo_entrega_empresa']);
+          } catch (_) {
+            // Banco ainda sem a migration: sem valores da empresa.
+            valoresSalvos = <String>[];
+          }
+        }
+      } else {
+        final dados = await supabase
+            .from('dados_profissionais')
+            .select('metodo_entrega')
+            .eq('fk_usuario', usuarioId)
+            .maybeSingle();
+        valoresSalvos = _separarValores(dados?['metodo_entrega']);
+      }
+      if (valoresSalvos.isEmpty) valoresSalvos = <String>['Leva e Traz'];
       final disponiveis = metodosEntregaOpcoes
           .where((opcao) => valoresSalvos.contains(opcao.valor))
           .toList();
@@ -812,6 +925,19 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
         .map((valor) => valor.trim())
         .where((valor) => valor.isNotEmpty)
         .toList();
+  }
+
+  Future<int?> _buscarIdGrupoDoUsuario(int usuarioId) async {
+    try {
+      final dados = await Supabase.instance.client
+          .from('dados_profissionais')
+          .select('fk_grupo_empresa')
+          .eq('fk_usuario', usuarioId)
+          .maybeSingle();
+      return (dados?['fk_grupo_empresa'] as num?)?.toInt();
+    } catch (_) {
+      return null;
+    }
   }
 
   String _tipoExecucaoParaSalvar() {
@@ -1012,6 +1138,13 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
   }
 
   Future<void> _selecionarAssociacao() async {
+    // Travado na conta ativa: mostra as 2 opções, mas a que não bate com
+    // a conta logada fica cinza e não pode ser escolhida.
+    final travado = widget.travadaNaContaAtiva;
+    final contaEmpresa = widget.contaEmpresaAtiva;
+    final profissionalBloqueado = travado && contaEmpresa;
+    final empresaBloqueada =
+        travado && !contaEmpresa || _fkGrupoEmpresa == null;
     await showModalBottomSheet<void>(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -1040,47 +1173,105 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
                 color: _textDark,
               ),
             ),
+            if (travado) ...[
+              const SizedBox(height: 4),
+              Text(
+                contaEmpresa
+                    ? 'Conta de empresa: o serviço será da empresa.'
+                    : 'Conta profissional: o serviço será individual.',
+                style: const TextStyle(fontSize: 12, color: _textMuted),
+              ),
+            ],
             const SizedBox(height: 8),
-            ListTile(
-              leading: const CircleAvatar(
-                backgroundColor: Color(0xFFEAF9FF),
-                child: Icon(Icons.person_outline_rounded, color: _primaryBlue),
+            Opacity(
+              opacity: profissionalBloqueado ? 0.4 : 1,
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: profissionalBloqueado
+                      ? Colors.grey.shade200
+                      : const Color(0xFFEAF9FF),
+                  child: Icon(
+                    Icons.person_outline_rounded,
+                    color: profissionalBloqueado
+                        ? Colors.grey
+                        : _primaryBlue,
+                  ),
+                ),
+                title: Text(
+                  'Conta profissional',
+                  style: TextStyle(
+                    color: profissionalBloqueado ? Colors.grey : _textDark,
+                  ),
+                ),
+                subtitle: Text(
+                  profissionalBloqueado
+                      ? 'Indisponível na conta de empresa.'
+                      : 'O serviço ficará visível no seu perfil individual.',
+                  style: TextStyle(
+                    color: profissionalBloqueado
+                        ? Colors.grey
+                        : _textMuted,
+                  ),
+                ),
+                trailing: !_associacaoEmpresa
+                    ? const Icon(Icons.check_circle, color: _primaryBlue)
+                    : null,
+                enabled: !profissionalBloqueado,
+                onTap: profissionalBloqueado
+                    ? null
+                    : () {
+                        setState(() {
+                          _associacaoEmpresa = false;
+                        });
+                        _carregarOficios();
+                        _carregarMetodosEntrega();
+                        Navigator.of(ctx).pop();
+                      },
               ),
-              title: const Text('Conta profissional'),
-              subtitle: const Text('O serviço ficará visível no seu perfil individual.'),
-              trailing: !_associacaoEmpresa
-                  ? const Icon(Icons.check_circle, color: _primaryBlue)
-                  : null,
-              onTap: () {
-                setState(() {
-                  _associacaoEmpresa = false;
-                });
-                _carregarOficios();
-                Navigator.of(ctx).pop();
-              },
             ),
-            ListTile(
-              leading: const CircleAvatar(
-                backgroundColor: Color(0xFFEAF9FF),
-                child: Icon(Icons.business_outlined, color: _primaryBlue),
+            Opacity(
+              opacity: empresaBloqueada ? 0.4 : 1,
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: empresaBloqueada
+                      ? Colors.grey.shade200
+                      : const Color(0xFFEAF9FF),
+                  child: Icon(
+                    Icons.business_outlined,
+                    color:
+                        empresaBloqueada ? Colors.grey : _primaryBlue,
+                  ),
+                ),
+                title: Text(
+                  'Empresa',
+                  style: TextStyle(
+                    color: empresaBloqueada ? Colors.grey : _textDark,
+                  ),
+                ),
+                subtitle: Text(
+                  _fkGrupoEmpresa == null
+                      ? 'Nenhuma empresa está associada a este perfil.'
+                      : (empresaBloqueada
+                          ? 'Indisponível na conta profissional.'
+                          : 'O serviço ficará na conta da empresa vinculada ao seu CNPJ.'),
+                  style: TextStyle(
+                    color:
+                        empresaBloqueada ? Colors.grey : _textMuted,
+                  ),
+                ),
+                trailing: _associacaoEmpresa
+                    ? const Icon(Icons.check_circle, color: _primaryBlue)
+                    : null,
+                enabled: !empresaBloqueada,
+                onTap: empresaBloqueada
+                    ? null
+                    : () {
+                        setState(() => _associacaoEmpresa = true);
+                        _carregarOficios();
+                        _carregarMetodosEntrega();
+                        Navigator.of(ctx).pop();
+                      },
               ),
-              title: const Text('Empresa'),
-              subtitle: Text(
-                _fkGrupoEmpresa == null
-                    ? 'Nenhuma empresa está associada a este perfil.'
-                    : 'O serviço ficará na conta da empresa vinculada ao seu CNPJ.',
-              ),
-              trailing: _associacaoEmpresa
-                  ? const Icon(Icons.check_circle, color: _primaryBlue)
-                  : null,
-              enabled: _fkGrupoEmpresa != null,
-              onTap: _fkGrupoEmpresa == null
-                  ? null
-                  : () {
-                      setState(() => _associacaoEmpresa = true);
-                      _carregarOficios();
-                      Navigator.of(ctx).pop();
-                    },
             ),
             const SizedBox(height: 12),
           ],
@@ -1340,52 +1531,50 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
                   ),
                   const SizedBox(height: 16),
 
-                  if (widget.ehLoja || widget.associacaoEmpresaInicial) ...[
-                    _buildLabel('Associação *'),
-                    const SizedBox(height: 6),
-                    GestureDetector(
-                      onTap: _selecionarAssociacao,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 14,
-                        ),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: _border),
-                          borderRadius: BorderRadius.circular(12),
-                            color: Colors.white,
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
+                  _buildLabel('Associação *'),
+                  const SizedBox(height: 6),
+                  GestureDetector(
+                    onTap: _selecionarAssociacao,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: _border),
+                        borderRadius: BorderRadius.circular(12),
+                        color: Colors.white,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _associacaoEmpresa
+                                ? Icons.business_outlined
+                                : Icons.person_outline_rounded,
+                            color: _primaryBlue,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
                               _associacaoEmpresa
-                                  ? Icons.business_outlined
-                                  : Icons.person_outline_rounded,
-                              color: _primaryBlue,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                _associacaoEmpresa
-                                    ? 'Empresa'
-                                    : 'Conta profissional',
-                                style: const TextStyle(
-                                  color: _textDark,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                                  ? 'Empresa'
+                                  : 'Conta profissional',
+                              style: const TextStyle(
+                                color: _textDark,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                            const Icon(
-                              Icons.keyboard_arrow_down_rounded,
-                              color: _textMuted,
-                            ),
-                          ],
-                        ),
+                          ),
+                          const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: _textMuted,
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 16),
-                  ],
+                  ),
+                  const SizedBox(height: 16),
 
                   // ── Valor mínimo ─────────────────────────────────────
                   _buildLabel('Valor mínimo (R\$) *'),
