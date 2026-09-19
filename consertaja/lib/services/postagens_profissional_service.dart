@@ -38,10 +38,13 @@ class PostagensProfissionalService {
   static Future<ResultadoCriarPostagem> criarPostagem({
     required String conteudo,
     required List<XFile> imagens,
+    int? idPerfilOverride,
+    String tipoAutor = 'profissional',
+    int? idGrupoEmpresa,
   }) async {
     try {
       debugPrint('📝 [criarPostagem] Iniciando...');
-      final idPerfil = await buscarIdPerfil();
+      final idPerfil = idPerfilOverride ?? await buscarIdPerfil();
       debugPrint('📝 [criarPostagem] idPerfil: $idPerfil');
       if (idPerfil == null) {
         debugPrint('❌ [criarPostagem] idPerfil é null!');
@@ -105,8 +108,38 @@ class PostagensProfissionalService {
       }
 
       // 3. Insere a postagem no banco
+      // tipo_autor: 'profissional' (CNPJ individual) ou 'empresa' (grupo_empresa).
+      // fk_grupo_empresa: preenchido só quando a postagem é da empresa.
       debugPrint('📝 [criarPostagem] Inserindo no banco...');
-      final response = await supabase
+      final tipoAutorNormalizado =
+          tipoAutor == 'empresa' ? 'empresa' : 'profissional';
+      Map<String, dynamic>? response;
+      Object? ultimoErroInsert;
+
+      // Tentativa 1: com as colunas novas (rode migration_postagens_empresa.sql).
+      try {
+        response = await supabase
+            .from('postagens')
+            .insert({
+              'conteudo': conteudoFinal,
+              'data_postagem': DateTime.now().toUtc().toIso8601String(),
+              'arquivado': false,
+              'fk_perfil': idPerfil,
+              'tipo_autor': tipoAutorNormalizado,
+              if (idGrupoEmpresa != null)
+                'fk_grupo_empresa': idGrupoEmpresa,
+            })
+            .select('id_postagem')
+            .single();
+      } catch (e) {
+        ultimoErroInsert = e;
+        debugPrint('ℹ️ [criarPostagem] Insert com tipo_autor falhou ($e). Tentando sem as colunas novas...');
+        response = null;
+      }
+
+      // Tentativa 2 (fallback p/ banco ainda sem migration): insert legado.
+      // Nesse caso a separação por conta só funciona 100% após rodar o SQL.
+      response ??= await supabase
           .from('postagens')
           .insert({
             'conteudo': conteudoFinal,
@@ -117,8 +150,39 @@ class PostagensProfissionalService {
           .select('id_postagem')
           .single();
 
+      if (ultimoErroInsert != null) {
+        debugPrint(
+          '⚠️ [criarPostagem] Banco sem colunas tipo_autor/fk_grupo_empresa? '
+          'Rode docs/sql/migration_postagens_empresa.sql no Supabase.',
+        );
+      }
+
       final idPostagem = (response['id_postagem'] as num?)?.toInt();
       debugPrint('✅ [criarPostagem] Postagem criada! id: $idPostagem');
+
+      // 4. Espelha as imagens na tabela imagens_postagens (quando existir).
+      //    Mantém também as URLs dentro do 'conteudo' para compatibilidade
+      //    com o formato legado. Se a tabela ainda não existir, ignora.
+      if (idPostagem != null && urlsImagens.isNotEmpty) {
+        try {
+          final linhas = <Map<String, dynamic>>[];
+          for (var i = 0; i < urlsImagens.length; i++) {
+            linhas.add({
+              'fk_postagem': idPostagem,
+              'url_imagem': urlsImagens[i],
+              'ordem': i,
+            });
+          }
+          await supabase.from('imagens_postagens').insert(linhas);
+          debugPrint('✅ [criarPostagem] imagens_postagens OK (${linhas.length})');
+        } catch (e) {
+          debugPrint(
+            'ℹ️ [criarPostagem] imagens_postagens indisponível ($e). '
+            'Rode docs/sql/migration_postagens_empresa.sql.',
+          );
+        }
+      }
+
       return (sucesso: true, idPostagem: idPostagem, erro: null);
     } catch (e) {
       debugPrint('❌ [criarPostagem] ERRO GERAL: $e');
@@ -257,6 +321,47 @@ class PostagensProfissionalService {
     }
   }
 
+  /// Busca as postagens da conta ativa.
+  /// - isEmpresa=false (profissional CNPJ): só tipo_autor='profissional'.
+  /// - isEmpresa=true: só tipo_autor='empresa' do grupo (fk_grupo_empresa).
+  /// Se o banco ainda não tiver as colunas novas, cai para o comportamento
+  /// legado (filtrar só por fk_perfil).
+  static Future<List<PostagemResumo>> buscarPostagensConta({
+    required int idPerfil,
+    required bool isEmpresa,
+    int? idGrupoEmpresa,
+    int? limit,
+    bool incluirArquivadas = false,
+  }) async {
+    // Caminho empresa exige grupo; sem grupo não há o que listar.
+    if (isEmpresa && idGrupoEmpresa == null) return [];
+
+    // Tenta o filtro novo (tipo_autor + fk_grupo_empresa).
+    try {
+      final comFiltro = await buscarPostagensPorPerfil(
+        idPerfil,
+        limit: limit,
+        incluirArquivadas: incluirArquivadas,
+        tipoAutor: isEmpresa ? 'empresa' : 'profissional',
+        idGrupoEmpresa: isEmpresa ? idGrupoEmpresa : null,
+        filtrarPorGrupo: isEmpresa,
+      );
+      // Se o banco novo retornou algo OU se o profissional não tem colisão
+      // de perfil com a empresa, esse resultado já é o correto.
+      // Para conta empresa com banco novo mas sem posts, retorna [] mesmo
+      // (não deve vazar posts do profissional).
+      return comFiltro;
+    } catch (_) {
+      // Cai no legado abaixo.
+    }
+
+    return await buscarPostagensPorPerfil(
+      idPerfil,
+      limit: limit,
+      incluirArquivadas: incluirArquivadas,
+    );
+  }
+
   /// Busca todas as postagens do profissional, incluindo as arquivadas.
   /// Usado na página "Minhas Postagens" do profissional.
   static Future<List<PostagemResumo>> buscarTodasPostagens({int? limit}) async {
@@ -278,32 +383,85 @@ class PostagensProfissionalService {
     int idPerfil, {
     int? limit,
     bool incluirArquivadas = false,
+    String? tipoAutor,
+    int? idGrupoEmpresa,
+    bool filtrarPorGrupo = false,
   }) async {
     try {
       final supabase = Supabase.instance.client;
-      PostgrestFilterBuilder<PostgrestList> query = supabase
-          .from('postagens')
-          .select('id_postagem, conteudo, data_postagem, arquivado')
-          .eq('fk_perfil', idPerfil);
 
-      if (!incluirArquivadas) {
-        query = query.eq('arquivado', false);
+      // Monta a seleção pedindo as colunas novas; se o banco ainda não
+      // tiver a migration, refaz a query só com as colunas legadas.
+      List<dynamic> rows;
+      bool temColunasNovas = true;
+      try {
+        rows = await _executarQueryPostagens(
+          supabase: supabase,
+          idPerfil: idPerfil,
+          incluirArquivadas: incluirArquivadas,
+          limit: limit,
+          tipoAutor: tipoAutor,
+          idGrupoEmpresa: idGrupoEmpresa,
+          filtrarPorGrupo: filtrarPorGrupo,
+          comColunasNovas: true,
+        );
+      } catch (e) {
+        debugPrint('ℹ️ [buscarPostagensPorPerfil] Sem colunas novas ($e). Usando query legada.');
+        temColunasNovas = false;
+        rows = await _executarQueryPostagens(
+          supabase: supabase,
+          idPerfil: idPerfil,
+          incluirArquivadas: incluirArquivadas,
+          limit: limit,
+          tipoAutor: null,
+          idGrupoEmpresa: null,
+          filtrarPorGrupo: false,
+          comColunasNovas: false,
+        );
       }
 
-      PostgrestTransformBuilder<PostgrestList> queryFinal =
-          query.order('data_postagem', ascending: false);
-
-      if (limit != null) {
-        queryFinal = queryFinal.limit(limit);
-      }
-
-      final rows = await queryFinal;
       final postagens = <PostagemResumo>[];
 
       for (final row in rows) {
-        final idPostagem = (row['id_postagem'] as num).toInt();
+        final map = Map<String, dynamic>.from(row as Map);
+        final idPostagem = (map['id_postagem'] as num).toInt();
+
+        // Fallback client-side: se pediu filtro de empresa mas o banco
+        // ainda não tem as colunas, não há como separar — nesse caso
+        // a separação total exige rodar a migration.
+        if (temColunasNovas && tipoAutor != null) {
+          final tipo = map['tipo_autor']?.toString();
+          if (tipo != null && tipo != tipoAutor) continue;
+          // Postagem legada (tipo NULL) = profissional.
+          if (tipo == null && tipoAutor == 'empresa') continue;
+          if (filtrarPorGrupo && idGrupoEmpresa != null) {
+            final grupo = (map['fk_grupo_empresa'] as num?)?.toInt();
+            if (grupo != idGrupoEmpresa) continue;
+          }
+        }
+
+        // Completa a imagem pela tabela imagens_postagens quando existir,
+        // mantendo compat com o formato legado (URL dentro do conteudo).
+        String? imagemViaTabela;
+        try {
+          final imgs = await supabase
+              .from('imagens_postagens')
+              .select('url_imagem')
+              .eq('fk_postagem', idPostagem)
+              .order('ordem', ascending: true)
+              .limit(1);
+          if (imgs.isNotEmpty) {
+            imagemViaTabela =
+                (imgs.first as Map)['url_imagem']?.toString();
+          }
+        } catch (_) {
+          // Tabela ainda não criada — ignora e usa só o conteudo.
+        }
+
         final curtidas = await _contarCurtidas(supabase, idPostagem);
-        postagens.add(_parseRow(row, curtidas));
+        postagens.add(
+          _parseRow(map, curtidas, imagemFallback: imagemViaTabela),
+        );
       }
 
       return postagens;
@@ -311,6 +469,42 @@ class PostagensProfissionalService {
       debugPrint('❌ [buscarPostagensPorPerfil] ERRO: $e');
       return [];
     }
+  }
+
+  static Future<List<dynamic>> _executarQueryPostagens({
+    required SupabaseClient supabase,
+    required int idPerfil,
+    required bool incluirArquivadas,
+    int? limit,
+    String? tipoAutor,
+    int? idGrupoEmpresa,
+    required bool filtrarPorGrupo,
+    required bool comColunasNovas,
+  }) async {
+    final colunas = comColunasNovas
+        ? 'id_postagem, conteudo, data_postagem, arquivado, tipo_autor, fk_grupo_empresa'
+        : 'id_postagem, conteudo, data_postagem, arquivado';
+    dynamic query = supabase
+        .from('postagens')
+        .select(colunas)
+        .eq('fk_perfil', idPerfil);
+
+    if (!incluirArquivadas) {
+      query = query.eq('arquivado', false);
+    }
+    if (comColunasNovas && tipoAutor != null) {
+      query = query.eq('tipo_autor', tipoAutor);
+    }
+    if (comColunasNovas && filtrarPorGrupo && idGrupoEmpresa != null) {
+      query = query.eq('fk_grupo_empresa', idGrupoEmpresa);
+    }
+
+    dynamic ordenada = query.order('data_postagem', ascending: false);
+    if (limit != null) {
+      ordenada = ordenada.limit(limit);
+    }
+    final rows = await ordenada;
+    return (rows as List);
   }
 
   /// Apaga permanentemente uma postagem do Supabase.
@@ -368,7 +562,11 @@ class PostagensProfissionalService {
     }
   }
 
-  static PostagemResumo _parseRow(Map<String, dynamic> row, int curtidas) {
+  static PostagemResumo _parseRow(
+    Map<String, dynamic> row,
+    int curtidas, {
+    String? imagemFallback,
+  }) {
     final idPostagem = (row['id_postagem'] as num).toInt();
     final conteudo = row['conteudo']?.toString().trim() ?? '';
     final dataRaw = row['data_postagem']?.toString();
@@ -393,6 +591,9 @@ class PostagensProfissionalService {
         textos.add(linha);
       }
     }
+    // Prioriza a imagem vinda de imagens_postagens quando o conteudo
+    // legado não tiver URL (post criado só com a tabela nova).
+    imagemUrl ??= imagemFallback;
 
     final titulo = textos.isNotEmpty
         ? textos.first
