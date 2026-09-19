@@ -3121,7 +3121,7 @@ class _TelaServicoState extends State<TelaServico> {
     setState(() => _sheetEnviando = true);
 
     try {
-      final dadosSolicitacao = {
+      final dadosSolicitacao = <String, dynamic>{
         'data_solicitacao': DateTime.now().toUtc().toIso8601String(),
         'fk_usuario': _sheetIdUsuario,
         'fk_profissional': servico.fkProfissional,
@@ -3142,8 +3142,16 @@ class _TelaServicoState extends State<TelaServico> {
       try {
         await supabase.from('solicitacoes').insert(dadosSolicitacao);
       } catch (e) {
-        // Fallback para 'solicitacao' caso a tabela esteja no singular
-        await supabase.from('solicitacao').insert(dadosSolicitacao);
+        debugPrint('Erro ao inserir em solicitacoes: $e');
+        if (e is PostgrestException &&
+            (e.message.toLowerCase().contains('column') || e.code == 'PGRST204')) {
+          final dadosSemOpcionais = Map<String, dynamic>.from(dadosSolicitacao)
+            ..remove('hora_agendada')
+            ..remove('valor_final');
+          await supabase.from('solicitacoes').insert(dadosSemOpcionais);
+        } else {
+          rethrow;
+        }
       }
 
       nav.pop(); // Fecha a sheet

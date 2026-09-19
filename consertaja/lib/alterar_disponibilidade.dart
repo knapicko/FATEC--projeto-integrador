@@ -32,7 +32,14 @@ class _DadosExcecao {
 }
 
 class AlterarDisponibilidadePage extends StatefulWidget {
-  const AlterarDisponibilidadePage({super.key});
+  final bool isEmpresa;
+  final int? idGrupoEmpresa;
+
+  const AlterarDisponibilidadePage({
+    super.key,
+    this.isEmpresa = false,
+    this.idGrupoEmpresa,
+  });
 
   @override
   State<AlterarDisponibilidadePage> createState() =>
@@ -163,26 +170,71 @@ class _AlterarDisponibilidadePageState
     }
   }
 
+  Future<int?> _buscarIdGrupoEmpresa() async {
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) return null;
+
+      final usuarioId = await _buscarIdUsuario(user.id);
+      if (usuarioId == null) return null;
+
+      final dadosProf = await _supabase
+          .from('dados_profissionais')
+          .select('id_profissional, fk_grupo_empresa, fk_perfil')
+          .eq('fk_usuario', usuarioId)
+          .maybeSingle();
+
+      if (dadosProf == null) return null;
+
+      final idGrupo = (dadosProf['fk_grupo_empresa'] as num?)?.toInt();
+      if (idGrupo != null) return idGrupo;
+
+      final idPerfil = (dadosProf['fk_perfil'] as num?)?.toInt();
+      if (idPerfil != null) {
+        final grupo = await _supabase
+            .from('grupo_empresa')
+            .select('id_grupo_empresa')
+            .eq('fk_perfil', idPerfil)
+            .maybeSingle();
+        if (grupo != null) {
+          return (grupo['id_grupo_empresa'] as num?)?.toInt();
+        }
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Erro ao buscar id_grupo_empresa: $e');
+      return null;
+    }
+  }
+
   /// Carrega os dias e horários já salvos na agenda_profissional e as
   /// exceções de calendário (grade_horario_excecao) do mês exibido.
   Future<void> _carregarDisponibilidade() async {
     setState(() => _carregando = true);
 
     try {
-      final idProfissional = await _buscarIdProfissional();
-      if (idProfissional == null) {
+      final idProfissional = widget.isEmpresa ? null : await _buscarIdProfissional();
+      final idEmpresa = widget.idGrupoEmpresa ??
+          (widget.isEmpresa ? await _buscarIdGrupoEmpresa() : null);
+
+      if (widget.isEmpresa && idEmpresa == null) {
+        if (mounted) setState(() => _carregando = false);
+        return;
+      }
+      if (!widget.isEmpresa && idProfissional == null) {
         if (mounted) setState(() => _carregando = false);
         return;
       }
 
       // Busca o registro único de disponibilidade recorrente (fk_solicitacao = 0)
-      final response = await _supabase
+      final query = _supabase
           .from('agenda_profissional')
           .select('dias_semana, hora_ini, hora_fim')
-          .eq('fk_profissional', idProfissional)
-          .eq('fk_solicitacao', 0)
-          .limit(1)
-          .maybeSingle();
+          .eq('fk_solicitacao', 0);
+
+      final response = widget.isEmpresa
+          ? await query.eq('fk_grupo_empresa', idEmpresa!).limit(1).maybeSingle()
+          : await query.eq('fk_profissional', idProfissional!).limit(1).maybeSingle();
 
       if (response != null) {
         // Converte a lista "segunda-feira,quinta-feira,sexta-feira"
@@ -211,7 +263,10 @@ class _AlterarDisponibilidadePageState
       }
 
       // Carrega as exceções (dias bloqueados) do mês atualmente exibido.
-      await _carregarExcecoes(idProfissional: idProfissional);
+      await _carregarExcecoes(
+        idProfissional: idProfissional,
+        idGrupoEmpresa: idEmpresa,
+      );
 
       if (mounted) setState(() => _carregando = false);
     } catch (e) {
@@ -224,10 +279,17 @@ class _AlterarDisponibilidadePageState
   ///
   /// A coluna `dia_semana` é do tipo `date` (formato "YYYY-MM-DD"). As datas
   /// encontradas são convertidas em dias do mês para destacar no calendário.
-  Future<void> _carregarExcecoes({int? idProfissional}) async {
+  Future<void> _carregarExcecoes({int? idProfissional, int? idGrupoEmpresa}) async {
     try {
-      final id = idProfissional ?? await _buscarIdProfissional();
-      if (id == null) return;
+      final id = widget.isEmpresa
+          ? null
+          : (idProfissional ?? await _buscarIdProfissional());
+      final idEmpresa = idGrupoEmpresa ??
+          widget.idGrupoEmpresa ??
+          (widget.isEmpresa ? await _buscarIdGrupoEmpresa() : null);
+
+      if (widget.isEmpresa && idEmpresa == null) return;
+      if (!widget.isEmpresa && id == null) return;
 
       final ano = _mesExibido.year;
       final mes = _mesExibido.month;
@@ -236,12 +298,15 @@ class _AlterarDisponibilidadePageState
       final primeiroDia = DateTime(ano, mes, 1);
       final ultimoDia = DateTime(ano, mes + 1, 0);
 
-      final response = await _supabase
+      final query = _supabase
           .from('grade_horario_excecao')
           .select('dia_semana, hora_ini, hora_fim, observacao')
-          .eq('fk_profissional', id)
           .gte('dia_semana', _formatarDataCompleta(primeiroDia))
           .lte('dia_semana', _formatarDataCompleta(ultimoDia));
+
+      final response = widget.isEmpresa
+          ? await query.eq('fk_grupo_empresa', idEmpresa!)
+          : await query.eq('fk_profissional', id!);
 
       if (!mounted) return;
 
@@ -320,13 +385,15 @@ class _AlterarDisponibilidadePageState
   /// Converte [_DadosExcecao] em mapa para insert/update no Supabase.
   Map<String, dynamic> _excecaoParaSupabase(
     String data,
-    _DadosExcecao excecao,
-    int idProfissional,
-  ) {
+    _DadosExcecao excecao, {
+    int? idProfissional,
+    int? idGrupoEmpresa,
+  }) {
     final observacao = excecao.observacao?.trim();
     final map = <String, dynamic>{
       'dia_semana': data,
-      'fk_profissional': idProfissional,
+      'fk_profissional': ?idProfissional,
+      'fk_grupo_empresa': ?idGrupoEmpresa,
       'observacao': (observacao != null && observacao.isNotEmpty)
           ? observacao
           : (excecao.diaInteiro ? 'Indisponível' : 'Ausência parcial'),
@@ -521,8 +588,24 @@ class _AlterarDisponibilidadePageState
     setState(() => _salvandoLote = true);
 
     try {
-      final idProfissional = await _buscarIdProfissional();
-      if (idProfissional == null) {
+      final idProfissional = widget.isEmpresa ? null : await _buscarIdProfissional();
+      final idEmpresa = widget.idGrupoEmpresa ??
+          (widget.isEmpresa ? await _buscarIdGrupoEmpresa() : null);
+
+      if (widget.isEmpresa && idEmpresa == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Não foi possível identificar a empresa.',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+      if (!widget.isEmpresa && idProfissional == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -589,8 +672,24 @@ class _AlterarDisponibilidadePageState
     setState(() => _salvandoLote = true);
 
     try {
-      final idProfissional = await _buscarIdProfissional();
-      if (idProfissional == null) {
+      final idProfissional = widget.isEmpresa ? null : await _buscarIdProfissional();
+      final idEmpresa = widget.idGrupoEmpresa ??
+          (widget.isEmpresa ? await _buscarIdGrupoEmpresa() : null);
+
+      if (widget.isEmpresa && idEmpresa == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Não foi possível identificar a empresa.',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+      if (!widget.isEmpresa && idProfissional == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -737,29 +836,52 @@ class _AlterarDisponibilidadePageState
   }
 
   Future<void> _persistirExcecao(String data, _DadosExcecao excecao) async {
-    final idProfissional = await _buscarIdProfissional();
-    if (idProfissional == null) return;
+    final idProfissional = widget.isEmpresa ? null : await _buscarIdProfissional();
+    final idEmpresa = widget.idGrupoEmpresa ??
+        (widget.isEmpresa ? await _buscarIdGrupoEmpresa() : null);
 
-    await _supabase
+    if (widget.isEmpresa && idEmpresa == null) return;
+    if (!widget.isEmpresa && idProfissional == null) return;
+
+    final queryDelete = _supabase
         .from('grade_horario_excecao')
         .delete()
-        .eq('fk_profissional', idProfissional)
         .eq('dia_semana', data);
 
+    if (widget.isEmpresa) {
+      await queryDelete.eq('fk_grupo_empresa', idEmpresa!);
+    } else {
+      await queryDelete.eq('fk_profissional', idProfissional!);
+    }
+
     await _supabase.from('grade_horario_excecao').insert(
-          _excecaoParaSupabase(data, excecao, idProfissional),
+          _excecaoParaSupabase(
+            data,
+            excecao,
+            idProfissional: idProfissional,
+            idGrupoEmpresa: idEmpresa,
+          ),
         );
   }
 
   Future<void> _removerExcecao(String data) async {
-    final idProfissional = await _buscarIdProfissional();
-    if (idProfissional == null) return;
+    final idProfissional = widget.isEmpresa ? null : await _buscarIdProfissional();
+    final idEmpresa = widget.idGrupoEmpresa ??
+        (widget.isEmpresa ? await _buscarIdGrupoEmpresa() : null);
 
-    await _supabase
+    if (widget.isEmpresa && idEmpresa == null) return;
+    if (!widget.isEmpresa && idProfissional == null) return;
+
+    final queryDelete = _supabase
         .from('grade_horario_excecao')
         .delete()
-        .eq('fk_profissional', idProfissional)
         .eq('dia_semana', data);
+
+    if (widget.isEmpresa) {
+      await queryDelete.eq('fk_grupo_empresa', idEmpresa!);
+    } else {
+      await queryDelete.eq('fk_profissional', idProfissional!);
+    }
   }
 
   Future<void> _confirmarExcecao(int dia, _DadosExcecao excecao) async {
@@ -873,8 +995,24 @@ class _AlterarDisponibilidadePageState
     setState(() => _salvando = true);
 
     try {
-      final idProfissional = await _buscarIdProfissional();
-      if (idProfissional == null) {
+      final idProfissional = widget.isEmpresa ? null : await _buscarIdProfissional();
+      final idEmpresa = widget.idGrupoEmpresa ??
+          (widget.isEmpresa ? await _buscarIdGrupoEmpresa() : null);
+
+      if (widget.isEmpresa && idEmpresa == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Não foi possível identificar a empresa.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        setState(() => _salvando = false);
+        return;
+      }
+
+      if (!widget.isEmpresa && idProfissional == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -893,12 +1031,17 @@ class _AlterarDisponibilidadePageState
           diasOrdenados.map((indice) => _nomesDias[indice]).join(',');
 
       // Deleta os registros antigos de disponibilidade recorrente deste
-      // profissional para que não fiquem dias/horários acumulados de saves antigos.
-      await _supabase
+      // profissional / empresa para que não fiquem dias/horários acumulados de saves antigos.
+      final queryDelete = _supabase
           .from('agenda_profissional')
           .delete()
-          .eq('fk_profissional', idProfissional)
           .eq('fk_solicitacao', 0);
+
+      if (widget.isEmpresa) {
+        await queryDelete.eq('fk_grupo_empresa', idEmpresa!);
+      } else {
+        await queryDelete.eq('fk_profissional', idProfissional!);
+      }
 
       // Salva um único registro com todos os dias da semana e o horário
       // padrão de início/fim (fk_solicitacao = 0 = disponibilidade recorrente).
@@ -906,7 +1049,8 @@ class _AlterarDisponibilidadePageState
         'dias_semana': diasTexto,
         'hora_ini': _formatarTimetz(_horaInicio),
         'hora_fim': _formatarTimetz(_horaFim),
-        'fk_profissional': idProfissional,
+        if (!widget.isEmpresa) 'fk_profissional': idProfissional,
+        if (widget.isEmpresa) 'fk_grupo_empresa': idEmpresa,
         'fk_status': 1,
         'fk_solicitacao': 0,
       });
@@ -992,8 +1136,21 @@ class _AlterarDisponibilidadePageState
     final fimCorreto = dataFim.isBefore(dataInicio) ? dataInicio : dataFim;
 
     try {
-      final idProfissional = await _buscarIdProfissional();
-      if (idProfissional == null) {
+      final idProfissional = widget.isEmpresa ? null : await _buscarIdProfissional();
+      final idEmpresa = widget.idGrupoEmpresa ??
+          (widget.isEmpresa ? await _buscarIdGrupoEmpresa() : null);
+
+      if (widget.isEmpresa && idEmpresa == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Não foi possível identificar a empresa.'),
+            ),
+          );
+        }
+        return;
+      }
+      if (!widget.isEmpresa && idProfissional == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
