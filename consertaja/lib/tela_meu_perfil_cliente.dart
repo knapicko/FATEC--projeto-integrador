@@ -545,6 +545,11 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
   Widget _buildBottomNav() {
     return BottomNavigationBarCliente(
       currentIndex: 4,
+      // Tocar em Perfil estando no Perfil recarrega os dados.
+      onReselecionarAbaAtual: (_) async {
+        await _carregarDadosPerfil();
+        if (mounted) setState(() {});
+      },
       onTap: (index) {
         if (index == 0) {
           AppNavigationUtil.navegarAba(

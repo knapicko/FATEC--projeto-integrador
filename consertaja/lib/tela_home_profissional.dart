@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -148,17 +149,25 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   bool _contaEmpresaAtiva = false;
   static const String _prefContaAtivaKey = 'consertaja_conta_empresa_ativa';
 
+  // Cache das infos das 2 contas (profissional x empresa) para abrir o
+  // bottom sheet de troca instantaneamente, sem tela de carregamento.
+  Map<String, dynamic>? _cacheInfosContas;
+
   @override
   void initState() {
     super.initState();
     _carregarPreferenciaContaAtiva();
     _inicializarFutures();
+    // Pré-carrega as infos das contas em 2º plano para a troca abrir na hora.
+    _precarregarInfosContas();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _mostrarCompletamentoEquipeSeNecessario();
     });
   }
 
   Future<void> _carregarPreferenciaContaAtiva() async {
+    // Aquece o cache da bottom bar para o primeiro frame não piscar.
+    unawaited(BottomNavigationBarProfissional.precarregarContaEmpresa());
     try {
       final prefs = await SharedPreferences.getInstance();
       final supabase = Supabase.instance.client;
@@ -176,6 +185,8 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   }
 
   Future<void> _salvarPreferenciaContaAtiva(bool isEmpresa) async {
+    // Atualiza o cache da bottom bar na hora (evita "piscar" o Perfil).
+    BottomNavigationBarProfissional.notificarTrocaConta(isEmpresa);
     try {
       final prefs = await SharedPreferences.getInstance();
       final supabase = Supabase.instance.client;
@@ -209,6 +220,26 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     _postagensFuture = _carregarPostagens();
     _agendaSemanaFuture = _carregarAgendaSemana();
     _convitesEmpresaFuture = _buscarConvitesEmpresa();
+    // Mantém o cache da troca de contas atualizado em 2º plano.
+    _precarregarInfosContas();
+  }
+
+  /// Recarrega a página atual (usado ao tocar na aba ativa da bottom bar).
+  void _recarregarPaginaAtual() {
+    if (!mounted) return;
+    setState(() {
+      _currentIndex = 0;
+      _inicializarFutures();
+    });
+  }
+
+  /// Pré-carrega (sem setState) as infos do bottom sheet de troca,
+  /// para que ele abra instantaneamente sem spinner.
+  Future<void> _precarregarInfosContas() async {
+    try {
+      final infos = await _carregarInformacoesContas();
+      _cacheInfosContas = infos;
+    } catch (_) {}
   }
 
   Future<List<PostagemResumo>> _carregarPostagens() async {
@@ -220,8 +251,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
       // Conta empresa ativa: mostra SÓ postagens da empresa
       // (tipo_autor='empresa' + fk_grupo_empresa do grupo).
       if (idPerfilEmpresa != null) {
-        final posts =
-            await PostagensProfissionalService.buscarPostagensConta(
+        final posts = await PostagensProfissionalService.buscarPostagensConta(
           idPerfil: idPerfilEmpresa,
           isEmpresa: true,
           idGrupoEmpresa: idGrupoEmpresa,
@@ -700,7 +730,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
       final supabase = Supabase.instance.client;
       final idGrupo =
           (empresa?['id_grupo_empresa'] as num?)?.toInt() ??
-              await _buscarIdGrupoEmpresa();
+          await _buscarIdGrupoEmpresa();
       if (idGrupo == null) return null;
 
       final novoPerfil = await supabase
@@ -715,7 +745,9 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           .from('grupo_empresa')
           .update({'fk_perfil': fkPerfil})
           .eq('id_grupo_empresa', idGrupo);
-      debugPrint('🏢 [perfil empresa] criado fk_perfil=$fkPerfil p/ grupo=$idGrupo');
+      debugPrint(
+        '🏢 [perfil empresa] criado fk_perfil=$fkPerfil p/ grupo=$idGrupo',
+      );
       return fkPerfil;
     } catch (e) {
       debugPrint('Erro ao buscar/criar perfil da empresa: $e');
@@ -777,10 +809,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
         }
       }
 
-      return {
-        ...response,
-        'is_empresa': false,
-      };
+      return {...response, 'is_empresa': false};
     } catch (e) {
       return null;
     }
@@ -812,7 +841,12 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
               .from('ass_usuario_endereco')
               .select('fk_endereco')
               .eq('fk_usuario', usuarioId)
-              .inFilter('tipo_endereco', ['Comercial', 'Trabalho', 'Empresa', 'Loja'])
+              .inFilter('tipo_endereco', [
+                'Comercial',
+                'Trabalho',
+                'Empresa',
+                'Loja',
+              ])
               .limit(1)
               .maybeSingle();
           if (assComercial != null) {
@@ -1088,7 +1122,9 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   Future<List<_DiaAgendaCalendario>> _carregarAgendaSemana() async {
     try {
       final supabase = Supabase.instance.client;
-      final idProfissional = widget.isVisitante ? null : await _buscarIdProfissional();
+      final idProfissional = widget.isVisitante
+          ? null
+          : await _buscarIdProfissional();
       int? idEmpresa;
 
       if (_contaEmpresaAtiva) {
@@ -1112,8 +1148,14 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           .eq('fk_solicitacao', 0);
 
       final agenda = _contaEmpresaAtiva
-          ? await queryAgenda.eq('fk_grupo_empresa', idEmpresa!).limit(1).maybeSingle()
-          : await queryAgenda.eq('fk_profissional', idProfissional!).limit(1).maybeSingle();
+          ? await queryAgenda
+                .eq('fk_grupo_empresa', idEmpresa!)
+                .limit(1)
+                .maybeSingle()
+          : await queryAgenda
+                .eq('fk_profissional', idProfissional!)
+                .limit(1)
+                .maybeSingle();
 
       final diasDisponiveis = <int>{};
       final diasRaw = agenda?['dias_semana']?.toString();
@@ -1417,9 +1459,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
               Positioned.fill(
                 child: BackdropFilter(
                   filter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                  child: Container(
-                    color: Colors.transparent,
-                  ),
+                  child: Container(color: Colors.transparent),
                 ),
               ),
               Align(
@@ -1445,7 +1485,10 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                             child: Container(
                               width: 44,
                               height: 4,
-                              margin: const EdgeInsets.only(top: 12, bottom: 20),
+                              margin: const EdgeInsets.only(
+                                top: 12,
+                                bottom: 20,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFD1D5DB),
                                 borderRadius: BorderRadius.circular(2),
@@ -1454,13 +1497,22 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                           ),
 
                           // Cabeçalho: Foto + Selo, Nome, Endereço e Setas de troca
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            child: Row(
-                              children: [
-                                Stack(
-                                  clipBehavior: Clip.none,
+                          // Toda a área (foto/nome/endereço) abre a troca de conta.
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () async {
+                                Navigator.of(bottomSheetContext).pop();
+                                await _mostrarBottomSheetTrocaConta();
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 20),
+                                child: Row(
                                   children: [
+                                    Stack(
+                                      clipBehavior: Clip.none,
+                                      children: [
                                     Container(
                                       width: 58,
                                       height: 58,
@@ -1472,7 +1524,9 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                         ),
                                       ),
                                       child: ClipOval(
-                                        child: fotoUrl != null && fotoUrl.isNotEmpty
+                                        child:
+                                            fotoUrl != null &&
+                                                fotoUrl.isNotEmpty
                                             ? Image.network(
                                                 fotoUrl,
                                                 fit: BoxFit.cover,
@@ -1511,7 +1565,8 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
 
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
@@ -1552,26 +1607,21 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                 ),
                                 const SizedBox(width: 8),
 
-                                InkWell(
-                                  borderRadius: BorderRadius.circular(20),
-                                  onTap: () async {
-                                    Navigator.of(bottomSheetContext).pop();
-                                    await _mostrarBottomSheetTrocaConta();
-                                  },
-                                  child: const Padding(
-                                    padding: EdgeInsets.all(4),
-                                    child: Icon(
-                                      Icons.swap_horiz,
-                                      size: 26,
-                                      color: Color(0xFF374151),
-                                    ),
+                                const Padding(
+                                  padding: EdgeInsets.all(4),
+                                  child: Icon(
+                                    Icons.swap_horiz,
+                                    size: 26,
+                                    color: Color(0xFF374151),
                                   ),
                                 ),
                               ],
                             ),
                           ),
+                        ),
+                      ),
 
-                          const SizedBox(height: 16),
+                      const SizedBox(height: 16),
                           const Divider(
                             height: 1,
                             thickness: 1,
@@ -1817,7 +1867,33 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     };
   }
 
+  // Placeholder usado só se o cache ainda não carregou (1º acesso bem
+  // no início). Como o cache é pré-carregado no initState, na prática o
+  // sheet sempre abre direto no conteúdo, sem spinner.
+  static const Map<String, dynamic> _infosContasPlaceholder = {
+    'nome_profissional': 'Profissional CNPJ',
+    'foto_profissional': null,
+    'seguidores_profissional': 0,
+    'nome_empresa': 'Minha Empresa',
+    'foto_empresa': null,
+    'seguidores_empresa': 0,
+    'tem_empresa': false,
+  };
+
   Future<void> _mostrarBottomSheetTrocaConta() async {
+    // Abre na hora com o cache; atualiza em 2º plano sem spinner.
+    final iniciais = _cacheInfosContas ?? _infosContasPlaceholder;
+    if (_cacheInfosContas == null) {
+      _precarregarInfosContas().then((_) {
+        if (mounted && _cacheInfosContas != null) {
+          setState(() {});
+        }
+      });
+    } else {
+      // Atualiza silenciosamente para a próxima abertura.
+      _precarregarInfosContas();
+    }
+
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1850,305 +1926,19 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                     ),
                     child: SafeArea(
                       top: false,
-                      child: FutureBuilder<Map<String, dynamic>>(
-                        future: _carregarInformacoesContas(),
-                        builder: (context, snapshot) {
-                          if (!snapshot.hasData) {
-                            return const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 40),
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                  color: _primaryBlue,
-                                ),
-                              ),
-                            );
+                      // StatefulBuilder permite trocar o conteúdo quando o
+                      // cache terminar de carregar, sem fechar/reabrir.
+                      child: StatefulBuilder(
+                        builder: (context, setSheetState) {
+                          if (_cacheInfosContas == null) {
+                            _precarregarInfosContas().then((_) {
+                              if (mounted) {
+                                setSheetState(() {});
+                              }
+                            });
                           }
-
-                          final dados = snapshot.data!;
-                          final nomeProf =
-                              dados['nome_profissional'] as String;
-                          final fotoProf =
-                              dados['foto_profissional'] as String?;
-                          final segProf =
-                              dados['seguidores_profissional'] as int;
-
-                          final nomeEmp = dados['nome_empresa'] as String;
-                          final fotoEmp = dados['foto_empresa'] as String?;
-                          final segEmp = dados['seguidores_empresa'] as int;
-
-                          final nomeAtivo =
-                              _contaEmpresaAtiva ? nomeEmp : nomeProf;
-                          final fotoAtivo =
-                              _contaEmpresaAtiva ? fotoEmp : fotoProf;
-                          final segAtivo =
-                              _contaEmpresaAtiva ? segEmp : segProf;
-
-                          final nomeInativo =
-                              _contaEmpresaAtiva ? nomeProf : nomeEmp;
-                          final fotoInativo =
-                              _contaEmpresaAtiva ? fotoProf : fotoEmp;
-                          final subtituloInativo = _contaEmpresaAtiva
-                              ? 'Profissional CNPJ'
-                              : 'Empresa / Loja';
-
-                          return Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Barra de arrasto
-                              Center(
-                                child: Container(
-                                  width: 44,
-                                  height: 4,
-                                  margin: const EdgeInsets.only(
-                                    top: 12,
-                                    bottom: 20,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFD1D5DB),
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
-                                ),
-                              ),
-
-                              // Conta Ativa (Foto, Nome em #0FB3FF e Checkmark em círculo #0FB3FF)
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                ),
-                                child: Row(
-                                  children: [
-                                    CircleAvatar(
-                                      radius: 26,
-                                      backgroundColor: const Color(0xFFE1F5FE),
-                                      backgroundImage: fotoAtivo != null &&
-                                              fotoAtivo.isNotEmpty
-                                          ? NetworkImage(fotoAtivo)
-                                          : null,
-                                      child: fotoAtivo == null ||
-                                              fotoAtivo.isEmpty
-                                          ? Text(
-                                              obterIniciais(nomeAtivo),
-                                              style: const TextStyle(
-                                                fontSize: 18,
-                                                fontWeight: FontWeight.bold,
-                                                color: _primaryBlue,
-                                              ),
-                                            )
-                                          : null,
-                                    ),
-                                    const SizedBox(width: 14),
-                                    Expanded(
-                                      child: Text(
-                                        nomeAtivo,
-                                        style: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: _primaryBlue,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    Container(
-                                      width: 26,
-                                      height: 26,
-                                      decoration: const BoxDecoration(
-                                        color: _primaryBlue,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: const Center(
-                                        child: Icon(
-                                          Icons.check,
-                                          color: Colors.white,
-                                          size: 16,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                              // Containers de Métricas (Seguidores na esquerda, Pedidos ativos na direita)
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  20,
-                                  16,
-                                  20,
-                                  18,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 12,
-                                          horizontal: 8,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                          border: Border.all(
-                                            color: const Color(0xFFE2E8F0),
-                                            width: 1.2,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          '${_formatarSeguidores(segAtivo)} seguidores',
-                                          textAlign: TextAlign.center,
-                                          style: const TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.bold,
-                                            color: Color(0xFF1E293B),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 12,
-                                          horizontal: 8,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                          border: Border.all(
-                                            color: const Color(0xFFE2E8F0),
-                                            width: 1.2,
-                                          ),
-                                        ),
-                                        child: const Text(
-                                          '0 pedidos ativos',
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.bold,
-                                            color: Color(0xFF1E293B),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                              const Divider(
-                                height: 1,
-                                thickness: 1,
-                                color: Color(0xFFF1F5F9),
-                              ),
-
-                              // Outra Conta (Inativa) - Ao clicar nela, troca de conta!
-                              Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  onTap: () {
-                                    final messenger = ScaffoldMessenger.of(sheetContext);
-                                    Navigator.of(sheetContext).pop();
-                                    final novoEstado = !_contaEmpresaAtiva;
-                                    setState(() {
-                                      _contaEmpresaAtiva = novoEstado;
-                                      _inicializarFutures();
-                                    });
-                                    _salvarPreferenciaContaAtiva(novoEstado);
-                                    messenger.showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Conta alternada para $nomeInativo',
-                                        ),
-                                        duration: const Duration(seconds: 2),
-                                        behavior: SnackBarBehavior.floating,
-                                      ),
-                                    );
-                                  },
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 20,
-                                      vertical: 16,
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        CircleAvatar(
-                                          radius: 26,
-                                          backgroundColor:
-                                              const Color(0xFFF1F5F9),
-                                          backgroundImage: fotoInativo !=
-                                                      null &&
-                                                  fotoInativo.isNotEmpty
-                                              ? NetworkImage(fotoInativo)
-                                              : null,
-                                          child: fotoInativo == null ||
-                                                  fotoInativo.isEmpty
-                                              ? Text(
-                                                  obterIniciais(nomeInativo),
-                                                  style: const TextStyle(
-                                                    fontSize: 18,
-                                                    fontWeight:
-                                                        FontWeight.bold,
-                                                    color: Color(0xFF64748B),
-                                                  ),
-                                                )
-                                              : null,
-                                        ),
-                                        const SizedBox(width: 14),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Text(
-                                                nomeInativo,
-                                                style: const TextStyle(
-                                                  fontSize: 17,
-                                                  fontWeight:
-                                                      FontWeight.bold,
-                                                  color: Color(0xFF1E293B),
-                                                ),
-                                                maxLines: 1,
-                                                overflow:
-                                                    TextOverflow.ellipsis,
-                                              ),
-                                              const SizedBox(height: 3),
-                                              Row(
-                                                children: [
-                                                  Container(
-                                                    width: 6,
-                                                    height: 6,
-                                                    decoration:
-                                                        const BoxDecoration(
-                                                      color:
-                                                          Color(0xFFFF5252),
-                                                      shape:
-                                                          BoxShape.circle,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 6),
-                                                  Text(
-                                                    subtituloInativo,
-                                                    style: const TextStyle(
-                                                      fontSize: 13,
-                                                      color:
-                                                          Color(0xFF64748B),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-
-                              const SizedBox(height: 16),
-                            ],
-                          );
+                          final dados = _cacheInfosContas ?? iniciais;
+                          return _buildConteudoTrocaConta(sheetContext, dados);
                         },
                       ),
                     ),
@@ -2159,6 +1949,254 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           ),
         );
       },
+    );
+  }
+
+  /// Conteúdo do bottom sheet de troca (extraído para reutilizar o
+  /// cache e não depender de FutureBuilder com spinner).
+  Widget _buildConteudoTrocaConta(
+    BuildContext sheetContext,
+    Map<String, dynamic> dados,
+  ) {
+    final nomeProf = dados['nome_profissional'] as String;
+    final fotoProf = dados['foto_profissional'] as String?;
+    final segProf = dados['seguidores_profissional'] as int;
+
+    final nomeEmp = dados['nome_empresa'] as String;
+    final fotoEmp = dados['foto_empresa'] as String?;
+    final segEmp = dados['seguidores_empresa'] as int;
+
+    final nomeAtivo = _contaEmpresaAtiva ? nomeEmp : nomeProf;
+    final fotoAtivo = _contaEmpresaAtiva ? fotoEmp : fotoProf;
+    final segAtivo = _contaEmpresaAtiva ? segEmp : segProf;
+
+    final nomeInativo = _contaEmpresaAtiva ? nomeProf : nomeEmp;
+    final fotoInativo = _contaEmpresaAtiva ? fotoProf : fotoEmp;
+    final subtituloInativo = _contaEmpresaAtiva
+        ? 'Profissional CNPJ'
+        : 'Empresa / Loja';
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Barra de arrasto
+        Center(
+          child: Container(
+            width: 44,
+            height: 4,
+            margin: const EdgeInsets.only(top: 12, bottom: 20),
+            decoration: BoxDecoration(
+              color: const Color(0xFFD1D5DB),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        ),
+
+        // Conta Ativa (Foto, Nome em #0FB3FF e Checkmark em círculo #0FB3FF)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 26,
+                backgroundColor: const Color(0xFFE1F5FE),
+                backgroundImage: fotoAtivo != null && fotoAtivo.isNotEmpty
+                    ? NetworkImage(fotoAtivo)
+                    : null,
+                child: fotoAtivo == null || fotoAtivo.isEmpty
+                    ? Text(
+                        obterIniciais(nomeAtivo),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: _primaryBlue,
+                        ),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  nomeAtivo,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: _primaryBlue,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Container(
+                width: 26,
+                height: 26,
+                decoration: const BoxDecoration(
+                  color: _primaryBlue,
+                  shape: BoxShape.circle,
+                ),
+                child: const Center(
+                  child: Icon(Icons.check, color: Colors.white, size: 16),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Containers de Métricas (Seguidores na esquerda, Pedidos ativos na direita)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
+          child: Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 12,
+                    horizontal: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: const Color(0xFFE2E8F0),
+                      width: 1.2,
+                    ),
+                  ),
+                  child: Text(
+                    '${_formatarSeguidores(segAtivo)} seguidores',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 12,
+                    horizontal: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: const Color(0xFFE2E8F0),
+                      width: 1.2,
+                    ),
+                  ),
+                  child: const Text(
+                    '0 pedidos ativos',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+
+        // Outra Conta (Inativa) - Ao clicar nela, troca de conta!
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              final messenger = ScaffoldMessenger.of(sheetContext);
+              Navigator.of(sheetContext).pop();
+              final novoEstado = !_contaEmpresaAtiva;
+              // Troca instantânea: fecha o sheet, atualiza
+              // a UI na hora e salva em 2º plano.
+              setState(() {
+                _contaEmpresaAtiva = novoEstado;
+                _inicializarFutures();
+              });
+              unawaited(_salvarPreferenciaContaAtiva(novoEstado));
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text('Conta alternada para $nomeInativo'),
+                  duration: const Duration(seconds: 2),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 26,
+                    backgroundColor: const Color(0xFFF1F5F9),
+                    backgroundImage:
+                        fotoInativo != null && fotoInativo.isNotEmpty
+                        ? NetworkImage(fotoInativo)
+                        : null,
+                    child: fotoInativo == null || fotoInativo.isEmpty
+                        ? Text(
+                            obterIniciais(nomeInativo),
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF64748B),
+                            ),
+                          )
+                        : null,
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          nomeInativo,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1E293B),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 3),
+                        Row(
+                          children: [
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFFF5252),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              subtituloInativo,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+      ],
     );
   }
 
@@ -2536,621 +2574,640 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
       isHome: true,
       child: Scaffold(
         backgroundColor: _background,
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            // ================= CARTÃO DE PERFIL =================
-            FutureBuilder<Map<String, dynamic>?>(
-              future: _dadosProfissionalFuture,
-              builder: (context, snapshot) {
-                final nomeCompleto =
-                    snapshot.data?['nome'] as String? ?? 'Nome não encontrado';
-                final fotoUrl = snapshot.data?['foto_perfil_url'] as String?;
+        body: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              // ================= CARTÃO DE PERFIL =================
+              FutureBuilder<Map<String, dynamic>?>(
+                future: _dadosProfissionalFuture,
+                builder: (context, snapshot) {
+                  final nomeCompleto =
+                      snapshot.data?['nome'] as String? ??
+                      'Nome não encontrado';
+                  final fotoUrl = snapshot.data?['foto_perfil_url'] as String?;
 
-                return FutureBuilder<String?>(
-                  future: _enderecoFuture,
-                  builder: (context, enderecoSnapshot) {
-                    final enderecoTexto =
-                        enderecoSnapshot.data ?? 'Nenhum endereço cadastrado';
+                  return FutureBuilder<String?>(
+                    future: _enderecoFuture,
+                    builder: (context, enderecoSnapshot) {
+                      final enderecoTexto =
+                          enderecoSnapshot.data ?? 'Nenhum endereço cadastrado';
 
-                    return FutureBuilder<_OficiosPerfil?>(
-                      future: _oficiosFuture,
-                      builder: (context, oficiosSnapshot) {
-                        final dadosOficios = oficiosSnapshot.data;
-                        final oficios = dadosOficios?.oficios ?? <OficioInfo>[];
-                        final tagEmpresa = dadosOficios?.tagEmpresa;
-                        final corTagEmpresa = _corFromHex(
-                          dadosOficios?.corTagEmpresa,
-                        );
-                        final tagEmpresaTexto =
-                            tagEmpresa == null || tagEmpresa.isEmpty
-                            ? null
-                            : tagEmpresa.startsWith('#')
-                            ? tagEmpresa
-                            : '#$tagEmpresa';
+                      return FutureBuilder<_OficiosPerfil?>(
+                        future: _oficiosFuture,
+                        builder: (context, oficiosSnapshot) {
+                          final dadosOficios = oficiosSnapshot.data;
+                          final oficios =
+                              dadosOficios?.oficios ?? <OficioInfo>[];
+                          final tagEmpresa = dadosOficios?.tagEmpresa;
+                          final corTagEmpresa = _corFromHex(
+                            dadosOficios?.corTagEmpresa,
+                          );
+                          final tagEmpresaTexto =
+                              tagEmpresa == null || tagEmpresa.isEmpty
+                              ? null
+                              : tagEmpresa.startsWith('#')
+                              ? tagEmpresa
+                              : '#$tagEmpresa';
 
-                        return Container(
-                          decoration: _cardDecoration(),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(16),
-                              onTap: () => _mostrarBottomSheetPerfil(
-                                nome: nomeCompleto,
-                                fotoUrl: fotoUrl,
-                                endereco: enderecoTexto,
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  children: [
-                                    Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Stack(
-                                          alignment: Alignment.bottomCenter,
-                                          clipBehavior: Clip.none,
-                                          children: [
-                                            CircleAvatar(
-                                              radius: 34,
-                                              backgroundColor: const Color(
-                                                0xFFE1F5FE,
+                          return Container(
+                            decoration: _cardDecoration(),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(16),
+                                onTap: () => _mostrarBottomSheetPerfil(
+                                  nome: nomeCompleto,
+                                  fotoUrl: fotoUrl,
+                                  endereco: enderecoTexto,
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    children: [
+                                      Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Stack(
+                                            alignment: Alignment.bottomCenter,
+                                            clipBehavior: Clip.none,
+                                            children: [
+                                              CircleAvatar(
+                                                radius: 34,
+                                                backgroundColor: const Color(
+                                                  0xFFE1F5FE,
+                                                ),
+                                                backgroundImage: fotoUrl != null
+                                                    ? NetworkImage(fotoUrl)
+                                                    : null,
+                                                child: fotoUrl == null
+                                                    ? Text(
+                                                        obterIniciais(
+                                                          nomeCompleto,
+                                                        ),
+                                                        style: const TextStyle(
+                                                          fontSize: 26,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          color: _primaryBlue,
+                                                        ),
+                                                      )
+                                                    : null,
                                               ),
-                                              backgroundImage: fotoUrl != null
-                                                  ? NetworkImage(fotoUrl)
-                                                  : null,
-                                              child: fotoUrl == null
-                                                  ? Text(
-                                                      obterIniciais(
-                                                        nomeCompleto,
+                                              Positioned(
+                                                bottom: -6,
+                                                child: Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 6,
+                                                        vertical: 2,
                                                       ),
-                                                      style: const TextStyle(
-                                                        fontSize: 26,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                        color: _primaryBlue,
-                                                      ),
-                                                    )
-                                                  : null,
-                                            ),
-                                            Positioned(
-                                              bottom: -6,
-                                              child: Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                  horizontal: 6,
-                                                  vertical: 2,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color: _primaryBlue,
-                                                  borderRadius:
-                                                      BorderRadius.circular(
-                                                    12,
-                                                  ),
-                                                  border: Border.all(
-                                                    color: Colors.white,
-                                                    width: 1.5,
-                                                  ),
-                                                ),
-                                                child: const Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    Icon(
-                                                      Icons.check,
-                                                      size: 9,
+                                                  decoration: BoxDecoration(
+                                                    color: _primaryBlue,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          12,
+                                                        ),
+                                                    border: Border.all(
                                                       color: Colors.white,
+                                                      width: 1.5,
                                                     ),
-                                                    SizedBox(width: 2),
-                                                    Text(
-                                                      'Verificado',
-                                                      style: TextStyle(
-                                                        fontSize: 8,
-                                                        fontWeight:
-                                                            FontWeight.bold,
+                                                  ),
+                                                  child: const Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      Icon(
+                                                        Icons.check,
+                                                        size: 9,
                                                         color: Colors.white,
                                                       ),
-                                                    ),
-                                                  ],
+                                                      SizedBox(width: 2),
+                                                      Text(
+                                                        'Verificado',
+                                                        style: TextStyle(
+                                                          fontSize: 8,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          color: Colors.white,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
                                                 ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(width: 14),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                nomeCompleto,
-                                                style: const TextStyle(
-                                                  fontSize: 20,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: _titleDark,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                enderecoTexto,
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  color: Colors.grey.shade600,
-                                                  height: 1.3,
-                                                ),
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
                                               ),
                                             ],
                                           ),
-                                        ),
-                                        _buildBotaoNotificacao(),
-                                      ],
-                                    ),
-                                    if (oficios.isNotEmpty) ...[
-                                      const SizedBox(height: 10),
-                                      Wrap(
-                                        spacing: 8,
-                                        runSpacing: 8,
-                                        alignment: WrapAlignment.end,
-                                        children: [
-                                          if (tagEmpresaTexto != null)
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                horizontal: 12,
-                                                vertical: 5,
-                                              ),
-                                              decoration: BoxDecoration(
-                                                color: corTagEmpresa,
-                                                borderRadius:
-                                                    BorderRadius.circular(
-                                                  20,
+                                          const SizedBox(width: 14),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  nomeCompleto,
+                                                  style: const TextStyle(
+                                                    fontSize: 20,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: _titleDark,
+                                                  ),
                                                 ),
-                                              ),
-                                              child: Text(
-                                                tagEmpresaTexto,
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: _corContraste(
-                                                    corTagEmpresa,
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  enderecoTexto,
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: Colors.grey.shade600,
+                                                    height: 1.3,
+                                                  ),
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          _buildBotaoNotificacao(),
+                                        ],
+                                      ),
+                                      if (oficios.isNotEmpty) ...[
+                                        const SizedBox(height: 10),
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 8,
+                                          alignment: WrapAlignment.end,
+                                          children: [
+                                            if (tagEmpresaTexto != null)
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 12,
+                                                      vertical: 5,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: corTagEmpresa,
+                                                  borderRadius:
+                                                      BorderRadius.circular(20),
+                                                ),
+                                                child: Text(
+                                                  tagEmpresaTexto,
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: _corContraste(
+                                                      corTagEmpresa,
+                                                    ),
                                                   ),
                                                 ),
                                               ),
+                                            ...oficios.map(
+                                              (oficio) =>
+                                                  TagOficio(oficio: oficio),
                                             ),
-                                          ...oficios.map(
-                                            (oficio) =>
-                                                TagOficio(oficio: oficio),
-                                          ),
-                                        ],
-                                      ),
+                                          ],
+                                        ),
+                                      ],
                                     ],
-                                  ],
+                                  ),
                                 ),
                               ),
                             ),
+                          );
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // ================= CRIAR POSTAGEM =================
+              FutureBuilder<Map<String, dynamic>?>(
+                future: _dadosProfissionalFuture,
+                builder: (context, snapshot) {
+                  final nomeCompleto =
+                      snapshot.data?['nome'] as String? ??
+                      'Nome não encontrado';
+                  final fotoUrl = snapshot.data?['foto_perfil_url'] as String?;
+                  return _buildCaixaCriacaoPostagem(
+                    fotoUrl: fotoUrl,
+                    nome: nomeCompleto,
+                  );
+                },
+              ),
+              const SizedBox(height: 20),
+
+              // ================= RADAR GEOGRÁFICO =================
+              const Row(
+                children: [
+                  Text(
+                    'Radar Geográfico',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: _titleDark,
+                    ),
+                  ),
+                  SizedBox(width: 6),
+                  Icon(Icons.sensors, color: _primaryBlue, size: 20),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Container(
+                height: 120,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0F4F8),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE0E7EF)),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Stack(
+                    children: [
+                      CustomPaint(
+                        size: const Size(double.infinity, 120),
+                        painter: _MapPatternPainter(),
+                      ),
+                      Positioned(
+                        left: 110,
+                        top: -20,
+                        child: Container(
+                          width: 150,
+                          height: 150,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _primaryBlue.withValues(alpha: 0.12),
+                            border: Border.all(
+                              color: _primaryBlue.withValues(alpha: 0.25),
+                              width: 1.5,
+                            ),
                           ),
-                        );
-                      },
-                    );
-                  },
-                );
-              },
-            ),
-            const SizedBox(height: 16),
-
-            // ================= CRIAR POSTAGEM =================
-            FutureBuilder<Map<String, dynamic>?>(
-              future: _dadosProfissionalFuture,
-              builder: (context, snapshot) {
-                final nomeCompleto =
-                    snapshot.data?['nome'] as String? ?? 'Nome não encontrado';
-                final fotoUrl = snapshot.data?['foto_perfil_url'] as String?;
-                return _buildCaixaCriacaoPostagem(
-                  fotoUrl: fotoUrl,
-                  nome: nomeCompleto,
-                );
-              },
-            ),
-            const SizedBox(height: 20),
-
-            // ================= RADAR GEOGRÁFICO =================
-            const Row(
-              children: [
-                Text(
-                  'Radar Geográfico',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: _titleDark,
+                        ),
+                      ),
+                      Positioned(
+                        left: 200,
+                        top: 58,
+                        child: Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _primaryBlue,
+                            border: Border.all(color: Colors.white, width: 2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: _primaryBlue.withValues(alpha: 0.4),
+                                blurRadius: 6,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                SizedBox(width: 6),
-                Icon(Icons.sensors, color: _primaryBlue, size: 20),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Container(
-              height: 120,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0F4F8),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE0E7EF)),
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Stack(
+              const SizedBox(height: 8),
+              RichText(
+                text: const TextSpan(
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: _titleDark,
+                    fontWeight: FontWeight.w500,
+                  ),
                   children: [
-                    CustomPaint(
-                      size: const Size(double.infinity, 120),
-                      painter: _MapPatternPainter(),
+                    TextSpan(text: 'Há '),
+                    TextSpan(
+                      text: '1',
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    Positioned(
-                      left: 110,
-                      top: -20,
-                      child: Container(
-                        width: 150,
-                        height: 150,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: _primaryBlue.withValues(alpha: 0.12),
-                          border: Border.all(
-                            color: _primaryBlue.withValues(alpha: 0.25),
-                            width: 1.5,
+                    TextSpan(text: ' solicitação de pedido na sua área'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // ================= ESTATÍSTICAS + AGENDA (cartão único) =================
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: _cardDecoration(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Estatísticas dos Serviços',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: _titleDark,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(child: _buildStatCard('Pendentes', '1')),
+                        const SizedBox(width: 8),
+                        Expanded(child: _buildStatCard('Ativos', '1')),
+                        const SizedBox(width: 8),
+                        Expanded(child: _buildStatCard('Concluídos', '1')),
+                        const SizedBox(width: 8),
+                        Expanded(child: _buildStatCard('Cancelados', '0')),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Agenda da semana',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: _titleDark,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildWeekCalendar(),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // ================= BOTÃO GERENCIAR EMPRESA (SÓ CONTA EMPRESA) =================
+              // Aparece apenas quando a conta ativa é a da empresa
+              // (_contaEmpresaAtiva == true). Na conta do profissional
+              // independente (CNPJ) fica oculto.
+              if (_contaEmpresaAtiva)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 20),
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: _primaryBlue,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _primaryBlue.withValues(alpha: 0.3),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () async {
+                          await Navigator.of(
+                            context,
+                          ).push(_rotaSemAnimacao(const GestaoEquipePage()));
+                          if (mounted) {
+                            setState(() {
+                              _tipoPerfilFuture = _buscarTipoPerfil();
+                            });
+                          }
+                        },
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(
+                            vertical: 14,
+                            horizontal: 16,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.storefront_rounded,
+                                color: Colors.white,
+                                size: 22,
+                              ),
+                              SizedBox(width: 10),
+                              Text(
+                                'Gerenciar Empresa',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                color: Colors.white,
+                                size: 14,
+                              ),
+                            ],
                           ),
                         ),
                       ),
                     ),
-                    Positioned(
-                      left: 200,
-                      top: 58,
-                      child: Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: _primaryBlue,
-                          border: Border.all(color: Colors.white, width: 2),
-                          boxShadow: [
-                            BoxShadow(
-                              color: _primaryBlue.withValues(alpha: 0.4),
-                              blurRadius: 6,
-                            ),
-                          ],
+                  ),
+                ),
+
+              // ================= ATALHOS / PAINEL DE AÇÕES =================
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 20,
+                  horizontal: 12,
+                ),
+                decoration: _cardDecoration(),
+                child: Column(
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _buildQuickOption(
+                            Icons.bar_chart,
+                            'Estatísticas\ne Gráficos',
+                          ),
                         ),
-                      ),
+                        Expanded(
+                          child: _buildQuickOption(
+                            Icons.history,
+                            'Histórico de\nServiços',
+                          ),
+                        ),
+                        Expanded(
+                          child: _buildQuickOption(
+                            Icons.work_outline,
+                            'Meus\nServiços',
+                            onTap: () {
+                              Navigator.of(context).push(
+                                _rotaSemAnimacao(
+                                  const MeusServicosProfissionalPage(),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _buildQuickOption(
+                            Icons.local_shipping_outlined,
+                            'Método de\nEntrega',
+                            onTap: () {
+                              Navigator.of(context).push(
+                                _rotaSemAnimacao(
+                                  const MetodoEntregaProfissionalPage(),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        Expanded(
+                          child: _buildQuickOption(
+                            Icons.verified_outlined,
+                            'Plano de\nVerificado',
+                          ),
+                        ),
+                        Expanded(
+                          child: _buildQuickOption(
+                            Icons.calendar_month_outlined,
+                            'Ajustar\nDisponibilidade',
+                            onTap: () async {
+                              final navigator = Navigator.of(context);
+                              final empresa = _contaEmpresaAtiva
+                                  ? await _buscarDadosEmpresa()
+                                  : null;
+                              final idGrupo =
+                                  (empresa?['id_grupo_empresa'] as num?)
+                                      ?.toInt();
+
+                              if (!mounted) return;
+                              await navigator.push(
+                                _rotaSemAnimacao(
+                                  AlterarDisponibilidadePage(
+                                    isEmpresa: _contaEmpresaAtiva,
+                                    idGrupoEmpresa: idGrupo,
+                                  ),
+                                ),
+                              );
+                              if (mounted) {
+                                setState(() {
+                                  _agendaSemanaFuture = _carregarAgendaSemana();
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _buildQuickOption(
+                            Icons.account_balance_wallet_outlined,
+                            'Dados\nFinanceiros',
+                          ),
+                        ),
+                        Expanded(
+                          child: _buildQuickOption(
+                            Icons.manage_accounts_outlined,
+                            'Modificar\nconta',
+                            onTap: () async {
+                              await Navigator.of(context).push(
+                                _rotaSemAnimacao(
+                                  const ModificarContaProfissionalPage(),
+                                ),
+                              );
+                              if (mounted) {
+                                setState(() {
+                                  _tipoPerfilFuture = _buscarTipoPerfil();
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                        Expanded(
+                          child: FutureBuilder<String?>(
+                            future: _tipoPerfilFuture,
+                            builder: (context, snapshot) {
+                              final isIndependente =
+                                  snapshot.data == 'Independente';
+                              return _buildQuickOption(
+                                isIndependente
+                                    ? Icons.storefront_outlined
+                                    : Icons.remove_red_eye_outlined,
+                                isIndependente
+                                    ? 'Empresa\nassociada'
+                                    : 'Visualizar\nperfil',
+                                onTap: () {
+                                  Navigator.of(context).push(
+                                    _rotaSemAnimacao(
+                                      isIndependente
+                                          ? const EmpresaAssociadaPage()
+                                          : TelaMeuPerfilProfissionalPage(
+                                              isVisitante: widget.isVisitante,
+                                            ),
+                                    ),
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
-            ),
-            const SizedBox(height: 8),
-            RichText(
-              text: const TextSpan(
-                style: TextStyle(
-                  fontSize: 13,
-                  color: _titleDark,
-                  fontWeight: FontWeight.w500,
+              const SizedBox(height: 20),
+
+              // ================= SUAS POSTAGENS =================
+              FutureBuilder<List<PostagemResumo>>(
+                future: _postagensFuture,
+                builder: (context, snapshot) {
+                  final postagens = snapshot.data ?? [];
+                  return _buildSecaoPostagens(postagens);
+                },
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+        bottomNavigationBar: BottomNavigationBarProfissional(
+          currentIndex: _currentIndex,
+          isContaEmpresa: _contaEmpresaAtiva,
+          // Tocar na aba atual (Home) recarrega os dados da página.
+          onReselecionarAbaAtual: (_) => _recarregarPaginaAtual(),
+          onTap: (index) {
+            if (index == 2) {
+              AppNavigationUtil.navegarAba(
+                context,
+                TelaMensagensPage(
+                  isVisitante: widget.isVisitante,
+                  isProfissional: true,
                 ),
-                children: [
-                  TextSpan(text: 'Há '),
-                  TextSpan(
-                    text: '1',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  TextSpan(text: ' solicitação de pedido na sua área'),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // ================= ESTATÍSTICAS + AGENDA (cartão único) =================
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: _cardDecoration(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Estatísticas dos Serviços',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: _titleDark,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(child: _buildStatCard('Pendentes', '1')),
-                      const SizedBox(width: 8),
-                      Expanded(child: _buildStatCard('Ativos', '1')),
-                      const SizedBox(width: 8),
-                      Expanded(child: _buildStatCard('Concluídos', '1')),
-                      const SizedBox(width: 8),
-                      Expanded(child: _buildStatCard('Cancelados', '0')),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Agenda da semana',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: _titleDark,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildWeekCalendar(),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // ================= BOTÃO GERENCIAR EMPRESA (SÓ CONTA EMPRESA) =================
-            // Aparece apenas quando a conta ativa é a da empresa
-            // (_contaEmpresaAtiva == true). Na conta do profissional
-            // independente (CNPJ) fica oculto.
-            if (_contaEmpresaAtiva)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 20),
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: _primaryBlue,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: _primaryBlue.withValues(alpha: 0.3),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(16),
-                      onTap: () async {
-                        await Navigator.of(
-                          context,
-                        ).push(_rotaSemAnimacao(const GestaoEquipePage()));
-                        if (mounted) {
-                          setState(() {
-                            _tipoPerfilFuture = _buscarTipoPerfil();
-                          });
-                        }
-                      },
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(
-                          vertical: 14,
-                          horizontal: 16,
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.storefront_rounded,
-                              color: Colors.white,
-                              size: 22,
-                            ),
-                            SizedBox(width: 10),
-                            Text(
-                              'Gerenciar Empresa',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            SizedBox(width: 8),
-                            Icon(
-                              Icons.arrow_forward_ios_rounded,
-                              color: Colors.white,
-                              size: 14,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-            // ================= ATALHOS / PAINEL DE AÇÕES =================
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
-              decoration: _cardDecoration(),
-              child: Column(
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: _buildQuickOption(
-                          Icons.bar_chart,
-                          'Estatísticas\ne Gráficos',
-                        ),
-                      ),
-                      Expanded(
-                        child: _buildQuickOption(
-                          Icons.history,
-                          'Histórico de\nServiços',
-                        ),
-                      ),
-                      Expanded(
-                        child: _buildQuickOption(
-                          Icons.work_outline,
-                          'Meus\nServiços',
-                          onTap: () {
-                            Navigator.of(context).push(
-                              _rotaSemAnimacao(
-                                const MeusServicosProfissionalPage(),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: _buildQuickOption(
-                          Icons.local_shipping_outlined,
-                          'Método de\nEntrega',
-                          onTap: () {
-                            Navigator.of(context).push(
-                              _rotaSemAnimacao(
-                                const MetodoEntregaProfissionalPage(),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      Expanded(
-                        child: _buildQuickOption(
-                          Icons.verified_outlined,
-                          'Plano de\nVerificado',
-                        ),
-                      ),
-                      Expanded(
-                        child: _buildQuickOption(
-                          Icons.calendar_month_outlined,
-                          'Ajustar\nDisponibilidade',
-                          onTap: () async {
-                            final navigator = Navigator.of(context);
-                            final empresa = _contaEmpresaAtiva
-                                ? await _buscarDadosEmpresa()
-                                : null;
-                            final idGrupo = (empresa?['id_grupo_empresa'] as num?)?.toInt();
-
-                            if (!mounted) return;
-                            await navigator.push(
-                              _rotaSemAnimacao(
-                                AlterarDisponibilidadePage(
-                                  isEmpresa: _contaEmpresaAtiva,
-                                  idGrupoEmpresa: idGrupo,
-                                ),
-                              ),
-                            );
-                            if (mounted) {
-                              setState(() {
-                                _agendaSemanaFuture = _carregarAgendaSemana();
-                              });
-                            }
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: _buildQuickOption(
-                          Icons.account_balance_wallet_outlined,
-                          'Dados\nFinanceiros',
-                        ),
-                      ),
-                      Expanded(
-                        child: _buildQuickOption(
-                          Icons.manage_accounts_outlined,
-                          'Modificar\nconta',
-                          onTap: () async {
-                            await Navigator.of(context).push(
-                              _rotaSemAnimacao(
-                                const ModificarContaProfissionalPage(),
-                              ),
-                            );
-                            if (mounted) {
-                              setState(() {
-                                _tipoPerfilFuture = _buscarTipoPerfil();
-                              });
-                            }
-                          },
-                        ),
-                      ),
-                      Expanded(
-                        child: FutureBuilder<String?>(
-                          future: _tipoPerfilFuture,
-                          builder: (context, snapshot) {
-                            final isIndependente =
-                                snapshot.data == 'Independente';
-                            return _buildQuickOption(
-                              isIndependente
-                                  ? Icons.storefront_outlined
-                                  : Icons.remove_red_eye_outlined,
-                              isIndependente
-                                  ? 'Empresa\nassociada'
-                                  : 'Visualizar\nperfil',
-                              onTap: () {
-                                Navigator.of(context).push(
-                                  _rotaSemAnimacao(
-                                    isIndependente
-                                        ? const EmpresaAssociadaPage()
-                                        : TelaMeuPerfilProfissionalPage(
-                                            isVisitante: widget.isVisitante,
-                                          ),
-                                  ),
-                                );
-                              },
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // ================= SUAS POSTAGENS =================
-            FutureBuilder<List<PostagemResumo>>(
-              future: _postagensFuture,
-              builder: (context, snapshot) {
-                final postagens = snapshot.data ?? [];
-                return _buildSecaoPostagens(postagens);
-              },
-            ),
-            const SizedBox(height: 20),
-          ],
+                isHome: false,
+              );
+              return;
+            }
+            if (index == 4) {
+              // Conta empresa ativa: 5º botão vira "Empresa" e abre a gestão.
+              // Conta profissional: 5º botão é "Perfil" como antes.
+              if (_contaEmpresaAtiva) {
+                Navigator.of(
+                  context,
+                ).push(_rotaSemAnimacao(const GestaoEquipePage()));
+                return;
+              }
+              AppNavigationUtil.navegarAba(
+                context,
+                TelaMeuPerfilProfissionalPage(isVisitante: widget.isVisitante),
+                isHome: false,
+              );
+              return;
+            }
+            setState(() => _currentIndex = index);
+          },
         ),
       ),
-      bottomNavigationBar: BottomNavigationBarProfissional(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          if (index == 2) {
-            AppNavigationUtil.navegarAba(
-              context,
-              TelaMensagensPage(
-                isVisitante: widget.isVisitante,
-                isProfissional: true,
-              ),
-              isHome: false,
-            );
-            return;
-          }
-          if (index == 4) {
-            AppNavigationUtil.navegarAba(
-              context,
-              TelaMeuPerfilProfissionalPage(isVisitante: widget.isVisitante),
-              isHome: false,
-            );
-            return;
-          }
-          setState(() => _currentIndex = index);
-        },
-      ),
-    ),);
+    );
   }
 
   Widget _buildStatCard(String label, String value) {
@@ -4069,4 +4126,3 @@ class _IconeAreaAtuacaoPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-

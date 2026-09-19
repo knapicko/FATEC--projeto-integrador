@@ -13,6 +13,10 @@ import 'services/consulta_cadastro_service.dart';
 import 'services/profissional_equipe_service.dart';
 import 'services/servicos_profissional_service.dart';
 import 'services/validacao_documento.dart';
+import 'tela_home_profissional.dart';
+import 'tela_mensagens.dart';
+import 'utils/app_navigation_util.dart';
+import 'utils/bottom_navigation_bar_profissional.dart';
 import 'utils/cor_oficio.dart';
 import 'widgets/tag_oficio.dart';
 
@@ -2078,6 +2082,50 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
           ],
         ),
       ),
+      bottomNavigationBar: BottomNavigationBarProfissional(
+        currentIndex: 4,
+        // Aberta a partir da conta empresa: 5º item fica "Empresa".
+        isContaEmpresa: true,
+        // Tocar em Empresa estando na Gestão recarrega os dados.
+        onReselecionarAbaAtual: (_) => _carregarDadosEmpresa(),
+        onTap: (index) {
+          if (index == 0) {
+            AppNavigationUtil.navegarAba(
+              context,
+              const TelaHomeProfissional(isVisitante: false),
+              isHome: true,
+            );
+            return;
+          }
+          if (index == 2) {
+            AppNavigationUtil.navegarAba(
+              context,
+              const TelaMensagensPage(
+                isVisitante: false,
+                isProfissional: true,
+              ),
+              isHome: false,
+            );
+            return;
+          }
+          if (index == 4) {
+            // Já está na Empresa: volta para a Home da empresa.
+            AppNavigationUtil.navegarAba(
+              context,
+              const TelaHomeProfissional(isVisitante: false),
+              isHome: true,
+            );
+            return;
+          }
+          // Radar (1) e Pedidos (3): volta para a Home e deixa a home
+          // decidir a aba, mantendo a barra consistente.
+          AppNavigationUtil.navegarAba(
+            context,
+            const TelaHomeProfissional(isVisitante: false),
+            isHome: true,
+          );
+        },
+      ),
     );
   }
 
@@ -2178,6 +2226,8 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                             idGrupoEmpresaInicial: _idGrupoEmpresa,
                             associacaoEmpresaInicial: true,
                             abrirFormularioInicial: true,
+                            // Gestão da empresa: trava na Empresa.
+                            forcarContaAtiva: true,
                           ),
                         ),
                       );
@@ -2324,6 +2374,8 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
         builder: (_) => AdicionarServicoProfissionalPage(
           servicoParaEditar: servico,
           idGrupoEmpresaInicial: _idGrupoEmpresa,
+          // Gestão da empresa: trava na Empresa.
+          forcarContaAtiva: true,
         ),
       ),
     );

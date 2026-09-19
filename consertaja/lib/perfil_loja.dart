@@ -633,6 +633,8 @@ class _PerfilLojaState extends State<PerfilLoja> {
           fotoProfissional: _fotoUrlEmpresa ?? 'assets/images/loja_caedss.png',
           oficioPrincipal: 'Loja e Oficina Especializada',
           idProfissional: _idProfissionalDono,
+          // Chat da EMPRESA: usa fk_grupo_empresa (chat próprio da loja).
+          idGrupoEmpresa: _idGrupoEmpresa,
         ),
       ),
     );

@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'gestao_equipe.dart';
 import 'seguindo_cliente.dart';
 import 'services/chat_anexos_service.dart';
 import 'services/verificacao_online.dart';
@@ -51,6 +53,15 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
   int? _idUsuarioLogado;
   bool _isProfissional = false;
 
+  /// Conta ativa: false = profissional independente (CNPJ), true = empresa.
+  /// Mesma preferência usada na home (consertaja_conta_empresa_ativa_<uid>).
+  static const String _prefContaAtivaKey = 'consertaja_conta_empresa_ativa';
+  bool _contaEmpresaAtiva = false;
+
+  /// Foto/nome da MINHA conta (empresa ou profissional) — avatar no topo.
+  String? _minhaFotoConta;
+  String _meuNomeConta = '';
+
   RealtimeChannel? _canalLista;
   Timer? _pollingLista;
   Timer? _timerOnlineTicker;
@@ -60,14 +71,79 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
   void initState() {
     super.initState();
     _isProfissional = widget.isProfissional;
-    _carregarConversas(mostrarLoading: true).then((_) {
-      if (mounted) _assinarAtualizacoes();
+    _carregarContaAtivaEMinhaFoto().then((_) {
+      if (!mounted) return;
+      _carregarConversas(mostrarLoading: true).then((_) {
+        if (mounted) _assinarAtualizacoes();
+      });
     });
 
     // Reavalia a cada 15 segundos para atualizar a bolinha azul de online visualmente
     _timerOnlineTicker = Timer.periodic(const Duration(seconds: 15), (_) {
       if (mounted) setState(() {});
     });
+  }
+
+  /// Lê a conta ativa (mesma flag da home) e a foto/nome da minha conta:
+  /// empresa (grupo_empresa.foto_url_empresa) ou profissional
+  /// (usuarios.foto_perfil_url).
+  Future<void> _carregarContaAtivaEMinhaFoto() async {
+    // Aquece o cache da bottom bar para o primeiro frame não piscar.
+    final ativaCache =
+        await BottomNavigationBarProfissional.precarregarContaEmpresa();
+    if (mounted && ativaCache != _contaEmpresaAtiva) {
+      setState(() => _contaEmpresaAtiva = ativaCache);
+    }
+    try {
+      final authUser = _supabase.auth.currentUser;
+      if (authUser == null) return;
+      final prefs = await SharedPreferences.getInstance();
+      final ativa =
+          prefs.getBool('${_prefContaAtivaKey}_${authUser.id}') ?? false;
+
+      final usuario = await _supabase
+          .from('usuarios')
+          .select('id_usuario, nome, foto_perfil_url')
+          .eq('auth_id', authUser.id)
+          .maybeSingle();
+      final idUsuario = (usuario?['id_usuario'] as num?)?.toInt();
+
+      String? fotoEmpresa;
+      String nomeEmpresa = '';
+      if (idUsuario != null && ativa) {
+        final dadosProf = await _supabase
+            .from('dados_profissionais')
+            .select('fk_grupo_empresa')
+            .eq('fk_usuario', idUsuario)
+            .maybeSingle();
+        final idGrupo = (dadosProf?['fk_grupo_empresa'] as num?)?.toInt();
+        if (idGrupo != null) {
+          final grupo = await _supabase
+              .from('grupo_empresa')
+              .select('nome_empresa, foto_url_empresa')
+              .eq('id_grupo_empresa', idGrupo)
+              .maybeSingle();
+          fotoEmpresa = (grupo?['foto_url_empresa'] as String?)?.trim();
+          if (fotoEmpresa != null && fotoEmpresa.isEmpty) fotoEmpresa = null;
+          nomeEmpresa = (grupo?['nome_empresa'] as String?)?.trim() ?? '';
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _contaEmpresaAtiva = ativa;
+        if (ativa && fotoEmpresa != null) {
+          _minhaFotoConta = fotoEmpresa;
+          _meuNomeConta = nomeEmpresa.isNotEmpty ? nomeEmpresa : 'Empresa';
+        } else {
+          final fotoProf =
+              (usuario?['foto_perfil_url'] as String?)?.trim();
+          _minhaFotoConta =
+              (fotoProf != null && fotoProf.isNotEmpty) ? fotoProf : null;
+          _meuNomeConta = (usuario?['nome'] as String?)?.trim() ?? '';
+        }
+      });
+    } catch (_) {}
   }
 
   @override
@@ -120,21 +196,63 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
       }
 
       final List<Map<String, dynamic>> conversas;
+      // IDs dos grupos (chats da empresa) — visível nos dois ramos abaixo
+      // e no carregamento de nomes/fotos da loja mais adiante.
+      var idsGrupos = <int>[];
+      // Conta ativa (empresa x profissional): a lista do profissional segue
+      // a flag isProfissional, mas distingue os chats da empresa
+      // (fk_grupo_empresa) dos chats individuais (fk_profissional).
+      bool temColunaGrupo = true;
+      try {
+        await _supabase
+            .from('conversas')
+            .select('id_conversa, fk_usuario, fk_profissional, fk_grupo_empresa')
+            .limit(0);
+      } catch (_) {
+        temColunaGrupo = false;
+      }
       if (isProfissional) {
         final dadosProf = await _supabase
             .from('dados_profissionais')
-            .select('id_profissional')
+            .select(temColunaGrupo
+                ? 'id_profissional, fk_grupo_empresa'
+                : 'id_profissional')
             .eq('fk_usuario', idUsuario)
             .maybeSingle();
         final idProf = (dadosProf?['id_profissional'] as num?)?.toInt();
-        if (idProf == null) {
+        final idGrupoMeu =
+            (dadosProf?['fk_grupo_empresa'] as num?)?.toInt();
+        if (idProf == null && idGrupoMeu == null) {
           _aplicarLista([]);
           return;
         }
-        conversas = await _supabase
-            .from('conversas')
-            .select()
-            .eq('fk_profissional', idProf);
+        final todas = <Map<String, dynamic>>[];
+        // Distinção pela CONTA ATIVA (mesma flag da home):
+        // - conta empresa ativa: SÓ chats da empresa (fk_grupo_empresa).
+        // - conta profissional (CNPJ): SÓ chats individuais (fk_profissional).
+        if (_contaEmpresaAtiva) {
+          if (temColunaGrupo && idGrupoMeu != null) {
+            final daEmpresa = await _supabase
+                .from('conversas')
+                .select()
+                .eq('fk_grupo_empresa', idGrupoMeu);
+            todas.addAll(
+              (daEmpresa as List)
+                  .map((e) => Map<String, dynamic>.from(e as Map)),
+            );
+          }
+        } else {
+          // Chats individuais do profissional (fk_grupo_empresa NULL).
+          if (idProf != null) {
+            final query = _supabase.from('conversas').select();
+            dynamic q = query.eq('fk_profissional', idProf);
+            if (temColunaGrupo) q = q.isFilter('fk_grupo_empresa', null);
+            todas.addAll(
+              (await q as List).map((e) => Map<String, dynamic>.from(e as Map)),
+            );
+          }
+        }
+        conversas = todas;
       } else {
         conversas = await _supabase
             .from('conversas')
@@ -171,36 +289,50 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
               .map((row) => (row['fk_profissional'] as num?)?.toInt())
               .whereType<int>(),
         }.toList();
-        if (idsProfissional.isEmpty) {
+        final idsGruposCliente = {
+          ...conversas
+              .map((row) => (row['fk_grupo_empresa'] as num?)?.toInt())
+              .whereType<int>(),
+        }.toList();
+        idsGrupos = idsGruposCliente;
+        // Cliente vê chats individuais (fk_profissional) E chats da empresa
+        // (fk_grupo_empresa). Se não há nenhum dos dois, lista vazia.
+        if (idsProfissional.isEmpty && idsGruposCliente.isEmpty) {
           _aplicarLista([]);
           return;
         }
-        final dados = await _supabase
-            .from('dados_profissionais')
-            .select('id_profissional, fk_usuario')
-            .inFilter('id_profissional', idsProfissional);
-        final dadosPorId = <int, Map<String, dynamic>>{
-          for (final row in dados)
-            if ((row['id_profissional'] as num?) != null)
-              (row['id_profissional'] as num).toInt():
-                  Map<String, dynamic>.from(row),
-        };
+        Map<int, Map<String, dynamic>> dadosPorId = {};
+        if (idsProfissional.isNotEmpty) {
+          final dados = await _supabase
+              .from('dados_profissionais')
+              .select('id_profissional, fk_usuario')
+              .inFilter('id_profissional', idsProfissional);
+          dadosPorId = <int, Map<String, dynamic>>{
+            for (final row in dados)
+              if ((row['id_profissional'] as num?) != null)
+                (row['id_profissional'] as num).toInt():
+                    Map<String, dynamic>.from(row),
+          };
+        }
         final idsUsuariosProf = {
-          ...dados
+          ...dadosPorId.values
               .map((row) => (row['fk_usuario'] as num?)?.toInt())
               .whereType<int>(),
         }.toList();
-        if (idsUsuariosProf.isEmpty) {
+        if (idsUsuariosProf.isEmpty && idsGruposCliente.isEmpty) {
           _aplicarLista([]);
           return;
         }
-        final usuarios = await _buscarUsuarios(idsUsuariosProf);
-        final usuarioPorId = <int, Map<String, dynamic>>{
-          for (final row in usuarios)
-            if ((row['id_usuario'] as num?) != null)
-              (row['id_usuario'] as num).toInt():
-                  Map<String, dynamic>.from(row),
-        };
+        Map<int, Map<String, dynamic>> usuarioPorId = {};
+        if (idsUsuariosProf.isNotEmpty) {
+          final usuarios = await _buscarUsuarios(idsUsuariosProf);
+          usuarioPorId = <int, Map<String, dynamic>>{
+            for (final row in usuarios)
+              if ((row['id_usuario'] as num?) != null)
+                (row['id_usuario'] as num).toInt():
+                    Map<String, dynamic>.from(row),
+          };
+        }
         contatoPorChave = <int, Map<String, dynamic>>{
           for (final entrada in dadosPorId.entries)
             if (usuarioPorId[(entrada.value['fk_usuario'] as num?)?.toInt()] !=
@@ -295,6 +427,23 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
         }
       } catch (_) {}
 
+      final nomePorGrupo = <int, String>{};
+      final fotoPorGrupo = <int, String>{};
+      if (idsGrupos.isNotEmpty) {
+        try {
+          final gruposRows = await _supabase
+              .from('grupo_empresa')
+              .select('id_grupo_empresa, nome_empresa, foto_url_empresa')
+              .inFilter('id_grupo_empresa', idsGrupos);
+          for (final row in gruposRows as List) {
+            final map = Map<String, dynamic>.from(row as Map);
+            final id = (map['id_grupo_empresa'] as num?)?.toInt();
+            if (id == null) continue;
+            nomePorGrupo[id] = map['nome_empresa']?.toString() ?? 'Empresa';
+            fotoPorGrupo[id] = map['foto_url_empresa']?.toString() ?? '';
+          }
+        } catch (_) {}
+      }
       final oficioPorProfissional = <int, String>{};
       if (!isProfissional) {
         try {
@@ -338,10 +487,87 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
       final resultado = <_ConversaResumo>[];
       for (final conv in conversas) {
         final idConv = (conv['id_conversa'] as num?)?.toInt();
+        final idGrupoConv = (conv['fk_grupo_empresa'] as num?)?.toInt();
+        final ehEmpresa = idGrupoConv != null;
         final chaveContato = isProfissional
             ? (conv['fk_usuario'] as num?)?.toInt()
             : (conv['fk_profissional'] as num?)?.toInt();
         if (idConv == null) continue;
+
+        // Chat da EMPRESA: contato é o grupo (nome/foto da loja).
+        if (ehEmpresa) {
+          if (isProfissional) {
+            // Profissional/empresa: o contato é o CLIENTE da conversa.
+            final contato =
+                chaveContato == null ? null : contatoPorChave[chaveContato];
+            if (contato == null) continue;
+            final ultima = ultimaPorConversa[idConv];
+            final remetenteUltima =
+                (ultima?['fk_remitente_usuario'] as num?)?.toInt();
+            final ultimaLida = ultima?['lida'] == true;
+            final ultimaEnviadaPorMim =
+                remetenteUltima != null && remetenteUltima == idUsuario;
+            final ultimaRecebida =
+                remetenteUltima != null && remetenteUltima != idUsuario;
+            resultado.add(
+              _ConversaResumo(
+                idConversa: idConv,
+                nomeContato:
+                    contato['nome']?.toString() ?? 'Nome não encontrado',
+                fotoUrl: contato['foto_perfil_url']?.toString() ?? '',
+                oficioContato: 'Cliente',
+                idProfissional: null,
+                idGrupoEmpresa: idGrupoConv,
+                ehChatEmpresa: true,
+                servicoAssociado: servicoPorConversa[idConv],
+                ultimaConexaoContato: DateTime.tryParse(
+                  contato['ultima_conexao']?.toString() ?? '',
+                ),
+                ultimaMensagem: _previaMensagem(ultima),
+                dataUltimaMensagem: DateTime.tryParse(
+                  ultima?['data_envio']?.toString() ?? '',
+                ),
+                mensagensNaoLidas: naoLidasPorConversa[idConv] ?? 0,
+                ultimaMensagemRecebida: ultimaRecebida,
+                ultimaMensagemLida: ultimaLida,
+                ultimaMensagemEnviadaPorMim: ultimaEnviadaPorMim,
+              ),
+            );
+            continue;
+          }
+          // Cliente: contato é a EMPRESA.
+          final ultima = ultimaPorConversa[idConv];
+          final remetenteUltima =
+              (ultima?['fk_remitente_usuario'] as num?)?.toInt();
+          final ultimaLida = ultima?['lida'] == true;
+          final ultimaEnviadaPorMim =
+              remetenteUltima != null && remetenteUltima == idUsuario;
+          final ultimaRecebida =
+              remetenteUltima != null && remetenteUltima != idUsuario;
+          resultado.add(
+            _ConversaResumo(
+              idConversa: idConv,
+              nomeContato: nomePorGrupo[idGrupoConv] ?? 'Empresa',
+              fotoUrl: fotoPorGrupo[idGrupoConv] ?? '',
+              oficioContato: 'Loja e Oficina Especializada',
+              idProfissional: null,
+              idGrupoEmpresa: idGrupoConv,
+              ehChatEmpresa: true,
+              servicoAssociado: servicoPorConversa[idConv],
+              ultimaConexaoContato: null,
+              ultimaMensagem: _previaMensagem(ultima),
+              dataUltimaMensagem: DateTime.tryParse(
+                ultima?['data_envio']?.toString() ?? '',
+              ),
+              mensagensNaoLidas: naoLidasPorConversa[idConv] ?? 0,
+              ultimaMensagemRecebida: ultimaRecebida,
+              ultimaMensagemLida: ultimaLida,
+              ultimaMensagemEnviadaPorMim: ultimaEnviadaPorMim,
+            ),
+          );
+          continue;
+        }
+
         final contato =
             chaveContato == null ? null : contatoPorChave[chaveContato];
         if (contato == null) continue;
@@ -364,6 +590,8 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
                 ? 'Cliente'
                 : (oficioPorProfissional[chaveContato] ?? ''),
             idProfissional: isProfissional ? null : chaveContato,
+            idGrupoEmpresa: null,
+            ehChatEmpresa: false,
             servicoAssociado: servicoPorConversa[idConv],
             ultimaConexaoContato: DateTime.tryParse(
               contato['ultima_conexao']?.toString() ?? '',
@@ -544,6 +772,14 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
             ),
           ),
           centerTitle: true,
+          // Foto da MINHA conta (empresa ou profissional) no topo direito,
+          // circular com borda azul 0xFF0FB3FF.
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Center(child: _buildAvatarMinhaConta()),
+            ),
+          ],
         ),
         body: Column(
           children: [
@@ -600,6 +836,45 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
     );
   }
 
+  Widget _buildAvatarMinhaConta() {
+    final foto = (_minhaFotoConta ?? '').trim();
+    final nomeBase =
+        _meuNomeConta.trim().isNotEmpty ? _meuNomeConta.trim() : 'Conta';
+    final Widget imagem;
+    if (foto.startsWith('http')) {
+      imagem = CircleAvatar(
+        radius: 15,
+        backgroundColor: const Color(0xFFE5E7EB),
+        backgroundImage: NetworkImage(foto),
+      );
+    } else {
+      imagem = CircleAvatar(
+        radius: 15,
+        backgroundColor: const Color(0xFFDCE5EE),
+        child: Text(
+          obterIniciais(nomeBase),
+          style: const TextStyle(
+            color: Color(0xFF5E6F7E),
+            fontWeight: FontWeight.w700,
+            fontSize: 11,
+          ),
+        ),
+      );
+    }
+    // Circular com borda azul 0xFF0FB3FF.
+    return Container(
+      width: 34,
+      height: 34,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: _primaryBlue, width: 2),
+        color: Colors.white,
+      ),
+      padding: const EdgeInsets.all(1.5),
+      child: ClipOval(child: imagem),
+    );
+  }
+
   Widget _buildBarraPesquisa() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
@@ -642,9 +917,23 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
 
   Widget _buildBottomNavigationBar() {
     if (widget.isProfissional) {
-      return BottomNavigationBarProfissional(currentIndex: 2, onTap: _navegar);
+      // Profissional: conta empresa ativa -> 5º item "Empresa",
+      // conta independente (CNPJ) -> 5º item "Perfil".
+      return BottomNavigationBarProfissional(
+        currentIndex: 2,
+        isContaEmpresa: _contaEmpresaAtiva,
+        // Tocar em Mensagens estando em Mensagens recarrega a lista.
+        onReselecionarAbaAtual: (_) =>
+            _carregarConversas(mostrarLoading: true),
+        onTap: _navegar,
+      );
     }
-    return BottomNavigationBarCliente(currentIndex: 2, onTap: _navegar);
+    return BottomNavigationBarCliente(
+      currentIndex: 2,
+      // Tocar em Mensagens estando em Mensagens recarrega a lista.
+      onReselecionarAbaAtual: (_) => _carregarConversas(mostrarLoading: true),
+      onTap: _navegar,
+    );
   }
 
   void _navegar(int index) {
@@ -663,6 +952,13 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
         isHome: false,
       );
     } else if (index == 4) {
+      // Conta empresa ativa: 5º botão é "Empresa" -> abre a gestão.
+      if (widget.isProfissional && _contaEmpresaAtiva) {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const GestaoEquipePage()),
+        );
+        return;
+      }
       AppNavigationUtil.navegarAba(
         context,
         widget.isProfissional
@@ -795,7 +1091,12 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
                 nomeProfissional: conversa.nomeContato,
                 fotoProfissional: conversa.fotoUrl,
                 oficioPrincipal: conversa.subtituloServico,
-                idProfissional: conversa.idProfissional,
+                // Empresa usa fk_grupo_empresa (chat próprio da loja);
+                // profissional individual usa fk_profissional.
+                idProfissional:
+                    conversa.ehChatEmpresa ? null : conversa.idProfissional,
+                idGrupoEmpresa:
+                    conversa.ehChatEmpresa ? conversa.idGrupoEmpresa : null,
                 idConversa: conversa.idConversa > 0 ? conversa.idConversa : null,
               ),
             ),
@@ -1025,6 +1326,8 @@ class _ConversaResumo {
   final String fotoUrl;
   final String oficioContato;
   final int? idProfissional;
+  final int? idGrupoEmpresa;
+  final bool ehChatEmpresa;
   final String? servicoAssociado;
   final DateTime? ultimaConexaoContato;
   final String? ultimaMensagem;
@@ -1041,6 +1344,8 @@ class _ConversaResumo {
     this.fotoUrl = '',
     this.oficioContato = '',
     this.idProfissional,
+    this.idGrupoEmpresa,
+    this.ehChatEmpresa = false,
     this.servicoAssociado,
     this.ultimaConexaoContato,
     this.ultimaMensagem,

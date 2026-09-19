@@ -1605,6 +1605,14 @@ class _TelaHomeState extends State<TelaHome> {
       ),
       bottomNavigationBar: BottomNavigationBarCliente(
         currentIndex: 0,
+        // Tocar em Home estando na Home recarrega os endereços da página.
+        onReselecionarAbaAtual: (_) {
+          if (mounted) {
+            setState(() {
+              _enderecosFuture = _carregarEnderecosCliente();
+            });
+          }
+        },
         onTap: (index) {
           if (index == 1) {
             AppNavigationUtil.navegarAba(
