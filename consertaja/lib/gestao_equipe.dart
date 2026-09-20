@@ -535,9 +535,17 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
 
       final servicosEmpresa = _idGrupoEmpresa == null
           ? <ServicoProfissional>[]
-          : await ServicosProfissionalService.buscarServicosEmpresa(
+          : (await ServicosProfissionalService.buscarServicosEmpresa(
               _idGrupoEmpresa!,
-            );
+            ))
+              // Gestão da empresa: mostra SÓ serviços da empresa
+              // (fk_grupo_empresa == grupo). Nunca os individuais (CNPJ).
+              .where(
+                (s) =>
+                    s.fkGrupoEmpresa != null &&
+                    s.fkGrupoEmpresa == _idGrupoEmpresa,
+              )
+              .toList();
 
       if (mounted) {
         setState(() {
@@ -2226,8 +2234,10 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                             idGrupoEmpresaInicial: _idGrupoEmpresa,
                             associacaoEmpresaInicial: true,
                             abrirFormularioInicial: true,
-                            // Gestão da empresa: trava na Empresa.
+                            // Gestão da empresa: sempre "Loja", independente
+                            // da conta ativa no momento.
                             forcarContaAtiva: true,
+                            forcarModoEmpresa: true,
                           ),
                         ),
                       );
@@ -2374,8 +2384,10 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
         builder: (_) => AdicionarServicoProfissionalPage(
           servicoParaEditar: servico,
           idGrupoEmpresaInicial: _idGrupoEmpresa,
-          // Gestão da empresa: trava na Empresa.
+          // Gestão da empresa: sempre "Loja", independente
+          // da conta ativa no momento.
           forcarContaAtiva: true,
+          forcarModoEmpresa: true,
         ),
       ),
     );
