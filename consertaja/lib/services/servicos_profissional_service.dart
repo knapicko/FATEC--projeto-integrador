@@ -907,19 +907,39 @@ class ServicosProfissionalService {
           .toSet()
           .toList();
       if (ids.isEmpty) return [];
-      final rows = await _supabase
+      // A empresa pode estar associada a um ofício específico, mas o
+      // seletor deve mostrar todas as funções (coluna `funcao`) da mesma
+      // categoria (`categoria` = ofício, ex: "Reparos domésticos" ->
+      // "Encanador") desse ofício — mesma lógica do profissional.
+      final oficiosAssociados = await _supabase
           .from('oficios')
-          .select('id_oficio, funcao, cod_cor')
-          .inFilter('id_oficio', ids)
+          .select('id_oficio, funcao, categoria, cod_cor')
+          .inFilter('id_oficio', ids);
+      final categorias = oficiosAssociados
+          .map((row) => row['categoria']?.toString().trim().toLowerCase())
+          .whereType<String>()
+          .where((categoria) => categoria.isNotEmpty)
+          .toSet();
+      if (categorias.isEmpty) return [];
+
+      final todosOficios = await _supabase
+          .from('oficios')
+          .select('id_oficio, funcao, categoria, cod_cor')
           .order('funcao', ascending: true);
-      return rows
-          .map((row) => (
-                id: (row['id_oficio'] as num?)?.toInt() ?? 0,
-                funcao: row['funcao']?.toString().trim() ?? '',
-                cor: row['cod_cor']?.toString().trim() ?? '#1D2430',
-              ))
-          .where((item) => item.funcao.isNotEmpty)
-          .toList();
+
+      return todosOficios.where((row) {
+        final categoria = row['categoria']?.toString().trim().toLowerCase();
+        return categoria != null && categorias.contains(categoria);
+      }).map((row) {
+        final id = (row['id_oficio'] as num?)?.toInt() ?? 0;
+        final categoria = row['categoria']?.toString().trim();
+        final funcao = row['funcao']?.toString().trim() ?? '';
+        final cor = row['cod_cor']?.toString().trim() ?? '#1D2430';
+        debugPrint(
+          '✅ [ServicosSvc] Ofício empresa: fk_oficio=$id, categoria=$categoria, funcao=$funcao',
+        );
+        return (id: id, funcao: funcao, cor: cor);
+      }).where((item) => item.funcao.isNotEmpty).toList();
     } catch (e) {
       debugPrint('❌ [ServicosSvc] buscarFuncoesDaEmpresa ERROR: $e');
       return [];

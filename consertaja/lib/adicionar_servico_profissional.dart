@@ -40,6 +40,11 @@ class AdicionarServicoProfissionalPage extends StatefulWidget {
   /// desabilitada (cinza, não clicável) no bottom sheet de associação.
   final bool forcarContaAtiva;
 
+  /// Quando true, força o modo "Loja" (empresa) independente da conta ativa.
+  /// Usado pelo fluxo gestao_equipe -> adicionar serviço, que deve sempre
+  /// criar/editar serviços da empresa (grupo_empresa).
+  final bool forcarModoEmpresa;
+
   const AdicionarServicoProfissionalPage({
     super.key,
     this.servicoParaEditar,
@@ -48,6 +53,7 @@ class AdicionarServicoProfissionalPage extends StatefulWidget {
     this.associacaoEmpresaInicial = false,
     this.abrirFormularioInicial = false,
     this.forcarContaAtiva = false,
+    this.forcarModoEmpresa = false,
   });
 
   @override
@@ -78,18 +84,17 @@ class _AdicionarServicoProfissionalPageState
   @override
   void initState() {
     super.initState();
-    _carregar();
-    if (widget.abrirFormularioInicial ||
-        widget.servicoParaEditar != null ||
-        widget.sugestao != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        if (!mounted) return;
+    _carregar().then((_) {
+      if (!mounted) return;
+      if (widget.abrirFormularioInicial ||
+          widget.servicoParaEditar != null ||
+          widget.sugestao != null) {
         _abrirFormulario(
           servicoParaEditar: widget.servicoParaEditar,
           sugestao: widget.sugestao,
         );
-      });
-    }
+      }
+    });
   }
 
   Future<void> _carregar() async {
@@ -110,7 +115,8 @@ class _AdicionarServicoProfissionalPageState
           bool ehMembroEmpresa,
           bool ehDonoEmpresa,
         })?;
-    final contaEmpresa = results[3] as bool;
+    final contaEmpresa =
+        widget.forcarModoEmpresa ? true : (results[3] as bool);
     final idGrupo = widget.idGrupoEmpresaInicial ?? contexto?.idGrupoEmpresa;
 
     // Distinção pela CONTA ATIVA:
@@ -178,10 +184,15 @@ class _AdicionarServicoProfissionalPageState
   }) async {
     // A associação padrão segue a conta ativa (não o parâmetro solto).
     // Na EDIÇÃO, mantém a associação original do serviço (não troca o dono).
+    // Fluxo gestão da equipe (forcarModoEmpresa): sempre "Loja".
+    final contaAtivaEfetiva =
+        widget.forcarModoEmpresa ? true : _contaEmpresaAtiva;
+    final travadoEfetivo =
+        widget.forcarContaAtiva || widget.forcarModoEmpresa;
     final associacaoPadrao = servicoParaEditar != null
         ? servicoParaEditar.fkGrupoEmpresa != null
-        : (widget.forcarContaAtiva
-            ? _contaEmpresaAtiva
+        : (travadoEfetivo
+            ? contaAtivaEfetiva
             : widget.associacaoEmpresaInicial);
     final mudou = await showModalBottomSheet<bool>(
       context: context,
@@ -193,8 +204,8 @@ class _AdicionarServicoProfissionalPageState
         idGrupoEmpresa: widget.idGrupoEmpresaInicial ?? _idGrupoEmpresa,
         associacaoEmpresaInicial: associacaoPadrao,
         // Trava na conta ativa: a outra opção aparece cinza/desabilitada.
-        travadaNaContaAtiva: widget.forcarContaAtiva,
-        contaEmpresaAtiva: _contaEmpresaAtiva,
+        travadaNaContaAtiva: travadoEfetivo,
+        contaEmpresaAtiva: contaAtivaEfetiva,
       ),
     );
     if (mudou == true) {
