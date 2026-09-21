@@ -9,7 +9,6 @@ import 'models/servico_profissional.dart';
 import 'services/cor_dominante_service.dart';
 import 'services/postagens_profissional_service.dart';
 import 'services/servicos_profissional_service.dart';
-import 'solicitar_servico.dart';
 import 'tela_chat_profissional.dart';
 import 'tela_servico.dart';
 import 'utils/cor_oficio.dart';
@@ -2871,20 +2870,9 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   }
 
   Future<void> _abrirSolicitacaoServico() async {
-    if (_idProfissional == null) return;
-    await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => FractionallySizedBox(
-        heightFactor: 0.96,
-        child: SolicitarServicoPage(
-          idProfissional: _idProfissional!,
-          servicos: List<ServicoProfissional>.unmodifiable(_servicos),
-        ),
-      ),
-    );
+    // Fluxo antigo (SolicitarServicoPage) removido: a solicitação nasce só no
+    // botão Continuar da lista_servicos.dart. Aqui não faz nada.
+    return;
   }
 
   Widget _buildMetricaItem({

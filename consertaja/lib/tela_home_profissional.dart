@@ -16,6 +16,7 @@ import 'meus_enderecos.dart';
 import 'modificar_conta_profissional.dart';
 import 'metodo_entrega_profissional.dart';
 import 'meus_servicos_profissional.dart';
+import 'meus_servicos_solicitados.dart';
 import 'minhas_postagens_profissional.dart';
 import 'models/postagem_resumo.dart';
 import 'services/postagens_profissional_service.dart';
@@ -3185,6 +3186,14 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                 ),
                 isHome: false,
               );
+              return;
+            }
+            if (index == 3) {
+              // Aba Serviços: abre os serviços solicitados ao profissional
+              // (conta independente) ou à empresa (conta empresa).
+              Navigator.of(
+                context,
+              ).push(_rotaSemAnimacao(const MeusServicosSolicitadosPage()));
               return;
             }
             if (index == 4) {

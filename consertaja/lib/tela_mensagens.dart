@@ -13,6 +13,7 @@ import 'tela_chat_profissional.dart';
 import 'tela_home.dart';
 import 'tela_home_profissional.dart';
 import 'tela_meu_perfil_cliente.dart';
+import 'meus_servicos_solicitados.dart';
 import 'tela_meu_perfil_profissional.dart';
 import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
@@ -919,7 +920,10 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
     if (widget.isProfissional) {
       // Profissional: conta empresa ativa -> 5º item "Empresa",
       // conta independente (CNPJ) -> 5º item "Perfil".
+      // Mesma chave da bottom bar da Gestão: reutiliza o elemento ao
+      // alternar Gestão <-> Mensagens, sem reconstruir/piscar.
       return BottomNavigationBarProfissional(
+        key: const ValueKey('bottomProfissional'),
         currentIndex: 2,
         isContaEmpresa: _contaEmpresaAtiva,
         // Tocar em Mensagens estando em Mensagens recarrega a lista.
@@ -950,6 +954,15 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
         context,
         SeguindoClientePage(isVisitante: widget.isVisitante),
         isHome: false,
+      );
+    } else if (index == 3 && widget.isProfissional) {
+      // Aba Serviços do profissional: abre os serviços solicitados
+      // (conta independente ou empresa), igual à home do profissional.
+      Navigator.of(context).push(
+        AppNavigationUtil.rotaSemAnimacao(
+          const MeusServicosSolicitadosPage(),
+          nome: 'MeusServicosSolicitadosPage',
+        ),
       );
     } else if (index == 4) {
       // Conta empresa ativa: 5º botão é "Empresa" -> abre a gestão.

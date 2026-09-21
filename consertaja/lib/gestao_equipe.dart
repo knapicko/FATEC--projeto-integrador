@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'configuracoes_empresa.dart';
 import 'adicionar_servico_profissional.dart';
+import 'meus_servicos_solicitados.dart';
 import 'modificar_conta_profissional.dart';
 import 'models/servico_profissional.dart';
 import 'services/consulta_cadastro_service.dart';
@@ -2554,6 +2555,10 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
       bottomNavigationBar: BottomNavigationBarProfissional(
         currentIndex: 4,
         // Aberta a partir da conta empresa: 5º item fica "Empresa".
+        // Mesma chave da bottom bar de Mensagens: o Flutter reutiliza o
+        // MESMO elemento ao alternar Gestão <-> Mensagens, sem reconstruir
+        // nem piscar os itens a partir da 2ª vez.
+        key: const ValueKey('bottomProfissional'),
         isContaEmpresa: true,
         // Tocar em Empresa estando na Gestão recarrega os dados.
         onReselecionarAbaAtual: (_) => _carregarDadosEmpresa(),
@@ -2577,6 +2582,17 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
             );
             return;
           }
+          if (index == 3) {
+            // Aba Serviços: abre os solicitados (conta empresa), em vez de
+            // voltar para a home do profissional.
+            Navigator.of(context).push(
+              AppNavigationUtil.rotaSemAnimacao(
+                const MeusServicosSolicitadosPage(),
+                nome: 'MeusServicosSolicitadosPage',
+              ),
+            );
+            return;
+          }
           if (index == 4) {
             // Já está na Empresa: volta para a Home da empresa.
             AppNavigationUtil.navegarAba(
@@ -2586,8 +2602,8 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
             );
             return;
           }
-          // Radar (1) e Pedidos (3): volta para a Home e deixa a home
-          // decidir a aba, mantendo a barra consistente.
+          // Radar (1): volta para a Home e deixa a home decidir a aba,
+          // mantendo a barra consistente.
           AppNavigationUtil.navegarAba(
             context,
             const TelaHomeProfissional(isVisitante: false),
