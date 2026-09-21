@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'models/servico_profissional.dart';
+import 'models/postagem_resumo.dart';
 import 'perfil_profissional.dart';
 import 'services/servicos_profissional_service.dart';
 import 'solicitar_servico.dart';
@@ -90,6 +91,33 @@ class _BlinkingSignalDotState extends State<_BlinkingSignalDot>
   }
 }
 
+/// Dados do endereço da empresa (ass_grupo_empresa_endereco -> enderecos).
+class _DadosEnderecoEmpresa {
+  final String apelido;
+  final String logradouro;
+  final String numero;
+  final String bairro;
+  final String cidade;
+  final String estado;
+  final String cep;
+  final double latitude;
+  final double longitude;
+  final bool temCoordenadas;
+
+  const _DadosEnderecoEmpresa({
+    required this.apelido,
+    required this.logradouro,
+    required this.numero,
+    required this.bairro,
+    required this.cidade,
+    required this.estado,
+    required this.cep,
+    required this.latitude,
+    required this.longitude,
+    required this.temCoordenadas,
+  });
+}
+
 class PerfilLoja extends StatefulWidget {
   final int? idGrupoEmpresa;
   final String? nomeEmpresa;
@@ -158,8 +186,21 @@ class _PerfilLojaState extends State<PerfilLoja> {
   int likesComentario2 = 1;
   bool likedComentario2 = true;
 
-  // Coordenadas padrão da oficina (Mooca - Rua Capitão Pacheco e Chaves, 313)
-  final LatLng _coordenadasOficina = const LatLng(-23.5786, -46.5992);
+  // --- Estado vindo do Supabase (grupo_empresa) ---
+  String _descricaoEmpresa = '';
+  String _anosMercado = '1';
+  _DadosEnderecoEmpresa? _enderecoEmpresa;
+  bool _enderecoCarregado = false;
+
+  // --- Galeria = postagens da empresa (postagens.fk_grupo_empresa) ---
+  Future<List<PostagemResumo>> _postagensGaleriaFuture =
+      Future.value(<PostagemResumo>[]);
+
+  // Controller do mapa: initialCenter só vale na 1ª construção (quando o
+  // endereço ainda é null). Quando o endereço real chega, damos move()
+  // para centralizar no pinpoint. Sem isso o mapa fica no default.
+  final MapController _mapController = MapController();
+  bool _mapaCentralizado = false;
 
   @override
   void initState() {
@@ -224,7 +265,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
           final res = await supabase
               .from('grupo_empresa')
               .select(
-                'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, fk_perfil, seguidores_empresa, compartilhar_funcionarios',
+                'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, fk_perfil, seguidores_empresa, compartilhar_funcionarios, descricao_empresa, anos_mercado',
               )
               .ilike('tag_empresa', '%$cleanTag%')
               .maybeSingle();
@@ -234,7 +275,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
           final res = await supabase
               .from('grupo_empresa')
               .select(
-                'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, fk_perfil, seguidores_empresa, compartilhar_funcionarios',
+                'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, fk_perfil, seguidores_empresa, compartilhar_funcionarios, descricao_empresa, anos_mercado',
               )
               .ilike('nome_empresa', '%$_nomeEmpresa%')
               .maybeSingle();
@@ -244,7 +285,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
           final list = await supabase
               .from('grupo_empresa')
               .select(
-                'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, fk_perfil, seguidores_empresa, compartilhar_funcionarios',
+                'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, fk_perfil, seguidores_empresa, compartilhar_funcionarios, descricao_empresa, anos_mercado',
               )
               .limit(1);
           if (list.isNotEmpty) {
@@ -261,7 +302,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
         final grupo = await supabase
             .from('grupo_empresa')
             .select(
-              'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, fk_perfil, seguidores_empresa, compartilhar_funcionarios',
+              'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, fk_perfil, seguidores_empresa, compartilhar_funcionarios, descricao_empresa, anos_mercado',
             )
             .eq('id_grupo_empresa', idGrupo)
             .maybeSingle();
@@ -276,9 +317,13 @@ class _PerfilLojaState extends State<PerfilLoja> {
           final seguidores = (grupo['seguidores_empresa'] as num?)?.toInt() ?? 0;
           final comp = grupo['compartilhar_funcionarios'];
           final bool compBool = comp == true;
+          final descricaoDb = grupo['descricao_empresa']?.toString().trim() ?? '';
+          final anosDb = grupo['anos_mercado']?.toString().trim() ?? '';
 
           setState(() {
             if (nome != null && nome.isNotEmpty) _nomeEmpresa = nome;
+            if (descricaoDb.isNotEmpty) _descricaoEmpresa = descricaoDb;
+            if (anosDb.isNotEmpty) _anosMercado = anosDb;
             if (tag != null && tag.isNotEmpty) {
               _tagEmpresa = tag.startsWith('#') ? tag : '#$tag';
             }
@@ -303,22 +348,28 @@ class _PerfilLojaState extends State<PerfilLoja> {
       // Carrega seguidores no Supabase
       if (idGrupo != null) {
         _carregarSeguimento(idGrupo);
+        _carregarAgendaEmpresa(idGrupo);
+        _carregarEnderecoEmpresa(idGrupo);
+        _carregarPostagensEmpresa(idGrupo);
       }
 
-      // Carrega serviços da empresa
+      // Carrega serviços SÓ da empresa (igual meus_servicos_profissional.dart
+      // no modo empresa): buscarServicosEmpresa + trava fk_grupo_empresa.
       List<ServicoProfissional> servicos = [];
       if (idGrupo != null) {
         try {
-          servicos =
+          var lista =
               await ServicosProfissionalService.buscarServicosEmpresa(idGrupo);
+          final idGrupoFinal = idGrupo;
+          lista = lista
+              .where((s) =>
+                  s.fkGrupoEmpresa != null &&
+                  s.fkGrupoEmpresa == idGrupoFinal)
+              .toList();
+          servicos = lista;
         } catch (e) {
           debugPrint('Erro ao carregar serviços da empresa: $e');
         }
-      }
-
-      // Catálogo com dados padrão caso não haja no banco
-      if (servicos.isEmpty) {
-        servicos = _gerarServicosPadraoLoja(idGrupo);
       }
 
       // Carrega ofícios oferecidos pela empresa dinamicamente
@@ -370,25 +421,9 @@ class _PerfilLojaState extends State<PerfilLoja> {
         }
       }
 
-      // Se ainda vazio, fornece ofícios padrão
+      // Se ainda vazio, não inventa ofícios: mostra estado vazio real.
       if (oficiosCarregados.isEmpty) {
-        oficiosCarregados = const [
-          OficioInfo(
-            funcao: 'Chaveiro',
-            categoria: 'Segurança',
-            cor: '#00A3FF',
-          ),
-          OficioInfo(
-            funcao: 'Climatização',
-            categoria: 'Reparos',
-            cor: '#0284C7',
-          ),
-          OficioInfo(
-            funcao: 'Eletricista',
-            categoria: 'Elétrica',
-            cor: '#F59E0B',
-          ),
-        ];
+        oficiosCarregados = const [];
       }
 
       if (mounted) {
@@ -487,20 +522,6 @@ class _PerfilLojaState extends State<PerfilLoja> {
         }
       }
 
-      // Se lista vazia, preenche com a equipe padrão com tags 'Responsável' e 'Funcionário'
-      if (novosProfissionais.isEmpty) {
-        novosProfissionais.addAll(_gerarProfissionaisPadraoLoja());
-      } else if (novosProfissionais.length == 1) {
-        // Se no banco só tiver o responsável cadastrado, complementa com os funcionários demonstrativos
-        final padroes = _gerarProfissionaisPadraoLoja();
-        for (final p in padroes) {
-          if (p['cargo'] != 'Responsável' &&
-              !novosProfissionais.any((np) => np['nome'] == p['nome'])) {
-            novosProfissionais.add(p);
-          }
-        }
-      }
-
       if (mounted) {
         setState(() {
           listaProfissionais = novosProfissionais;
@@ -511,17 +532,454 @@ class _PerfilLojaState extends State<PerfilLoja> {
       debugPrint('Erro ao carregar dados da empresa e profissionais: $e');
       if (mounted) {
         setState(() {
-          if (listaProfissionais.isEmpty) {
-            listaProfissionais = _gerarProfissionaisPadraoLoja();
-          }
-          if (_servicosLoja.isEmpty) {
-            _servicosLoja = _gerarServicosPadraoLoja(_idGrupoEmpresa);
-          }
           _carregandoProfissionais = false;
           _carregandoServicos = false;
         });
       }
     }
+  }
+
+  // --- Disponibilidade da empresa (agenda_profissional via fk_grupo_empresa) ---
+  static const List<String> _ordemDiasSemana = [
+    'domingo',
+    'segunda-feira',
+    'terça-feira',
+    'quarta-feira',
+    'quinta-feira',
+    'sexta-feira',
+    'sábado',
+  ];
+  bool _temAgendaCadastrada = false;
+  String _faixaHorarioDisponibilidade = '--:-- - --:--';
+  final Map<String, String?> _horariosPorDia = {};
+
+  bool _estaAbertoAgora() {
+    if (!_temAgendaCadastrada) return false;
+    final agora = DateTime.now();
+    final horarioHoje = _horariosPorDia[_nomeDiaSemana(agora.weekday)];
+    if (horarioHoje == null || horarioHoje.isEmpty || horarioHoje == 'Fechado') {
+      return false;
+    }
+    final partes = horarioHoje.split(' - ');
+    if (partes.length != 2) return false;
+    final inicio = _parseHorario(partes[0].trim());
+    final fim = _parseHorario(partes[1].trim());
+    if (inicio == null || fim == null) return false;
+    final agoraMin = agora.hour * 60 + agora.minute;
+    return agoraMin >= (inicio.$1 * 60 + inicio.$2) &&
+        agoraMin < (fim.$1 * 60 + fim.$2);
+  }
+
+  (int, int)? _parseHorario(String texto) {
+    final partes = texto.split(':');
+    if (partes.length != 2) return null;
+    final h = int.tryParse(partes[0]);
+    final m = int.tryParse(partes[1]);
+    if (h == null || m == null) return null;
+    return (h, m);
+  }
+
+  String _nomeDiaSemana(int weekday) {
+    switch (weekday) {
+      case DateTime.monday:
+        return 'segunda-feira';
+      case DateTime.tuesday:
+        return 'terça-feira';
+      case DateTime.wednesday:
+        return 'quarta-feira';
+      case DateTime.thursday:
+        return 'quinta-feira';
+      case DateTime.friday:
+        return 'sexta-feira';
+      case DateTime.saturday:
+        return 'sábado';
+      case DateTime.sunday:
+        return 'domingo';
+      default:
+        return '';
+    }
+  }
+
+  String _nomeDiaExibicao(String dia) {
+    switch (dia) {
+      case 'segunda-feira':
+        return 'Segunda-feira';
+      case 'terça-feira':
+        return 'Terça-feira';
+      case 'quarta-feira':
+        return 'Quarta-feira';
+      case 'quinta-feira':
+        return 'Quinta-feira';
+      case 'sexta-feira':
+        return 'Sexta-feira';
+      case 'sábado':
+        return 'Sábado';
+      case 'domingo':
+        return 'Domingo';
+      default:
+        return dia;
+    }
+  }
+
+  bool _diaPertence(String diaAlvo, String diasConfigurados) {
+    final diasSplit = diasConfigurados.split(',').map((d) => d.trim());
+    for (final d in diasSplit) {
+      if (d == diaAlvo) return true;
+      switch (diaAlvo) {
+        case 'segunda-feira':
+          if (d == 'segunda' || d == 'seg') return true;
+          break;
+        case 'terça-feira':
+          if (d == 'terca' || d == 'terça' || d == 'ter') return true;
+          break;
+        case 'quarta-feira':
+          if (d == 'quarta' || d == 'qua') return true;
+          break;
+        case 'quinta-feira':
+          if (d == 'quinta' || d == 'qui') return true;
+          break;
+        case 'sexta-feira':
+          if (d == 'sexta' || d == 'sex') return true;
+          break;
+        case 'sábado':
+          if (d == 'sabado' || d == 'sábado' || d == 'sab') return true;
+          break;
+        case 'domingo':
+          if (d == 'domingo' || d == 'dom') return true;
+          break;
+      }
+    }
+    return false;
+  }
+
+  String _textoStatusDisponibilidade() {
+    final diasAbertos = _ordemDiasSemana
+        .where((d) {
+          final h = _horariosPorDia[d];
+          return h != null && h.isNotEmpty && h != 'Fechado';
+        })
+        .map((d) {
+          const mapa = {
+            'segunda-feira': 'Seg',
+            'terça-feira': 'Ter',
+            'quarta-feira': 'Qua',
+            'quinta-feira': 'Qui',
+            'sexta-feira': 'Sex',
+          };
+          return mapa[d] ?? d;
+        })
+        .toList();
+    final diasTexto = diasAbertos.isEmpty ? '' : ' (${diasAbertos.join(' a ')})';
+    final aberto = _estaAbertoAgora();
+    return '${aberto ? 'Aberto agora' : 'Fechado agora'} • $_faixaHorarioDisponibilidade$diasTexto';
+  }
+
+  Future<void> _carregarAgendaEmpresa(int idGrupo) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final linhas = await supabase
+          .from('agenda_profissional')
+          .select('dias_semana, hora_ini, hora_fim')
+          .eq('fk_grupo_empresa', idGrupo);
+      if (!mounted) return;
+      setState(() {
+        _horariosPorDia.clear();
+        for (final dia in _ordemDiasSemana) {
+          _horariosPorDia[dia] = 'Fechado';
+        }
+        _temAgendaCadastrada = linhas.isNotEmpty;
+        _faixaHorarioDisponibilidade = '--:-- - --:--';
+        String? faixa;
+        for (final row in linhas) {
+          final diasRaw = row['dias_semana']?.toString() ?? '';
+          final iniRaw = row['hora_ini']?.toString() ?? '';
+          final fimRaw = row['hora_fim']?.toString() ?? '';
+          final horaIni = iniRaw.length >= 5 ? iniRaw.substring(0, 5) : iniRaw;
+          final horaFim = fimRaw.length >= 5 ? fimRaw.substring(0, 5) : fimRaw;
+          if (horaIni.isEmpty || horaFim.isEmpty) continue;
+          faixa ??= '$horaIni - $horaFim';
+          final intervalo = '$horaIni - $horaFim';
+          for (final dia in _ordemDiasSemana) {
+            if (_diaPertence(dia, diasRaw)) _horariosPorDia[dia] = intervalo;
+          }
+        }
+        if (faixa != null) _faixaHorarioDisponibilidade = faixa;
+      });
+    } catch (e) {
+      debugPrint('Erro agenda empresa: $e');
+    }
+  }
+
+  Future<void> _carregarEnderecoEmpresa(int idGrupo) async {
+    try {
+      final supabase = Supabase.instance.client;
+      // Igual ao meus_enderecos.dart (conta empresa): lê direto da
+      // ass_grupo_empresa_endereco por fk_grupo_empresa, sem exigir RLS
+      // de membro (perfil_loja é público — o visitante é cliente).
+      // Se a tabela nova ainda não existir/migration não rodada, cai no
+      // vínculo legado do dono em ass_usuario_endereco (Loja/Oficina/Outro).
+      List vinculos = [];
+      try {
+        vinculos = await supabase
+            .from('ass_grupo_empresa_endereco')
+            .select('fk_endereco, apelido_endereco, endereco_ativo')
+            .eq('fk_grupo_empresa', idGrupo);
+      } catch (_) {
+        vinculos = [];
+      }
+      if (vinculos.isEmpty) {
+        try {
+          final donoProf = await supabase
+              .from('dados_profissionais')
+              .select('fk_usuario')
+              .eq('fk_grupo_empresa', idGrupo)
+              .limit(10);
+          final idsUsuarios = donoProf
+              .map((r) => (r as Map)['fk_usuario'])
+              .whereType<num>()
+              .map((n) => n.toInt())
+              .toSet()
+              .toList();
+          if (idsUsuarios.isNotEmpty) {
+            vinculos = await supabase
+                .from('ass_usuario_endereco')
+                .select('fk_endereco, apelido_endereco, endereco_ativo')
+                .inFilter('fk_usuario', idsUsuarios)
+                .inFilter('tipo_endereco', ['Loja', 'Oficina', 'Outro'])
+                .limit(5);
+          }
+        } catch (_) {}
+      }
+      if (vinculos.isEmpty) {
+        if (mounted) setState(() => _enderecoCarregado = true);
+        return;
+      }
+      Map<String, dynamic>? vinculoAtivo;
+      for (final v in vinculos) {
+        if ((v as Map)['endereco_ativo'] == true) {
+          vinculoAtivo = Map<String, dynamic>.from(v);
+          break;
+        }
+      }
+      vinculoAtivo ??= Map<String, dynamic>.from(vinculos.first as Map);
+      final fk = vinculoAtivo['fk_endereco'];
+      final idEnd = fk is int ? fk : int.tryParse('$fk');
+      if (idEnd == null) {
+        if (mounted) setState(() => _enderecoCarregado = true);
+        return;
+      }
+      final endList = await supabase
+          .from('enderecos')
+          .select('cep, logradouro, numero, bairro, fk_cidade, latitude, longitude')
+          .eq('id_endereco', idEnd)
+          .limit(1);
+      if (endList.isEmpty) {
+        if (mounted) setState(() => _enderecoCarregado = true);
+        return;
+      }
+      final row = Map<String, dynamic>.from(endList.first as Map);
+      String cidade = '';
+      String uf = '';
+      final fkCid = row['fk_cidade'];
+      final idCid = fkCid is int ? fkCid : int.tryParse('$fkCid');
+      if (idCid != null) {
+        final cid = await supabase
+            .from('cidades')
+            .select('nome_cidade, fk_estado')
+            .eq('id_cidade', idCid)
+            .limit(1);
+        if (cid.isNotEmpty) {
+          cidade = cid.first['nome_cidade']?.toString() ?? '';
+          final fkEst = cid.first['fk_estado'];
+          final idEst = fkEst is int ? fkEst : int.tryParse('$fkEst');
+          if (idEst != null) {
+            final est = await supabase
+                .from('estados')
+                .select('sigla_estado')
+                .eq('id_estado', idEst)
+                .limit(1);
+            if (est.isNotEmpty) uf = est.first['sigla_estado']?.toString() ?? '';
+          }
+        }
+      }
+      final apelido = vinculoAtivo['apelido_endereco']?.toString();
+      final lat = double.tryParse(row['latitude']?.toString() ?? '');
+      final lng = double.tryParse(row['longitude']?.toString() ?? '');
+      if (!mounted) return;
+      setState(() {
+        _enderecoEmpresa = _DadosEnderecoEmpresa(
+          apelido: (apelido != null && apelido.trim().isNotEmpty)
+              ? apelido.trim()
+              : 'Endereço da empresa',
+          logradouro: row['logradouro']?.toString() ?? '',
+          numero: row['numero']?.toString() ?? '',
+          bairro: row['bairro']?.toString() ?? '',
+          cidade: cidade,
+          estado: uf,
+          cep: row['cep']?.toString() ?? '',
+          latitude: lat ?? -23.5505,
+          longitude: lng ?? -46.6333,
+          temCoordenadas: lat != null && lng != null,
+        );
+        _enderecoCarregado = true;
+      });
+      // Centraliza o mapa no pinpoint real (só com coordenada do banco).
+      if (lat != null && lng != null && !_mapaCentralizado) {
+        _mapaCentralizado = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          try {
+            _mapController.move(LatLng(lat, lng), 15.0);
+          } catch (_) {}
+        });
+      }
+    } catch (e) {
+      debugPrint('Erro endereco empresa: $e');
+      if (mounted) setState(() => _enderecoCarregado = true);
+    }
+  }
+
+  Future<void> _carregarPostagensEmpresa(int idGrupo) async {
+    try {
+      final supabase = Supabase.instance.client;
+      List rows = [];
+      try {
+        rows = await supabase
+            .from('postagens')
+            .select('id_postagem, conteudo, data_postagem, arquivado')
+            .eq('fk_grupo_empresa', idGrupo)
+            .eq('tipo_autor', 'empresa')
+            .eq('arquivado', false)
+            .order('data_postagem', ascending: false);
+      } catch (_) {
+        rows = [];
+      }
+      final lista = <PostagemResumo>[];
+      for (final r in rows) {
+        final row = Map<String, dynamic>.from(r as Map);
+        final id = (row['id_postagem'] as num?)?.toInt();
+        if (id == null) continue;
+        String? imagemUrl;
+        try {
+          final imgs = await supabase
+              .from('imagens_postagens')
+              .select('url_imagem')
+              .eq('fk_postagem', id)
+              .order('ordem', ascending: true)
+              .limit(1);
+          if (imgs.isNotEmpty) imagemUrl = imgs.first['url_imagem']?.toString();
+        } catch (_) {}
+        final conteudo = row['conteudo']?.toString().trim() ?? '';
+        String? doTexto;
+        final linhas = conteudo
+            .split('\n')
+            .map((l) => l.trim())
+            .where((l) => l.isNotEmpty)
+            .toList();
+        for (final linha in linhas) {
+          if (linha.startsWith('http://') || linha.startsWith('https://')) {
+            imagemUrl ??= linha;
+          } else {
+            doTexto ??= linha;
+          }
+        }
+        final dataRaw = row['data_postagem']?.toString();
+        lista.add(PostagemResumo(
+          idPostagem: id,
+          titulo: (doTexto != null && doTexto.isNotEmpty)
+              ? doTexto
+              : (imagemUrl != null ? 'Postagem' : 'Sem título'),
+          imagemUrl: imagemUrl,
+          dataPostagem: dataRaw != null
+              ? DateTime.tryParse(dataRaw) ?? DateTime.now()
+              : DateTime.now(),
+          curtidas: 0,
+          arquivado: row['arquivado'] == true,
+        ));
+      }
+      if (!mounted) return;
+      setState(() {
+        _postagensGaleriaFuture = Future.value(lista);
+      });
+    } catch (e) {
+      debugPrint('Erro postagens empresa: $e');
+    }
+  }
+
+  void _mostrarDisponibilidadeSemanal() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 44,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE2E8F0),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Horários de funcionamento',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _kDarkSlate),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _temAgendaCadastrada
+                    ? 'Confira os dias e horários da empresa'
+                    : 'A empresa ainda não cadastrou horários',
+                style: const TextStyle(fontSize: 13, color: _kTextMuted),
+              ),
+              const SizedBox(height: 16),
+              ...List.generate(_ordemDiasSemana.length, (index) {
+                final diaChave = _ordemDiasSemana[index];
+                final raw = _horariosPorDia[diaChave];
+                final aberto = raw != null && raw != 'Fechado';
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        _nomeDiaExibicao(diaChave),
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _kDarkSlate),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: aberto ? const Color(0xFFDEF7EC) : const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: aberto ? const Color(0xFF10B981) : const Color(0xFFE2E8F0),
+                          ),
+                        ),
+                        child: Text(
+                          raw ?? 'Fechado',
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.bold,
+                            color: aberto ? const Color(0xFF046C4E) : _kTextMuted,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _carregarSeguimento(int idGrupo) async {
@@ -1042,28 +1500,41 @@ class _PerfilLojaState extends State<PerfilLoja> {
             ),
           const SizedBox(height: 14),
 
-          // Indicador de status "Aberto agora • 08:00 - 18:00 (Seg a Sáb)"
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-            decoration: BoxDecoration(
-              color: const Color(0xFFECFDF5),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFA7F3D0)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: const [
-                _BlinkingSignalDot(),
-                SizedBox(width: 8),
-                Text(
-                  'Aberto agora • 08:00 - 18:00 (Seg a Sáb)',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF065F46),
-                  ),
+          // Status dinâmico (agenda da empresa). Toque abre o bottom sheet.
+          GestureDetector(
+            onTap: _mostrarDisponibilidadeSemanal,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              decoration: BoxDecoration(
+                color: _estaAbertoAgora()
+                    ? const Color(0xFFECFDF5)
+                    : const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: _estaAbertoAgora()
+                      ? const Color(0xFFA7F3D0)
+                      : const Color(0xFFFECACA),
                 ),
-              ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const _BlinkingSignalDot(),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      _textoStatusDisponibilidade(),
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.bold,
+                        color: _estaAbertoAgora()
+                            ? const Color(0xFF065F46)
+                            : const Color(0xFF991B1B),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -1193,7 +1664,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
             _buildColunaMetrica(
               icone: Icons.business_center_outlined,
               corIcone: const Color(0xFF475569),
-              valor: '5+',
+              valor: _anosMercado,
               subtitulo: 'Anos exp.',
             ),
             _buildDivisorVertical(),
@@ -1572,14 +2043,32 @@ class _PerfilLojaState extends State<PerfilLoja> {
                 child: Stack(
                   children: [
                     FlutterMap(
+                      mapController: _mapController,
                       options: MapOptions(
-                        initialCenter: _coordenadasOficina,
+                        initialCenter: LatLng(
+                          _enderecoEmpresa?.latitude ?? -23.5505,
+                          _enderecoEmpresa?.longitude ?? -46.6333,
+                        ),
                         initialZoom: 15.0,
                         minZoom: 3,
                         maxZoom: 19,
                         interactionOptions: const InteractionOptions(
                           flags: InteractiveFlag.all,
                         ),
+                        // Se o mapa for criado DEPOIS do endereço chegar,
+                        // já nasce centralizado no pinpoint.
+                        onMapReady: () {
+                          final e = _enderecoEmpresa;
+                          if (e != null && e.temCoordenadas && !_mapaCentralizado) {
+                            _mapaCentralizado = true;
+                            try {
+                              _mapController.move(
+                                LatLng(e.latitude, e.longitude),
+                                15.0,
+                              );
+                            } catch (_) {}
+                          }
+                        },
                       ),
                       children: [
                         TileLayer(
@@ -1592,7 +2081,10 @@ class _PerfilLojaState extends State<PerfilLoja> {
                         CircleLayer(
                           circles: [
                             CircleMarker(
-                              point: _coordenadasOficina,
+                              point: LatLng(
+                                _enderecoEmpresa?.latitude ?? -23.5505,
+                                _enderecoEmpresa?.longitude ?? -46.6333,
+                              ),
                               radius: 68,
                               useRadiusInMeter: false,
                               color: const Color(0xFF0284C7)
@@ -1606,7 +2098,10 @@ class _PerfilLojaState extends State<PerfilLoja> {
                         MarkerLayer(
                           markers: [
                             Marker(
-                              point: _coordenadasOficina,
+                              point: LatLng(
+                                _enderecoEmpresa?.latitude ?? -23.5505,
+                                _enderecoEmpresa?.longitude ?? -46.6333,
+                              ),
                               width: 44,
                               height: 44,
                               alignment: Alignment.center,
@@ -1660,15 +2155,17 @@ class _PerfilLojaState extends State<PerfilLoja> {
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
-                          children: const [
-                            _BlinkingSignalDot(),
-                            SizedBox(width: 6),
+                          children: [
+                            const _BlinkingSignalDot(),
+                            const SizedBox(width: 6),
                             Text(
-                              'A 2.4 km de você',
+                              _estaAbertoAgora() ? 'Aberto agora' : 'Fechado agora',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
-                                color: _kDarkSlate,
+                                color: _estaAbertoAgora()
+                                    ? const Color(0xFF065F46)
+                                    : const Color(0xFF991B1B),
                               ),
                             ),
                           ],
@@ -1749,28 +2246,36 @@ class _PerfilLojaState extends State<PerfilLoja> {
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
-                            children: const [
+                            children: [
                               Text(
-                                'Oficina & Base Operacional',
-                                style: TextStyle(
+                                _enderecoEmpresa?.apelido ?? 'Endereço da empresa',
+                                style: const TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.bold,
                                   color: _kDarkSlate,
                                 ),
                               ),
-                              SizedBox(height: 3),
+                              const SizedBox(height: 3),
                               Text(
-                                'Rua Capitão Pacheco e Chaves, 313',
-                                style: TextStyle(
+                                _enderecoCarregado
+                                    ? (_enderecoEmpresa != null
+                                        ? '${_enderecoEmpresa!.logradouro}${_enderecoEmpresa!.numero.isNotEmpty ? ', ${_enderecoEmpresa!.numero}' : ''}'
+                                        : 'Endereço não cadastrado')
+                                    : 'Carregando endereço...',
+                                style: const TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w500,
                                   color: Color(0xFF475569),
                                 ),
                               ),
-                              SizedBox(height: 2),
+                              const SizedBox(height: 2),
                               Text(
-                                'Mooca, São Paulo - SP • CEP 03126-000',
-                                style: TextStyle(
+                                _enderecoCarregado
+                                    ? (_enderecoEmpresa != null
+                                        ? '${_enderecoEmpresa!.bairro}${_enderecoEmpresa!.cidade.isNotEmpty ? ', ${_enderecoEmpresa!.cidade}' : ''}${_enderecoEmpresa!.estado.isNotEmpty ? ' - ${_enderecoEmpresa!.estado}' : ''} • CEP ${_enderecoEmpresa!.cep}'
+                                        : '')
+                                    : '',
+                                style: const TextStyle(
                                   fontSize: 12,
                                   color: Color(0xFF94A3B8),
                                 ),
@@ -1789,10 +2294,14 @@ class _PerfilLojaState extends State<PerfilLoja> {
                             height: 44,
                             child: OutlinedButton(
                               onPressed: () {
+                                final e = _enderecoEmpresa;
+                                if (e == null || !_enderecoCarregado) return;
+                                final rota =
+                                    '${e.logradouro}${e.numero.isNotEmpty ? ', ${e.numero}' : ''} - ${e.bairro}';
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
+                                  SnackBar(
                                     content: Text(
-                                      'Calculando rota para Rua Capitão Pacheco e Chaves, 313...',
+                                      'Calculando rota para $rota...',
                                     ),
                                     behavior: SnackBarBehavior.floating,
                                   ),
@@ -1836,8 +2345,13 @@ class _PerfilLojaState extends State<PerfilLoja> {
                             height: 44,
                             child: OutlinedButton(
                               onPressed: () async {
+                                final e = _enderecoEmpresa;
+                                if (e == null || !_enderecoCarregado) return;
+                                final query = Uri.encodeComponent(
+                                  '${e.logradouro}, ${e.numero} - ${e.bairro}, ${e.cidade}/${e.estado} - CEP ${e.cep}',
+                                );
                                 final uri = Uri.parse(
-                                  'https://maps.google.com/?q=-23.5786,-46.5992',
+                                  'https://www.google.com/maps/search/?api=1&query=$query',
                                 );
                                 if (await canLaunchUrl(uri)) {
                                   await launchUrl(
@@ -1921,7 +2435,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
             ),
             const SizedBox(width: 10),
             const Text(
-              'Sobre a Loja / Empresa',
+              'Sobre a empresa',
               style: TextStyle(
                 fontSize: 16.5,
                 fontWeight: FontWeight.bold,
@@ -1932,9 +2446,13 @@ class _PerfilLojaState extends State<PerfilLoja> {
         ),
         const SizedBox(height: 12),
         Text(
-          isDescricaoExpandida
-              ? 'A Caedss Acessórios & Serviços é uma loja e prestadora localizada na Estrada das Lágrimas em São Paulo, especializada em consertos, manutenção técnica e tecnologia residencial e comercial. Contamos com ferramental profissional e técnicos com certificado.\n\nOferecemos garantia de serviço de até 90 dias, atendimento de emergência aos finais de semana e equipe treinada para rápida resolução presencial ou balcão.'
-              : 'A Caedss Acessórios & Serviços é uma loja e prestadora localizada na Estrada das Lágrimas em São Paulo, especializada em consertos, manutenção técnica e tecnologia residencial e comercial. Contamos com ferramental profissional e técnicos com certificado.',
+          _descricaoEmpresa.isNotEmpty
+              ? (isDescricaoExpandida
+                  ? _descricaoEmpresa
+                  : (_descricaoEmpresa.length > 220
+                      ? '${_descricaoEmpresa.substring(0, 220)}...'
+                      : _descricaoEmpresa))
+              : 'Esta empresa ainda não cadastrou uma descrição.',
           style: const TextStyle(
             fontSize: 13,
             color: Color(0xFF475569),
@@ -2069,24 +2587,6 @@ class _PerfilLojaState extends State<PerfilLoja> {
   // 6. SEÇÃO: GALERIA DE SERVIÇOS (FOTOS COM LEGENDA EM GRADIENTE ESCURO)
   // =========================================================================
   Widget _buildSecaoGaleria() {
-    final fotosGaleria = [
-      {
-        'titulo': 'Instalação Split 12k BTUs',
-        'url':
-            'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=600&q=80',
-      },
-      {
-        'titulo': 'Troca de Fechaduras',
-        'url':
-            'https://images.unsplash.com/photo-1558002038-1055907df827?auto=format&fit=crop&w=600&q=80',
-      },
-      {
-        'titulo': 'Manutenção de Panelas',
-        'url':
-            'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&w=600&q=80',
-      },
-    ];
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2126,45 +2626,83 @@ class _PerfilLojaState extends State<PerfilLoja> {
           ],
         ),
         const SizedBox(height: 14),
-        SizedBox(
-          height: 145,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            itemCount: fotosGaleria.length,
-            itemBuilder: (context, index) {
-              final item = fotosGaleria[index];
-              return Container(
-                width: 230,
-                margin: const EdgeInsets.only(right: 12),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
+        FutureBuilder<List<PostagemResumo>>(
+          future: _postagensGaleriaFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const SizedBox(
+                height: 145,
+                child: Center(
+                  child: CircularProgressIndicator(color: _kPrimaryCyan),
                 ),
-                clipBehavior: Clip.antiAlias,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Image.network(
-                      item['url']!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: const Color(0xFFE2E8F0),
-                          child: const Icon(
-                            Icons.broken_image_outlined,
-                            color: Colors.grey,
-                            size: 32,
-                          ),
-                        );
-                      },
+              );
+            }
+            final postagens = snapshot.data ?? const <PostagemResumo>[];
+            if (postagens.isEmpty) {
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: _kBorderColor),
+                ),
+                child: const Text(
+                  'Esta empresa ainda não publicou trabalhos na galeria.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12.5, color: _kTextMuted),
+                ),
+              );
+            }
+            return SizedBox(
+              height: 145,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                itemCount: postagens.length,
+                itemBuilder: (context, index) {
+                  final item = postagens[index];
+                  return Container(
+                    width: 230,
+                    margin: const EdgeInsets.only(right: 12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
                     ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                    if (item.imagemUrl != null && item.imagemUrl!.isNotEmpty)
+                      Image.network(
+                        item.imagemUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            color: const Color(0xFFE2E8F0),
+                            child: const Icon(
+                              Icons.broken_image_outlined,
+                              color: Colors.grey,
+                              size: 32,
+                            ),
+                          );
+                        },
+                      )
+                    else
+                      Container(
+                        color: const Color(0xFFE2E8F0),
+                        child: const Icon(
+                          Icons.image_outlined,
+                          color: Colors.grey,
+                          size: 32,
+                        ),
+                      ),
                     Positioned(
                       left: 0,
                       right: 0,
@@ -2184,7 +2722,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
                         alignment: Alignment.bottomLeft,
                         padding: const EdgeInsets.all(12),
                         child: Text(
-                          item['titulo']!,
+                          item.titulo,
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 13,
@@ -2200,6 +2738,8 @@ class _PerfilLojaState extends State<PerfilLoja> {
               );
             },
           ),
+        );
+          },
         ),
       ],
     );
@@ -2309,11 +2849,14 @@ class _PerfilLojaState extends State<PerfilLoja> {
             decoration: BoxDecoration(
               color: const Color(0xFFF8FAFC),
               borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _kBorderColor),
             ),
-            child: const Text(
-              'Nenhum serviço encontrado para esta categoria ou busca.',
+            child: Text(
+              _servicosLoja.isEmpty
+                  ? 'Esta empresa ainda não cadastrou serviços.'
+                  : 'Nenhum serviço encontrado para esta categoria ou busca.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12.5, color: _kTextMuted),
+              style: const TextStyle(fontSize: 12.5, color: _kTextMuted),
             ),
           )
         else
@@ -2855,100 +3398,8 @@ class _PerfilLojaState extends State<PerfilLoja> {
   }
 
   // =========================================================================
-  // DADOS EXEMPLARES DE FALLBACK
+  // PLACEHOLDERS REMOVIDOS — sem fallback estático (lista vazia = vazio real).
   // =========================================================================
-  List<ServicoProfissional> _gerarServicosPadraoLoja(int? idGrupo) {
-    return [
-      ServicoProfissional(
-        id: 9001,
-        fkProfissional: 1,
-        fkGrupoEmpresa: idGrupo,
-        titulo: 'Conserto de cabo de panela',
-        descricao:
-            'Conserto e substituição de cabos e alças de panelas com materiais reforçados e resistentes ao calor.',
-        valor: 15.99,
-        fkOficio: 1,
-        funcao: 'Conserto de panela',
-        ativo: true,
-        imagemUrl: null,
-        dataCriacao: DateTime.now(),
-      ),
-      ServicoProfissional(
-        id: 9002,
-        fkProfissional: 1,
-        fkGrupoEmpresa: idGrupo,
-        titulo: 'Limpeza de Filtros Split',
-        descricao:
-            'Higienização completa de filtros e turbina com bactericida aprovado.',
-        valor: 120.00,
-        fkOficio: 2,
-        funcao: 'Climatização',
-        ativo: true,
-        imagemUrl: null,
-        dataCriacao: DateTime.now(),
-      ),
-      ServicoProfissional(
-        id: 9003,
-        fkProfissional: 1,
-        fkGrupoEmpresa: idGrupo,
-        titulo: 'Cópia de Chave Codificada',
-        descricao:
-            'Cópia de chave residencial e automotiva com codificação e teste imediato.',
-        valor: 45.00,
-        fkOficio: 3,
-        funcao: 'Chaveiro',
-        ativo: true,
-        imagemUrl: null,
-        dataCriacao: DateTime.now(),
-      ),
-      ServicoProfissional(
-        id: 9004,
-        fkProfissional: 1,
-        fkGrupoEmpresa: idGrupo,
-        titulo: 'Reparo de Vazamento e Encanamento',
-        descricao:
-            'Identificação e conserto de vazamentos hidráulicos em pias, registros e sifões.',
-        valor: 85.00,
-        fkOficio: 4,
-        funcao: 'Encanamento',
-        ativo: true,
-        imagemUrl: null,
-        dataCriacao: DateTime.now(),
-      ),
-    ];
-  }
-
-  List<Map<String, dynamic>> _gerarProfissionaisPadraoLoja() {
-    return [
-      {
-        'idProfissional': 1,
-        'nome': 'Caneta Azul',
-        'avaliacao': 4.9,
-        'totalAvaliacoes': 423,
-        'cargo': 'Responsável',
-        'caminhoImagem': '',
-        'isResponsavel': true,
-      },
-      {
-        'idProfissional': 2,
-        'nome': 'Carlos Eduardo',
-        'avaliacao': 4.8,
-        'totalAvaliacoes': 198,
-        'cargo': 'Funcionário',
-        'caminhoImagem': '',
-        'isResponsavel': false,
-      },
-      {
-        'idProfissional': 3,
-        'nome': 'Ana Paula',
-        'avaliacao': 5.0,
-        'totalAvaliacoes': 312,
-        'cargo': 'Funcionário',
-        'caminhoImagem': '',
-        'isResponsavel': false,
-      },
-    ];
-  }
 }
 
 // =========================================================================
