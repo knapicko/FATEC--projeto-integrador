@@ -4,10 +4,12 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'lista_servicos.dart';
 import 'models/servico_profissional.dart';
 import 'meus_enderecos.dart';
 import 'perfil_loja.dart';
 import 'perfil_profissional.dart';
+import 'services/lista_servicos_service.dart';
 import 'services/servicos_profissional_service.dart';
 import 'tela_chat_profissional.dart';
 import 'utils/cor_oficio.dart';
@@ -3154,7 +3156,7 @@ class _TelaServicoState extends State<TelaServico> {
     final user = supabase.auth.currentUser;
     if (user == null) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('Faça login para solicitar um serviço.')),
+        const SnackBar(content: Text('Faça login para adicionar um serviço.')),
       );
       return;
     }
@@ -3202,51 +3204,121 @@ class _TelaServicoState extends State<TelaServico> {
     setState(() => _sheetEnviando = true);
 
     try {
+      final valorFinal = servico.valor > 0 ? servico.valor : 18.99;
+      final dataAgendadaSql = _formatarDataSql(_sheetDataSelecionada!);
+      final horaAgendadaSql = _sheetHoraAgendadaSql ?? '09:00:00';
+      final detalhesTexto = _sheetDetalhesController.text.trim().isEmpty
+          ? null
+          : _sheetDetalhesController.text.trim();
+
+      // 1. Garante a lista_servicos do usuário cliente
+      int? idLista;
+      final listaExistente = await supabase
+          .from('lista_servicos')
+          .select('id_lista')
+          .eq('fk_usuario', _sheetIdUsuario!)
+          .order('id_lista', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      if (listaExistente != null && listaExistente['id_lista'] != null) {
+        idLista = (listaExistente['id_lista'] as num).toInt();
+      } else {
+        final novaLista = await supabase
+            .from('lista_servicos')
+            .insert({'fk_usuario': _sheetIdUsuario})
+            .select('id_lista')
+            .single();
+        idLista = (novaLista['id_lista'] as num).toInt();
+      }
+
+      // 2. Insere/atualiza o serviço em ass_servicos_lista
+      final dadosAss = <String, dynamic>{
+        'fk_lista': idLista,
+        'fk_servico_prof': servico.id,
+        'valor_final': valorFinal,
+        'tipo_execucao_escolhido': tipoExecucao,
+        'fk_endereco_escolhido': _sheetEnderecoClienteSelecionado?.id,
+        'detalhes': detalhesTexto,
+        'data_agendada': dataAgendadaSql,
+        'hora_agendada': horaAgendadaSql,
+      };
+      await supabase.from('ass_servicos_lista').upsert(dadosAss);
+
+      // 3. Busca o id_status correspondente ao enum 'Serviço' na tabela status
+      int idStatus = 1;
+      try {
+        final statusRow = await supabase
+            .from('status')
+            .select('id_status')
+            .eq('tipo_status', 'Serviço')
+            .limit(1)
+            .maybeSingle();
+        if (statusRow != null && statusRow['id_status'] != null) {
+          idStatus = (statusRow['id_status'] as num).toInt();
+        }
+      } catch (e) {
+        debugPrint('Aviso: erro ao buscar status de Serviço: $e');
+      }
+
+      // 4. Cria a solicitação na tabela 'solicitacoes'
       final dadosSolicitacao = <String, dynamic>{
         'data_solicitacao': DateTime.now().toUtc().toIso8601String(),
+        'data_aceite': null,
+        'valor_final': valorFinal,
         'fk_usuario': _sheetIdUsuario,
         'fk_profissional': servico.fkProfissional,
-        'fk_status': 1,
-        'fk_servico_prof': servico.id,
-        'fk_endereco': _sheetEnderecoClienteSelecionado?.id,
-        'tipo_execucao': tipoExecucao,
-        'tipo_entrega': tipoExecucao,
-        'detalhes': _sheetDetalhesController.text.trim().isEmpty
-            ? null
-            : _sheetDetalhesController.text.trim(),
-        'data_agendada': _formatarDataSql(_sheetDataSelecionada!),
-        'hora_agendada': _sheetHoraAgendadaSql ?? '09:00:00',
-        'valor_final': servico.valor > 0 ? servico.valor : 18.99,
+        'fk_status': idStatus,
         'fk_grupo_empresa': servico.fkGrupoEmpresa,
       };
 
       try {
         await supabase.from('solicitacoes').insert(dadosSolicitacao);
       } catch (e) {
-        debugPrint('Erro ao inserir em solicitacoes: $e');
-        if (e is PostgrestException &&
-            (e.message.toLowerCase().contains('column') || e.code == 'PGRST204')) {
-          final dadosSemOpcionais = Map<String, dynamic>.from(dadosSolicitacao)
-            ..remove('hora_agendada')
-            ..remove('valor_final');
-          await supabase.from('solicitacoes').insert(dadosSemOpcionais);
+        debugPrint('Erro ao inserir em solicitacoes (tentando com campos de compatibilidade): $e');
+        if (e is PostgrestException) {
+          // Fallback caso a tabela solicitacoes ainda possua colunas obrigatórias legadas
+          final dadosLegados = Map<String, dynamic>.from(dadosSolicitacao)
+            ..addAll({
+              'fk_servico_prof': servico.id,
+              'fk_endereco': _sheetEnderecoClienteSelecionado?.id,
+              'tipo_execucao': tipoExecucao,
+              'tipo_entrega': tipoExecucao,
+              'detalhes': detalhesTexto,
+              'data_agendada': dataAgendadaSql,
+              'hora_agendada': horaAgendadaSql,
+            });
+          await supabase.from('solicitacoes').insert(dadosLegados);
         } else {
           rethrow;
         }
       }
 
-      nav.pop(); // Fecha a sheet
+      nav.pop(); // Fecha o bottom sheet
 
       messenger.showSnackBar(
         const SnackBar(
-          content: Text('Solicitação criada com sucesso!'),
-          backgroundColor: Colors.green,
+          content: Text('Serviço adicionado à sua lista com sucesso!'),
+          backgroundColor: Color(0xFF0FB3FF),
         ),
       );
+
+      // Atualiza a barra flutuante de serviços
+      ListaServicosService.instance.atualizar();
+
+      // Redireciona o cliente para a tela ListaServicos
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ListaServicos(idUsuario: _sheetIdUsuario),
+          ),
+        );
+      }
     } catch (e) {
       messenger.showSnackBar(
         SnackBar(
-          content: Text('Erro ao criar solicitação: $e'),
+          content: Text('Erro ao adicionar serviço: $e'),
           backgroundColor: Colors.red,
         ),
       );
