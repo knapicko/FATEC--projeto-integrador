@@ -8,29 +8,47 @@ import 'tela_meu_perfil_cliente.dart';
 import 'tela_busca.dart';
 import 'tela_inicial.dart';
 import 'tela_mensagens.dart';
+import 'tela_servico.dart';
 import 'seguindo_cliente.dart';
+import 'services/google_auth_service.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/iniciais.dart';
-import 'widgets/foto_perfil_google.dart';
+import 'widgets/imagem_servico.dart';
 import 'widgets/tag_oficio.dart';
 import 'utils/app_navigation_util.dart';
 
 class ServicoPopular {
+  final int? idServicoProf;
   final String titulo;
   final String categoria;
+  final String? funcao;
+  final String? corOficio;
   final double avaliacao;
   final int totalAvaliacoes;
   final double precoMedio;
   final String caminhoImagem;
+  final String? imagemUrl;
+  final String? nomePrestador;
+  final String? fotoPrestador;
+  final String? tagEmpresa;
+  final String? corTagEmpresa;
 
   ServicoPopular({
+    this.idServicoProf,
     required this.titulo,
     required this.categoria,
+    this.funcao,
+    this.corOficio,
     required this.avaliacao,
     required this.totalAvaliacoes,
     required this.precoMedio,
     required this.caminhoImagem,
+    this.imagemUrl,
+    this.nomePrestador,
+    this.fotoPrestador,
+    this.tagEmpresa,
+    this.corTagEmpresa,
   });
 }
 
@@ -155,118 +173,12 @@ class _TelaHomeState extends State<TelaHome> {
   static const Color _ratingText = Color(0xFFE65100);
 
   late Future<List<EnderecoHomeResumo>> _enderecosFuture;
+  late Future<Map<String, dynamic>?> _dadosUsuarioFuture;
 
-  final List<ServicoPopular> listaServicos = [
-    ServicoPopular(
-      titulo: 'Instalação de Ar Condicionado',
-      categoria: 'Independente',
-      avaliacao: 4.9,
-      totalAvaliacoes: 253,
-      precoMedio: 350,
-      caminhoImagem: 'assets/images/panela.png',
-    ),
-    ServicoPopular(
-      titulo: 'Afiação de faca',
-      categoria: 'Independente',
-      avaliacao: 4.7,
-      totalAvaliacoes: 1248,
-      precoMedio: 14.98,
-      caminhoImagem: 'assets/images/faca.png',
-    ),
-    ServicoPopular(
-      titulo: 'Costura de calça',
-      categoria: 'Independente',
-      avaliacao: 5.0,
-      totalAvaliacoes: 10,
-      precoMedio: 56.99,
-      caminhoImagem: 'assets/images/costura.png',
-    ),
-    ServicoPopular(
-      titulo: 'Polimento de sapato',
-      categoria: 'Independente',
-      avaliacao: 4.8,
-      totalAvaliacoes: 9023,
-      precoMedio: 28.99,
-      caminhoImagem: 'assets/images/sapato.png',
-    ),
-  ];
+  List<ServicoPopular> _servicosPopulares = [];
+  bool _carregandoServicosPopulares = true;
 
-  final List<ServicoProximo> listaServicosProximos = [
-    ServicoProximo(
-      titulo: 'Instalação de Ar',
-      preco: 'A partir de R\$ 150',
-      icone: Icons.ac_unit,
-    ),
-    ServicoProximo(
-      titulo: 'Pintura Residencial',
-      preco: 'A partir de R\$ 300',
-      icone: Icons.format_paint_outlined,
-      oferecidoPor: 'Oferecido por CAEDSS',
-    ),
-    ServicoProximo(
-      titulo: 'Limpeza Pesada',
-      preco: 'A partir de R\$ 120',
-      icone: Icons.cleaning_services_outlined,
-    ),
-  ];
-
-  final List<LojaPopular> listaLojas = [
-    LojaPopular(
-      titulo: 'Caedss - Estrada das Lágrimas',
-      avaliacao: 4.9,
-      totalAvaliacoes: 923,
-      distancia: '1.2 km',
-      tag1: 'Panelas',
-      tag2: '#CAEDS',
-      tag1BgColor: const Color(0xFFEEEEEE),
-      tag1TextColor: const Color(0xFF616161),
-      tag2BgColor: const Color(0xFFE1F5FE),
-      tag2TextColor: _primaryBlue,
-      caminhoImagem: 'assets/images/loja_caedss.png',
-      isVerified: true,
-    ),
-    LojaPopular(
-      titulo: 'Chaveiro - Ipiranga',
-      avaliacao: 4.9,
-      totalAvaliacoes: 252,
-      distancia: '800 m',
-      tag1: 'Panelas',
-      tag2: '#CAEDS',
-      tag1BgColor: const Color(0xFFEEEEEE),
-      tag1TextColor: const Color(0xFF616161),
-      tag2BgColor: const Color(0xFFE1F5FE),
-      tag2TextColor: _primaryBlue,
-      caminhoImagem: 'assets/images/loja_chaveiro.png',
-      isVerified: true,
-    ),
-    LojaPopular(
-      titulo: 'Caedss - Estrada das Lágrimas',
-      avaliacao: 4.9,
-      totalAvaliacoes: 923,
-      distancia: '1.2 km',
-      tag1: '#CHAVE',
-      tag2: 'Chaveiro',
-      tag1BgColor: const Color(0xFFFFE0B2),
-      tag1TextColor: const Color(0xFFE65100),
-      tag2BgColor: const Color(0xFFE1F5FE),
-      tag2TextColor: _primaryBlue,
-      caminhoImagem: 'assets/images/loja_caedss.png',
-      isVerified: true,
-    ),
-    LojaPopular(
-      titulo: 'Mundo das louças - Estrada das Lágrimas',
-      avaliacao: 4.7,
-      totalAvaliacoes: 1323,
-      distancia: '105 m',
-      tag1: '#MUNLO',
-      tag2: 'Panelas',
-      tag1BgColor: const Color(0xFFE1F5FE),
-      tag1TextColor: _primaryBlue,
-      tag2BgColor: const Color(0xFFEEEEEE),
-      tag2TextColor: const Color(0xFF616161),
-      caminhoImagem: 'assets/images/loja_mundo_loucas.png',
-    ),
-  ];
+  final List<ServicoProximo> listaServicosProximos = [];
 
   final List<PerfilPopular> listaPerfis = [
     PerfilPopular(
@@ -312,6 +224,269 @@ class _TelaHomeState extends State<TelaHome> {
   void initState() {
     super.initState();
     _enderecosFuture = _carregarEnderecosCliente();
+    _carregarServicosPopulares();
+    if (!widget.isVisitante) {
+      _dadosUsuarioFuture = _buscarDadosUsuario();
+    } else {
+      _dadosUsuarioFuture = Future.value(null);
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Recarrega a foto quando voltar para a home (ex.: trocou a foto
+    // no perfil e voltou). Sem isso o círculo fica com a foto antiga.
+    if (!widget.isVisitante) {
+      _dadosUsuarioFuture = _buscarDadosUsuario();
+    }
+  }
+
+  double _paraDouble(dynamic valor, [double padrao = 0]) {
+    if (valor is num) return valor.toDouble();
+    return double.tryParse(valor?.toString() ?? '') ?? padrao;
+  }
+
+  /// Carrega TODOS os servicos ativos de `servicos_profissional`.
+  /// Tenta o join com `oficios(funcao)`; se a FK/RLS falhar, cai para
+  /// select simples sem join para nao quebrar a home.
+  Future<void> _carregarServicosPopulares() async {
+    try {
+      final supabase = Supabase.instance.client;
+      List<dynamic> rows = [];
+      try {
+        rows = await supabase
+            .from('servicos_profissional')
+            .select('*, oficios(funcao, cor)')
+            .eq('ativo', true)
+            .order('data_criacao', ascending: false);
+      } catch (_) {
+        rows = await supabase
+            .from('servicos_profissional')
+            .select('*')
+            .eq('ativo', true)
+            .order('data_criacao', ascending: false);
+      }
+
+      final idsGrupo = <int>{};
+      final idsProf = <int>{};
+      for (final r in rows) {
+        final g = (r['fk_grupo_empresa'] as num?)?.toInt();
+        final p = (r['fk_profissional'] as num?)?.toInt();
+        if (g != null) idsGrupo.add(g);
+        if (p != null) idsProf.add(p);
+      }
+
+      final Map<int, Map<String, dynamic>> grupos = {};
+      final Map<int, List<int>> gruposPorProf = {};
+      if (idsGrupo.isNotEmpty) {
+        final gRows = await supabase
+            .from('grupo_empresa')
+            .select(
+              'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, '
+              'foto_url_empresa',
+            )
+            .inFilter('id_grupo_empresa', idsGrupo.toList());
+        for (final g in gRows) {
+          final id = (g['id_grupo_empresa'] as num?)?.toInt();
+          if (id != null) grupos[id] = Map<String, dynamic>.from(g);
+        }
+      }
+
+      final Map<int, int> perfilPorProf = {};
+      if (idsProf.isNotEmpty) {
+        final dRows = await supabase
+            .from('dados_profissionais')
+            .select('id_profissional, fk_perfil, fk_grupo_empresa')
+            .inFilter('id_profissional', idsProf.toList());
+        for (final d in dRows) {
+          final id = (d['id_profissional'] as num?)?.toInt();
+          final pf = (d['fk_perfil'] as num?)?.toInt();
+          final g = (d['fk_grupo_empresa'] as num?)?.toInt();
+          if (id != null && pf != null) perfilPorProf[id] = pf;
+          if (id != null) {
+            if (g != null) {
+              gruposPorProf.putIfAbsent(id, () => []).add(g);
+              idsGrupo.add(g);
+            }
+          }
+        }
+        // Grupos vinculados via profissional (associado a empresa).
+        final extras =
+            idsGrupo.where((e) => !grupos.containsKey(e)).toList();
+        if (extras.isNotEmpty) {
+          try {
+            final gRows2 = await supabase
+                .from('grupo_empresa')
+                .select(
+                  'id_grupo_empresa, nome_empresa, tag_empresa, '
+                  'cor_tag_empresa, foto_url_empresa',
+                )
+                .inFilter('id_grupo_empresa', extras);
+            for (final g in gRows2) {
+              final id = (g['id_grupo_empresa'] as num?)?.toInt();
+              if (id != null) grupos[id] = Map<String, dynamic>.from(g);
+            }
+          } catch (_) {}
+        }
+      }
+
+      final Map<int, String> tipoPorPerfil = {};
+      if (perfilPorProf.values.isNotEmpty) {
+        final pRows = await supabase
+            .from('perfil')
+            .select('id_perfil, tipo_perfil')
+            .inFilter('id_perfil', perfilPorProf.values.toSet().toList());
+        for (final p in pRows) {
+          final id = (p['id_perfil'] as num?)?.toInt();
+          if (id != null) {
+            tipoPorPerfil[id] =
+                p['tipo_perfil']?.toString().trim().toLowerCase() ?? '';
+          }
+        }
+      }
+
+      // Nome/foto do prestador: resolve grupo_empresa ou dados do
+      // profissional via usuarios (foto_perfil_url).
+      final Map<int, Map<String, dynamic>> usuariosPorProf = {};
+      if (idsProf.isNotEmpty) {
+        try {
+          // Busca fk_usuario de cada profissional para depois ler usuarios.
+          final profRows = await supabase
+              .from('dados_profissionais')
+              .select('id_profissional, fk_usuario')
+              .inFilter('id_profissional', idsProf.toList());
+          final Map<int, int> usuarioIdPorProf = {};
+          for (final d in profRows) {
+            final id = (d['id_profissional'] as num?)?.toInt();
+            final u = (d['fk_usuario'] as num?)?.toInt();
+            if (id != null && u != null) usuarioIdPorProf[id] = u;
+          }
+          if (usuarioIdPorProf.values.isNotEmpty) {
+            final uRows = await supabase
+                .from('usuarios')
+                .select('id_usuario, nome, foto_perfil_url')
+                .inFilter(
+                  'id_usuario',
+                  usuarioIdPorProf.values.toSet().toList(),
+                );
+            final Map<int, Map<String, dynamic>> porIdUsuario = {};
+            for (final u in uRows) {
+              final id = (u['id_usuario'] as num?)?.toInt();
+              if (id != null) porIdUsuario[id] = Map<String, dynamic>.from(u);
+            }
+            for (final e in usuarioIdPorProf.entries) {
+              final u = porIdUsuario[e.value];
+              if (u != null) usuariosPorProf[e.key] = u;
+            }
+          }
+        } catch (_) {}
+      }
+
+      final lista = <ServicoPopular>[];
+      for (final r in rows) {
+        final id = (r['id_servico_prof'] as num?)?.toInt();
+        final titulo = r['titulo']?.toString().trim().isNotEmpty == true
+            ? r['titulo'].toString().trim()
+            : 'Serviço';
+        final dynamic ofRaw = r['oficios'];
+        final Map<String, dynamic>? ofMap = ofRaw is Map<String, dynamic>
+            ? ofRaw
+            : (ofRaw is List && ofRaw.isNotEmpty
+                ? Map<String, dynamic>.from(ofRaw.first)
+                : null);
+        final funcao = ofMap?['funcao']?.toString().trim() ?? '';
+        // Coluna `cor` = enum Cores Oficio ('vinho', 'roxo', 'azul claro'...);
+        // `CorOficio.parse` resolve o nome para a cor. OficioInfo.fromMap
+        // já normaliza esse campo.
+        final corOficio = ofMap == null
+            ? null
+            : OficioInfo.fromMap(Map<String, dynamic>.from(ofMap)).cor;
+
+        String categoriaExibicao =
+            funcao.isNotEmpty ? funcao : 'Serviço';
+        String? nomePrestador;
+        String? fotoPrestador;
+        String? tagEmpresa;
+        String? corTagEmpresa;
+        final idGrupo = (r['fk_grupo_empresa'] as num?)?.toInt();
+        final idProf = (r['fk_profissional'] as num?)?.toInt();
+        if (idGrupo != null && grupos.containsKey(idGrupo)) {
+          final g = grupos[idGrupo]!;
+          final tag = g['tag_empresa']?.toString().trim() ?? '';
+          categoriaExibicao = tag.isNotEmpty ? tag : 'Loja';
+          nomePrestador = g['nome_empresa']?.toString().trim();
+          fotoPrestador = g['foto_url_empresa']?.toString().trim();
+          tagEmpresa = tag.isNotEmpty ? tag : null;
+          corTagEmpresa = g['cor_tag_empresa']?.toString().trim();
+        } else if (idProf != null) {
+          final idPerfil = perfilPorProf[idProf];
+          final tipo = idPerfil == null ? '' : (tipoPorPerfil[idPerfil] ?? '');
+          if (tipo.contains('independente')) {
+            categoriaExibicao = 'Independente';
+          } else if (tipo == 'loja') {
+            categoriaExibicao = 'Loja';
+          }
+          nomePrestador = usuariosPorProf[idProf]?['nome']?.toString().trim();
+          fotoPrestador = usuariosPorProf[idProf]?['foto_perfil_url']
+              ?.toString()
+              .trim();
+          // Profissional associado a empresa: tag da empresa a direita.
+          final idGrupoAssoc = gruposPorProf[idProf]?.isNotEmpty == true
+              ? gruposPorProf[idProf]!.first
+              : null;
+          if (idGrupoAssoc != null && grupos.containsKey(idGrupoAssoc)) {
+            final g = grupos[idGrupoAssoc]!;
+            final tag = g['tag_empresa']?.toString().trim() ?? '';
+            tagEmpresa = tag.isNotEmpty ? tag : null;
+            corTagEmpresa = g['cor_tag_empresa']?.toString().trim();
+          }
+        }
+
+        final imagemUrl = r['imagem_url']?.toString().trim();
+        lista.add(
+          ServicoPopular(
+            idServicoProf: id,
+            titulo: titulo,
+            categoria: categoriaExibicao,
+            funcao: funcao.isNotEmpty ? funcao : null,
+            corOficio: corOficio?.isNotEmpty == true ? corOficio : null,
+            avaliacao: 0.0,
+            totalAvaliacoes: 0,
+            precoMedio: _paraDouble(r['valor'], 0),
+            caminhoImagem: 'assets/images/panela.png',
+            imagemUrl: imagemUrl != null && imagemUrl.isNotEmpty
+                ? imagemUrl
+                : null,
+            nomePrestador: nomePrestador?.isNotEmpty == true
+                ? nomePrestador
+                : null,
+            fotoPrestador: fotoPrestador?.isNotEmpty == true
+                ? fotoPrestador
+                : null,
+            tagEmpresa: tagEmpresa,
+            corTagEmpresa: corTagEmpresa?.isNotEmpty == true
+                ? corTagEmpresa
+                : null,
+          ),
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _servicosPopulares = lista;
+          _carregandoServicosPopulares = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Erro ao carregar servicos populares: $e');
+      if (mounted) {
+        setState(() {
+          _servicosPopulares = [];
+          _carregandoServicosPopulares = false;
+        });
+      }
+    }
   }
 
   Future<int?> _buscarIdUsuario(SupabaseClient supabase, String authId) async {
@@ -536,18 +711,69 @@ class _TelaHomeState extends State<TelaHome> {
   Future<Map<String, dynamic>?> _buscarDadosUsuario() async {
     try {
       final supabase = Supabase.instance.client;
-      final user = supabase.auth.currentUser;
-      if (user == null) return null;
+      final currentUser = supabase.auth.currentUser;
+      if (currentUser == null) return {'foto_perfil_url': ''};
+      final String userId = currentUser.id;
+      var user = currentUser;
 
-      final response = await supabase
-          .from('usuarios')
-          .select('nome, foto_perfil_url')
-          .eq('auth_id', user.id)
-          .maybeSingle();
+      // Garante metadados atualizados (avatar do Google pode ter sido
+      // persistido via updateUser depois do login).
+      try {
+        final refreshed = await supabase.auth.refreshSession();
+        final refreshedUser = refreshed.session?.user;
+        if (refreshedUser != null) user = refreshedUser;
+      } catch (_) {}
 
-      return response;
+      // 1. Foto do cadastro (usuarios.foto_perfil_url).
+      String? fotoBanco;
+      try {
+        final response = await supabase
+            .from('usuarios')
+            .select('nome, foto_perfil_url')
+            .eq('auth_id', userId)
+            .maybeSingle();
+        fotoBanco = response?['foto_perfil_url']?.toString().trim();
+        if (fotoBanco != null && fotoBanco.isNotEmpty) return response;
+      } catch (_) {}
+
+      // 2. Sessão/onboarding em memória (login Google recente).
+      try {
+        final fotoMemoria =
+            GoogleAuthService.ultimaFotoUrl?.trim() ?? '';
+        if (fotoMemoria.isNotEmpty) {
+          return {
+            'nome': GoogleAuthService.extrairNome(user),
+            'foto_perfil_url': fotoMemoria,
+          };
+        }
+      } catch (_) {}
+
+      // 3. Fallback: foto do Google (auth metadata).
+      final meta = user.userMetadata ?? <String, dynamic>{};
+      final fotoMeta = (meta['avatar_url'] ??
+              meta['picture'] ??
+              meta['foto_perfil_url'] ??
+              meta['fotoPerfilUrl'])
+          ?.toString()
+          .trim();
+      if (fotoMeta != null && fotoMeta.isNotEmpty) {
+        return {
+          'nome': meta['full_name'] ?? meta['nome'] ?? meta['name'],
+          'foto_perfil_url': fotoMeta,
+        };
+      }
+      // Retorna o que veio do banco mesmo sem foto (evita null -> cinza
+      // por caminho errado); o widget decide o fallback.
+      if (fotoBanco != null) {
+        return {'foto_perfil_url': fotoBanco};
+      }
+      debugPrint(
+        'Foto perfil: nenhuma fonte encontrada. metaKeys=${meta.keys.toList()}',
+      );
+      return {'foto_perfil_url': ''};
     } catch (e) {
-      return null;
+      debugPrint('Erro _buscarDadosUsuario: $e');
+      return {'foto_perfil_url': ''};
     }
   }
 
@@ -670,14 +896,13 @@ class _TelaHomeState extends State<TelaHome> {
       final empresasData = await supabase
           .from('grupo_empresa')
           .select(
-            'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, fk_perfil',
+            'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, descricao_empresa',
           );
 
       final List<LojaPopular> lista = [];
 
       for (final empresa in empresasData) {
         final idGrupo = (empresa['id_grupo_empresa'] as num?)?.toInt();
-        final fkPerfil = (empresa['fk_perfil'] as num?)?.toInt();
         if (idGrupo == null) continue;
 
         final nome = empresa['nome_empresa']?.toString().trim();
@@ -686,55 +911,30 @@ class _TelaHomeState extends State<TelaHome> {
         final fotoUrl = empresa['foto_url_empresa']?.toString().trim() ?? '';
         final bannerUrl =
             empresa['banner_url_empresa']?.toString().trim() ?? '';
+        final descricaoDb =
+            empresa['descricao_empresa']?.toString().trim() ?? '';
 
-        // Identificar todos os profissionais pertencentes à empresa (proprietário + membros)
-        final Set<int> idsProfissionais = {};
-
-        if (fkPerfil != null) {
-          try {
-            final dono = await supabase
-                .from('dados_profissionais')
-                .select('id_profissional')
-                .eq('fk_perfil', fkPerfil)
-                .maybeSingle();
-            final idProfDono = (dono?['id_profissional'] as num?)?.toInt();
-            if (idProfDono != null) idsProfissionais.add(idProfDono);
-          } catch (_) {}
-        }
-
+        // Ofícios DA LOJA (empresa/grupo_empresa) via ass_oficio_grupo_empresa
+        // — não herda os ofícios do profissional dono do CNPJ.
+        final List<OficioInfo> oficiosLoja = [];
         try {
-          final membros = await supabase
-              .from('dados_profissionais')
-              .select('id_profissional')
+          final assOficios = await supabase
+              .from('ass_oficio_grupo_empresa')
+              .select('fk_oficio')
               .eq('fk_grupo_empresa', idGrupo);
 
-          for (final m in membros) {
-            final idProf = (m['id_profissional'] as num?)?.toInt();
-            if (idProf != null) idsProfissionais.add(idProf);
-          }
-        } catch (_) {}
+          final idsOficios = assOficios
+              .map((e) => e['fk_oficio'])
+              .whereType<num>()
+              .map((e) => e.toInt())
+              .toSet()
+              .toList();
 
-        // Buscar ofícios herdados dos profissionais da empresa
-        final List<OficioInfo> oficiosLoja = [];
-        if (idsProfissionais.isNotEmpty) {
-          try {
-            final assOficios = await supabase
-                .from('ass_oficio_profissional')
-                .select('fk_oficio')
-                .inFilter('fk_profissional', idsProfissionais.toList());
-
-            final idsOficios = assOficios
-                .map((e) => e['fk_oficio'])
-                .whereType<num>()
-                .map((e) => e.toInt())
-                .toSet()
-                .toList();
-
-            if (idsOficios.isNotEmpty) {
-              final oficiosData = await supabase
-                  .from('oficios')
-                  .select('funcao, cor')
-                  .inFilter('id_oficio', idsOficios);
+          if (idsOficios.isNotEmpty) {
+            final oficiosData = await supabase
+                .from('oficios')
+                .select('funcao, categoria, cor')
+                .inFilter('id_oficio', idsOficios);
 
               final Set<String> funcoesVistas = {};
               for (final row in oficiosData) {
@@ -748,17 +948,17 @@ class _TelaHomeState extends State<TelaHome> {
               }
             }
           } catch (_) {}
-        }
 
         final corBase = CorOficio.parse(corHex);
         final tagEmpresaFormatada = (tag != null && tag.isNotEmpty)
             ? (tag.startsWith('#') ? tag : '#$tag')
             : '#EMPRESA';
 
-        final oficiosFormatados = oficiosLoja
-            .take(3)
-            .map((o) => o.funcao)
-            .join(' • ');
+        final descricaoFinal = descricaoDb.isNotEmpty
+            ? descricaoDb
+            : (oficiosLoja.take(3).map((o) => o.funcao).join(' • ').isNotEmpty
+                ? oficiosLoja.take(3).map((o) => o.funcao).join(' • ')
+                : 'Especialistas em reparos e serviços');
 
         lista.add(
           LojaPopular(
@@ -783,9 +983,7 @@ class _TelaHomeState extends State<TelaHome> {
             corTagEmpresaHex: corHex,
             oficios: oficiosLoja,
             isVerified: true,
-            descricao: oficiosFormatados.isNotEmpty
-                ? oficiosFormatados
-                : 'Especialistas em reparos e serviços',
+            descricao: descricaoFinal,
           ),
         );
       }
@@ -1249,14 +1447,43 @@ class _TelaHomeState extends State<TelaHome> {
                           ),
                         )
                       : FutureBuilder<Map<String, dynamic>?>(
-                          future: _buscarDadosUsuario(),
+                          future: _dadosUsuarioFuture,
                           builder: (context, snapshot) {
-                            final fotoUrl =
-                                snapshot.data?['foto_perfil_url'] as String?;
-                            return FotoPerfilGoogle(
-                              fotoUrl: fotoUrl,
-                              radius: 20,
-                            );
+                            final fotoUrl = (snapshot.data?['foto_perfil_url']
+                                    as String?)
+                                ?.trim();
+                            final nome = snapshot.data?['nome']
+                                ?.toString()
+                                .trim();
+                            if (snapshot.connectionState ==
+                                    ConnectionState.waiting &&
+                                fotoUrl == null) {
+                              return CircleAvatar(
+                                radius: 20,
+                                backgroundColor: Colors.grey.shade200,
+                                child: const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: _primaryBlue,
+                                  ),
+                                ),
+                              );
+                            }
+                            if (fotoUrl != null && fotoUrl.isNotEmpty) {
+                              return ClipOval(
+                                child: Image.network(
+                                  fotoUrl,
+                                  width: 40,
+                                  height: 40,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) =>
+                                      _avatarUsuarioFallback(nome),
+                                ),
+                              );
+                            }
+                            return _avatarUsuarioFallback(nome);
                           },
                         ),
                 ),
@@ -1583,21 +1810,55 @@ class _TelaHomeState extends State<TelaHome> {
 
             SizedBox(height: alturaDaTela * 0.03),
 
-            // Serviços populares
+            // Serviços populares — todos de `servicos_profissional`
             _buildSectionHeader(titulo: 'Serviços populares'),
             const SizedBox(height: 12),
-            SizedBox(
-              height: 220,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                itemCount: listaServicos.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (context, index) {
-                  return _buildCardServicoPopular(listaServicos[index]);
-                },
+            if (_carregandoServicosPopulares)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: CircularProgressIndicator(color: _primaryBlue),
+                ),
+              )
+            else if (_servicosPopulares.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: _cardDecoration(),
+                child: const Text(
+                  'Nenhum serviço cadastrado no momento.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: Colors.black54),
+                ),
+              )
+            else
+              SizedBox(
+                height: 220,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: _servicosPopulares.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  itemBuilder: (context, index) {
+                    final servico = _servicosPopulares[index];
+                    return GestureDetector(
+                      onTap: servico.idServicoProf == null
+                          ? null
+                          : () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => TelaServico(
+                                    idServico: servico.idServicoProf,
+                                  ),
+                                ),
+                              );
+                            },
+                      child: _buildCardServicoPopular(servico),
+                    );
+                  },
+                ),
               ),
-            ),
 
             const SizedBox(height: 24),
           ],
@@ -2110,6 +2371,42 @@ class _TelaHomeState extends State<TelaHome> {
     );
   }
 
+  Widget _avatarUsuarioFallback([String? nome]) {
+    final iniciais = obterIniciais((nome ?? '').trim().isNotEmpty ? nome! : '?');
+    return CircleAvatar(
+      radius: 20,
+      backgroundColor: _primaryBlue,
+      child: Text(
+        iniciais,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _avatarFallbackPrestador(String nome) {
+    return Container(
+      width: 20,
+      height: 20,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        shape: BoxShape.circle,
+      ),
+      child: Text(
+        obterIniciais(nome.isNotEmpty ? nome : '?'),
+        style: TextStyle(
+          fontSize: 8,
+          fontWeight: FontWeight.bold,
+          color: Colors.grey.shade700,
+        ),
+      ),
+    );
+  }
+
   Widget _buildTag(String texto, Color bg, Color fg) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -2125,8 +2422,11 @@ class _TelaHomeState extends State<TelaHome> {
   }
 
   Widget _buildCardServicoPopular(ServicoPopular servico) {
+    final nomePrestador = servico.nomePrestador?.trim() ?? '';
+    final fotoPrestador = servico.fotoPrestador?.trim() ?? '';
+    final temTagEmpresa = servico.tagEmpresa?.trim().isNotEmpty == true;
     return Container(
-      width: 160,
+      width: 180,
       decoration: _cardDecoration(),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -2134,16 +2434,11 @@ class _TelaHomeState extends State<TelaHome> {
         children: [
           Stack(
             children: [
-              Image.asset(
-                servico.caminhoImagem,
+              ImagemServico(
+                imagemUrl: servico.imagemUrl,
+                funcao: servico.funcao ?? servico.categoria,
+                cor: servico.corOficio,
                 height: 100,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  height: 100,
-                  color: Colors.grey.shade200,
-                  child: Icon(Icons.image, color: Colors.grey.shade400),
-                ),
               ),
               Positioned(
                 top: 6,
@@ -2167,12 +2462,75 @@ class _TelaHomeState extends State<TelaHome> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  servico.categoria,
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Row(
+                        children: [
+                          ClipOval(
+                            child: fotoPrestador.isNotEmpty
+                                ? Image.network(
+                                    fotoPrestador,
+                                    width: 20,
+                                    height: 20,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) =>
+                                        _avatarFallbackPrestador(
+                                      nomePrestador,
+                                    ),
+                                  )
+                                : _avatarFallbackPrestador(nomePrestador),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              nomePrestador.isNotEmpty
+                                  ? nomePrestador
+                                  : 'Prestador',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade700,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (temTagEmpresa)
+                      Container(
+                        margin: const EdgeInsets.only(left: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: CorOficio.corFundo(
+                            CorOficio.parse(servico.corTagEmpresa),
+                          ),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          servico.tagEmpresa!.trim().startsWith('#')
+                              ? servico.tagEmpresa!.trim()
+                              : '#${servico.tagEmpresa!.trim()}',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: CorOficio.corTexto(
+                              CorOficio.parse(servico.corTagEmpresa),
+                            ),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
                   'Preço médio: R\$ ${servico.precoMedio.toStringAsFixed(0)}',
                   style: const TextStyle(
