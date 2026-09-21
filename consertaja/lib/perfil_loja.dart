@@ -9,7 +9,6 @@ import 'models/servico_profissional.dart';
 import 'models/postagem_resumo.dart';
 import 'perfil_profissional.dart';
 import 'services/servicos_profissional_service.dart';
-import 'solicitar_servico.dart';
 import 'tela_chat_profissional.dart';
 import 'tela_servico.dart';
 import 'utils/cor_oficio.dart';
@@ -1099,22 +1098,9 @@ class _PerfilLojaState extends State<PerfilLoja> {
   }
 
   Future<void> _abrirSolicitacaoServico() async {
-    final servicosValidos = _servicosLoja;
-    final int idProfissionalAlvo = _idProfissionalDono ?? 1;
-
-    await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => FractionallySizedBox(
-        heightFactor: 0.96,
-        child: SolicitarServicoPage(
-          idProfissional: idProfissionalAlvo,
-          servicos: List<ServicoProfissional>.unmodifiable(servicosValidos),
-        ),
-      ),
-    );
+    // Fluxo antigo (SolicitarServicoPage) removido: a solicitação nasce só no
+    // botão Continuar da lista_servicos.dart. Aqui não faz nada.
+    return;
   }
 
   @override

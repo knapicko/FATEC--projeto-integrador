@@ -92,7 +92,8 @@ class _BottomNavigationBarProfissionalState
     super.initState();
     // Valor inicial síncrono: nunca mostra "Perfil" piscando quando já se
     // sabe (cache/prop) que a conta é empresa.
-    _isEmpresa = widget.isContaEmpresa ??
+    _isEmpresa =
+        widget.isContaEmpresa ??
         BottomNavigationBarProfissional.leituraSincronaContaEmpresa();
     if (widget.isContaEmpresa == null) {
       // Confirma em background e só dá setState se realmente mudou.
@@ -130,7 +131,7 @@ class _BottomNavigationBarProfissionalState
     ),
     const BottomNavigationBarItem(
       icon: Icon(Icons.archive_outlined),
-      label: 'Pedidos',
+      label: 'Serviços',
     ),
     if (_isEmpresa)
       const BottomNavigationBarItem(
@@ -140,7 +141,7 @@ class _BottomNavigationBarProfissionalState
     else
       const BottomNavigationBarItem(
         icon: Icon(Icons.person_outline),
-        label: 'Perfil',
+        label: 'Perfil',  
       ),
   ];
 

@@ -3245,55 +3245,6 @@ class _TelaServicoState extends State<TelaServico> {
       };
       await supabase.from('ass_servicos_lista').upsert(dadosAss);
 
-      // 3. Busca o id_status correspondente ao enum 'Serviço' na tabela status
-      int idStatus = 1;
-      try {
-        final statusRow = await supabase
-            .from('status')
-            .select('id_status')
-            .eq('tipo_status', 'Serviço')
-            .limit(1)
-            .maybeSingle();
-        if (statusRow != null && statusRow['id_status'] != null) {
-          idStatus = (statusRow['id_status'] as num).toInt();
-        }
-      } catch (e) {
-        debugPrint('Aviso: erro ao buscar status de Serviço: $e');
-      }
-
-      // 4. Cria a solicitação na tabela 'solicitacoes'
-      final dadosSolicitacao = <String, dynamic>{
-        'data_solicitacao': DateTime.now().toUtc().toIso8601String(),
-        'data_aceite': null,
-        'valor_final': valorFinal,
-        'fk_usuario': _sheetIdUsuario,
-        'fk_profissional': servico.fkProfissional,
-        'fk_status': idStatus,
-        'fk_grupo_empresa': servico.fkGrupoEmpresa,
-      };
-
-      try {
-        await supabase.from('solicitacoes').insert(dadosSolicitacao);
-      } catch (e) {
-        debugPrint('Erro ao inserir em solicitacoes (tentando com campos de compatibilidade): $e');
-        if (e is PostgrestException) {
-          // Fallback caso a tabela solicitacoes ainda possua colunas obrigatórias legadas
-          final dadosLegados = Map<String, dynamic>.from(dadosSolicitacao)
-            ..addAll({
-              'fk_servico_prof': servico.id,
-              'fk_endereco': _sheetEnderecoClienteSelecionado?.id,
-              'tipo_execucao': tipoExecucao,
-              'tipo_entrega': tipoExecucao,
-              'detalhes': detalhesTexto,
-              'data_agendada': dataAgendadaSql,
-              'hora_agendada': horaAgendadaSql,
-            });
-          await supabase.from('solicitacoes').insert(dadosLegados);
-        } else {
-          rethrow;
-        }
-      }
-
       nav.pop(); // Fecha o bottom sheet
 
       messenger.showSnackBar(

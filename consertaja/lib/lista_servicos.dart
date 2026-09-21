@@ -67,6 +67,7 @@ class _ListaServicosState extends State<ListaServicos> {
   final SupabaseClient _supabase = Supabase.instance.client;
 
   bool _carregando = true;
+  bool _enviandoSolicitacao = false;
   int? _idLista;
   String _enderecoUsuario = 'Novo Horizonte - SP';
   List<ItemServicoLista> _itens = [];
@@ -622,6 +623,179 @@ class _ListaServicosState extends State<ListaServicos> {
       }
     } catch (_) {}
     return '$dataStr - $horaStr';
+  }
+
+  // ── Envio das solicitações (botão Continuar) ─────────────────────────────
+  // Para cada item em `ass_servicos_lista`, cria UMA linha em `solicitacoes`
+  // com os dados do serviço, depois apaga os itens da lista.
+  Future<void> _enviarSolicitacoes() async {
+    if (_itens.isEmpty || _enviandoSolicitacao) return;
+    setState(() => _enviandoSolicitacao = true);
+    try {
+      final user = _supabase.auth.currentUser;
+      int? idUsuario = widget.idUsuario;
+      if (idUsuario == null && user != null) {
+        final usuarioRow = await _supabase
+            .from('usuarios')
+            .select('id_usuario')
+            .eq('auth_id', user.id)
+            .maybeSingle();
+        idUsuario = (usuarioRow?['id_usuario'] as num?)?.toInt();
+      }
+      if (idUsuario == null) {
+        throw Exception('Não foi possível identificar o usuário logado.');
+      }
+
+      // Status "Aberto" do Tipo Status "Serviço".
+      final statusRow = await _supabase
+          .from('status')
+          .select('id_status')
+          .eq('tipo_status', 'Serviço')
+          .eq('status', 'Aberto')
+          .limit(1)
+          .maybeSingle();
+      final idStatus = (statusRow?['id_status'] as num?)?.toInt();
+      if (idStatus == null) {
+        throw Exception(
+          'Status "Aberto" (Tipo "Serviço") não encontrado.',
+        );
+      }
+
+      for (final item in _itens) {
+        final dadosSolicitacao = <String, dynamic>{
+          'data_solicitacao': DateTime.now().toUtc().toIso8601String(),
+          'valor_final': item.valorFinal,
+          'fk_usuario': idUsuario,
+          'fk_profissional': item.idProfissional,
+          'fk_status': idStatus,
+          'fk_servico_prof': item.fkServicoProf,
+          'fk_endereco': item.fkEnderecoEscolhido,
+          'fk_grupo_empresa': item.idGrupoEmpresa,
+          'tipo_execucao': item.tipoExecucao,
+          'detalhes': item.detalhes,
+          'data_agendada':
+              item.dataAgendada.isNotEmpty ? item.dataAgendada : null,
+          'hora_agendada':
+              item.horaAgendada.isNotEmpty ? item.horaAgendada : null,
+        };
+        await _supabase.from('solicitacoes').insert(dadosSolicitacao);
+      }
+
+      if (_idLista != null) {
+        await _supabase
+            .from('ass_servicos_lista')
+            .delete()
+            .eq('fk_lista', _idLista!);
+      }
+
+      if (mounted) {
+        setState(() {
+          _itens = [];
+          _enviandoSolicitacao = false;
+        });
+      }
+      ListaServicosService.instance.atualizar();
+
+      if (!mounted) return;
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      // A home é a primeira rota; o sheet é exibido sobre ela.
+      Future.delayed(const Duration(milliseconds: 350), () {
+        if (!mounted) return;
+        _exibirSheetSolicitacaoEnviada();
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _enviandoSolicitacao = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao enviar solicitação: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _exibirSheetSolicitacaoEnviada() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE2E8F0),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: _azul.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.check_circle_rounded,
+                  color: _azul,
+                  size: 40,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Solicitação enviada!',
+                style: TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
+                  color: _textoEscuro,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Foi enviada uma solicitação de serviço ao profissional e você deve aguardar o profissional responder.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: _textoMuted,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _azul,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Text(
+                    'Entendido',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   String _formatarPreco(double valor) {
@@ -1229,14 +1403,7 @@ class _ListaServicosState extends State<ListaServicos> {
               width: double.infinity,
               height: 52,
               child: ElevatedButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Continuando com $count serviço(s) na lista...'),
-                      backgroundColor: _azul,
-                    ),
-                  );
-                },
+                onPressed: _enviandoSolicitacao ? null : _enviarSolicitacoes,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _azul,
                   foregroundColor: Colors.white,
@@ -1245,13 +1412,22 @@ class _ListaServicosState extends State<ListaServicos> {
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                child: Text(
-                  'Continuar ($count)',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
+                child: _enviandoSolicitacao
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Text(
+                        'Continuar ($count)',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
               ),
             ),
           ],
