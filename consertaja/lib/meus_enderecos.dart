@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart' hide Path;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'tela_home.dart';
 import 'tela_home_profissional.dart';
@@ -19,8 +20,16 @@ import 'utils/app_navigation_util.dart';
 /// Constantes dos nomes das tabelas no Supabase
 const String _tabelaEndereco = 'enderecos';
 const String _tabelaAssUsuarioEndereco = 'ass_usuario_endereco';
+const String _tabelaAssGrupoEmpresaEndereco = 'ass_grupo_empresa_endereco';
+const String _tabelaAssProfissionalEndereco = 'ass_profissional_endereco';
 const String _tabelaCidade = 'cidades';
 const String _tabelaEstado = 'estados';
+
+/// Chave do modo de conta (mesmo padrao de metodo_entrega_profissional.dart
+/// e bottom_navigation_bar_profissional.dart):
+/// false = profissional independente (CNPJ individual),
+/// true = empresa (grupo_empresa).
+const String _prefContaAtivaKey = 'consertaja_conta_empresa_ativa';
 
 /// Matriz de cor aplicada ao mapa (Leaflet/flutter_map) para deixá-lo
 /// minimalista em PRETO e BRANCO:
@@ -192,6 +201,13 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
   bool _carregando = true;
   bool _erro = false;
 
+  /// true = conta EMPRESA ativa (grupo_empresa), false = profissional
+  /// independente (CNPJ individual) ou cliente. Resolvido via
+  /// SharedPreferences (mesma chave da home) + cache da bottom bar.
+  bool _contaEmpresaAtiva = false;
+  int? _idGrupoEmpresa;
+  int? _idProfissional;
+
   @override
   void initState() {
     super.initState();
@@ -214,6 +230,51 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
     return usuarioResponse['id_usuario'] is int
         ? usuarioResponse['id_usuario'] as int
         : int.tryParse(usuarioResponse['id_usuario']?.toString() ?? '');
+  }
+
+  Future<bool> _lerContaEmpresaAtiva() async {
+    final doCache =
+        BottomNavigationBarProfissional.leituraSincronaContaEmpresa();
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) return doCache;
+      final prefs = await SharedPreferences.getInstance();
+      final ativa = prefs.getBool('${_prefContaAtivaKey}_${user.id}');
+      if (ativa == null) return doCache;
+      BottomNavigationBarProfissional.notificarTrocaConta(ativa);
+      return ativa;
+    } catch (_) {
+      return doCache;
+    }
+  }
+
+  /// Resolve o contexto (empresa x profissional x cliente) a partir do
+  /// usuario logado. Empresa = dados_profissionais.fk_grupo_empresa.
+  /// Retorna false quando nao ha usuario/profissional (modo cliente).
+  Future<bool> _resolverContextoConta(
+    SupabaseClient supabase,
+    String authId,
+    int usuarioId,
+  ) async {
+    _contaEmpresaAtiva = false;
+    _idGrupoEmpresa = null;
+    _idProfissional = null;
+    if (!widget.isProfissional) return false;
+    try {
+      final prof = await supabase
+          .from('dados_profissionais')
+          .select('id_profissional, fk_grupo_empresa')
+          .eq('fk_usuario', usuarioId)
+          .maybeSingle();
+      if (prof == null) return false;
+      _idProfissional = (prof['id_profissional'] as num?)?.toInt();
+      _idGrupoEmpresa = (prof['fk_grupo_empresa'] as num?)?.toInt();
+      _contaEmpresaAtiva =
+          (await _lerContaEmpresaAtiva()) && _idGrupoEmpresa != null;
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> _carregarEnderecos() async {
@@ -247,13 +308,68 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
         return;
       }
 
-      // 1. Busca associações do usuário
-      final assResponse = await supabase
-          .from(_tabelaAssUsuarioEndereco)
-          .select(
-            'fk_endereco, apelido_endereco, tipo_endereco, endereco_ativo',
-          )
-          .eq('fk_usuario', usuarioId);
+      // 1. Resolve o contexto e busca a associacao CERTA:
+      // Empresa ativa -> ass_grupo_empresa_endereco (endereco da loja).
+      // Profissional CNPJ -> ass_profissional_endereco (endereco comercial).
+      // Cliente/pessoal -> ass_usuario_endereco (como antes, sem quebrar).
+      final isContextoProf = await _resolverContextoConta(
+        supabase,
+        user.id,
+        usuarioId,
+      );
+
+      List<dynamic> assResponse = [];
+      if (widget.isProfissional && isContextoProf && _contaEmpresaAtiva) {
+        // --- CONTA EMPRESA ---
+        if (_idGrupoEmpresa != null) {
+          try {
+            assResponse = await supabase
+                .from(_tabelaAssGrupoEmpresaEndereco)
+                .select(
+                  'fk_endereco, apelido_endereco, tipo_endereco, endereco_ativo',
+                )
+                .eq('fk_grupo_empresa', _idGrupoEmpresa!);
+          } catch (_) {
+            // Tabela nova ainda nao criada no banco -> cai no fallback abaixo.
+            assResponse = [];
+          }
+        }
+      } else if (widget.isProfissional && isContextoProf) {
+        // --- PROFISSIONAL INDEPENDENTE (CNPJ individual) ---
+        if (_idProfissional != null) {
+          try {
+            assResponse = await supabase
+                .from(_tabelaAssProfissionalEndereco)
+                .select(
+                  'fk_endereco, apelido_endereco, tipo_endereco, endereco_ativo',
+                )
+                .eq('fk_profissional', _idProfissional!);
+          } catch (_) {
+            assResponse = [];
+          }
+          // Fallback temporario: antes da migration rodar, o endereco
+          // comercial ainda mora em ass_usuario_endereco com tipo
+          // Loja/Oficina/Outro -> mostra so esses, nunca Casa/Trabalho.
+          if (assResponse.isEmpty) {
+            final legado = await supabase
+                .from(_tabelaAssUsuarioEndereco)
+                .select(
+                  'fk_endereco, apelido_endereco, tipo_endereco, endereco_ativo',
+                )
+                .eq('fk_usuario', usuarioId)
+                .inFilter('tipo_endereco', ['Loja', 'Oficina', 'Outro']);
+            assResponse = legado;
+          }
+        }
+      } else {
+        // --- CLIENTE / PESSOAL (comportamento original intacto) ---
+        assResponse = await supabase
+            .from(_tabelaAssUsuarioEndereco)
+            .select(
+              'fk_endereco, apelido_endereco, tipo_endereco, endereco_ativo',
+            )
+            .eq('fk_usuario', usuarioId);
+      }
 
       if (assResponse.isEmpty) {
         if (mounted) {
@@ -497,20 +613,70 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
 
       final usuarioId = await _buscarIdUsuario(supabase, user.id);
       if (usuarioId == null) return;
+      await _resolverContextoConta(supabase, user.id, usuarioId);
 
-      // Remove o "ativo" de todos os endereços do usuário
-      await supabase
-          .from(_tabelaAssUsuarioEndereco)
-          .update({'endereco_ativo': false})
-          .eq('fk_usuario', usuarioId);
-
-      // Define o endereço selecionado como ativo (principal)
-      if (endereco.id != null) {
+      // Empresa: limpa o ativo de TODOS os enderecos do grupo e ativa o
+      // escolhido. Profissional: idem no seu vinculo. Cliente: original.
+      if (widget.isProfissional && _contaEmpresaAtiva && _idGrupoEmpresa != null) {
+        await supabase
+            .from(_tabelaAssGrupoEmpresaEndereco)
+            .update({'endereco_ativo': false})
+            .eq('fk_grupo_empresa', _idGrupoEmpresa!);
+        if (endereco.id != null) {
+          await supabase
+              .from(_tabelaAssGrupoEmpresaEndereco)
+              .update({'endereco_ativo': true})
+              .eq('fk_grupo_empresa', _idGrupoEmpresa!)
+              .eq('fk_endereco', endereco.id!);
+        }
+      } else if (widget.isProfissional && _idProfissional != null) {
+        // Tenta a tabela nova; se ainda nao existir, usa a legada.
+        bool usouNova = true;
+        try {
+          await supabase
+              .from(_tabelaAssProfissionalEndereco)
+              .update({'endereco_ativo': false})
+              .eq('fk_profissional', _idProfissional!);
+        } catch (_) {
+          usouNova = false;
+        }
+        if (usouNova && endereco.id != null) {
+          try {
+            await supabase
+                .from(_tabelaAssProfissionalEndereco)
+                .update({'endereco_ativo': true})
+                .eq('fk_profissional', _idProfissional!)
+                .eq('fk_endereco', endereco.id!);
+          } catch (_) {}
+        }
+        if (!usouNova) {
+          await supabase
+              .from(_tabelaAssUsuarioEndereco)
+              .update({'endereco_ativo': false})
+              .eq('fk_usuario', usuarioId);
+          if (endereco.id != null) {
+            await supabase
+                .from(_tabelaAssUsuarioEndereco)
+                .update({'endereco_ativo': true})
+                .eq('fk_usuario', usuarioId)
+                .eq('fk_endereco', endereco.id!);
+          }
+        }
+      } else {
+        // Remove o "ativo" de todos os endereços do usuário
         await supabase
             .from(_tabelaAssUsuarioEndereco)
-            .update({'endereco_ativo': true})
-            .eq('fk_usuario', usuarioId)
-            .eq('fk_endereco', endereco.id!);
+            .update({'endereco_ativo': false})
+            .eq('fk_usuario', usuarioId);
+
+        // Define o endereço selecionado como ativo (principal)
+        if (endereco.id != null) {
+          await supabase
+              .from(_tabelaAssUsuarioEndereco)
+              .update({'endereco_ativo': true})
+              .eq('fk_usuario', usuarioId)
+              .eq('fk_endereco', endereco.id!);
+        }
       }
 
       // Atualiza a lista local
@@ -548,6 +714,9 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
         builder: (context) => AdicionarEnderecoPage(
           isVisitante: widget.isVisitante,
           isProfissional: widget.isProfissional,
+          contaEmpresaAtiva: _contaEmpresaAtiva,
+          idGrupoEmpresa: _idGrupoEmpresa,
+          idProfissional: _idProfissional,
           enderecoEditar: endereco.toEditData(),
         ),
       ),
@@ -599,14 +768,41 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
 
       final usuarioId = await _buscarIdUsuario(supabase, user.id);
       if (usuarioId == null) return;
+      await _resolverContextoConta(supabase, user.id, usuarioId);
 
       final eraPrincipal = endereco.principal;
 
-      await supabase
-          .from(_tabelaAssUsuarioEndereco)
-          .delete()
-          .eq('fk_usuario', usuarioId)
-          .eq('fk_endereco', endereco.id!);
+      // Deleta o VINCULO da tabela certa (nunca o endereco de outro dono).
+      if (widget.isProfissional && _contaEmpresaAtiva && _idGrupoEmpresa != null) {
+        await supabase
+            .from(_tabelaAssGrupoEmpresaEndereco)
+            .delete()
+            .eq('fk_grupo_empresa', _idGrupoEmpresa!)
+            .eq('fk_endereco', endereco.id!);
+      } else if (widget.isProfissional && _idProfissional != null) {
+        bool apagouNova = false;
+        try {
+          await supabase
+              .from(_tabelaAssProfissionalEndereco)
+              .delete()
+              .eq('fk_profissional', _idProfissional!)
+              .eq('fk_endereco', endereco.id!);
+          apagouNova = true;
+        } catch (_) {}
+        if (!apagouNova) {
+          await supabase
+              .from(_tabelaAssUsuarioEndereco)
+              .delete()
+              .eq('fk_usuario', usuarioId)
+              .eq('fk_endereco', endereco.id!);
+        }
+      } else {
+        await supabase
+            .from(_tabelaAssUsuarioEndereco)
+            .delete()
+            .eq('fk_usuario', usuarioId)
+            .eq('fk_endereco', endereco.id!);
+      }
 
       await supabase
           .from(_tabelaEndereco)
@@ -614,23 +810,66 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
           .eq('id_endereco', endereco.id!);
 
       if (eraPrincipal) {
-        final restantes = await supabase
-            .from(_tabelaAssUsuarioEndereco)
-            .select('fk_endereco')
-            .eq('fk_usuario', usuarioId)
-            .limit(1);
+        // Promove outro vinculo do MESMO dono a principal.
+        if (widget.isProfissional && _contaEmpresaAtiva && _idGrupoEmpresa != null) {
+          final restantes = await supabase
+              .from(_tabelaAssGrupoEmpresaEndereco)
+              .select('fk_endereco')
+              .eq('fk_grupo_empresa', _idGrupoEmpresa!)
+              .limit(1);
+          if (restantes.isNotEmpty) {
+            final fk = restantes.first['fk_endereco'];
+            final idRestante = fk is int
+                ? fk
+                : int.tryParse(fk?.toString() ?? '');
+            if (idRestante != null) {
+              await supabase
+                  .from(_tabelaAssGrupoEmpresaEndereco)
+                  .update({'endereco_ativo': true})
+                  .eq('fk_grupo_empresa', _idGrupoEmpresa!)
+                  .eq('fk_endereco', idRestante);
+            }
+          }
+        } else if (widget.isProfissional && _idProfissional != null) {
+          try {
+            final restantes = await supabase
+                .from(_tabelaAssProfissionalEndereco)
+                .select('fk_endereco')
+                .eq('fk_profissional', _idProfissional!)
+                .limit(1);
+            if (restantes.isNotEmpty) {
+              final fk = restantes.first['fk_endereco'];
+              final idRestante = fk is int
+                  ? fk
+                  : int.tryParse(fk?.toString() ?? '');
+              if (idRestante != null) {
+                await supabase
+                    .from(_tabelaAssProfissionalEndereco)
+                    .update({'endereco_ativo': true})
+                    .eq('fk_profissional', _idProfissional!)
+                    .eq('fk_endereco', idRestante);
+              }
+            }
+          } catch (_) {}
+        } else {
+          final restantes = await supabase
+              .from(_tabelaAssUsuarioEndereco)
+              .select('fk_endereco')
+              .eq('fk_usuario', usuarioId)
+              .limit(1);
 
-        if (restantes.isNotEmpty) {
-          final fk = restantes.first['fk_endereco'];
-          final idRestante = fk is int
-              ? fk
-              : int.tryParse(fk?.toString() ?? '');
-          if (idRestante != null) {
-            await supabase
-                .from(_tabelaAssUsuarioEndereco)
-                .update({'endereco_ativo': true})
-                .eq('fk_usuario', usuarioId)
-                .eq('fk_endereco', idRestante);
+          if (restantes.isNotEmpty) {
+            final fk = restantes.first['fk_endereco'];
+            final idRestante = fk is int
+                ? fk
+                : int.tryParse(fk?.toString() ?? '');
+            if (idRestante != null) {
+              await supabase
+                  .from(_tabelaAssUsuarioEndereco)
+                  .update({'endereco_ativo': true})
+                  .eq('fk_usuario', usuarioId)
+                  .eq('fk_endereco', idRestante);
+            }
           }
         }
       }
@@ -1024,7 +1263,11 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
   }
 
   Widget _buildBotaoAdicionar() {
-    if (widget.isProfissional && _enderecos.isNotEmpty) {
+    // Profissional independente = 1 endereco comercial. Empresa = N
+    // (matriz/filiais), entao o botao continua aparecendo.
+    if (widget.isProfissional &&
+        !_contaEmpresaAtiva &&
+        _enderecos.isNotEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -1040,6 +1283,9 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
                 builder: (context) => AdicionarEnderecoPage(
                   isVisitante: widget.isVisitante,
                   isProfissional: widget.isProfissional,
+                  contaEmpresaAtiva: _contaEmpresaAtiva,
+                  idGrupoEmpresa: _idGrupoEmpresa,
+                  idProfissional: _idProfissional,
                 ),
               ),
             );
@@ -1183,12 +1429,22 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
                     padding: EdgeInsets.zero,
                     children: [
                       if (exibirPrincipal) ...[
-                        _buildTituloSecao('Endereço Principal'),
+                        _buildTituloSecao(
+                          widget.isProfissional && _contaEmpresaAtiva
+                              ? 'Endereço Principal da Empresa'
+                              : widget.isProfissional
+                                  ? 'Endereço do Profissional'
+                                  : 'Endereço Principal',
+                        ),
                         _buildCardPrincipal(enderecoPrincipal),
                         const SizedBox(height: 20),
                       ],
                       if (outrosFiltrados.isNotEmpty) ...[
-                        _buildTituloSecao('Outros Endereços'),
+                        _buildTituloSecao(
+                          widget.isProfissional && _contaEmpresaAtiva
+                              ? 'Outros Endereços da Empresa'
+                              : 'Outros Endereços',
+                        ),
                         ...outrosFiltrados.map(_buildCardOutroEndereco),
                       ],
                       if (!exibirPrincipal && outrosFiltrados.isEmpty)
@@ -1221,11 +1477,20 @@ class AdicionarEnderecoPage extends StatefulWidget {
   final bool isProfissional;
   final EnderecoEditData? enderecoEditar;
 
+  /// Contexto resolvido na lista: evita reconsulta e garante que o form
+  /// salve na associativa certa (empresa x profissional x cliente).
+  final bool contaEmpresaAtiva;
+  final int? idGrupoEmpresa;
+  final int? idProfissional;
+
   const AdicionarEnderecoPage({
     super.key,
     this.isVisitante = false,
     this.isProfissional = false,
     this.enderecoEditar,
+    this.contaEmpresaAtiva = false,
+    this.idGrupoEmpresa,
+    this.idProfissional,
   });
 
   bool get isEdicao => enderecoEditar != null;
@@ -1600,12 +1865,79 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
         return;
       }
 
-      final assResponse = await supabase
-          .from(_tabelaAssUsuarioEndereco)
-          .select('fk_endereco')
-          .eq('fk_usuario', usuarioId);
+      // Resolve o dono: empresa (grupo) > profissional (CNPJ) > cliente.
+      // Usa o contexto vindo da lista; se nulo (rota antiga), reconsulta.
+      bool contaEmpresa = widget.contaEmpresaAtiva;
+      int? idGrupo = widget.idGrupoEmpresa;
+      int? idProf = widget.idProfissional;
+      if (widget.isProfissional && (idProf == null && idGrupo == null)) {
+        try {
+          final prof = await supabase
+              .from('dados_profissionais')
+              .select('id_profissional, fk_grupo_empresa')
+              .eq('fk_usuario', usuarioId)
+              .maybeSingle();
+          idProf = (prof?['id_profissional'] as num?)?.toInt();
+          idGrupo = (prof?['fk_grupo_empresa'] as num?)?.toInt();
+          if (idGrupo != null) {
+            try {
+              final userAuth = supabase.auth.currentUser;
+              final prefs = await SharedPreferences.getInstance();
+              final ativa = userAuth == null
+                  ? false
+                  : prefs.getBool('${_prefContaAtivaKey}_${userAuth.id}') ??
+                        false;
+              contaEmpresa = ativa;
+            } catch (_) {
+              contaEmpresa = false;
+            }
+          }
+        } catch (_) {}
+      }
 
-      if (widget.isProfissional && !widget.isEdicao && assResponse.isNotEmpty) {
+      // Conta quantos vinculos o DONO ja tem (regra por dono, nao global).
+      List<dynamic> vinculosDono = [];
+      String tabelaAssociativa = _tabelaAssUsuarioEndereco;
+      Map<String, dynamic> filtroDono = {'fk_usuario': usuarioId};
+      if (widget.isProfissional && contaEmpresa && idGrupo != null) {
+        tabelaAssociativa = _tabelaAssGrupoEmpresaEndereco;
+        filtroDono = {'fk_grupo_empresa': idGrupo};
+      } else if (widget.isProfissional && idProf != null) {
+        tabelaAssociativa = _tabelaAssProfissionalEndereco;
+        filtroDono = {'fk_profissional': idProf};
+      }
+      bool tabelaNovaExiste = true;
+      if (tabelaAssociativa != _tabelaAssUsuarioEndereco) {
+        try {
+          vinculosDono = await supabase
+              .from(tabelaAssociativa)
+              .select('fk_endereco')
+              .eq(
+                filtroDono.keys.first,
+                filtroDono.values.first as Object,
+              );
+        } catch (_) {
+          // Banco ainda sem a migration -> volta para a legada.
+          tabelaNovaExiste = false;
+          tabelaAssociativa = _tabelaAssUsuarioEndereco;
+          filtroDono = {'fk_usuario': usuarioId};
+          vinculosDono = await supabase
+              .from(_tabelaAssUsuarioEndereco)
+              .select('fk_endereco')
+              .eq('fk_usuario', usuarioId);
+        }
+      } else {
+        vinculosDono = await supabase
+            .from(_tabelaAssUsuarioEndereco)
+            .select('fk_endereco')
+            .eq('fk_usuario', usuarioId);
+      }
+
+      if (widget.isProfissional &&
+          !widget.isEdicao &&
+          vinculosDono.isNotEmpty &&
+          tabelaAssociativa == _tabelaAssProfissionalEndereco) {
+        // Profissional independente: mantem 1 endereco comercial.
         if (mounted) {
           setState(() => _salvando = false);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1620,7 +1952,7 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
         return;
       }
 
-      final isPrimeiroEndereco = assResponse.isEmpty;
+      final isPrimeiroEndereco = vinculosDono.isEmpty;
 
       // 1. Busca ou cria o estado (UF)
       final estadoResponse = await supabase
@@ -1695,14 +2027,39 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
             .update(dadosEndereco)
             .eq('id_endereco', idEndereco);
 
-        await supabase
-            .from(_tabelaAssUsuarioEndereco)
-            .update({
-              'apelido_endereco': _apelidoParaSalvar,
-              'tipo_endereco': _apelidoParaSalvar,
-            })
-            .eq('fk_usuario', usuarioId)
-            .eq('fk_endereco', idEndereco);
+        // Edicao nao troca o dono: atualiza o apelido na tabela do dono.
+        try {
+          if (tabelaAssociativa == _tabelaAssGrupoEmpresaEndereco) {
+            await supabase
+                .from(tabelaAssociativa)
+                .update({
+                  'apelido_endereco': _apelidoParaSalvar,
+                  'tipo_endereco': _apelidoParaSalvar,
+                })
+                .eq('fk_grupo_empresa', idGrupo as Object)
+                .eq('fk_endereco', idEndereco);
+          } else if (tabelaAssociativa == _tabelaAssProfissionalEndereco) {
+            await supabase
+                .from(tabelaAssociativa)
+                .update({
+                  'apelido_endereco': _apelidoParaSalvar,
+                  'tipo_endereco': _apelidoParaSalvar,
+                })
+                .eq('fk_profissional', idProf as Object)
+                .eq('fk_endereco', idEndereco);
+          } else {
+            throw Exception('fallback-legado');
+          }
+        } catch (_) {
+          await supabase
+              .from(_tabelaAssUsuarioEndereco)
+              .update({
+                'apelido_endereco': _apelidoParaSalvar,
+                'tipo_endereco': _apelidoParaSalvar,
+              })
+              .eq('fk_usuario', usuarioId)
+              .eq('fk_endereco', idEndereco);
+        }
       } else {
         final enderecoResponse = await supabase
             .from(_tabelaEndereco)
@@ -1714,13 +2071,45 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
             ? enderecoResponse['id_endereco'] as int
             : int.parse(enderecoResponse['id_endereco'].toString());
 
-        await supabase.from(_tabelaAssUsuarioEndereco).insert({
-          'fk_usuario': usuarioId,
+        // Cria o VINCULO no dono certo. Empresa = N enderecos (sem travar
+        // em 1); profissional = 1 (ja validado acima); cliente = original.
+        final vinculo = {
           'fk_endereco': idEndereco,
           'apelido_endereco': _apelidoParaSalvar,
           'tipo_endereco': _apelidoParaSalvar,
           'endereco_ativo': isPrimeiroEndereco,
-        });
+        };
+        bool salvouNova = false;
+        Object? erroNova;
+        try {
+          if (tabelaAssociativa == _tabelaAssGrupoEmpresaEndereco) {
+            await supabase.from(tabelaAssociativa).insert({
+              'fk_grupo_empresa': idGrupo,
+              ...vinculo,
+            });
+            salvouNova = true;
+          } else if (tabelaAssociativa == _tabelaAssProfissionalEndereco) {
+            await supabase.from(tabelaAssociativa).insert({
+              'fk_profissional': idProf,
+              ...vinculo,
+            });
+            salvouNova = true;
+          }
+        } catch (e) {
+          salvouNova = false;
+          erroNova = e;
+        }
+        if (!salvouNova) {
+          if (tabelaNovaExiste &&
+              tabelaAssociativa != _tabelaAssUsuarioEndereco) {
+            // Erro real de RLS/rede: nao esconde em fallback.
+            throw erroNova ?? Exception('Falha ao salvar vinculo.');
+          }
+          await supabase.from(_tabelaAssUsuarioEndereco).insert({
+            'fk_usuario': usuarioId,
+            ...vinculo,
+          });
+        }
       }
 
       if (mounted) {
