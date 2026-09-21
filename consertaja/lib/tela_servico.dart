@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'models/servico_profissional.dart';
+import 'meus_enderecos.dart';
 import 'perfil_loja.dart';
 import 'perfil_profissional.dart';
 import 'services/servicos_profissional_service.dart';
@@ -254,15 +255,18 @@ class _TelaServicoState extends State<TelaServico> {
     );
   }
 
-  // Carrossel de imagens (4 slides com suporte ao swiping)
+  // Carrossel de imagens (quantidade = nº de imagens anexadas; sem imagem = 1 placeholder)
   Widget _buildCarrossel(ServicoProfissional servico) {
-    final List<String?> slides = [
-      servico.imagemUrl,
-      null,
-      null,
-      null,
-    ];
-    const total = 4;
+    final urls = <String>[];
+    if (servico.imagemUrl != null && _ehUrl(servico.imagemUrl!)) {
+      urls.add(servico.imagemUrl!);
+    }
+    final total = urls.isEmpty ? 1 : urls.length;
+    if (_paginaImagem >= total) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _paginaImagem = 0);
+      });
+    }
 
     return SizedBox(
       height: 250,
@@ -275,15 +279,13 @@ class _TelaServicoState extends State<TelaServico> {
             itemCount: total,
             onPageChanged: (i) => setState(() => _paginaImagem = i),
             itemBuilder: (_, index) {
-              final url = slides[index];
-              if (url != null && _ehUrl(url)) {
-                return Image.network(
-                  url,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _placeholderImagem(),
-                );
-              }
-              return _placeholderImagem();
+              if (urls.isEmpty) return _placeholderImagem();
+              final url = urls[index];
+              return Image.network(
+                url,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _placeholderImagem(),
+              );
             },
           ),
           Positioned(
@@ -944,6 +946,7 @@ class _TelaServicoState extends State<TelaServico> {
   Widget _buildEnderecoProfissional(DetalheServicoPublico detalhe) {
     final lat = detalhe.temCoordenadas ? detalhe.latitude : -23.5505;
     final lng = detalhe.temCoordenadas ? detalhe.longitude : -46.6333;
+    final ruaNumero = _resumirRuaNumero(detalhe.enderecoFormatado);
 
     return Column(
       children: [
@@ -997,6 +1000,21 @@ class _TelaServicoState extends State<TelaServico> {
                         ),
                       ],
                     ),
+                    MarkerLayer(
+                      markers: [
+                        Marker(
+                          point: LatLng(lat, lng),
+                          width: 44,
+                          height: 44,
+                          alignment: Alignment.center,
+                          child: const Icon(
+                            Icons.location_pin,
+                            color: Color(0xFF00A2FF),
+                            size: 40,
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
                 Positioned(
@@ -1017,9 +1035,9 @@ class _TelaServicoState extends State<TelaServico> {
                         ),
                       ],
                     ),
-                    child: const Text(
-                      'Área Central & Zona Norte / Sul',
-                      style: TextStyle(
+                    child: Text(
+                      ruaNumero,
+                      style: const TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
                         color: Color(0xFF334155),
@@ -1035,7 +1053,33 @@ class _TelaServicoState extends State<TelaServico> {
     );
   }
 
+  /// Mostra só "Rua, Número" (sem bairro/cidade/CEP inteiros).
+  String _resumirRuaNumero(String enderecoFormatado) {
+    final limpo = enderecoFormatado.trim();
+    if (limpo.isEmpty ||
+        limpo == 'Endereço a combinar' ||
+        limpo == 'Endereço não cadastrado') {
+      return 'Endereço a combinar';
+    }
+    final partes = limpo.split(',').map((p) => p.trim()).toList();
+    if (partes.isEmpty) return limpo;
+    // O service monta "logradouro, numero, bairro, cidade, UF, CEP".
+    if (partes.length >= 2 && RegExp(r'^\d').hasMatch(partes[1])) {
+      return '${partes[0]}, ${partes[1]}';
+    }
+    return partes.first;
+  }
+
   Widget _buildDisponivelEnderecoEstatico() {
+    final endereco = _sheetEnderecoClienteSelecionado;
+    final temEndereco = endereco != null;
+    final tipoEnd = endereco?.tipoEndereco.isNotEmpty == true
+        ? endereco!.tipoEndereco
+        : 'Casa';
+    final linha = endereco?.linhaFormatada.isNotEmpty == true
+        ? endereco!.linhaFormatada
+        : '';
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -1075,43 +1119,95 @@ class _TelaServicoState extends State<TelaServico> {
                 ),
               ),
               const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 3,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: const Color(0xFFBAE6FD)),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Casa',
-                      style: TextStyle(
-                        color: _azul,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 11,
+              if (temEndereco)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFBAE6FD)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        tipoEnd,
+                        style: const TextStyle(
+                          color: _azul,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 11,
+                        ),
                       ),
-                    ),
-                    SizedBox(width: 4),
-                    Icon(Icons.edit, color: _azul, size: 11),
-                  ],
+                      const SizedBox(width: 4),
+                      const Icon(Icons.edit, color: _azul, size: 11),
+                    ],
+                  ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Travessa Doutor Eduardo Maffei, 87, Casa 3, SP, São Paulo, 02557-121',
-            style: TextStyle(
-              fontSize: 11.5,
-              color: Color(0xFF334155),
-              height: 1.3,
+          if (temEndereco)
+            Text(
+              linha,
+              style: const TextStyle(
+                fontSize: 11.5,
+                color: Color(0xFF334155),
+                height: 1.3,
+              ),
+            )
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _sheetIdUsuario == null
+                      ? 'Faça login para ver seu endereço principal.'
+                      : 'Você ainda não cadastrou um endereço.',
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: Color(0xFF334155),
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  height: 42,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const MeusEnderecosPage(
+                            isVisitante: false,
+                            isProfissional: false,
+                          ),
+                        ),
+                      ).then((_) => _carregarDadosSheet());
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _azul,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      elevation: 0,
+                    ),
+                    icon: const Icon(Icons.add_location_alt_outlined, size: 18),
+                    label: const Text(
+                      'Cadastrar meu endereço',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
         ],
       ),
     );
@@ -1771,7 +1867,9 @@ class _TelaServicoState extends State<TelaServico> {
         }
       }
 
-      // 2. Métodos de entrega disponíveis
+      // 2. Só o tipo_execucao do serviço (passo 2). Sem metodo_entrega
+      // (nem metodo_entrega_empresa): a coluna oficial é
+      // servicos_profissional.tipo_execucao.
       final metodos = <String>[];
       if (servico.tipoExecucao.isNotEmpty &&
           servico.tipoExecucao != 'Execução' &&
@@ -1783,23 +1881,6 @@ class _TelaServicoState extends State<TelaServico> {
           }
         }
       }
-
-      try {
-        final dadosProf = await supabase
-            .from('dados_profissionais')
-            .select('metodo_entrega')
-            .eq('id_profissional', servico.fkProfissional)
-            .maybeSingle();
-        final metodoProf = dadosProf?['metodo_entrega']?.toString();
-        if (metodoProf != null && metodoProf.isNotEmpty) {
-          for (final m in metodoProf.split(',')) {
-            final limpo = m.trim();
-            if (limpo.isNotEmpty && !metodos.contains(limpo)) {
-              metodos.add(limpo);
-            }
-          }
-        }
-      } catch (_) {}
 
       if (metodos.isEmpty) {
         metodos.addAll(['Leva e Traz', 'Retirado no Local', 'Receba em Casa', 'Atendimento em Domicílio']);

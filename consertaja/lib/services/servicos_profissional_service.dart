@@ -478,9 +478,12 @@ class ServicosProfissionalService {
         seguidores = lista.length;
       }
 
-      final endereco = idUsuarioEndereco == null
-          ? null
-          : await _buscarEnderecoPrincipalUsuario(idUsuarioEndereco);
+      final endereco = await _buscarEnderecoPrestador(
+        ehLoja: ehLoja,
+        idGrupo: idGrupo,
+        idProfissional: servico.fkProfissional,
+        idUsuarioFallback: idUsuarioEndereco,
+      );
 
       String? tagEmpresa = grupo?['tag_empresa']?.toString().trim();
       if (tagEmpresa != null && tagEmpresa.isNotEmpty && !tagEmpresa.startsWith('#')) {
@@ -703,6 +706,154 @@ class ServicosProfissionalService {
     } catch (e) {
       debugPrint('❌ [ServicosSvc] buscarServicosPublicos ERROR: $e');
       return [];
+    }
+  }
+
+  /// Endereco do PRESTADOR distinguindo o tipo de conta (igual ao
+  /// meus_enderecos.dart):
+  /// - Loja (grupo_empresa) -> ass_grupo_empresa_endereco (ativo primeiro).
+  /// - Independente (CNPJ)   -> ass_profissional_endereco (ativo primeiro).
+  /// - Fallback legado       -> ass_usuario_endereco (Loja/Oficina/Outro).
+  static Future<
+    ({String texto, String resumo, double lat, double lng, bool temCoords})?
+  >
+  _buscarEnderecoPrestador({
+    required bool ehLoja,
+    int? idGrupo,
+    int? idProfissional,
+    int? idUsuarioFallback,
+  }) async {
+    try {
+      // 1. Loja: vínculo da empresa.
+      if (ehLoja && idGrupo != null) {
+        final vinculos = await _supabase
+            .from('ass_grupo_empresa_endereco')
+            .select('fk_endereco, apelido_endereco, endereco_ativo')
+            .eq('fk_grupo_empresa', idGrupo);
+        final fk = _escolherFkEnderecoAtivo(vinculos);
+        if (fk != null) {
+          final endereco = await _lerEnderecoFisico(fk);
+          if (endereco != null) return endereco;
+        }
+      }
+      // 2. Independente (CNPJ): vínculo comercial do profissional.
+      if (!ehLoja && idProfissional != null) {
+        try {
+          final vinculos = await _supabase
+              .from('ass_profissional_endereco')
+              .select('fk_endereco, apelido_endereco, endereco_ativo')
+              .eq('fk_profissional', idProfissional);
+          final fk = _escolherFkEnderecoAtivo(vinculos);
+          if (fk != null) {
+            final endereco = await _lerEnderecoFisico(fk);
+            if (endereco != null) return endereco;
+          }
+        } catch (_) {}
+      }
+      // 3. Fallback legado: endereço comercial do dono em
+      // ass_usuario_endereco (Loja/Oficina/Outro) — mesma regra do
+      // meus_enderecos.dart antes da migration nova.
+      if (idUsuarioFallback != null) {
+        try {
+          final vinculos = await _supabase
+              .from('ass_usuario_endereco')
+              .select('fk_endereco, apelido_endereco, endereco_ativo')
+              .eq('fk_usuario', idUsuarioFallback)
+              .inFilter('tipo_endereco', ['Loja', 'Oficina', 'Outro'])
+              .limit(5);
+          final fk = _escolherFkEnderecoAtivo(vinculos);
+          if (fk != null) {
+            final endereco = await _lerEnderecoFisico(fk);
+            if (endereco != null) return endereco;
+          }
+        } catch (_) {}
+      }
+      return null;
+    } catch (e) {
+      debugPrint('❌ [ServicosSvc] _buscarEnderecoPrestador ERROR: $e');
+      return null;
+    }
+  }
+
+  /// Prioriza o vínculo com endereco_ativo = true; senão, o primeiro.
+  static int? _escolherFkEnderecoAtivo(List vinculos) {
+    if (vinculos.isEmpty) return null;
+    Map? ativo;
+    for (final v in vinculos) {
+      if ((v as Map)['endereco_ativo'] == true) {
+        ativo = v;
+        break;
+      }
+    }
+    ativo ??= vinculos.first as Map;
+    final fk = ativo['fk_endereco'];
+    return fk is int ? fk : int.tryParse(fk?.toString() ?? '');
+  }
+
+  /// Lê enderecos + cidades + estados e monta texto/resumo/coords.
+  static Future<
+    ({String texto, String resumo, double lat, double lng, bool temCoords})?
+  >
+  _lerEnderecoFisico(int idEndereco) async {
+    try {
+      final endereco = await _supabase
+          .from('enderecos')
+          .select(
+            'cep, logradouro, numero, bairro, complemento, fk_cidade, latitude, longitude',
+          )
+          .eq('id_endereco', idEndereco)
+          .maybeSingle();
+      if (endereco == null) return null;
+
+      String cidade = '';
+      String estado = '';
+      final idCidade = (endereco['fk_cidade'] as num?)?.toInt();
+      if (idCidade != null) {
+        final cidadeRow = await _supabase
+            .from('cidades')
+            .select('nome_cidade, fk_estado')
+            .eq('id_cidade', idCidade)
+            .maybeSingle();
+        cidade = cidadeRow?['nome_cidade']?.toString() ?? '';
+        final idEstado = (cidadeRow?['fk_estado'] as num?)?.toInt();
+        if (idEstado != null) {
+          final estadoRow = await _supabase
+              .from('estados')
+              .select('sigla_estado')
+              .eq('id_estado', idEstado)
+              .maybeSingle();
+          estado = estadoRow?['sigla_estado']?.toString() ?? '';
+        }
+      }
+
+      final logradouro = endereco['logradouro']?.toString() ?? '';
+      final numero = endereco['numero']?.toString() ?? '';
+      final bairro = endereco['bairro']?.toString() ?? '';
+      final cep = endereco['cep']?.toString() ?? '';
+      final partes = <String>[];
+      if (logradouro.isNotEmpty) {
+        partes.add(numero.isNotEmpty ? '$logradouro, $numero' : logradouro);
+      }
+      if (bairro.isNotEmpty) partes.add(bairro);
+      if (cidade.isNotEmpty) {
+        partes.add(estado.isNotEmpty ? '$cidade, $estado' : cidade);
+      }
+      if (cep.isNotEmpty) partes.add(cep);
+
+      final lat = double.tryParse(endereco['latitude']?.toString() ?? '');
+      final lng = double.tryParse(endereco['longitude']?.toString() ?? '');
+      return (
+        texto: partes.join(', '),
+        resumo: bairro.isNotEmpty
+            ? bairro
+            : (cidade.isNotEmpty ? cidade : (logradouro.isNotEmpty ? logradouro : 'Localização não informada')),
+        lat: lat ?? -23.5505,
+        lng: lng ?? -46.6333,
+        temCoords: lat != null && lng != null,
+      );
+    } catch (e) {
+      debugPrint('❌ [ServicosSvc] _lerEnderecoFisico ERROR: $e');
+      return null;
     }
   }
 
