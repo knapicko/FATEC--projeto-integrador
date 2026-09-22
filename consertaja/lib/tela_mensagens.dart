@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'gestao_equipe.dart';
+import 'meus_pedidos.dart';
 import 'seguindo_cliente.dart';
 import 'services/chat_anexos_service.dart';
 import 'services/verificacao_online.dart';
@@ -952,6 +953,12 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
       AppNavigationUtil.navegarAba(
         context,
         SeguindoClientePage(isVisitante: widget.isVisitante),
+        isHome: false,
+      );
+    } else if (index == 3 && !widget.isProfissional) {
+      AppNavigationUtil.navegarAba(
+        context,
+        MeusPedidosPage(isVisitante: widget.isVisitante),
         isHome: false,
       );
     } else if (index == 3 && widget.isProfissional) {

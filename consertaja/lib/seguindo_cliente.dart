@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'meus_pedidos.dart';
 import 'perfil_profissional.dart';
 import 'tela_home.dart';
 import 'tela_mensagens.dart';
@@ -141,6 +142,12 @@ class _SeguindoClientePageState extends State<SeguindoClientePage> {
       AppNavigationUtil.navegarAba(
         context,
         TelaMensagensPage(isVisitante: widget.isVisitante),
+        isHome: false,
+      );
+    } else if (index == 3) {
+      AppNavigationUtil.navegarAba(
+        context,
+        MeusPedidosPage(isVisitante: widget.isVisitante),
         isHome: false,
       );
     } else if (index == 4) {
