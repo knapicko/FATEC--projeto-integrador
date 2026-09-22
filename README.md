@@ -186,7 +186,7 @@ FATEC--projeto-integrador/
 ├── docs/
 │   └── Imagens Projeto/
 │
-├── models/
+│
 │
 ├── README.md
 │
@@ -196,8 +196,6 @@ FATEC--projeto-integrador/
 A pasta `consertaja/` contém o código principal do aplicativo Flutter.
 
 A pasta `docs/` contém a documentação e os materiais utilizados no projeto.
-
-A pasta `models/` contém os modelos relacionados ao projeto.
 
 ---
 
