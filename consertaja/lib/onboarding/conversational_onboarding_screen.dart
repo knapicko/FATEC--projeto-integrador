@@ -5,6 +5,8 @@ import 'onboarding_step.dart';
 import 'onboarding_theme.dart';
 import 'onboarding_widgets.dart';
 import '../cadastro_profissional.dart';
+import '../esqueci_senha.dart';
+import '../utils/app_navigation_util.dart';
 
 class ConversationalOnboardingScreen extends StatefulWidget {
   final bool iniciarLogin;
@@ -34,18 +36,16 @@ class _ConversationalOnboardingScreenState
   @override
   void initState() {
     super.initState();
+    // Inicializa o fluxo desejado imediatamente para evitar piscar splash na transição
+    if (widget.iniciarLogin) {
+      _controller.iniciarFluxoLogin();
+    } else if (widget.iniciarCadastro) {
+      _controller.iniciarFluxoCadastro();
+    } else {
+      _controller.ensureStarted();
+    }
     // Atualiza os requisitos de senha AO VIVO enquanto o usuário digita.
-    // Sem esse listener, a lista só era recalculada ao desfocar/agir no campo.
     _controller.senha.addListener(_atualizarRequisitosSenha);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (widget.iniciarLogin) {
-        _controller.iniciarFluxoLogin();
-      } else if (widget.iniciarCadastro) {
-        _controller.iniciarFluxoCadastro();
-      } else {
-        _controller.ensureStarted();
-      }
-    });
   }
 
   @override
@@ -122,10 +122,31 @@ class _ConversationalOnboardingScreenState
     }
   }
 
-  double _caixaSizeForStep(OnboardingStep step) {
+  double _upperAreaHeight(OnboardingStep step) {
+    switch (step) {
+      case OnboardingStep.passwordForm:
+        return 385;
+      case OnboardingStep.profPasswordForm:
+        return 340;
+      case OnboardingStep.loginForm:
+        return 245;
+      default:
+        return 300;
+    }
+  }
+
+  double _caixaSizeForStep(OnboardingStep step, BuildContext context) {
+    final altura = MediaQuery.sizeOf(context).height;
+    final tamanhoPadraoInicial = (altura * 0.22).clamp(160.0, 195.0);
+
     switch (step) {
       case OnboardingStep.splash:
-        return 230;
+      case OnboardingStep.loginForm:
+        return tamanhoPadraoInicial;
+      case OnboardingStep.passwordForm:
+        return 145;
+      case OnboardingStep.profPasswordForm:
+        return 160;
       case OnboardingStep.welcome:
       case OnboardingStep.askDocument:
       case OnboardingStep.documentResult:
@@ -152,16 +173,13 @@ class _ConversationalOnboardingScreenState
       case OnboardingStep.profDocsPrompt2:
         return 220;
       case OnboardingStep.documentInput:
-      case OnboardingStep.loginForm:
       case OnboardingStep.chooseAccount:
       case OnboardingStep.clientPfForm:
       case OnboardingStep.contactForm:
-      case OnboardingStep.passwordForm:
       case OnboardingStep.clientPjForm:
       case OnboardingStep.profDataForm:
       case OnboardingStep.profPjForm:
       case OnboardingStep.profContactForm:
-      case OnboardingStep.profPasswordForm:
       case OnboardingStep.profAreaForm:
       case OnboardingStep.profDocsForm:
         return 195;
@@ -170,7 +188,18 @@ class _ConversationalOnboardingScreenState
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
+    return AppBackHandler(
+      isAuth: true,
+      onCustomBack: () {
+        if ((_controller.step == OnboardingStep.loginForm ||
+                _controller.step == OnboardingStep.welcome) &&
+            widget.onVoltarInicio != null) {
+          widget.onVoltarInicio!(context);
+        } else {
+          _controller.voltar();
+        }
+      },
+      child: AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
         final step = _controller.step;
@@ -215,88 +244,93 @@ class _ConversationalOnboardingScreenState
                         child: Center(
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 24),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                SizedBox(
-                                  height: 300,
-                                  child: Align(
-                                    alignment: Alignment.bottomCenter,
-                                    child: AnimatedSize(
-                                      duration: const Duration(
-                                        milliseconds: 520,
-                                      ),
-                                      curve: Curves.easeInOutCubic,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 360),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  SizedBox(
+                                    height: _upperAreaHeight(step),
+                                    child: Align(
                                       alignment: Alignment.bottomCenter,
-                                      child: AnimatedSwitcher(
+                                      child: AnimatedSize(
                                         duration: const Duration(
-                                          milliseconds: 600,
+                                          milliseconds: 520,
                                         ),
-                                        reverseDuration: const Duration(
-                                          milliseconds: 300,
-                                        ),
-                                        layoutBuilder:
-                                            (currentChild, previousChildren) {
-                                              return Stack(
-                                                alignment:
-                                                    Alignment.bottomCenter,
-                                                clipBehavior: Clip.none,
-                                                children: [
-                                                  ...previousChildren,
-                                                  ?currentChild,
-                                                ],
-                                              );
-                                            },
-                                        transitionBuilder: (child, animation) =>
-                                            ConversationContentTransition(
-                                              animation: animation,
-                                              child: child,
-                                            ),
-                                        child: isSplash
-                                            ? const SizedBox.shrink()
-                                            : isBubble
-                                            ? KeyedSubtree(
-                                                key: ValueKey(
-                                                  'bubble-${step.name}-${_controller.falaAtual}',
-                                                ),
-                                                child: _buildUpperContent(step),
-                                              )
-                                            : LayoutBuilder(
-                                                builder: (context, constraints) {
-                                                  return FittedBox(
-                                                    key: ValueKey(
-                                                      'form-${step.name}-${_controller.erroFala}',
-                                                    ),
-                                                    fit: BoxFit.scaleDown,
-                                                    alignment:
-                                                        Alignment.bottomCenter,
-                                                    child: SizedBox(
-                                                      width:
-                                                          constraints.maxWidth,
-                                                      child: _buildUpperContent(
-                                                        step,
-                                                      ),
-                                                    ),
-                                                  );
-                                                },
+                                        curve: Curves.easeInOutCubic,
+                                        alignment: Alignment.bottomCenter,
+                                        child: AnimatedSwitcher(
+                                          duration: const Duration(
+                                            milliseconds: 600,
+                                          ),
+                                          reverseDuration: const Duration(
+                                            milliseconds: 300,
+                                          ),
+                                          layoutBuilder:
+                                              (currentChild, previousChildren) {
+                                                return Stack(
+                                                  alignment:
+                                                      Alignment.bottomCenter,
+                                                  clipBehavior: Clip.none,
+                                                  children: [
+                                                    ...previousChildren,
+                                                    ?currentChild,
+                                                  ],
+                                                );
+                                              },
+                                          transitionBuilder: (child, animation) =>
+                                              ConversationContentTransition(
+                                                animation: animation,
+                                                child: child,
                                               ),
+                                          child: isSplash
+                                              ? const SizedBox.shrink()
+                                              : isBubble
+                                              ? KeyedSubtree(
+                                                  key: ValueKey(
+                                                    'bubble-${step.name}-${_controller.falaAtual}',
+                                                  ),
+                                                  child: _buildUpperContent(step),
+                                                )
+                                              : LayoutBuilder(
+                                                  key: ValueKey(
+                                                    'form-${step.name}-${_controller.erroFala}',
+                                                  ),
+                                                  builder: (context, constraints) {
+                                                    return ConstrainedBox(
+                                                      constraints: BoxConstraints(
+                                                        maxWidth: constraints.maxWidth,
+                                                        maxHeight: _upperAreaHeight(step),
+                                                      ),
+                                                      child: FittedBox(
+                                                        fit: BoxFit.scaleDown,
+                                                        alignment: Alignment.bottomCenter,
+                                                        child: SizedBox(
+                                                          width: constraints.maxWidth,
+                                                          child: _buildUpperContent(step),
+                                                        ),
+                                                      ),
+                                                    );
+                                                  },
+                                                ),
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(height: 4),
-                                Hero(
-                                  tag: 'caixa-transicao-inicial',
-                                  child: CaixaCharacter(
-                                    asset: _controller.pose.asset,
-                                    size: _caixaSizeForStep(step),
+                                  const SizedBox(height: 4),
+                                  Hero(
+                                    tag: 'caixa-transicao-inicial',
+                                    child: CaixaCharacter(
+                                      asset: _controller.pose.asset,
+                                      size: _caixaSizeForStep(step, context),
+                                    ),
                                   ),
-                                ),
-                                if (isSplash) ...[
-                                  const SizedBox(height: 22),
-                                  _buildSplashLogo(),
+                                  if (isSplash) ...[
+                                    const SizedBox(height: 22),
+                                    _buildSplashLogo(),
+                                  ],
                                 ],
-                              ],
+                              ),
                             ),
                           ),
                         ),
@@ -306,7 +340,12 @@ class _ConversationalOnboardingScreenState
                       AnimatedSize(
                         duration: const Duration(milliseconds: 500),
                         curve: Curves.easeInOutCubic,
-                        child: _buildFooterActions(step),
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 360),
+                            child: _buildFooterActions(step),
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -325,7 +364,7 @@ class _ConversationalOnboardingScreenState
           ),
         );
       },
-    );
+    ),);
   }
 
   Widget _buildTopBar(bool mostraProgresso) {
@@ -713,12 +752,17 @@ class _ConversationalOnboardingScreenState
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            OnboardingWhiteField(
-              label: _loginIdentifierHint(_controller.identificadorLogin.text),
-              controller: _controller.identificadorLogin,
-              filledValue: true,
-              keyboardType: TextInputType.emailAddress,
-              inputFormatters: [LoginIdentifierInputFormatter()],
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _controller.identificadorLogin,
+              builder: (context, val, _) {
+                return OnboardingWhiteField(
+                  label: identificarTipoLogin(val.text),
+                  controller: _controller.identificadorLogin,
+                  filledValue: true,
+                  keyboardType: TextInputType.emailAddress,
+                  inputFormatters: [LoginIdentifierInputFormatter()],
+                );
+              },
             ),
             OnboardingWhiteField(
               label: 'Senha',
@@ -730,6 +774,32 @@ class _ConversationalOnboardingScreenState
               onSuffix: () {
                 setState(() => _senhaLoginOculta = !_senhaLoginOculta);
               },
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 2, bottom: 8),
+                child: GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const EsqueciSenhaPage(),
+                      ),
+                    );
+                  },
+                  child: const Text(
+                    'Esqueci minha senha',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      decoration: TextDecoration.underline,
+                      decorationColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
             ),
             if (_controller.erroCampo != null)
               Padding(
@@ -853,7 +923,7 @@ class _ConversationalOnboardingScreenState
               child: Column(
                 children: [
                   PasswordRequirementItem(
-                    text: 'No mínimo 8 caracteres',
+                    text: 'No mínimo 12 caracteres',
                     valid: _controller.senhaTemOito,
                   ),
                   PasswordRequirementItem(
@@ -1052,27 +1122,33 @@ class _ConversationalOnboardingScreenState
                   : Icons.visibility_outlined,
               onSuffix: () => setState(() => _senhaOculta = !_senhaOculta),
             ),
-            PasswordRequirementItem(
-              text: 'No mínimo 8 caracteres',
-              valid: _controller.senhaTemOito,
+            Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 8),
+              child: Column(
+                children: [
+                  PasswordRequirementItem(
+                    text: 'No mínimo 12 caracteres',
+                    valid: _controller.senhaTemOito,
+                  ),
+                  PasswordRequirementItem(
+                    text: 'Pelo menos 1 letra maiúscula',
+                    valid: _controller.senhaMaiuscula,
+                  ),
+                  PasswordRequirementItem(
+                    text: 'Pelo menos 1 letra minúscula',
+                    valid: _controller.senhaMinuscula,
+                  ),
+                  PasswordRequirementItem(
+                    text: 'Pelo menos 1 número',
+                    valid: _controller.senhaNumero,
+                  ),
+                  PasswordRequirementItem(
+                    text: 'Pelo menos 1 caractere especial',
+                    valid: _controller.senhaSimbolo,
+                  ),
+                ],
+              ),
             ),
-            PasswordRequirementItem(
-              text: 'Pelo menos 1 letra maiúscula',
-              valid: _controller.senhaMaiuscula,
-            ),
-            PasswordRequirementItem(
-              text: 'Pelo menos 1 letra minúscula',
-              valid: _controller.senhaMinuscula,
-            ),
-            PasswordRequirementItem(
-              text: 'Pelo menos 1 número',
-              valid: _controller.senhaNumero,
-            ),
-            PasswordRequirementItem(
-              text: 'Pelo menos 1 caractere especial',
-              valid: _controller.senhaSimbolo,
-            ),
-            const SizedBox(height: 8),
             OnboardingWhiteField(
               label: 'Confirme a senha',
               controller: _controller.confirmarSenha,
@@ -1124,37 +1200,26 @@ class _ConversationalOnboardingScreenState
     }
   }
 
-  String _loginIdentifierHint(String value) {
-    if (value.contains('@') || RegExp(r'[A-Za-z]').hasMatch(value)) {
-      return 'exemplo@email.com';
-    }
-    final digits = value.replaceAll(RegExp(r'\D'), '');
-    if (digits.length >= 12) return 'CNPJ: __.___.___/____-__';
-    if (digits.length == 11) return 'CPF ou telefone: ___.___.___-__';
-    if (digits.isNotEmpty) return 'Telefone: (__) ____-____';
-    return 'CPF, CNPJ, email ou telefone';
-  }
-
   Widget _buildFooterActions(OnboardingStep step) {
     switch (step) {
-      // 4° Imagem: Continuar ->
+      // 4° Imagem: Continuar
       case OnboardingStep.documentInput:
         return Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
           child: PillButton(
-            label: 'Continuar ->',
+            label: 'Continuar',
             outlined: true,
             loading: _controller.carregando,
             onTap: _controller.continuarDocumento,
           ),
         );
 
-      // 8° Imagem: Entrar ->
+      // 8° Imagem: Entrar
       case OnboardingStep.loginForm:
         return Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
           child: PillButton(
-            label: 'Entrar ->',
+            label: 'Entrar',
             background: Colors.white,
             foreground: OnboardingColors.blue,
             loading: _controller.carregando,
@@ -1172,7 +1237,7 @@ class _ConversationalOnboardingScreenState
           ),
         );
 
-      // 15° Imagem: Continuar -> e Continuar com Google
+      // 15° Imagem: Continuar e Continuar com Google
       case OnboardingStep.clientPfForm:
         return Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
@@ -1180,7 +1245,7 @@ class _ConversationalOnboardingScreenState
             mainAxisSize: MainAxisSize.min,
             children: [
               PillButton(
-                label: 'Continuar ->',
+                label: 'Continuar',
                 outlined: true,
                 loading: _controller.carregando,
                 onTap: _controller.continuarDadosPf,
@@ -1194,7 +1259,7 @@ class _ConversationalOnboardingScreenState
           ),
         );
 
-      // 17° Imagem: Continuar -> e Continuar com Google
+      // 17° Imagem: Continuar e Continuar com Google
       case OnboardingStep.contactForm:
         return Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
@@ -1202,7 +1267,7 @@ class _ConversationalOnboardingScreenState
             mainAxisSize: MainAxisSize.min,
             children: [
               PillButton(
-                label: 'Continuar ->',
+                label: 'Continuar',
                 outlined: true,
                 loading: _controller.carregando,
                 onTap: _controller.continuarContato,
@@ -1239,7 +1304,7 @@ class _ConversationalOnboardingScreenState
           ),
         );
 
-      // 22° Imagem: Continuar -> e Continuar com Google
+      // 22° Imagem: Continuar e Continuar com Google
       case OnboardingStep.clientPjForm:
         return Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
@@ -1247,7 +1312,7 @@ class _ConversationalOnboardingScreenState
             mainAxisSize: MainAxisSize.min,
             children: [
               PillButton(
-                label: 'Continuar ->',
+                label: 'Continuar',
                 outlined: true,
                 loading: _controller.carregando,
                 onTap: _controller.continuarDadosPj,
@@ -1285,7 +1350,7 @@ class _ConversationalOnboardingScreenState
         return Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
           child: PillButton(
-            label: 'Continuar ->',
+            label: 'Continuar',
             outlined: true,
             loading: _controller.carregando,
             onTap: _controller.continuarDadosProf,
@@ -1296,7 +1361,7 @@ class _ConversationalOnboardingScreenState
         return Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
           child: PillButton(
-            label: 'Continuar ->',
+            label: 'Continuar',
             outlined: true,
             loading: _controller.carregando,
             onTap: _controller.continuarDadosPjProf,
@@ -1307,7 +1372,7 @@ class _ConversationalOnboardingScreenState
         return Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
           child: PillButton(
-            label: 'Continuar ->',
+            label: 'Continuar',
             outlined: true,
             loading: _controller.carregando,
             onTap: _controller.continuarContatoProf,
@@ -1318,7 +1383,7 @@ class _ConversationalOnboardingScreenState
         return Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
           child: PillButton(
-            label: 'Continuar ->',
+            label: 'Continuar',
             outlined: true,
             loading: _controller.carregando,
             onTap: _controller.continuarSenhaProf,
@@ -1329,7 +1394,7 @@ class _ConversationalOnboardingScreenState
         return Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
           child: PillButton(
-            label: 'Continuar ->',
+            label: 'Continuar',
             outlined: true,
             loading: _controller.carregando,
             onTap: _controller.oficiosSelecionados.isEmpty

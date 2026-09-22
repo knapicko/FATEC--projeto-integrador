@@ -66,7 +66,7 @@ class _CriarProfissionalPopoverState extends State<CriarProfissionalPopover> {
 
   static const _azulPrimario = Color(0xFF0FB3FF);
 
-  bool get _temOitoCaracteres => _senhaController.text.length >= 8;
+  bool get _temOitoCaracteres => _senhaController.text.length >= 12;
   bool get _temMaiuscula => _senhaController.text.contains(RegExp(r'[A-Z]'));
   bool get _temMinuscula => _senhaController.text.contains(RegExp(r'[a-z]'));
   bool get _temNumero => _senhaController.text.contains(RegExp(r'[0-9]'));
@@ -138,12 +138,12 @@ class _CriarProfissionalPopoverState extends State<CriarProfissionalPopover> {
 
   String? _validarSenha(String? value) {
     final senha = value ?? '';
-    if (senha.length < 8 ||
+    if (senha.length < 12 ||
         !senha.contains(RegExp(r'[A-Z]')) ||
         !senha.contains(RegExp(r'[a-z]')) ||
         !senha.contains(RegExp(r'[0-9]')) ||
         !senha.contains(RegExp(r'[^A-Za-z0-9\s]'))) {
-      return 'Use 8 caracteres, maiúscula, minúscula, número e símbolo.';
+      return 'Use 12 caracteres, maiúscula, minúscula, número e símbolo.';
     }
     return null;
   }
@@ -258,7 +258,7 @@ class _CriarProfissionalPopoverState extends State<CriarProfissionalPopover> {
                   ),
                   validator: _validarSenha,
                 ),
-                _requisitoSenha('Pelo menos 8 caracteres', _temOitoCaracteres),
+                _requisitoSenha('Pelo menos 12 caracteres', _temOitoCaracteres),
                 _requisitoSenha('Uma letra maiúscula', _temMaiuscula),
                 _requisitoSenha('Uma letra minúscula', _temMinuscula),
                 _requisitoSenha('Um número', _temNumero),

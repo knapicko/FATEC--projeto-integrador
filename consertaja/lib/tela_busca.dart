@@ -1,17 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'meus_pedidos.dart';
 import 'perfil_profissional.dart';
 import 'perfil_loja.dart';
 import 'tela_meu_perfil_cliente.dart';
 import 'seguindo_cliente.dart';
+import 'services/servicos_profissional_service.dart';
 import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/iniciais.dart';
 import 'widgets/tag_oficio.dart';
+import 'tela_home.dart';
+import 'models/servico_profissional.dart';
+import 'tela_servico.dart';
+import 'utils/app_navigation_util.dart';
 
 enum _AbaResultado { todos, servicos, profissionais }
 
 class _ServicoBusca {
+  final int? id;
   final String titulo;
   final String codigoTag;
   final String categoriaTag;
@@ -22,6 +29,7 @@ class _ServicoBusca {
   final List<String> termosBusca;
 
   const _ServicoBusca({
+    this.id,
     required this.titulo,
     required this.codigoTag,
     required this.categoriaTag,
@@ -115,6 +123,7 @@ class _TelaBuscaState extends State<TelaBusca> {
 
   List<_ProfissionalBusca> _profissionaisSupabase = [];
   List<_ProfissionalBusca> _empresasSupabase = [];
+  List<_ServicoBusca> _servicosSupabase = [];
   bool _carregandoProfissionais = false;
   bool _erroNaBusca = false;
 
@@ -148,7 +157,7 @@ class _TelaBuscaState extends State<TelaBusca> {
       logistica: 'Entregue em até 5 dias - Retirada',
       preco: 18.99,
       localizacao: 'Estrada das Lágrima',
-      caminhoImagem: 'assets/images/panela.png',
+      caminhoImagem: '',
       termosBusca: [
         'conserto',
         'cabo',
@@ -166,7 +175,7 @@ class _TelaBuscaState extends State<TelaBusca> {
       logistica: 'Entregue em até 3 dias - Leva e Traz',
       preco: 45.00,
       localizacao: 'Vila Mariana',
-      caminhoImagem: 'assets/images/panela.png',
+      caminhoImagem: '',
       termosBusca: [
         'solda',
         'panela',
@@ -183,7 +192,7 @@ class _TelaBuscaState extends State<TelaBusca> {
       logistica: 'Pronto em 24h - Leva e Traz',
       preco: 25.50,
       localizacao: 'Ipiranga',
-      caminhoImagem: 'assets/images/panela.png',
+      caminhoImagem: '',
       termosBusca: [
         'polimento',
         'cabo',
@@ -841,10 +850,27 @@ class _TelaBuscaState extends State<TelaBusca> {
         );
       }
 
+      final servicosDb =
+          await ServicosProfissionalService.buscarServicosPublicos(termo);
+      final servicosEncontrados = servicosDb.map((s) {
+        return _ServicoBusca(
+          id: s.id,
+          titulo: s.titulo,
+          codigoTag: s.tagEmpresa ?? '#SRV${s.id}',
+          categoriaTag: s.categoria,
+          logistica: 'Entregue em até 5 dias - Retirada ou Leva e Traz',
+          preco: s.preco,
+          localizacao: s.localizacao,
+          caminhoImagem: s.imagemUrl ?? '',
+          termosBusca: [s.titulo, s.categoria, s.tagEmpresa ?? ''],
+        );
+      }).toList();
+
       if (!mounted) return;
       setState(() {
         _profissionaisSupabase = resultados;
         _empresasSupabase = empresasEncontradas;
+        _servicosSupabase = servicosEncontrados;
         _carregandoProfissionais = false;
       });
     } catch (_) {
@@ -857,9 +883,13 @@ class _TelaBuscaState extends State<TelaBusca> {
   }
 
   List<_ServicoBusca> get _servicosFiltrados {
-    return _todosServicos
-        .where((s) => _correspondeBusca(s.termosBusca, _termoBusca))
-        .toList();
+    if (_servicosSupabase.isNotEmpty) return _servicosSupabase;
+    if (_erroNaBusca) {
+      return _todosServicos
+          .where((s) => _correspondeBusca(s.termosBusca, _termoBusca))
+          .toList();
+    }
+    return _servicosSupabase;
   }
 
   List<_ProfissionalBusca> get _profissionaisFiltrados {
@@ -890,6 +920,7 @@ class _TelaBuscaState extends State<TelaBusca> {
       _abaAtiva = _AbaResultado.todos;
       _profissionaisSupabase = [];
       _empresasSupabase = [];
+      _servicosSupabase = [];
     });
     _focusBusca.unfocus();
     await _buscarProfissionaisNoSupabase(texto);
@@ -1255,104 +1286,160 @@ class _TelaBuscaState extends State<TelaBusca> {
     );
   }
 
-  Widget _buildCardServico(_ServicoBusca servico) {
+  Widget _placeholderImagemServico({double height = 140}) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: _cardDecoration(),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Image.asset(
-            servico.caminhoImagem,
-            height: 140,
-            width: double.infinity,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(
-              height: 140,
-              color: Colors.grey.shade200,
-              child: Icon(Icons.image, color: Colors.grey.shade400, size: 40),
+      height: height,
+      width: double.infinity,
+      color: const Color(0xFFEAF4FB),
+      child: const Center(
+        child: Icon(
+          Icons.home_repair_service_rounded,
+          color: Color(0xFF0A6E9D),
+          size: 40,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCardServico(_ServicoBusca servico) {
+    final bool usaImagemRede = _imagemEhUrl(servico.caminhoImagem);
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => TelaServico(
+              idServico: servico.id,
+              servicoInicial: ServicoProfissional(
+                id: servico.id ?? 1,
+                fkProfissional: 1,
+                titulo: servico.titulo,
+                descricao:
+                    'Serviço especializado com garantia de qualidade e suporte dedicado.',
+                valor: servico.preco,
+                fkOficio: 1,
+                funcao: servico.categoriaTag,
+                imagemUrl: servico.caminhoImagem,
+                ativo: true,
+                dataCriacao: DateTime.now(),
+              ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  servico.titulo,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: _cardDecoration(),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            usaImagemRede
+                ? Image.network(
+                    servico.caminhoImagem,
+                    height: 140,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) =>
+                        _placeholderImagemServico(height: 140),
+                  )
+                : (servico.caminhoImagem.isNotEmpty &&
+                        !servico.caminhoImagem.contains('panela.png'))
+                    ? Image.asset(
+                        servico.caminhoImagem,
+                        height: 140,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) =>
+                            _placeholderImagemServico(height: 140),
+                      )
+                    : _placeholderImagemServico(height: 140),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    servico.titulo,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    _buildTag(
-                      servico.codigoTag,
-                      const Color(0xFFE1F5FE),
-                      _primaryBlue,
-                    ),
-                    const SizedBox(width: 6),
-                    _buildTag(
-                      servico.categoriaTag,
-                      const Color(0xFFEEEEEE),
-                      const Color(0xFF616161),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        servico.logistica,
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      _buildTag(
+                        servico.codigoTag,
+                        const Color(0xFFE1F5FE),
+                        _primaryBlue,
+                      ),
+                      const SizedBox(width: 6),
+                      Builder(
+                        builder: (context) {
+                          final corBase = CorOficio.parse(servico.categoriaTag);
+                          return _buildTag(
+                            servico.categoriaTag,
+                            CorOficio.corFundo(corBase),
+                            CorOficio.corTexto(corBase),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          servico.logistica,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ),
+                      const Icon(
+                        Icons.local_shipping_outlined,
+                        color: _primaryBlue,
+                        size: 18,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Text(
+                        'R\$ ${servico.preco.toStringAsFixed(2).replaceAll('.', ',')}',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: _primaryBlue,
+                        ),
+                      ),
+                      const Spacer(),
+                      Icon(
+                        Icons.location_on_outlined,
+                        color: Colors.grey.shade500,
+                        size: 14,
+                      ),
+                      const SizedBox(width: 2),
+                      Text(
+                        servico.localizacao,
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey.shade600,
                         ),
                       ),
-                    ),
-                    const Icon(
-                      Icons.local_shipping_outlined,
-                      color: _primaryBlue,
-                      size: 18,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Text(
-                      'R\$ ${servico.preco.toStringAsFixed(2).replaceAll('.', ',')}',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: _primaryBlue,
-                      ),
-                    ),
-                    const Spacer(),
-                    Icon(
-                      Icons.location_on_outlined,
-                      color: Colors.grey.shade500,
-                      size: 14,
-                    ),
-                    const SizedBox(width: 2),
-                    Text(
-                      servico.localizacao,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1587,6 +1674,7 @@ class _TelaBuscaState extends State<TelaBusca> {
                         profissao: profissional.tag1,
                         avaliacao: profissional.avaliacao,
                         totalAvaliacoes: 120,
+                        idGrupoEmpresa: profissional.idGrupoEmpresa,
                       ),
                     ),
                   );
@@ -1845,41 +1933,51 @@ class _TelaBuscaState extends State<TelaBusca> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey.shade100,
-      body: _mostrandoResultados
-          ? _buildTelaResultados()
-          : _buildTelaBuscaInicial(),
-      bottomNavigationBar: _mostrandoResultados
-          ? BottomNavigationBarCliente(
-              currentIndex: 0,
-              onTap: (index) {
-                if (index == 0) {
-                  Navigator.pop(context);
-                } else if (index == 1) {
-                  Navigator.of(context).pushReplacement(
-                    PageRouteBuilder(
-                      pageBuilder: (_, _, _) => SeguindoClientePage(
+    return AppBackHandler(
+      child: Scaffold(
+        backgroundColor: Colors.grey.shade100,
+        body: _mostrandoResultados
+            ? _buildTelaResultados()
+            : _buildTelaBuscaInicial(),
+        bottomNavigationBar: _mostrandoResultados
+            ? BottomNavigationBarCliente(
+                currentIndex: 0,
+                onTap: (index) {
+                  if (index == 0) {
+                    AppNavigationUtil.navegarAba(
+                      context,
+                      TelaHome(isVisitante: widget.isVisitante),
+                      isHome: true,
+                    );
+                  } else if (index == 1) {
+                    AppNavigationUtil.navegarAba(
+                      context,
+                      SeguindoClientePage(
                         isVisitante: widget.isVisitante,
                       ),
-                      transitionDuration: Duration.zero,
-                      reverseTransitionDuration: Duration.zero,
-                    ),
-                  );
-                } else if (index == 4) {
-                  Navigator.of(context).pushReplacement(
-                    PageRouteBuilder(
-                      pageBuilder: (_, _, _) => TelaMeuPerfilClientePage(
+                      isHome: false,
+                    );
+                  } else if (index == 3) {
+                    AppNavigationUtil.navegarAba(
+                      context,
+                      MeusPedidosPage(
                         isVisitante: widget.isVisitante,
                       ),
-                      transitionDuration: Duration.zero,
-                      reverseTransitionDuration: Duration.zero,
-                    ),
-                  );
-                }
-              },
-            )
-          : null,
+                      isHome: false,
+                    );
+                  } else if (index == 4) {
+                    AppNavigationUtil.navegarAba(
+                      context,
+                      TelaMeuPerfilClientePage(
+                        isVisitante: widget.isVisitante,
+                      ),
+                      isHome: false,
+                    );
+                  }
+                },
+              )
+            : null,
+      ),
     );
   }
 }

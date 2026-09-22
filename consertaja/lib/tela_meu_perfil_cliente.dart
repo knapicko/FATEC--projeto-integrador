@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'meus_pedidos.dart';
 import 'tela_home.dart';
+import 'tela_mensagens.dart';
 import 'seguindo_cliente.dart';
 import 'editar_informacoes.dart';
 import 'meus_enderecos.dart';
@@ -11,6 +13,7 @@ import 'sobre_conserta_ja.dart';
 import 'tela_inicial.dart';
 import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/iniciais.dart';
+import 'utils/app_navigation_util.dart';
 
 class TelaMeuPerfilClientePage extends StatefulWidget {
   final bool isVisitante;
@@ -128,14 +131,6 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
     if (value == null) return true;
     final text = value.toString().trim();
     return text.isEmpty || text.toLowerCase() == 'null';
-  }
-
-  PageRouteBuilder _rotaSemAnimacao(Widget page) {
-    return PageRouteBuilder(
-      pageBuilder: (_, _, _) => page,
-      transitionDuration: Duration.zero,
-      reverseTransitionDuration: Duration.zero,
-    );
   }
 
   Widget _buildAvatar() {
@@ -400,8 +395,26 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
     String? imageAsset,
     IconData? fallbackIcon,
     bool useRoundedIcon = false,
+    bool semIcone = false,
     VoidCallback? onTap,
   }) {
+    if (semIcone) {
+      return InkWell(
+        onTap: onTap ?? () {},
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: _textGray,
+              fontSize: 16,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+        ),
+      );
+    }
+
     Widget leading;
 
     if (imageAsset != null) {
@@ -533,16 +546,35 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
   Widget _buildBottomNav() {
     return BottomNavigationBarCliente(
       currentIndex: 4,
+      // Tocar em Perfil estando no Perfil recarrega os dados.
+      onReselecionarAbaAtual: (_) async {
+        await _carregarDadosPerfil();
+        if (mounted) setState(() {});
+      },
       onTap: (index) {
         if (index == 0) {
-          Navigator.of(context).pushReplacement(
-            _rotaSemAnimacao(TelaHome(isVisitante: widget.isVisitante)),
+          AppNavigationUtil.navegarAba(
+            context,
+            TelaHome(isVisitante: widget.isVisitante),
+            isHome: true,
           );
         } else if (index == 1) {
-          Navigator.of(context).pushReplacement(
-            _rotaSemAnimacao(
-              SeguindoClientePage(isVisitante: widget.isVisitante),
-            ),
+          AppNavigationUtil.navegarAba(
+            context,
+            SeguindoClientePage(isVisitante: widget.isVisitante),
+            isHome: false,
+          );
+        } else if (index == 2) {
+          AppNavigationUtil.navegarAba(
+            context,
+            TelaMensagensPage(isVisitante: widget.isVisitante),
+            isHome: false,
+          );
+        } else if (index == 3) {
+          AppNavigationUtil.navegarAba(
+            context,
+            MeusPedidosPage(isVisitante: widget.isVisitante),
+            isHome: false,
           );
         }
         // index == 4: already on the profile page, do nothing to avoid blinking
@@ -552,8 +584,9 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _background,
+    return AppBackHandler(
+      child: Scaffold(
+        backgroundColor: _background,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: _blue))
           : SafeArea(
@@ -574,7 +607,6 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                         _buildSectionTitle('Sua Atividade'),
                         _buildProfileItem(
                           label: 'Meus Endereços',
-                          imageAsset: 'assets/images/Endereço_Cinza.png',
                           fallbackIcon: Icons.location_on_outlined,
                           onTap: () {
                             Navigator.push(
@@ -589,7 +621,6 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                         ),
                         _buildProfileItem(
                           label: 'Histórico de Pedidos',
-                          imageAsset: 'assets/images/CaixaPedido_Cinza.png',
                           fallbackIcon: Icons.inventory_2_outlined,
                         ),
                         _buildProfileItem(
@@ -624,7 +655,6 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                         ),
                         _buildProfileItem(
                           label: 'Fale Conosco',
-                          imageAsset: 'assets/images/Suporte_Cinza.png',
                           fallbackIcon: Icons.support_agent_rounded,
                         ),
                         _buildProfileItem(
@@ -646,12 +676,11 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
 
                         _buildProfileItem(
                           label: 'Configurações',
-                          imageAsset: 'assets/images/Configuracoes_Cinza.png',
                           fallbackIcon: Icons.settings_outlined,
                         ),
                         _buildProfileItem(
                           label: 'Termos de Uso',
-                          fallbackIcon: Icons.description_outlined,
+                          semIcone: true,
                           onTap: () {
                             Navigator.push(
                               context,
@@ -663,7 +692,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                         ),
                         _buildProfileItem(
                           label: 'Política de Privacidade',
-                          fallbackIcon: Icons.privacy_tip_outlined,
+                          semIcone: true,
                           onTap: () {
                             Navigator.push(
                               context,
@@ -725,6 +754,6 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
               ),
             ),
       bottomNavigationBar: _buildBottomNav(),
-    );
+    ),);
   }
 }

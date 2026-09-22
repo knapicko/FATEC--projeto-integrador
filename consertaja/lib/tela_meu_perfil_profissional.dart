@@ -10,10 +10,13 @@ import 'perguntas_frequentes.dart';
 import 'termos_de_uso.dart';
 import 'politica_de_privacidade.dart';
 import 'sobre_conserta_ja.dart';
+import 'meus_servicos_solicitados.dart';
 import 'tela_home_profissional.dart';
+import 'tela_mensagens.dart';
 import 'tela_inicial.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
 import 'utils/iniciais.dart';
+import 'utils/app_navigation_util.dart';
 
 class TelaMeuPerfilProfissionalPage extends StatefulWidget {
   final bool isVisitante;
@@ -134,14 +137,6 @@ class _TelaMeuPerfilProfissionalPageState
     if (value == null) return true;
     final text = value.toString().trim();
     return text.isEmpty || text.toLowerCase() == 'null';
-  }
-
-  PageRouteBuilder _rotaSemAnimacao(Widget page) {
-    return PageRouteBuilder(
-      pageBuilder: (_, _, _) => page,
-      transitionDuration: Duration.zero,
-      reverseTransitionDuration: Duration.zero,
-    );
   }
 
   void _abrirEditarInformacoes() {
@@ -576,14 +571,40 @@ class _TelaMeuPerfilProfissionalPageState
     );
   }
 
+  // (Removido: _irParaPerfilOuEmpresa não é mais usado.)
+
   Widget _buildBottomNav() {
+    // Sem prop isContaEmpresa: a barra resolve sozinha pelo cache interno
+    // (valor síncrono no primeiro frame, confirmação em background só com
+    // setState se mudar) — sem piscar Perfil/Empresa na abertura.
     return BottomNavigationBarProfissional(
+      key: const ValueKey('bottomProfissional'),
       currentIndex: 4,
+      // Tocar em Perfil estando no Perfil recarrega os dados.
+      onReselecionarAbaAtual: (_) async {
+        await _carregarDadosPerfil();
+        if (mounted) setState(() {});
+      },
       onTap: (index) async {
         if (index == 0) {
-          Navigator.of(context).pushReplacement(
-            _rotaSemAnimacao(
-              TelaHomeProfissional(isVisitante: widget.isVisitante),
+          AppNavigationUtil.navegarAba(
+            context,
+            TelaHomeProfissional(isVisitante: widget.isVisitante),
+            isHome: true,
+          );
+        } else if (index == 2) {
+          AppNavigationUtil.navegarAba(
+            context,
+            TelaMensagensPage(isVisitante: widget.isVisitante, isProfissional: true),
+            isHome: false,
+          );
+        } else if (index == 3) {
+          // Aba Serviços: abre os serviços solicitados (conta
+          // independente ou empresa), igual às demais telas.
+          Navigator.of(context).push(
+            AppNavigationUtil.rotaSemAnimacao(
+              const MeusServicosSolicitadosPage(),
+              nome: 'MeusServicosSolicitadosPage',
             ),
           );
         } else if (index == 4 && !widget.isVisitante) {
@@ -596,21 +617,20 @@ class _TelaMeuPerfilProfissionalPageState
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(
+    return AppBackHandler(
+      child: Scaffold(
         backgroundColor: _background,
-        body: Center(child: CircularProgressIndicator(color: _blue)),
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: _background,
       body: SafeArea(
         bottom: false,
         child: Column(
           children: [
             Expanded(
-              child: ListView(
+              child: _isLoading
+                  ? const Center(
+                      child:
+                          CircularProgressIndicator(color: _blue),
+                    )
+                  : ListView(
                 padding: EdgeInsets.zero,
                 children: [
                   _buildTopHeader(),
@@ -620,7 +640,6 @@ class _TelaMeuPerfilProfissionalPageState
                   _buildSectionTitle('Sua Atividade'),
                   _buildProfileItem(
                     label: 'Meus Endereços',
-                    imageAsset: 'assets/images/Endereço_Cinza.png',
                     fallbackIcon: Icons.location_on_outlined,
                     onTap: () {
                       Navigator.push(
@@ -636,7 +655,6 @@ class _TelaMeuPerfilProfissionalPageState
                   ),
                   _buildProfileItem(
                     label: 'Histórico de Pedidos',
-                    imageAsset: 'assets/images/CaixaPedido_Cinza.png',
                     fallbackIcon: Icons.inventory_2_outlined,
                   ),
                   _buildProfileItem(
@@ -703,7 +721,6 @@ class _TelaMeuPerfilProfissionalPageState
                   ),
                   _buildProfileItem(
                     label: 'Fale Conosco',
-                    imageAsset: 'assets/images/Suporte_Cinza.png',
                     fallbackIcon: Icons.support_agent_rounded,
                   ),
 
@@ -724,7 +741,6 @@ class _TelaMeuPerfilProfissionalPageState
                   ),
                   _buildProfileItem(
                     label: 'Configurações',
-                    imageAsset: 'assets/images/Configuracoes_Cinza.png',
                     fallbackIcon: Icons.settings_outlined,
                   ),
                   _buildProfileItem(
@@ -803,6 +819,6 @@ class _TelaMeuPerfilProfissionalPageState
         ),
       ),
       bottomNavigationBar: _buildBottomNav(),
-    );
+    ),);
   }
 }

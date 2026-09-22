@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'models/metodo_entrega.dart';
+import 'utils/bottom_navigation_bar_profissional.dart';
 
 class MetodoEntregaProfissionalPage extends StatefulWidget {
   const MetodoEntregaProfissionalPage({super.key});
@@ -7,20 +11,6 @@ class MetodoEntregaProfissionalPage extends StatefulWidget {
   @override
   State<MetodoEntregaProfissionalPage> createState() =>
       _MetodoEntregaProfissionalPageState();
-}
-
-class _OpcaoEntrega {
-  const _OpcaoEntrega({
-    required this.valor,
-    required this.titulo,
-    required this.descricao,
-    required this.icone,
-  });
-
-  final String valor;
-  final String titulo;
-  final String descricao;
-  final IconData icone;
 }
 
 class _MetodoEntregaProfissionalPageState
@@ -31,36 +21,16 @@ class _MetodoEntregaProfissionalPageState
   static const Color _cardBorder = Color(0xFFE7EBF0);
   static const Color _cardFill = Color(0xFFF5F8FB);
 
-  static const List<_OpcaoEntrega> _opcoesEntrega = [
-    _OpcaoEntrega(
-      valor: 'Leva e Traz',
-      titulo: 'Leva e Traz',
-      descricao: 'Busco no cliente e entrego de volta.',
-      icone: Icons.local_shipping_outlined,
-    ),
-    _OpcaoEntrega(
-      valor: 'Retirado no Local',
-      titulo: 'Retirada no Local',
-      descricao: 'O cliente traz o item até mim e vem buscar depois.',
-      icone: Icons.storefront_outlined,
-    ),
-    _OpcaoEntrega(
-      valor: 'Receba em Casa',
-      titulo: 'Receba em Casa',
-      descricao: 'O cliente traz o item até mim, mas eu faço a entrega final.',
-      icone: Icons.home_outlined,
-    ),
-    _OpcaoEntrega(
-      valor: 'Atendimento em Domicílio',
-      titulo: 'Atendimento em Domicílio',
-      descricao: 'Vou até o endereço do cliente para realizar o serviço.',
-      icone: Icons.home_repair_service_outlined,
-    ),
-  ];
-
   final Set<String> _selecionadas = <String>{};
   bool _carregando = true;
   bool _salvando = false;
+
+  // Conta ativa (mesma flag da home): false = profissional (CNPJ),
+  // true = empresa. Empresa lê/salva em grupo_empresa.metodo_entrega_empresa;
+  // profissional lê/salva em dados_profissionais.metodo_entrega.
+  static const String _prefContaAtivaKey = 'consertaja_conta_empresa_ativa';
+  bool _contaEmpresaAtiva = false;
+  int? _idGrupoEmpresa;
 
   @override
   void initState() {
@@ -68,17 +38,55 @@ class _MetodoEntregaProfissionalPageState
     _carregarPreferencias();
   }
 
+  Future<bool> _lerContaEmpresaAtiva() async {
+    final doCache =
+        BottomNavigationBarProfissional.leituraSincronaContaEmpresa();
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) return doCache;
+      final prefs = await SharedPreferences.getInstance();
+      final ativa = prefs.getBool('${_prefContaAtivaKey}_${user.id}');
+      if (ativa == null) return doCache;
+      BottomNavigationBarProfissional.notificarTrocaConta(ativa);
+      return ativa;
+    } catch (_) {
+      return doCache;
+    }
+  }
+
+  Future<int?> _buscarIdGrupoEmpresa(int usuarioId) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final dados = await supabase
+          .from('dados_profissionais')
+          .select('fk_grupo_empresa')
+          .eq('fk_usuario', usuarioId)
+          .maybeSingle();
+      return (dados?['fk_grupo_empresa'] as num?)?.toInt();
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _carregarPreferencias() async {
+    _selecionadas.clear();
+    if (mounted) setState(() => _carregando = true);
     try {
       final supabase = Supabase.instance.client;
       final user = supabase.auth.currentUser;
       if (user == null) {
         _selecionadas.add('Leva e Traz');
         if (mounted) {
-          setState(() => _carregando = false);
+          setState(() {
+            _contaEmpresaAtiva = false;
+            _idGrupoEmpresa = null;
+            _carregando = false;
+          });
         }
         return;
       }
+
+      final contaEmpresa = await _lerContaEmpresaAtiva();
 
       final usuario = await supabase
           .from('usuarios')
@@ -90,26 +98,61 @@ class _MetodoEntregaProfissionalPageState
       if (usuarioId == null) {
         _selecionadas.add('Leva e Traz');
         if (mounted) {
-          setState(() => _carregando = false);
+          setState(() {
+            _contaEmpresaAtiva = contaEmpresa;
+            _idGrupoEmpresa = null;
+            _carregando = false;
+          });
         }
         return;
       }
 
-      final dados = await supabase
-          .from('dados_profissionais')
-          .select('metodo_entrega')
-          .eq('fk_usuario', usuarioId)
-          .maybeSingle();
+      String? raw;
+      int? idGrupo;
+      if (contaEmpresa) {
+        idGrupo = await _buscarIdGrupoEmpresa(usuarioId);
+        if (idGrupo != null) {
+          try {
+            final grupo = await supabase
+                .from('grupo_empresa')
+                .select('metodo_entrega_empresa')
+                .eq('id_grupo_empresa', idGrupo)
+                .maybeSingle();
+            raw = grupo?['metodo_entrega_empresa'] as String?;
+          } catch (_) {
+            // Banco ainda sem a migration: cai para o profissional.
+            raw = null;
+          }
+        }
+        // Sem grupo vinculado, não há onde salvar o da empresa:
+        // mostra o default e salva só quando houver grupo.
+        if (raw == null && idGrupo == null) {
+          raw = null;
+        }
+      } else {
+        final dados = await supabase
+            .from('dados_profissionais')
+            .select('metodo_entrega')
+            .eq('fk_usuario', usuarioId)
+            .maybeSingle();
+        raw = dados?['metodo_entrega'] as String?;
+      }
 
-      final itensSalvos = _parseMetodoEntrega(dados?['metodo_entrega'] as String?);
+      final itensSalvos = _parseMetodoEntrega(raw);
       if (itensSalvos.isEmpty) {
         _selecionadas.add('Leva e Traz');
       } else {
         _selecionadas.addAll(itensSalvos);
       }
+      if (mounted) {
+        setState(() {
+          _contaEmpresaAtiva = contaEmpresa;
+          _idGrupoEmpresa = idGrupo;
+          _carregando = false;
+        });
+      }
     } catch (_) {
       _selecionadas.add('Leva e Traz');
-    } finally {
       if (mounted) {
         setState(() => _carregando = false);
       }
@@ -170,10 +213,34 @@ class _MetodoEntregaProfissionalPageState
 
       final valorFinal = itens.join(', ');
 
-      await supabase
-          .from('dados_profissionais')
-          .update({'metodo_entrega': valorFinal})
-          .eq('fk_usuario', usuarioId);
+      if (_contaEmpresaAtiva) {
+        // Conta empresa: salva em grupo_empresa.metodo_entrega_empresa
+        // (igual ao profissional, mas na tabela da empresa).
+        var idGrupo = _idGrupoEmpresa ?? await _buscarIdGrupoEmpresa(usuarioId);
+        if (idGrupo == null) {
+          throw Exception(
+            'Nenhuma empresa vinculada a este perfil para salvar.',
+          );
+        }
+        try {
+          await supabase
+              .from('grupo_empresa')
+              .update({'metodo_entrega_empresa': valorFinal})
+              .eq('id_grupo_empresa', idGrupo);
+        } catch (_) {
+          throw Exception(
+            'Banco sem a coluna metodo_entrega_empresa. Rode docs/sql/migration_metodo_entrega_empresa.sql no Supabase.',
+          );
+        }
+        if (mounted) {
+          setState(() => _idGrupoEmpresa = idGrupo);
+        }
+      } else {
+        await supabase
+            .from('dados_profissionais')
+            .update({'metodo_entrega': valorFinal})
+            .eq('fk_usuario', usuarioId);
+      }
 
       if (!mounted) return;
 
@@ -223,7 +290,7 @@ class _MetodoEntregaProfissionalPageState
     );
   }
 
-  Widget _buildOpcaoEntrega(_OpcaoEntrega opcao) {
+  Widget _buildOpcaoEntrega(MetodoEntregaOpcao opcao) {
     final selecionada = _selecionadas.contains(opcao.valor);
 
     return Material(
@@ -300,9 +367,11 @@ class _MetodoEntregaProfissionalPageState
           splashRadius: 20,
         ),
         centerTitle: true,
-        title: const Text(
-          'Métodos de Entrega',
-          style: TextStyle(
+        title: Text(
+          _contaEmpresaAtiva
+              ? 'Métodos de Entrega da Empresa'
+              : 'Métodos de Entrega',
+          style: const TextStyle(
             color: _primaryBlue,
             fontSize: 18,
             fontWeight: FontWeight.w700,
@@ -331,9 +400,11 @@ class _MetodoEntregaProfissionalPageState
                             ),
                           ),
                           const SizedBox(height: 12),
-                          const Text(
-                            'Como os clientes podem enviar ou receber os serviços com você?',
-                            style: TextStyle(
+                          Text(
+                            _contaEmpresaAtiva
+                                ? 'Como os clientes podem enviar ou receber os serviços com a empresa?'
+                                : 'Como os clientes podem enviar ou receber os serviços com você?',
+                            style: const TextStyle(
                               fontSize: 18,
                               color: _textMuted,
                               fontWeight: FontWeight.w500,
@@ -348,7 +419,7 @@ class _MetodoEntregaProfissionalPageState
                             ),
                           ),
                           const SizedBox(height: 24),
-                          ..._opcoesEntrega
+                          ...metodosEntregaOpcoes
                               .where((opcao) => opcao.valor != 'Atendimento em Domicílio')
                               .map((opcao) => Padding(
                                     padding: const EdgeInsets.only(bottom: 12),
@@ -366,7 +437,7 @@ class _MetodoEntregaProfissionalPageState
                           Padding(
                             padding: const EdgeInsets.only(bottom: 12),
                             child: _buildOpcaoEntrega(
-                              _opcoesEntrega.firstWhere(
+                              metodosEntregaOpcoes.firstWhere(
                                 (opcao) => opcao.valor == 'Atendimento em Domicílio',
                               ),
                             ),

@@ -1,4 +1,7 @@
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'models/postagem_resumo.dart';
 import 'services/postagens_profissional_service.dart';
@@ -23,7 +26,10 @@ class _MinhasPostagensProfissionalPageState
 
   final TextEditingController _buscaController = TextEditingController();
 
+  static const String _prefContaAtivaKey = 'consertaja_conta_empresa_ativa';
+
   bool _carregando = true;
+  bool _isEmpresa = false;
   List<PostagemResumo> _todasPostagens = [];
   List<PostagemResumo> _postagensFiltradas = [];
   String _termoBusca = '';
@@ -44,15 +50,147 @@ class _MinhasPostagensProfissionalPageState
   Future<void> _carregarPostagens() async {
     setState(() => _carregando = true);
 
-    final postagens = await PostagensProfissionalService.buscarTodasPostagens();
+    // Descobre qual conta está ativa (mesma preferência da home):
+    // false = profissional (CNPJ individual), true = empresa (grupo_empresa).
+    final isEmpresa = await _lerContaEmpresaAtiva();
+    final idGrupo = await _buscarIdGrupoEmpresa();
+    final idPerfilEmpresa = await _buscarIdPerfilEmpresa();
+    final idPerfilProf = await _buscarIdPerfilProfissional();
+
+    List<PostagemResumo> postagens;
+    if (isEmpresa) {
+      // Conta empresa: SÓ postagens da empresa.
+      if (idPerfilEmpresa != null) {
+        postagens = await PostagensProfissionalService.buscarPostagensConta(
+          idPerfil: idPerfilEmpresa,
+          isEmpresa: true,
+          idGrupoEmpresa: idGrupo,
+          incluirArquivadas: true,
+        );
+        if (postagens.isEmpty && idPerfilProf != null && idGrupo != null) {
+          postagens = await PostagensProfissionalService.buscarPostagensConta(
+            idPerfil: idPerfilProf,
+            isEmpresa: true,
+            idGrupoEmpresa: idGrupo,
+            incluirArquivadas: true,
+          );
+        }
+      } else {
+        postagens = [];
+      }
+    } else {
+      // Conta profissional individual: SÓ postagens do profissional.
+      if (idPerfilProf != null) {
+        postagens = await PostagensProfissionalService.buscarPostagensConta(
+          idPerfil: idPerfilProf,
+          isEmpresa: false,
+          incluirArquivadas: true,
+        );
+      } else {
+        postagens = await PostagensProfissionalService.buscarTodasPostagens();
+      }
+    }
 
     if (!mounted) return;
 
     setState(() {
+      _isEmpresa = isEmpresa;
       _todasPostagens = postagens;
       _postagensFiltradas = postagens;
       _carregando = false;
     });
+    _filtrarPostagens();
+  }
+
+  Future<bool> _lerContaEmpresaAtiva() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user == null) return false;
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool('${_prefContaAtivaKey}_${user.id}') ?? false;
+    } catch (e) {
+      debugPrint('Erro ao ler conta ativa: $e');
+      return false;
+    }
+  }
+
+  Future<int?> _buscarIdGrupoEmpresa() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user == null) return null;
+      final usuario = await supabase
+          .from('usuarios')
+          .select('id_usuario')
+          .eq('auth_id', user.id)
+          .maybeSingle();
+      final usuarioId = usuario?['id_usuario'];
+      if (usuarioId == null) return null;
+      final dadosProf = await supabase
+          .from('dados_profissionais')
+          .select('fk_grupo_empresa, fk_perfil')
+          .eq('fk_usuario', usuarioId)
+          .maybeSingle();
+      if (dadosProf == null) return null;
+      final idGrupo = (dadosProf['fk_grupo_empresa'] as num?)?.toInt();
+      if (idGrupo != null) return idGrupo;
+      final idPerfil = (dadosProf['fk_perfil'] as num?)?.toInt();
+      if (idPerfil == null) return null;
+      final grupo = await supabase
+          .from('grupo_empresa')
+          .select('id_grupo_empresa')
+          .eq('fk_perfil', idPerfil)
+          .maybeSingle();
+      return (grupo?['id_grupo_empresa'] as num?)?.toInt();
+    } catch (e) {
+      debugPrint('Erro ao buscar grupo empresa (minhas postagens): $e');
+      return null;
+    }
+  }
+
+  Future<int?> _buscarIdPerfilEmpresa() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final idGrupo = await _buscarIdGrupoEmpresa();
+      if (idGrupo != null) {
+        final grupo = await supabase
+            .from('grupo_empresa')
+            .select('fk_perfil')
+            .eq('id_grupo_empresa', idGrupo)
+            .maybeSingle();
+        final fk = (grupo?['fk_perfil'] as num?)?.toInt();
+        if (fk != null) return fk;
+      }
+      return await _buscarIdPerfilProfissional();
+    } catch (e) {
+      debugPrint('Erro ao buscar perfil empresa (minhas postagens): $e');
+      return null;
+    }
+  }
+
+  Future<int?> _buscarIdPerfilProfissional() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user == null) return null;
+      final usuario = await supabase
+          .from('usuarios')
+          .select('id_usuario')
+          .eq('auth_id', user.id)
+          .maybeSingle();
+      final usuarioId = usuario?['id_usuario'];
+      if (usuarioId == null) return null;
+      final dadosProf = await supabase
+          .from('dados_profissionais')
+          .select('fk_perfil')
+          .eq('fk_usuario', usuarioId)
+          .maybeSingle();
+      return (dadosProf?['fk_perfil'] as num?)?.toInt();
+    } catch (e) {
+      debugPrint('Erro ao buscar perfil profissional (minhas postagens): $e');
+      return null;
+    }
   }
 
   void _filtrarPostagens() {
@@ -247,9 +385,9 @@ class _MinhasPostagensProfissionalPageState
           color: _titleDark,
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text(
-          'Minhas Postagens',
-          style: TextStyle(
+        title: Text(
+          _isEmpresa ? 'Postagens da Empresa' : 'Minhas Postagens',
+          style: const TextStyle(
             color: _titleDark,
             fontSize: 18,
             fontWeight: FontWeight.bold,

@@ -11,6 +11,8 @@ class ServicoProfissional {
     required this.ativo,
     required this.fkProfissional,
     this.fkGrupoEmpresa,
+    this.tipoExecucao = 'Execução',
+    this.cargaServico = 'Médio',
     required this.dataCriacao,
   });
 
@@ -33,6 +35,8 @@ class ServicoProfissional {
   final int fkProfissional;
   /// Grupo proprietário do serviço; nulo quando o serviço é individual.
   final int? fkGrupoEmpresa;
+  final String tipoExecucao;
+  final String cargaServico;
   final DateTime dataCriacao;
 
   factory ServicoProfissional.fromMap(Map<String, dynamic> map) {
@@ -62,6 +66,8 @@ class ServicoProfissional {
       ativo: map['ativo'] == true,
       fkProfissional: (map['fk_profissional'] as num).toInt(),
       fkGrupoEmpresa: (map['fk_grupo_empresa'] as num?)?.toInt(),
+      tipoExecucao: map['tipo_execucao']?.toString() ?? 'Execução',
+      cargaServico: map['carga_servico']?.toString() ?? 'Médio',
       dataCriacao: map['data_criacao'] != null
           ? DateTime.tryParse(map['data_criacao'].toString()) ?? DateTime.now()
           : DateTime.now(),
@@ -78,6 +84,64 @@ class ServicoProfissional {
       'ativo': ativo,
       'fk_profissional': fkProfissional,
       'fk_grupo_empresa': fkGrupoEmpresa,
+      'tipo_execucao': tipoExecucao,
+      'carga_servico': cargaServico,
     };
   }
+}
+
+class ServicoBuscaPublico {
+  const ServicoBuscaPublico({
+    required this.id,
+    required this.titulo,
+    required this.preco,
+    required this.categoria,
+    this.tagEmpresa,
+    this.imagemUrl,
+    required this.localizacao,
+  });
+
+  final int id;
+  final String titulo;
+  final double preco;
+  final String categoria;
+  final String? tagEmpresa;
+  final String? imagemUrl;
+  final String localizacao;
+}
+
+class DetalheServicoPublico {
+  const DetalheServicoPublico({
+    required this.servico,
+    required this.nomePrestador,
+    this.fotoPrestador,
+    required this.ehLoja,
+    this.tagEmpresa,
+    this.corTagEmpresa,
+    this.idGrupoEmpresa,
+    required this.idProfissional,
+    this.idPerfilPrestador,
+    this.fotoBannerEmpresa,
+    required this.seguidores,
+    required this.enderecoFormatado,
+    required this.latitude,
+    required this.longitude,
+    required this.temCoordenadas,
+  });
+
+  final ServicoProfissional servico;
+  final String nomePrestador;
+  final String? fotoPrestador;
+  final bool ehLoja;
+  final String? tagEmpresa;
+  final String? corTagEmpresa;
+  final int? idGrupoEmpresa;
+  final int idProfissional;
+  final int? idPerfilPrestador;
+  final String? fotoBannerEmpresa;
+  final int seguidores;
+  final String enderecoFormatado;
+  final double latitude;
+  final double longitude;
+  final bool temCoordenadas;
 }
