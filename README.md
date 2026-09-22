@@ -92,7 +92,6 @@ Para executar e modificar o projeto, certifique-se de ter os seguintes requisito
    flutter pub upgrade
 
    # Conserta Já
--
 
 ## Executando no Web
 
