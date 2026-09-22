@@ -90,3 +90,121 @@ Para executar e modificar o projeto, certifique-se de ter os seguintes requisito
    ```bash
    flutter pub get
    flutter pub upgrade
+
+   # Conserta Já
+-
+
+## Executando no Web
+
+Caso queira apenas visualizar e testar o projeto diretamente pelo navegador, execute:
+
+```bash
+flutter run
+```
+
+O Flutter solicitará ou utilizará um dispositivo disponível. Para executar especificamente no Chrome, também é possível utilizar:
+
+```bash
+flutter run -d chrome
+```
+
+> **Importante:** A versão Web está disponível para testes e demonstração, porém **a interface ainda não é responsiva**. O projeto foi desenvolvido principalmente com foco em dispositivos móveis Android, portanto algumas telas podem apresentar problemas de dimensionamento ou organização quando executadas em diferentes tamanhos de tela no navegador.
+
+---
+
+## Gerando o APK
+
+Para gerar uma versão Android do aplicativo, execute:
+
+```bash
+flutter build apk
+```
+
+Após o processo de compilação, o APK será gerado em:
+
+```text
+build/app/outputs/flutter-apk/app-release.apk
+```
+
+Esse arquivo pode ser transferido para um dispositivo Android e instalado manualmente.
+
+### Gerando APK para testes
+
+Caso queira gerar um APK de debug, utilize:
+
+```bash
+flutter build apk --debug
+```
+
+O arquivo será gerado em:
+
+```text
+build/app/outputs/flutter-apk/app-debug.apk
+```
+
+> **Observação:** Para uma instalação e distribuição mais simples, recomenda-se utilizar o APK de release gerado com `flutter build apk`.
+
+---
+
+## Executando diretamente em um dispositivo Android
+
+Com um celular conectado ao computador via USB e com a **Depuração USB** ativada, verifique se o dispositivo foi reconhecido:
+
+```bash
+flutter devices
+```
+
+Depois, execute:
+
+```bash
+flutter run
+```
+
+Também é possível selecionar um dispositivo específico:
+
+```bash
+flutter run -d <id-do-dispositivo>
+```
+
+---
+
+## Estrutura do Projeto
+
+A estrutura principal do repositório é organizada da seguinte maneira:
+
+```text
+FATEC--projeto-integrador/
+│
+├── consertaja/
+│   ├── lib/
+│   ├── assets/
+│   ├── android/
+│   ├── ios/
+│   ├── web/
+│   ├── pubspec.yaml
+│   └── ...
+│
+├── docs/
+│   └── Imagens Projeto/
+│
+├── models/
+│
+├── README.md
+│
+└── ...
+```
+
+A pasta `consertaja/` contém o código principal do aplicativo Flutter.
+
+A pasta `docs/` contém a documentação e os materiais utilizados no projeto.
+
+A pasta `models/` contém os modelos relacionados ao projeto.
+
+---
+
+## Licença
+
+Este projeto foi desenvolvido como parte do **Projeto Integrador da FATEC Ipiranga**.
+
+---
+
