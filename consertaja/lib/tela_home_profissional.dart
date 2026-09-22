@@ -3172,37 +3172,53 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           ),
         ),
         bottomNavigationBar: BottomNavigationBarProfissional(
+          key: const ValueKey('bottomProfissional'),
           currentIndex: _currentIndex,
-          isContaEmpresa: _contaEmpresaAtiva,
+          // Sem prop isContaEmpresa: a barra usa o cache interno
+          // (leitura síncrona no 1º frame + confirmação em background),
+          // igual às demais telas — sem piscar Perfil/Empresa.
           // Tocar na aba atual (Home) recarrega os dados da página.
           onReselecionarAbaAtual: (_) => _recarregarPaginaAtual(),
           onTap: (index) {
             if (index == 2) {
-              AppNavigationUtil.navegarAba(
-                context,
-                TelaMensagensPage(
-                  isVisitante: widget.isVisitante,
-                  isProfissional: true,
+              // Aba Mensagens: push direto com nome de rota estável, igual
+              // às demais telas (evita o navegarAba reaproveitar a rota
+              // errada e causar conflito entre Gestão/Mensagens).
+              Navigator.of(context).push(
+                AppNavigationUtil.rotaSemAnimacao(
+                  TelaMensagensPage(
+                    isVisitante: widget.isVisitante,
+                    isProfissional: true,
+                  ),
+                  nome: 'TelaMensagensPage',
                 ),
-                isHome: false,
               );
               return;
             }
             if (index == 3) {
               // Aba Serviços: abre os serviços solicitados ao profissional
               // (conta independente) ou à empresa (conta empresa).
-              Navigator.of(
-                context,
-              ).push(_rotaSemAnimacao(const MeusServicosSolicitadosPage()));
+              Navigator.of(context).push(
+                AppNavigationUtil.rotaSemAnimacao(
+                  const MeusServicosSolicitadosPage(),
+                  nome: 'MeusServicosSolicitadosPage',
+                ),
+              );
               return;
             }
             if (index == 4) {
-              // Conta empresa ativa: 5º botão vira "Empresa" e abre a gestão.
-              // Conta profissional: 5º botão é "Perfil" como antes.
-              if (_contaEmpresaAtiva) {
-                Navigator.of(
-                  context,
-                ).push(_rotaSemAnimacao(const GestaoEquipePage()));
+              // 5º botão: conta empresa -> "Empresa" (gestão), senão "Perfil".
+              // Usa o cache síncrono da barra (igual às demais telas), sem
+              // depender do setState assíncrono de _contaEmpresaAtiva.
+              final ehEmpresa =
+                  BottomNavigationBarProfissional.leituraSincronaContaEmpresa();
+              if (ehEmpresa) {
+                Navigator.of(context).push(
+                  AppNavigationUtil.rotaSemAnimacao(
+                    const GestaoEquipePage(),
+                    nome: 'GestaoEquipePage',
+                  ),
+                );
                 return;
               }
               AppNavigationUtil.navegarAba(
