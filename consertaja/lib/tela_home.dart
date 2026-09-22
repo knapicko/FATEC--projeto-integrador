@@ -4,6 +4,7 @@ import 'main.dart';
 import 'perfil_loja.dart';
 import 'perfil_profissional.dart';
 import 'meus_enderecos.dart';
+import 'meus_pedidos.dart';
 import 'tela_meu_perfil_cliente.dart';
 import 'tela_busca.dart';
 import 'tela_inicial.dart';
@@ -1885,6 +1886,12 @@ class _TelaHomeState extends State<TelaHome> {
             AppNavigationUtil.navegarAba(
               context,
               TelaMensagensPage(isVisitante: widget.isVisitante),
+              isHome: false,
+            );
+          } else if (index == 3) {
+            AppNavigationUtil.navegarAba(
+              context,
+              MeusPedidosPage(isVisitante: widget.isVisitante),
               isHome: false,
             );
           } else if (index == 4) {

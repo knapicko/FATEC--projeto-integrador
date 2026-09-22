@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'tela_home.dart';
 import 'tela_home_profissional.dart';
+import 'meus_pedidos.dart';
 import 'tela_meu_perfil_cliente.dart';
 import 'seguindo_cliente.dart';
 import 'tela_meu_perfil_profissional.dart';
@@ -1365,6 +1366,12 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
       AppNavigationUtil.navegarAba(
         context,
         SeguindoClientePage(isVisitante: widget.isVisitante),
+        isHome: false,
+      );
+    } else if (index == 3 && !widget.isProfissional) {
+      AppNavigationUtil.navegarAba(
+        context,
+        MeusPedidosPage(isVisitante: widget.isVisitante),
         isHome: false,
       );
     } else if (index == 4) {

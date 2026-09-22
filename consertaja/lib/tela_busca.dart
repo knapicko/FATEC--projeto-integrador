@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'meus_pedidos.dart';
 import 'perfil_profissional.dart';
 import 'perfil_loja.dart';
 import 'tela_meu_perfil_cliente.dart';
@@ -1952,6 +1953,14 @@ class _TelaBuscaState extends State<TelaBusca> {
                     AppNavigationUtil.navegarAba(
                       context,
                       SeguindoClientePage(
+                        isVisitante: widget.isVisitante,
+                      ),
+                      isHome: false,
+                    );
+                  } else if (index == 3) {
+                    AppNavigationUtil.navegarAba(
+                      context,
+                      MeusPedidosPage(
                         isVisitante: widget.isVisitante,
                       ),
                       isHome: false,
