@@ -918,14 +918,13 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
 
   Widget _buildBottomNavigationBar() {
     if (widget.isProfissional) {
-      // Profissional: conta empresa ativa -> 5º item "Empresa",
-      // conta independente (CNPJ) -> 5º item "Perfil".
-      // Mesma chave da bottom bar da Gestão: reutiliza o elemento ao
-      // alternar Gestão <-> Mensagens, sem reconstruir/piscar.
+      // Sem prop isContaEmpresa: a barra resolve sozinha pelo cache
+      // interno — sem piscar Perfil/Empresa na abertura, igual às
+      // demais telas. Mesma chave da Gestão: reutiliza o elemento ao
+      // alternar Gestão <-> Mensagens, sem reconstruir.
       return BottomNavigationBarProfissional(
         key: const ValueKey('bottomProfissional'),
         currentIndex: 2,
-        isContaEmpresa: _contaEmpresaAtiva,
         // Tocar em Mensagens estando em Mensagens recarrega a lista.
         onReselecionarAbaAtual: (_) =>
             _carregarConversas(mostrarLoading: true),
@@ -965,10 +964,17 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
         ),
       );
     } else if (index == 4) {
-      // Conta empresa ativa: 5º botão é "Empresa" -> abre a gestão.
-      if (widget.isProfissional && _contaEmpresaAtiva) {
+      // 5º botão: conta empresa -> "Empresa" (gestão), senão "Perfil".
+      // Usa o cache síncrono (igual às demais telas), sem depender do
+      // setState assíncrono de _contaEmpresaAtiva.
+      final ehEmpresa =
+          BottomNavigationBarProfissional.leituraSincronaContaEmpresa();
+      if (widget.isProfissional && ehEmpresa) {
         Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const GestaoEquipePage()),
+          AppNavigationUtil.rotaSemAnimacao(
+            const GestaoEquipePage(),
+            nome: 'GestaoEquipePage',
+          ),
         );
         return;
       }

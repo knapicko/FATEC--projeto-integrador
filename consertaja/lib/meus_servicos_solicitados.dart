@@ -442,7 +442,8 @@ class _MeusServicosSolicitadosPageState
         bottomNavigationBar: BottomNavigationBarProfissional(
           key: const ValueKey('bottomProfissional'),
           currentIndex: 3,
-          isContaEmpresa: _contaEmpresaAtiva,
+          // Sem prop isContaEmpresa: resolve pelo cache interno, igual às
+          // demais telas — sem piscar Perfil/Empresa.
           onReselecionarAbaAtual: (_) => _carregar(),
           onTap: (index) {
             if (index == 3) {
@@ -469,7 +470,11 @@ class _MeusServicosSolicitadosPageState
               return;
             }
             if (index == 4) {
-              if (_contaEmpresaAtiva) {
+              // 5º botão: conta empresa -> "Empresa" (gestão), senão "Perfil".
+              // Cache síncrono, igual às demais telas.
+              final ehEmpresa =
+                  BottomNavigationBarProfissional.leituraSincronaContaEmpresa();
+              if (ehEmpresa) {
                 // Conta empresa: 5º item é "Empresa" -> abre a gestão.
                 Navigator.of(context).push(
                   AppNavigationUtil.rotaSemAnimacao(

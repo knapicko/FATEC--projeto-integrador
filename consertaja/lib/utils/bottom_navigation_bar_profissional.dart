@@ -123,23 +123,25 @@ class _BottomNavigationBarProfissionalState
   }
 
   List<BottomNavigationBarItem> get _items => [
-    const BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+    const BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: 'Home'),
     const BottomNavigationBarItem(icon: Icon(Icons.sensors), label: 'Radar'),
     const BottomNavigationBarItem(
       icon: Icon(Icons.chat_bubble_outline),
       label: 'Mensagens',
     ),
     const BottomNavigationBarItem(
-      icon: Icon(Icons.archive_outlined),
+      icon: Icon(Icons.receipt_long_outlined),
       label: 'Serviços',
     ),
     if (_isEmpresa)
       const BottomNavigationBarItem(
+        key: ValueKey('abaEmpresa'),
         icon: Icon(Icons.storefront_outlined),
         label: 'Empresa',
       )
     else
       const BottomNavigationBarItem(
+        key: ValueKey('abaPerfil'),
         icon: Icon(Icons.person_outline),
         label: 'Perfil',  
       ),

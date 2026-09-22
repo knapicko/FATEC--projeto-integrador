@@ -10,6 +10,7 @@ import 'perguntas_frequentes.dart';
 import 'termos_de_uso.dart';
 import 'politica_de_privacidade.dart';
 import 'sobre_conserta_ja.dart';
+import 'meus_servicos_solicitados.dart';
 import 'tela_home_profissional.dart';
 import 'tela_mensagens.dart';
 import 'tela_inicial.dart';
@@ -570,8 +571,14 @@ class _TelaMeuPerfilProfissionalPageState
     );
   }
 
+  // (Removido: _irParaPerfilOuEmpresa não é mais usado.)
+
   Widget _buildBottomNav() {
+    // Sem prop isContaEmpresa: a barra resolve sozinha pelo cache interno
+    // (valor síncrono no primeiro frame, confirmação em background só com
+    // setState se mudar) — sem piscar Perfil/Empresa na abertura.
     return BottomNavigationBarProfissional(
+      key: const ValueKey('bottomProfissional'),
       currentIndex: 4,
       // Tocar em Perfil estando no Perfil recarrega os dados.
       onReselecionarAbaAtual: (_) async {
@@ -591,6 +598,15 @@ class _TelaMeuPerfilProfissionalPageState
             TelaMensagensPage(isVisitante: widget.isVisitante, isProfissional: true),
             isHome: false,
           );
+        } else if (index == 3) {
+          // Aba Serviços: abre os serviços solicitados (conta
+          // independente ou empresa), igual às demais telas.
+          Navigator.of(context).push(
+            AppNavigationUtil.rotaSemAnimacao(
+              const MeusServicosSolicitadosPage(),
+              nome: 'MeusServicosSolicitadosPage',
+            ),
+          );
         } else if (index == 4 && !widget.isVisitante) {
           await _carregarDadosPerfil();
           if (mounted) setState(() {});
@@ -601,13 +617,6 @@ class _TelaMeuPerfilProfissionalPageState
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: _background,
-        body: Center(child: CircularProgressIndicator(color: _blue)),
-      );
-    }
-
     return AppBackHandler(
       child: Scaffold(
         backgroundColor: _background,
@@ -616,7 +625,12 @@ class _TelaMeuPerfilProfissionalPageState
         child: Column(
           children: [
             Expanded(
-              child: ListView(
+              child: _isLoading
+                  ? const Center(
+                      child:
+                          CircularProgressIndicator(color: _blue),
+                    )
+                  : ListView(
                 padding: EdgeInsets.zero,
                 children: [
                   _buildTopHeader(),
