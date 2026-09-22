@@ -13,6 +13,7 @@ import 'package:flutter/gestures.dart';
 import 'package:http/http.dart' as http;
 
 import 'login.dart';
+import 'utils/app_navigation_util.dart';
 
 import 'tela_home_profissional.dart';
 
@@ -493,446 +494,452 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
+    return AppBackHandler(
+      isAuth: true,
+      child: Scaffold(
         backgroundColor: Colors.white,
-        elevation: 0,
-        leadingWidth: 100,
-        leading: TextButton.icon(
-          onPressed: () => Navigator.pop(context),
-          icon: const Icon(
-            Icons.arrow_back_ios,
-            size: 18,
-            color: Color(0xFF00A2FF),
-          ),
-          label: const Text(
-            'Voltar',
-            style: TextStyle(color: Color(0xFF00A2FF), fontSize: 16),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leadingWidth: 100,
+          leading: TextButton.icon(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(
+              Icons.arrow_back_ios,
+              size: 18,
+              color: Color(0xFF00A2FF),
+            ),
+            label: const Text(
+              'Voltar',
+              style: TextStyle(color: Color(0xFF00A2FF), fontSize: 16),
+            ),
           ),
         ),
-      ),
-      body: TweenAnimationBuilder<double>(
-        tween: Tween<double>(begin: 0.0, end: 1.0),
-        duration: const Duration(milliseconds: 550),
-        curve: Curves.easeOutCubic,
-        builder: (context, value, child) {
-          return Opacity(
-            opacity: value,
-            child: Transform.translate(
-              offset: Offset(0, 30 * (1.0 - value)),
-              child: child,
-            ),
-          );
-        },
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const SizedBox(height: 15),
-              const Text(
-                'Criar conta - Profissional',
-                style: TextStyle(
-                  color: Color(0xFF00A2FF),
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+        body: TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 550),
+          curve: Curves.easeOutCubic,
+          builder: (context, value, child) {
+            return Opacity(
+              opacity: value,
+              child: Transform.translate(
+                offset: Offset(0, 30 * (1.0 - value)),
+                child: child,
               ),
-              const SizedBox(height: 25),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  GestureDetector(
-                    onTap: () {},
-                    child: _buildStepCircle('1', isActive: true),
+            );
+          },
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const SizedBox(height: 15),
+                const Text(
+                  'Criar conta - Profissional',
+                  style: TextStyle(
+                    color: Color(0xFF00A2FF),
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
                   ),
-                  _buildStepLine(),
-                  GestureDetector(
-                    onTap: () => _irParaEtapa2(),
-                    child: _buildStepCircle('2', isActive: false),
-                  ),
-                  _buildStepLine(),
-                  GestureDetector(
-                    onTap: () {
-                      // Vai para etapa 3 com dados disponíveis (passa pela 2 vazia)
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => CadastroProfissionalEtapa3Page(
-                            nome: _nomeController.text.trim(),
-                            cpf: _isPessoaFisica
-                                ? _cpfController.text.trim()
-                                : null,
-                            cnpj: !_isPessoaFisica
-                                ? _cnpjController.text.trim()
-                                : null,
-                            razaoSocial: !_isPessoaFisica
-                                ? _razaoSocialController.text.trim()
-                                : null,
-                            senha: _senhaController.text,
-                            isPessoaFisica: _isPessoaFisica,
-                            cnpjDeEmpresa: _cnpjDeEmpresa,
-                            email: '',
-                            telefone: '',
-                            dataNascimento: '',
-                            areaAtuacao: '',
-                            fotoPerfilUrl: _fotoPerfilUrl,
-                            idFacial: _idFacial,
-                          ),
-                        ),
-                      );
-                    },
-                    child: _buildStepCircle('3', isActive: false),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 35),
-
-              Container(
-                width: double.infinity,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF2F2F2),
-                  borderRadius: BorderRadius.circular(16),
                 ),
-                padding: const EdgeInsets.all(4),
-                child: Row(
+                const SizedBox(height: 25),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => setState(() {
-                          _isPessoaFisica = true;
-                          _erroCnpj = null;
-                          _erroRazaoSocial = null;
-                          _erroCpf = null;
-                          _documentoValido = false;
-                          _validandoDocumento = false;
-                        }),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          decoration: BoxDecoration(
-                            color: _isPessoaFisica
-                                ? const Color(0xFF00A2FF)
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(14),
+                    GestureDetector(
+                      onTap: () {},
+                      child: _buildStepCircle('1', isActive: true),
+                    ),
+                    _buildStepLine(),
+                    GestureDetector(
+                      onTap: () => _irParaEtapa2(),
+                      child: _buildStepCircle('2', isActive: false),
+                    ),
+                    _buildStepLine(),
+                    GestureDetector(
+                      onTap: () {
+                        // Vai para etapa 3 com dados disponíveis (passa pela 2 vazia)
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                CadastroProfissionalEtapa3Page(
+                                  nome: _nomeController.text.trim(),
+                                  cpf: _isPessoaFisica
+                                      ? _cpfController.text.trim()
+                                      : null,
+                                  cnpj: !_isPessoaFisica
+                                      ? _cnpjController.text.trim()
+                                      : null,
+                                  razaoSocial: !_isPessoaFisica
+                                      ? _razaoSocialController.text.trim()
+                                      : null,
+                                  senha: _senhaController.text,
+                                  isPessoaFisica: _isPessoaFisica,
+                                  cnpjDeEmpresa: _cnpjDeEmpresa,
+                                  email: '',
+                                  telefone: '',
+                                  dataNascimento: '',
+                                  areaAtuacao: '',
+                                  fotoPerfilUrl: _fotoPerfilUrl,
+                                  idFacial: _idFacial,
+                                ),
                           ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            'Física',
-                            style: TextStyle(
+                        );
+                      },
+                      child: _buildStepCircle('3', isActive: false),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 35),
+
+                Container(
+                  width: double.infinity,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF2F2F2),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  padding: const EdgeInsets.all(4),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() {
+                            _isPessoaFisica = true;
+                            _erroCnpj = null;
+                            _erroRazaoSocial = null;
+                            _erroCpf = null;
+                            _documentoValido = false;
+                            _validandoDocumento = false;
+                          }),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            decoration: BoxDecoration(
                               color: _isPessoaFisica
-                                  ? Colors.white
-                                  : const Color(0xFF828282),
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
+                                  ? const Color(0xFF00A2FF)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              'Física',
+                              style: TextStyle(
+                                color: _isPessoaFisica
+                                    ? Colors.white
+                                    : const Color(0xFF828282),
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => setState(() {
-                          _isPessoaFisica = false;
-                          _erroCpf = null;
-                          _documentoValido = false;
-                          _validandoDocumento = false;
-                        }),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          decoration: BoxDecoration(
-                            color: !_isPessoaFisica
-                                ? const Color(0xFF00A2FF)
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            'Pessoa Jurídica',
-                            style: TextStyle(
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() {
+                            _isPessoaFisica = false;
+                            _erroCpf = null;
+                            _documentoValido = false;
+                            _validandoDocumento = false;
+                          }),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            decoration: BoxDecoration(
                               color: !_isPessoaFisica
-                                  ? Colors.white
-                                  : const Color(0xFF828282),
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
+                                  ? const Color(0xFF00A2FF)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              'Pessoa Jurídica',
+                              style: TextStyle(
+                                color: !_isPessoaFisica
+                                    ? Colors.white
+                                    : const Color(0xFF828282),
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 35),
+
+                if (_isPessoaFisica) ...[
+                  _InputFieldWithAnimation(
+                    label: 'CPF',
+                    hint: '___.___.___-__',
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [MaskedInputFormatter('###.###.###-##')],
+                    controller: _cpfController,
+                    suffixIcon: _documentoValido ? Icons.check_circle : null,
+                    suffixIconColor: const Color(0xFF00A2FF),
+                    errorText: _erroCpf,
+                  ),
+                  _InputFieldWithAnimation(
+                    label: 'Nome',
+                    hint: 'Nome completo',
+                    keyboardType: TextInputType.name,
+                    controller: _nomeController,
+                    errorText: _erroNome,
+                  ),
+                  _InputFieldWithAnimation(
+                    label: 'Senha',
+                    hint: 'Digite sua senha',
+                    suffixIcon: Icons.visibility_outlined,
+                    obscureText: true,
+                    controller: _senhaController,
+                    errorText: _erroSenha,
+                  ),
+
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 20, left: 6),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildRequisitoItem(
+                          'No mínimo 8 caracteres',
+                          _temOitoCaracteres,
+                        ),
+                        _buildRequisitoItem(
+                          'Pelo menos 1 letra maiúscula',
+                          _temMaiuscula,
+                        ),
+                        _buildRequisitoItem(
+                          'Pelo menos 1 letra minúscula',
+                          _temMinuscula,
+                        ),
+                        _buildRequisitoItem(
+                          'Pelo menos 1 símbolo (ex: @, #, \$, %)',
+                          _temSimbolo,
+                        ),
+                        _buildRequisitoItem('Pelo menos 1 número', _temNumero),
+                      ],
+                    ),
+                  ),
+
+                  _InputFieldWithAnimation(
+                    label: 'Confirmar Senha',
+                    hint: 'Confirme sua senha',
+                    suffixIcon: Icons.visibility_outlined,
+                    obscureText: true,
+                    controller: _confirmarSenhaController,
+                    errorText: _erroConfirmarSenha,
+                  ),
+                ] else ...[
+                  _InputFieldWithAnimation(
+                    label: 'CNPJ',
+                    hint: '__.___.___/____-__',
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      MaskedInputFormatter('##.###.###/####-##'),
+                    ],
+                    controller: _cnpjController,
+                    suffixIcon: _documentoValido ? Icons.check_circle : null,
+                    suffixIconColor: const Color(0xFF00A2FF),
+                    errorText: _erroCnpj,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 25, left: 4, top: 5),
+                    child: Column(
+                      children: [
+                        _buildCustomRadioButton(
+                          text: 'CNPJ de uma empresa',
+                          isSelected: _cnpjDeEmpresa,
+                          onTap: () => setState(() => _cnpjDeEmpresa = true),
+                        ),
+                        const SizedBox(height: 12),
+                        _buildCustomRadioButton(
+                          text: 'Tenho um imóvel registrado em CNPJ',
+                          isSelected: !_cnpjDeEmpresa,
+                          onTap: () => setState(() => _cnpjDeEmpresa = false),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _InputFieldWithAnimation(
+                    label: 'Nome Fantasia',
+                    hint: 'Nome Fantasia',
+                    keyboardType: TextInputType.name,
+                    controller: _nomeController,
+                    errorText: _erroNomeFantasia,
+                  ),
+                  _InputFieldWithAnimation(
+                    label: 'Razão Social',
+                    hint: 'Razão Social',
+                    controller: _razaoSocialController,
+                    errorText: _erroRazaoSocial,
+                  ),
+                  if (!_isPessoaFisica) ...[
+                    _InputFieldWithAnimation(
+                      label: 'Data de Fundação',
+                      hint: 'DD/MM/AAAA',
+                      suffixIcon: Icons.calendar_month,
+                      controller: _dataFundacaoController,
+                      readOnly: true,
+                      onTap: _fazerUploadDataFundacao,
+                      onSuffixIconTap: _fazerUploadDataFundacao,
+                      errorText: _erroDataFundacao,
+                    ),
+                  ],
+                  _InputFieldWithAnimation(
+                    label: 'Senha',
+                    hint: 'Digite sua senha',
+                    suffixIcon: Icons.visibility_outlined,
+                    obscureText: true,
+                    controller: _senhaController,
+                    errorText: _erroSenha,
+                  ),
+
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 20, left: 6),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildRequisitoItem(
+                          'No mínimo 8 caracteres',
+                          _temOitoCaracteres,
+                        ),
+                        _buildRequisitoItem(
+                          'Pelo menos 1 letra maiúscula',
+                          _temMaiuscula,
+                        ),
+                        _buildRequisitoItem(
+                          'Pelo menos 1 letra minúscula',
+                          _temMinuscula,
+                        ),
+                        _buildRequisitoItem(
+                          'Pelo menos 1 símbolo (ex: @, #, \$, %)',
+                          _temSimbolo,
+                        ),
+                        _buildRequisitoItem('Pelo menos 1 número', _temNumero),
+                      ],
+                    ),
+                  ),
+
+                  _InputFieldWithAnimation(
+                    label: 'Confirmar Senha',
+                    hint: 'Confirme sua senha',
+                    suffixIcon: Icons.visibility_outlined,
+                    obscureText: true,
+                    controller: _confirmarSenhaController,
+                    errorText: _erroConfirmarSenha,
+                  ),
+                ],
+
+                const SizedBox(height: 10),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 55,
+                  child: ElevatedButton(
+                    onPressed: _irParaEtapa2,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00A2FF),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: const Text(
+                      'Continuar',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(child: Divider(color: Colors.grey.shade300)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Text(
+                        'ou',
+                        style: TextStyle(color: Colors.grey.shade500),
+                      ),
+                    ),
+                    Expanded(child: Divider(color: Colors.grey.shade300)),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 55,
+                  child: OutlinedButton.icon(
+                    onPressed: _carregandoGoogle ? null : _continuarComGoogle,
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Color(0xFFDADCE0)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                    icon: _carregandoGoogle
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Image.asset(
+                            'assets/images/icone/google-logo.png',
+                            height: 22,
+                          ),
+                    label: Text(
+                      _carregandoGoogle
+                          ? 'Conectando...'
+                          : 'Continuar com Google',
+                      style: const TextStyle(
+                        color: Colors.black87,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      'Já tem uma conta? ',
+                      style: TextStyle(color: Colors.black, fontSize: 13),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const LoginPage(),
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        'Faça login.',
+                        style: TextStyle(
+                          color: Color(0xFF00A2FF),
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 35),
-
-              if (_isPessoaFisica) ...[
-                _InputFieldWithAnimation(
-                  label: 'CPF',
-                  hint: '___.___.___-__',
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [MaskedInputFormatter('###.###.###-##')],
-                  controller: _cpfController,
-                  suffixIcon: _documentoValido ? Icons.check_circle : null,
-                  suffixIconColor: const Color(0xFF00A2FF),
-                  errorText: _erroCpf,
-                ),
-                _InputFieldWithAnimation(
-                  label: 'Nome',
-                  hint: 'Nome completo',
-                  keyboardType: TextInputType.name,
-                  controller: _nomeController,
-                  errorText: _erroNome,
-                ),
-                _InputFieldWithAnimation(
-                  label: 'Senha',
-                  hint: 'Digite sua senha',
-                  suffixIcon: Icons.visibility_outlined,
-                  obscureText: true,
-                  controller: _senhaController,
-                  errorText: _erroSenha,
-                ),
-
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 20, left: 6),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildRequisitoItem(
-                        'No mínimo 8 caracteres',
-                        _temOitoCaracteres,
-                      ),
-                      _buildRequisitoItem(
-                        'Pelo menos 1 letra maiúscula',
-                        _temMaiuscula,
-                      ),
-                      _buildRequisitoItem(
-                        'Pelo menos 1 letra minúscula',
-                        _temMinuscula,
-                      ),
-                      _buildRequisitoItem(
-                        'Pelo menos 1 símbolo (ex: @, #, \$, %)',
-                        _temSimbolo,
-                      ),
-                      _buildRequisitoItem('Pelo menos 1 número', _temNumero),
-                    ],
-                  ),
-                ),
-
-                _InputFieldWithAnimation(
-                  label: 'Confirmar Senha',
-                  hint: 'Confirme sua senha',
-                  suffixIcon: Icons.visibility_outlined,
-                  obscureText: true,
-                  controller: _confirmarSenhaController,
-                  errorText: _erroConfirmarSenha,
-                ),
-              ] else ...[
-                _InputFieldWithAnimation(
-                  label: 'CNPJ',
-                  hint: '__.___.___/____-__',
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [MaskedInputFormatter('##.###.###/####-##')],
-                  controller: _cnpjController,
-                  suffixIcon: _documentoValido ? Icons.check_circle : null,
-                  suffixIconColor: const Color(0xFF00A2FF),
-                  errorText: _erroCnpj,
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 25, left: 4, top: 5),
-                  child: Column(
-                    children: [
-                      _buildCustomRadioButton(
-                        text: 'CNPJ de uma empresa',
-                        isSelected: _cnpjDeEmpresa,
-                        onTap: () => setState(() => _cnpjDeEmpresa = true),
-                      ),
-                      const SizedBox(height: 12),
-                      _buildCustomRadioButton(
-                        text: 'Tenho um imóvel registrado em CNPJ',
-                        isSelected: !_cnpjDeEmpresa,
-                        onTap: () => setState(() => _cnpjDeEmpresa = false),
-                      ),
-                    ],
-                  ),
-                ),
-                _InputFieldWithAnimation(
-                  label: 'Nome Fantasia',
-                  hint: 'Nome Fantasia',
-                  keyboardType: TextInputType.name,
-                  controller: _nomeController,
-                  errorText: _erroNomeFantasia,
-                ),
-                _InputFieldWithAnimation(
-                  label: 'Razão Social',
-                  hint: 'Razão Social',
-                  controller: _razaoSocialController,
-                  errorText: _erroRazaoSocial,
-                ),
-                if (!_isPessoaFisica) ...[
-                  _InputFieldWithAnimation(
-                    label: 'Data de Fundação',
-                    hint: 'DD/MM/AAAA',
-                    suffixIcon: Icons.calendar_month,
-                    controller: _dataFundacaoController,
-                    readOnly: true,
-                    onTap: _fazerUploadDataFundacao,
-                    onSuffixIconTap: _fazerUploadDataFundacao,
-                    errorText: _erroDataFundacao,
-                  ),
-                ],
-                _InputFieldWithAnimation(
-                  label: 'Senha',
-                  hint: 'Digite sua senha',
-                  suffixIcon: Icons.visibility_outlined,
-                  obscureText: true,
-                  controller: _senhaController,
-                  errorText: _erroSenha,
-                ),
-
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 20, left: 6),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildRequisitoItem(
-                        'No mínimo 8 caracteres',
-                        _temOitoCaracteres,
-                      ),
-                      _buildRequisitoItem(
-                        'Pelo menos 1 letra maiúscula',
-                        _temMaiuscula,
-                      ),
-                      _buildRequisitoItem(
-                        'Pelo menos 1 letra minúscula',
-                        _temMinuscula,
-                      ),
-                      _buildRequisitoItem(
-                        'Pelo menos 1 símbolo (ex: @, #, \$, %)',
-                        _temSimbolo,
-                      ),
-                      _buildRequisitoItem('Pelo menos 1 número', _temNumero),
-                    ],
-                  ),
-                ),
-
-                _InputFieldWithAnimation(
-                  label: 'Confirmar Senha',
-                  hint: 'Confirme sua senha',
-                  suffixIcon: Icons.visibility_outlined,
-                  obscureText: true,
-                  controller: _confirmarSenhaController,
-                  errorText: _erroConfirmarSenha,
-                ),
+                const SizedBox(height: 30),
               ],
-
-              const SizedBox(height: 10),
-
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton(
-                  onPressed: _irParaEtapa2,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00A2FF),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: const Text(
-                    'Continuar',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(child: Divider(color: Colors.grey.shade300)),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Text(
-                      'ou',
-                      style: TextStyle(color: Colors.grey.shade500),
-                    ),
-                  ),
-                  Expanded(child: Divider(color: Colors.grey.shade300)),
-                ],
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: OutlinedButton.icon(
-                  onPressed: _carregandoGoogle ? null : _continuarComGoogle,
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFFDADCE0)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                  ),
-                  icon: _carregandoGoogle
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Image.asset(
-                          'assets/images/icone/google-logo.png',
-                          height: 22,
-                        ),
-                  label: Text(
-                    _carregandoGoogle
-                        ? 'Conectando...'
-                        : 'Continuar com Google',
-                    style: const TextStyle(
-                      color: Colors.black87,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    'Já tem uma conta? ',
-                    style: TextStyle(color: Colors.black, fontSize: 13),
-                  ),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const LoginPage(),
-                        ),
-                      );
-                    },
-                    child: const Text(
-                      'Faça login.',
-                      style: TextStyle(
-                        color: Color(0xFF00A2FF),
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 30),
-            ],
+            ),
           ),
         ),
       ),

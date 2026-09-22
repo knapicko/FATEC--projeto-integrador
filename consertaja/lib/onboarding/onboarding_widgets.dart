@@ -5,6 +5,70 @@ import 'onboarding_theme.dart';
 import '../widgets/seletor_ddi.dart';
 import '../termos_de_uso.dart';
 import '../politica_de_privacidade.dart';
+import '../services/validacao_documento.dart';
+
+/// Identifica com precisão o tipo de identificador digitado no login:
+/// Retorna 'CPF:', 'CNPJ:', 'Email:' ou 'Telefone:' (ou placeholder quando vazio).
+String identificarTipoLogin(String value) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) {
+    return 'CPF, CNPJ, email ou telefone';
+  }
+
+  // Se contém '@' ou letras, é email
+  if (trimmed.contains('@') || RegExp(r'[A-Za-z]').hasMatch(trimmed)) {
+    return 'Email:';
+  }
+
+  // Se o usuário digitou '(' ou ')', começou digitando telefone
+  if (trimmed.contains('(') || trimmed.contains(')')) {
+    return 'Telefone:';
+  }
+
+  // Se contém '/', é CNPJ
+  if (trimmed.contains('/')) {
+    return 'CNPJ:';
+  }
+
+  final digits = trimmed.replaceAll(RegExp(r'\D'), '');
+  if (digits.isEmpty) {
+    return 'CPF, CNPJ, email ou telefone';
+  }
+
+  // CNPJ tem mais de 11 dígitos
+  if (digits.length > 11) {
+    return 'CNPJ:';
+  }
+
+  // Se começa com '0', no Brasil não há DDD iniciando com 0 -> CPF
+  if (digits.startsWith('0')) {
+    return 'CPF:';
+  }
+
+  // Se o usuário colocou '.' (máscara de CPF), é CPF
+  if (trimmed.contains('.')) {
+    return 'CPF:';
+  }
+
+  // Com 3 ou mais dígitos:
+  // No Brasil, celular SEMPRE tem DDD (11-99) seguido de '9'.
+  if (digits.length >= 3) {
+    final ddd = int.tryParse(digits.substring(0, 2)) ?? 0;
+    final terceiroDigito = digits[2];
+    final dddValido = ddd >= 11 && ddd <= 99 && (ddd % 10 != 0);
+
+    if (terceiroDigito == '9' && dddValido) {
+      if (digits.length == 11 && validarCpf(digits) && !trimmed.startsWith('(')) {
+        return 'CPF:';
+      }
+      return 'Telefone:';
+    } else {
+      return 'CPF:';
+    }
+  }
+
+  return 'CPF:';
+}
 
 class CpfCnpjInputFormatter extends TextInputFormatter {
   @override
@@ -66,19 +130,30 @@ class LoginIdentifierInputFormatter extends TextInputFormatter {
     TextEditingValue newValue,
   ) {
     final value = newValue.text;
+    if (value.isEmpty) return newValue;
+
+    // Se for e-mail (tem letra ou @), não aplica máscara numérica
     if (value.contains('@') || RegExp(r'[A-Za-z]').hasMatch(value)) {
       return newValue;
     }
 
     final digits = value.replaceAll(RegExp(r'\D'), '');
     if (digits.length > 14) return oldValue;
-    if (digits.length >= 12) {
+
+    if (digits.length > 11) {
       return _applyMask(digits, '##.###.###/####-##');
     }
-    if (digits.length == 11) {
-      return _applyMask(digits, '###.###.###-##');
+
+    final tipo = identificarTipoLogin(value);
+    if (tipo == 'Telefone:') {
+      if (digits.length <= 10) {
+        return _applyMask(digits, '(##) ####-####');
+      } else {
+        return _applyMask(digits, '(##) #####-####');
+      }
     }
-    return _applyMask(digits, '(##) ####-####');
+
+    return _applyMask(digits, '###.###.###-##');
   }
 
   TextEditingValue _applyMask(String digits, String mask) {
@@ -388,6 +463,7 @@ class PillButton extends StatelessWidget {
   final bool loading;
   final Color? background;
   final Color? foreground;
+  final IconData? icon;
 
   const PillButton({
     super.key,
@@ -397,12 +473,19 @@ class PillButton extends StatelessWidget {
     this.loading = false,
     this.background,
     this.foreground,
+    this.icon,
   });
 
   @override
   Widget build(BuildContext context) {
     final bg = outlined ? Colors.transparent : (background ?? Colors.white);
     final fg = outlined ? Colors.white : (foreground ?? OnboardingColors.blue);
+
+    // Remove qualquer seta textual "->" para exibir o ícone real
+    final cleanLabel = label.replaceAll(RegExp(r'\s*->'), '').trim();
+    final hasArrow = label.contains('->') || cleanLabel == 'Continuar' || cleanLabel == 'Entrar';
+    final effectiveIcon = icon ?? (hasArrow ? Icons.arrow_forward_rounded : null);
+
     return SizedBox(
       height: 52,
       child: ElevatedButton(
@@ -426,13 +509,27 @@ class PillButton extends StatelessWidget {
                 height: 22,
                 child: CircularProgressIndicator(strokeWidth: 2, color: fg),
               )
-            : Text(
-                label,
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                  color: fg,
-                ),
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    cleanLabel,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                      color: fg,
+                    ),
+                  ),
+                  if (effectiveIcon != null) ...[
+                    const SizedBox(width: 8),
+                    Icon(
+                      effectiveIcon,
+                      size: 20,
+                      color: fg,
+                    ),
+                  ],
+                ],
               ),
       ),
     );
@@ -667,6 +764,7 @@ class CaixaCharacter extends StatelessWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 520),
       curve: Curves.easeInOutCubic,
+      width: size,
       height: size,
       child: Center(
         child: AnimatedSwitcher(
@@ -675,7 +773,7 @@ class CaixaCharacter extends StatelessWidget {
           switchOutCurve: Curves.easeInOut,
           layoutBuilder: (currentChild, previousChildren) {
             return SizedBox(
-              width: double.infinity,
+              width: size,
               height: size,
               child: Stack(
                 fit: StackFit.expand,
@@ -688,7 +786,7 @@ class CaixaCharacter extends StatelessWidget {
             return FadeTransition(opacity: animation, child: child);
           },
           child: SizedBox(
-            width: double.infinity,
+            width: size,
             height: size,
             child: Image.asset(
               asset,
@@ -986,12 +1084,12 @@ class PasswordRequirementItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(vertical: 3.5),
       child: Row(
         children: [
           Icon(
             valid ? Icons.check_circle_rounded : Icons.circle_outlined,
-            size: 16,
+            size: 17,
             color: valid ? Colors.white : Colors.white.withValues(alpha: 0.5),
           ),
           const SizedBox(width: 8),
@@ -1001,8 +1099,8 @@ class PasswordRequirementItem extends StatelessWidget {
               style: TextStyle(
                 color: valid
                     ? Colors.white
-                    : Colors.white.withValues(alpha: 0.8),
-                fontSize: 12.5,
+                    : Colors.white.withValues(alpha: 0.85),
+                fontSize: 13.5,
                 fontWeight: valid ? FontWeight.bold : FontWeight.w500,
               ),
             ),

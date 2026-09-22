@@ -6,6 +6,9 @@ class SobreConsertaJaPage extends StatelessWidget {
 
   static const Color _textDark = Color(0xFF1A1A1A);
 
+  /// Azul das telas de cadastro (onde a caixa branca aparece ao fundo).
+  static const Color _logoBlue = Color(0xFF0FB3FF);
+
   static const String _conteudo = '''
 # Sobre o Conserta Já
 
@@ -67,10 +70,17 @@ O Conserta Já foi pensado especialmente para valorizar profissões tradicionais
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Center(
-                child: Image.asset(
-                  'assets/images/Logo.png',
-                  height: 110,
-                  fit: BoxFit.contain,
+                child: Container(
+                  width: 160,
+                  height: 160,
+                  decoration: BoxDecoration(
+                    color: _logoBlue,
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  child: Image.asset(
+                    'assets/images/caixa/caixa_normal.png',
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
               const SizedBox(height: 16),

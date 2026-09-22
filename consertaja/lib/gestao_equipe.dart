@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
@@ -7,12 +8,17 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'configuracoes_empresa.dart';
 import 'adicionar_servico_profissional.dart';
+import 'meus_servicos_solicitados.dart';
 import 'modificar_conta_profissional.dart';
 import 'models/servico_profissional.dart';
 import 'services/consulta_cadastro_service.dart';
 import 'services/profissional_equipe_service.dart';
 import 'services/servicos_profissional_service.dart';
 import 'services/validacao_documento.dart';
+import 'tela_home_profissional.dart';
+import 'tela_mensagens.dart';
+import 'utils/app_navigation_util.dart';
+import 'utils/bottom_navigation_bar_profissional.dart';
 import 'utils/cor_oficio.dart';
 import 'widgets/tag_oficio.dart';
 
@@ -94,6 +100,13 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
   static const Color _cardBorder = Color(0xFFE2E8F0);
 
   final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _descricaoEmpresaController = TextEditingController();
+  int _caracteresDescricao = 0;
+  Timer? _debounceDescricao;
+  bool _dadosSobreCarregados = false;
+  int _anosMercadoNumero = 1;
+  String? _pillAnosMercadoSelecionada;
+
   String _nomeEmpresa = '';
   String _tagEmpresa = 'TAG';
   Color _corTagEmpresa = const Color(0xFF0FB3FF);
@@ -124,6 +137,8 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
   @override
   void dispose() {
     _emailController.dispose();
+    _debounceDescricao?.cancel();
+    _descricaoEmpresaController.dispose();
     super.dispose();
   }
 
@@ -222,13 +237,24 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
 
         // 1. Tenta buscar pelo fk_grupo_empresa vinculado diretamente
         if (_idGrupoEmpresa != null) {
-          final grupo = await supabase
-              .from('grupo_empresa')
-              .select(
-                'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa',
-              )
-              .eq('id_grupo_empresa', _idGrupoEmpresa!)
-              .maybeSingle();
+          Map<String, dynamic>? grupo;
+          try {
+            grupo = await supabase
+                .from('grupo_empresa')
+                .select(
+                  'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, descricao_empresa, anos_mercado',
+                )
+                .eq('id_grupo_empresa', _idGrupoEmpresa!)
+                .maybeSingle();
+          } catch (_) {
+            grupo = await supabase
+                .from('grupo_empresa')
+                .select(
+                  'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa',
+                )
+                .eq('id_grupo_empresa', _idGrupoEmpresa!)
+                .maybeSingle();
+          }
 
           if (grupo != null) {
             final nomeGrupo = grupo['nome_empresa']?.toString().trim();
@@ -236,6 +262,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
             final corGrupo = grupo['cor_tag_empresa']?.toString();
             final fotoGrupo = grupo['foto_url_empresa']?.toString();
             final bannerGrupo = grupo['banner_url_empresa']?.toString();
+            _aplicarSobreEmpresa(grupo);
 
             if (mounted) {
               setState(() {
@@ -273,13 +300,24 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
 
         // 2. Se fk_grupo_empresa for nulo mas temos fk_perfil, busca em grupo_empresa por fk_perfil
         if (_idPerfil != null) {
-          final grupo = await supabase
-              .from('grupo_empresa')
-              .select(
-                'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa',
-              )
-              .eq('fk_perfil', _idPerfil!)
-              .maybeSingle();
+          Map<String, dynamic>? grupo;
+          try {
+            grupo = await supabase
+                .from('grupo_empresa')
+                .select(
+                  'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, descricao_empresa, anos_mercado',
+                )
+                .eq('fk_perfil', _idPerfil!)
+                .maybeSingle();
+          } catch (_) {
+            grupo = await supabase
+                .from('grupo_empresa')
+                .select(
+                  'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa',
+                )
+                .eq('fk_perfil', _idPerfil!)
+                .maybeSingle();
+          }
 
           if (grupo != null) {
             _idGrupoEmpresa = (grupo['id_grupo_empresa'] as num?)?.toInt();
@@ -288,6 +326,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
             final corGrupo = grupo['cor_tag_empresa']?.toString();
             final fotoGrupo = grupo['foto_url_empresa']?.toString();
             final bannerGrupo = grupo['banner_url_empresa']?.toString();
+            _aplicarSobreEmpresa(grupo);
 
             if (_idGrupoEmpresa != null && _idProfissional != null) {
               await supabase
@@ -531,9 +570,17 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
 
       final servicosEmpresa = _idGrupoEmpresa == null
           ? <ServicoProfissional>[]
-          : await ServicosProfissionalService.buscarServicosEmpresa(
+          : (await ServicosProfissionalService.buscarServicosEmpresa(
               _idGrupoEmpresa!,
-            );
+            ))
+              // Gestão da empresa: mostra SÓ serviços da empresa
+              // (fk_grupo_empresa == grupo). Nunca os individuais (CNPJ).
+              .where(
+                (s) =>
+                    s.fkGrupoEmpresa != null &&
+                    s.fkGrupoEmpresa == _idGrupoEmpresa,
+              )
+              .toList();
 
       if (mounted) {
         setState(() {
@@ -1248,6 +1295,429 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
           ),
         ],
       ),
+    );
+  }
+
+  void _aplicarSobreEmpresa(Map<String, dynamic> grupo) {
+    final desc = grupo['descricao_empresa']?.toString() ?? '';
+    final anos = grupo['anos_mercado']?.toString().trim();
+
+    if (!_dadosSobreCarregados) {
+      _descricaoEmpresaController.text = desc;
+      _caracteresDescricao = desc.length;
+      _dadosSobreCarregados = true;
+    }
+
+    if (anos != null && anos.isNotEmpty) {
+      const pillValores = [
+        '<1 ano',
+        '2 a 5 anos',
+        '6 a 10 anos',
+        '11 a 15 anos',
+        '15+ anos',
+      ];
+      if (pillValores.contains(anos)) {
+        _pillAnosMercadoSelecionada = anos;
+        _anosMercadoNumero = 1;
+      } else {
+        _pillAnosMercadoSelecionada = null;
+        final parsed = int.tryParse(anos);
+        _anosMercadoNumero = (parsed != null && parsed >= 1) ? parsed : 1;
+      }
+    } else {
+      _pillAnosMercadoSelecionada = null;
+      _anosMercadoNumero = 1;
+    }
+  }
+
+  void _onDescricaoChanged(String text) {
+    setState(() {
+      _caracteresDescricao = text.length;
+    });
+    _debounceDescricao?.cancel();
+    _debounceDescricao = Timer(const Duration(milliseconds: 600), () {
+      _salvarDescricaoEmpresa(text);
+    });
+  }
+
+  Future<void> _salvarDescricaoEmpresa(String texto) async {
+    try {
+      final idGrupo = await _obterOuCriarGrupoEmpresa();
+      if (idGrupo == null) return;
+      final supabase = Supabase.instance.client;
+      await supabase
+          .from('grupo_empresa')
+          .update({'descricao_empresa': texto})
+          .eq('id_grupo_empresa', idGrupo);
+    } catch (e) {
+      debugPrint('Erro ao salvar descricao_empresa: $e');
+    }
+  }
+
+  Future<void> _salvarAnosMercado(String valor) async {
+    try {
+      final idGrupo = await _obterOuCriarGrupoEmpresa();
+      if (idGrupo == null) return;
+      final supabase = Supabase.instance.client;
+      await supabase
+          .from('grupo_empresa')
+          .update({'anos_mercado': valor})
+          .eq('id_grupo_empresa', idGrupo);
+    } catch (e) {
+      debugPrint('Erro ao salvar anos_mercado: $e');
+    }
+  }
+
+  Widget _buildSecaoSobreEmpresa() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Row(
+          children: [
+            Icon(
+              Icons.apartment_rounded,
+              color: _primaryBlue,
+              size: 24,
+            ),
+            SizedBox(width: 8),
+            Text(
+              'Sobre a Empresa',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: _titleDark,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: _cardBorder),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.02),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. Cabeçalho Descrição da Empresa + Contador
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Descrição da Empresa',
+                    style: TextStyle(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.bold,
+                      color: _titleDark,
+                    ),
+                  ),
+                  Text(
+                    '$_caracteresDescricao/500',
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: _textMuted,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // 2. Textarea com borda arredondada
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                child: TextField(
+                  controller: _descricaoEmpresaController,
+                  maxLength: 500,
+                  minLines: 4,
+                  maxLines: 6,
+                  keyboardType: TextInputType.multiline,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    color: Color(0xFF334155),
+                    height: 1.45,
+                  ),
+                  decoration: const InputDecoration(
+                    hintText:
+                        'Conte um pouco sobre sua empresa, especialidades e diferenciais...',
+                    hintStyle: TextStyle(
+                      color: Color(0xFF94A3B8),
+                      fontSize: 13,
+                    ),
+                    counterText: '',
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  onChanged: _onDescricaoChanged,
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              // Legenda explicativa
+              const Text(
+                'Esta descrição fica visível no perfil público da empresa para novos clientes.',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: _textMuted,
+                  height: 1.3,
+                ),
+              ),
+              const SizedBox(height: 18),
+
+              // Divisor
+              const Divider(
+                color: Color(0xFFF1F5F9),
+                height: 1,
+                thickness: 1,
+              ),
+              const SizedBox(height: 18),
+
+              // 3. Cabeçalho Anos de Experiência no Mercado
+              const Row(
+                children: [
+                  Icon(
+                    Icons.verified_outlined,
+                    color: _titleDark,
+                    size: 20,
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    'Anos de Experiência no Mercado',
+                    style: TextStyle(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.bold,
+                      color: _titleDark,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              // Stepper card cinza
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F4F9),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  children: [
+                    // Círculo azul com medalha/fita
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF00B0FF),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.workspace_premium,
+                          color: Colors.white,
+                          size: 25,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '$_anosMercadoNumero ${_anosMercadoNumero == 1 ? 'Ano' : 'Anos'}',
+                            style: const TextStyle(
+                              fontSize: 16.5,
+                              fontWeight: FontWeight.bold,
+                              color: _titleDark,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'Atuação comprovada',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: _textMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Controles de decremento, número e incremento
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Material(
+                          color: Colors.white,
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: () {
+                              if (_anosMercadoNumero > 1) {
+                                setState(() {
+                                  _anosMercadoNumero--;
+                                  _pillAnosMercadoSelecionada = null;
+                                });
+                                _salvarAnosMercado('$_anosMercadoNumero');
+                              } else if (_pillAnosMercadoSelecionada != null) {
+                                setState(() {
+                                  _pillAnosMercadoSelecionada = null;
+                                });
+                                _salvarAnosMercado('$_anosMercadoNumero');
+                              }
+                            },
+                            child: Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: const Color(0xFFE2E8F0),
+                                ),
+                              ),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.remove,
+                                  size: 18,
+                                  color: _titleDark,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Text(
+                            '$_anosMercadoNumero',
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              color: _titleDark,
+                            ),
+                          ),
+                        ),
+                        Material(
+                          color: Colors.white,
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: () {
+                              setState(() {
+                                _anosMercadoNumero++;
+                                _pillAnosMercadoSelecionada = null;
+                              });
+                              _salvarAnosMercado('$_anosMercadoNumero');
+                            },
+                            child: Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: const Color(0xFFE2E8F0),
+                                ),
+                              ),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.add,
+                                  size: 18,
+                                  color: _titleDark,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Pills de seleção de faixa
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  {'label': 'Menos de 1 ano', 'valor': '<1 ano'},
+                  {'label': '2 a 5 anos', 'valor': '2 a 5 anos'},
+                  {'label': '6 a 10 anos', 'valor': '6 a 10 anos'},
+                  {'label': '11 a 15 anos', 'valor': '11 a 15 anos'},
+                  {'label': '15+ anos', 'valor': '15+ anos'},
+                ].map((pill) {
+                  final isSelected =
+                      _pillAnosMercadoSelecionada == pill['valor'];
+                  return Material(
+                    color: isSelected ? const Color(0xFF00B0FF) : Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(20),
+                      onTap: () {
+                        setState(() {
+                          if (isSelected) {
+                            _pillAnosMercadoSelecionada = null;
+                            _salvarAnosMercado('$_anosMercadoNumero');
+                          } else {
+                            _pillAnosMercadoSelecionada = pill['valor'];
+                            _salvarAnosMercado(pill['valor']!);
+                          }
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isSelected
+                                ? const Color(0xFF00B0FF)
+                                : const Color(0xFFE2E8F0),
+                          ),
+                        ),
+                        child: Text(
+                          pill['label']!,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                            color: isSelected
+                                ? Colors.white
+                                : const Color(0xFF475569),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 18),
+              const Divider(
+                color: Color(0xFFF1F5F9),
+                height: 1,
+                thickness: 1,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -2074,9 +2544,72 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
             ..._membros.map((membro) => _buildMembroCard(membro)),
             const SizedBox(height: 24),
             _buildServicosDisponibilizados(),
+            const SizedBox(height: 24),
+
+            // ================= SEÇÃO SOBRE A EMPRESA =================
+            _buildSecaoSobreEmpresa(),
             const SizedBox(height: 30),
           ],
         ),
+      ),
+      bottomNavigationBar: BottomNavigationBarProfissional(
+        currentIndex: 4,
+        // Aberta a partir da conta empresa: 5º item fica "Empresa".
+        // Mesma chave da bottom bar de Mensagens: o Flutter reutiliza o
+        // MESMO elemento ao alternar Gestão <-> Mensagens, sem reconstruir
+        // nem piscar os itens a partir da 2ª vez.
+        key: const ValueKey('bottomProfissional'),
+        isContaEmpresa: true,
+        // Tocar em Empresa estando na Gestão recarrega os dados.
+        onReselecionarAbaAtual: (_) => _carregarDadosEmpresa(),
+        onTap: (index) {
+          if (index == 0) {
+            AppNavigationUtil.navegarAba(
+              context,
+              const TelaHomeProfissional(isVisitante: false),
+              isHome: true,
+            );
+            return;
+          }
+          if (index == 2) {
+            AppNavigationUtil.navegarAba(
+              context,
+              const TelaMensagensPage(
+                isVisitante: false,
+                isProfissional: true,
+              ),
+              isHome: false,
+            );
+            return;
+          }
+          if (index == 3) {
+            // Aba Serviços: abre os solicitados (conta empresa), em vez de
+            // voltar para a home do profissional.
+            Navigator.of(context).push(
+              AppNavigationUtil.rotaSemAnimacao(
+                const MeusServicosSolicitadosPage(),
+                nome: 'MeusServicosSolicitadosPage',
+              ),
+            );
+            return;
+          }
+          if (index == 4) {
+            // Já está na Empresa: volta para a Home da empresa.
+            AppNavigationUtil.navegarAba(
+              context,
+              const TelaHomeProfissional(isVisitante: false),
+              isHome: true,
+            );
+            return;
+          }
+          // Radar (1): volta para a Home e deixa a home decidir a aba,
+          // mantendo a barra consistente.
+          AppNavigationUtil.navegarAba(
+            context,
+            const TelaHomeProfissional(isVisitante: false),
+            isHome: true,
+          );
+        },
       ),
     );
   }
@@ -2178,6 +2711,10 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                             idGrupoEmpresaInicial: _idGrupoEmpresa,
                             associacaoEmpresaInicial: true,
                             abrirFormularioInicial: true,
+                            // Gestão da empresa: sempre "Loja", independente
+                            // da conta ativa no momento.
+                            forcarContaAtiva: true,
+                            forcarModoEmpresa: true,
                           ),
                         ),
                       );
@@ -2324,6 +2861,10 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
         builder: (_) => AdicionarServicoProfissionalPage(
           servicoParaEditar: servico,
           idGrupoEmpresaInicial: _idGrupoEmpresa,
+          // Gestão da empresa: sempre "Loja", independente
+          // da conta ativa no momento.
+          forcarContaAtiva: true,
+          forcarModoEmpresa: true,
         ),
       ),
     );

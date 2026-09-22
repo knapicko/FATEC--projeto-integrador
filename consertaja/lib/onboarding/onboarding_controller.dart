@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/consulta_cadastro_service.dart';
 import '../services/formatacao_data.dart';
 import '../services/validacao_documento.dart';
+import '../services/validacao_senha.dart';
 import '../services/validacao_telefone.dart';
 import '../services/google_auth_service.dart';
 import '../services/auth_navigation.dart';
@@ -81,11 +82,11 @@ class OnboardingController extends ChangeNotifier {
   bool get isCnpj => somenteDigitos(documento.text).length > 11;
   bool get isCpf => somenteDigitos(documento.text).length == 11;
 
-  bool get senhaTemOito => senha.text.length >= 8;
-  bool get senhaMaiuscula => senha.text.contains(RegExp(r'[A-Z]'));
-  bool get senhaMinuscula => senha.text.contains(RegExp(r'[a-z]'));
-  bool get senhaSimbolo => senha.text.contains(RegExp(r'[^A-Za-z0-9\s]'));
-  bool get senhaNumero => senha.text.contains(RegExp(r'[0-9]'));
+  bool get senhaTemOito => senhaTemOitoCaracteres(senha.text);
+  bool get senhaMaiuscula => senhaTemMaiuscula(senha.text);
+  bool get senhaMinuscula => senhaTemMinuscula(senha.text);
+  bool get senhaSimbolo => senhaTemSimbolo(senha.text);
+  bool get senhaNumero => senhaTemNumero(senha.text);
 
   Future<void> ensureStarted() async {
     if (_started) return;
@@ -128,7 +129,11 @@ class OnboardingController extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool _persistBound = false;
+
   void _bindPersist() {
+    if (_persistBound) return;
+    _persistBound = true;
     for (final c in [
       documento,
       identificadorLogin,
@@ -272,8 +277,8 @@ class OnboardingController extends ChangeNotifier {
   }
 
   Future<void> limparRascunho() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_prefsKey);
+    _persistTimer?.cancel();
+    _persistTimer = null;
     _historico.clear();
     for (final c in [
       documento,
@@ -320,6 +325,9 @@ class OnboardingController extends ChangeNotifier {
     documentosValidados.clear();
     _applyVisuals();
     notifyListeners();
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_prefsKey);
   }
 
   Future<void> _transicionar(

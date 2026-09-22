@@ -9,6 +9,7 @@ import 'esqueci_senha.dart';
 import 'services/auth_navigation.dart';
 import 'tela_inicial.dart';
 import 'onboarding/onboarding_widgets.dart';
+import 'utils/app_navigation_util.dart';
 
 // ================= TELA: LOGIN =================
 class LoginPage extends StatefulWidget {
@@ -33,7 +34,7 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _fazerLogin() async {
     if (_emailController.text.isEmpty || _senhaController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Preencha email e senha para entrar.')),
+        const SnackBar(content: Text('Preencha o identificador e a senha para entrar.')),
       );
       return;
     }
@@ -59,7 +60,9 @@ class _LoginPageState extends State<LoginPage> {
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(resultado.mensagem ?? 'Email ou senha incorretos.'),
+            content: Text(
+              resultado.mensagem ?? 'Identificador ou senha incorretos.',
+            ),
           ),
         );
       }
@@ -148,21 +151,12 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  String _identificadorHint(String value) {
-    if (value.contains('@') || RegExp(r'[A-Za-z]').hasMatch(value)) {
-      return 'exemplo@email.com';
-    }
-    final digits = value.replaceAll(RegExp(r'\D'), '');
-    if (digits.length >= 12) return 'CNPJ: __.___.___/____-__';
-    if (digits.length == 11) return 'CPF ou telefone: ___.___.___-__';
-    if (digits.isNotEmpty) return 'Telefone: (__) ____-____';
-    return 'CPF, CNPJ, email ou telefone';
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
+    return AppBackHandler(
+      isAuth: true,
+      child: Scaffold(
+        backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -214,13 +208,16 @@ class _LoginPageState extends State<LoginPage> {
 
               ValueListenableBuilder<TextEditingValue>(
                 valueListenable: _emailController,
-                builder: (context, value, _) => _InputFieldWithAnimation(
-                  label: 'Email, CPF, CNPJ ou telefone',
-                  hint: _identificadorHint(value.text),
-                  keyboardType: TextInputType.text,
-                  inputFormatters: [LoginIdentifierInputFormatter()],
-                  controller: _emailController,
-                ),
+                builder: (context, value, _) {
+                  final tipo = identificarTipoLogin(value.text);
+                  return _InputFieldWithAnimation(
+                    label: tipo.endsWith(':') ? tipo : 'Email, CPF, CNPJ ou telefone',
+                    hint: 'Digite seu identificador',
+                    keyboardType: TextInputType.text,
+                    inputFormatters: [LoginIdentifierInputFormatter()],
+                    controller: _emailController,
+                  );
+                },
               ),
 
               _InputFieldWithAnimation(
@@ -378,7 +375,7 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ),
       ),
-    );
+    ),);
   }
 }
 

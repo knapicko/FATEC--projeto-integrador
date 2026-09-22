@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'services/cor_dominante_service.dart';
 import 'utils/iniciais.dart';
 
 class ModificarContaProfissionalPage extends StatefulWidget {
@@ -43,6 +44,7 @@ class _ModificarContaProfissionalPageState
   bool _enviandoFoto = false;
 
   String? _fotoPerfilUrl;
+  Color _corBanner = CorDominanteService.corPadraoColor;
   String _nomeCompleto = 'Nome não encontrado';
   String? _anosExperienciaSelecionado;
   _TipoConta _tipoConta = _TipoConta.independente;
@@ -122,12 +124,15 @@ class _ModificarContaProfissionalPageState
         if (_idPerfil != null) {
           final perfil = await _supabase
               .from('perfil')
-              .select('descricao_perfil, tipo_perfil')
+              .select('descricao_perfil, tipo_perfil, cor_banner')
               .eq('id_perfil', _idPerfil!)
               .maybeSingle();
 
           _descricaoController.text =
               perfil?['descricao_perfil']?.toString().trim() ?? '';
+          _corBanner = CorDominanteService.paraColor(
+            perfil?['cor_banner']?.toString(),
+          );
 
           final tipoPerfilRaw = perfil?['tipo_perfil']?.toString();
           if (tipoPerfilRaw == 'Loja') {
@@ -158,6 +163,7 @@ class _ModificarContaProfissionalPageState
       await _supabase.from('perfil').upsert({
         'id_perfil': _idProfissional,
         'descricao_perfil': null,
+        'cor_banner': CorDominanteService.corPadrao,
       });
 
       await _supabase
@@ -218,50 +224,100 @@ class _ModificarContaProfissionalPageState
 
       setState(() => _enviandoFoto = true);
 
+      // Lê os bytes UMA vez e extrai a cor dominante deles.
+      // Se a extração falhar por qualquer motivo, usa o default
+      // 0xFF0FB3FF (profissional sem foto válida).
+      Uint8List bytes;
+      try {
+        bytes = await pickedFile.readAsBytes();
+      } catch (_) {
+        bytes = Uint8List(0);
+      }
+      final corBanner = CorDominanteService.extrair(bytes);
+
+      // Nome/bucket SEM espaço: bucket "Foto Perfil" quebra URL pública
+      // (vira %20) e pode falhar por RLS/policy dependendo do projeto.
+      // Usa "foto-perfil" e cai para "Foto Perfil" (legado) se preciso.
       final fileName =
           '${user.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      const bucketName = 'Foto Perfil';
+      const bucketNovo = 'foto-perfil';
+      const bucketLegado = 'Foto Perfil';
 
-      if (kIsWeb) {
-        final Uint8List bytes = await pickedFile.readAsBytes();
-        await _supabase.storage
-            .from(bucketName)
-            .uploadBinary(
-              fileName,
-              bytes,
-              fileOptions: const FileOptions(
-                contentType: 'image/jpeg',
-                upsert: true,
-              ),
-            );
-      } else {
-        final file = File(pickedFile.path);
-        await _supabase.storage
-            .from(bucketName)
-            .upload(
-              fileName,
-              file,
-              fileOptions: const FileOptions(
-                contentType: 'image/jpeg',
-                upsert: true,
-              ),
-            );
+      String bucketUsado = bucketNovo;
+      String? publicUrl;
+      Object? ultimoErro;
+
+      for (final bucketName in [bucketNovo, bucketLegado]) {
+        try {
+          if (kIsWeb) {
+            await _supabase.storage
+                .from(bucketName)
+                .uploadBinary(
+                  fileName,
+                  bytes,
+                  fileOptions: const FileOptions(
+                    contentType: 'image/jpeg',
+                    upsert: true,
+                  ),
+                );
+          } else {
+            final file = File(pickedFile.path);
+            await _supabase.storage
+                .from(bucketName)
+                .upload(
+                  fileName,
+                  file,
+                  fileOptions: const FileOptions(
+                    contentType: 'image/jpeg',
+                    upsert: true,
+                  ),
+                );
+          }
+
+          publicUrl = _supabase.storage
+              .from(bucketName)
+              .getPublicUrl(fileName);
+          bucketUsado = bucketName;
+          ultimoErro = null;
+          break;
+        } catch (e) {
+          ultimoErro = e;
+          debugPrint('Upload falhou no bucket \"$bucketName\": $e');
+        }
       }
 
-      final publicUrl = _supabase.storage
-          .from(bucketName)
-          .getPublicUrl(fileName);
+      if (publicUrl == null) {
+        throw Exception(
+          'Falha no upload da foto (buckets \"$bucketNovo\" / \"$bucketLegado\"). '
+          'Verifique se o bucket existe e está público. Detalhe: $ultimoErro',
+        );
+      }
+      debugPrint('Foto enviada para o bucket \"$bucketUsado\".');
 
       await _supabase
           .from('usuarios')
           .update({'foto_perfil_url': publicUrl})
           .eq('auth_id', user.id);
 
+      final idPerfil = await _obterOuCriarPerfil();
+      if (idPerfil != null) {
+        // Salva a cor dominante da NOVA foto toda vez que ela mudar.
+        await CorDominanteService.atualizarCorBanner(
+          supabase: _supabase,
+          idPerfil: idPerfil,
+          fotoBytes: bytes,
+        );
+      }
+
       if (mounted) {
         setState(() {
           _fotoPerfilUrl = publicUrl;
+          _corBanner = CorDominanteService.paraColor(corBanner);
           _enviandoFoto = false;
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Foto atualizada com sucesso!')),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -396,19 +452,7 @@ class _ModificarContaProfissionalPageState
             SizedBox(
               width: double.infinity,
               height: 128,
-              child: Image.asset(
-                'assets/images/login_img.png',
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Color(0xFFDCE9F4), Color(0xFFC8DDEE)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                ),
-              ),
+              child: ColoredBox(color: _corBanner),
             ),
             Positioned(
               top: 10,

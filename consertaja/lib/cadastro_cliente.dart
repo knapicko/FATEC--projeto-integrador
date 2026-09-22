@@ -10,9 +10,11 @@ import 'tela_home.dart';
 import 'services/google_auth_service.dart';
 import 'services/validacao_telefone.dart';
 import 'services/validacao_documento.dart';
+import 'services/validacao_senha.dart';
 import 'services/formatacao_data.dart';
 import 'widgets/seletor_ddi.dart';
 import 'widgets/dialogo_documento.dart';
+import 'utils/app_navigation_util.dart';
 import 'termos_de_uso.dart';
 import 'politica_de_privacidade.dart';
 import 'completar_cadastro.dart';
@@ -601,352 +603,357 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
+    return AppBackHandler(
+      isAuth: true,
+      child: Scaffold(
         backgroundColor: Colors.white,
-        elevation: 0,
-        leadingWidth: 100,
-        leading: TextButton.icon(
-          onPressed: () => Navigator.pop(context),
-          icon: const Icon(
-            Icons.arrow_back_ios,
-            size: 18,
-            color: Color(0xFF00A2FF),
-          ),
-          label: const Text(
-            'Voltar',
-            style: TextStyle(color: Color(0xFF00A2FF), fontSize: 16),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leadingWidth: 100,
+          leading: TextButton.icon(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(
+              Icons.arrow_back_ios,
+              size: 18,
+              color: Color(0xFF00A2FF),
+            ),
+            label: const Text(
+              'Voltar',
+              style: TextStyle(color: Color(0xFF00A2FF), fontSize: 16),
+            ),
           ),
         ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const SizedBox(height: 15),
-            const Text(
-              'Criar conta - Cliente',
-              style: TextStyle(
-                color: Color(0xFF00A2FF),
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const SizedBox(height: 15),
+              const Text(
+                'Criar conta - Cliente',
+                style: TextStyle(
+                  color: Color(0xFF00A2FF),
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            const SizedBox(height: 25),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildStepCircle('1', isActive: true),
-                _buildStepLine(),
-                _buildStepCircle('2', isActive: false),
-              ],
-            ),
-            const SizedBox(height: 35),
-
-            // Slider container for pessoa física/juridica
-            Container(
-              width: double.infinity,
-              height: 52,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF2F2F2),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              padding: const EdgeInsets.all(4),
-              child: Row(
+              const SizedBox(height: 25),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => setState(() {
-                        _isPessoaFisica = true;
-                        _erroCnpj = null;
-                        _erroRazaoSocial = null;
-                        _erroCpf = null;
-                        _erroNomeFantasia = null;
-                      }),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        decoration: BoxDecoration(
-                          color: _isPessoaFisica
-                              ? const Color(0xFF00A2FF)
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          'Física',
-                          style: TextStyle(
+                  _buildStepCircle('1', isActive: true),
+                  _buildStepLine(),
+                  _buildStepCircle('2', isActive: false),
+                ],
+              ),
+              const SizedBox(height: 35),
+
+              // Slider container for pessoa física/juridica
+              Container(
+                width: double.infinity,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF2F2F2),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                padding: const EdgeInsets.all(4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() {
+                          _isPessoaFisica = true;
+                          _erroCnpj = null;
+                          _erroRazaoSocial = null;
+                          _erroCpf = null;
+                          _erroNomeFantasia = null;
+                        }),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          decoration: BoxDecoration(
                             color: _isPessoaFisica
-                                ? Colors.white
-                                : const Color(0xFF828282),
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
+                                ? const Color(0xFF00A2FF)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'Física',
+                            style: TextStyle(
+                              color: _isPessoaFisica
+                                  ? Colors.white
+                                  : const Color(0xFF828282),
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => setState(() {
-                        _isPessoaFisica = false;
-                        _erroCpf = null;
-                        _erroRazaoSocial = null;
-                        _erroNomeFantasia = null;
-                      }),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        decoration: BoxDecoration(
-                          color: !_isPessoaFisica
-                              ? const Color(0xFF00A2FF)
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          'Jurídica',
-                          style: TextStyle(
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() {
+                          _isPessoaFisica = false;
+                          _erroCpf = null;
+                          _erroRazaoSocial = null;
+                          _erroNomeFantasia = null;
+                        }),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          decoration: BoxDecoration(
                             color: !_isPessoaFisica
-                                ? Colors.white
-                                : const Color(0xFF828282),
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
+                                ? const Color(0xFF00A2FF)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'Jurídica',
+                            style: TextStyle(
+                              color: !_isPessoaFisica
+                                  ? Colors.white
+                                  : const Color(0xFF828282),
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 35),
+
+              if (_isPessoaFisica) ...[
+                _InputFieldWithAnimation(
+                  label: 'CPF',
+                  hint: '___.___.___-__',
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [MaskedInputFormatter('###.###.###-##')],
+                  controller: _cpfController,
+                  errorText: _erroCpf,
+                ),
+              ] else ...[
+                _InputFieldWithAnimation(
+                  label: 'CNPJ',
+                  hint: '__.___.___/____-__',
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [MaskedInputFormatter('##.###.###/####-##')],
+                  controller: _cnpjController,
+                  errorText: _erroCnpj,
+                  focusNode: _cnpjFocusNode,
+                ),
+                const SizedBox(height: 10),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 25, left: 4, top: 5),
+                  child: Column(
+                    children: [
+                      _buildCustomRadioButton(
+                        text: 'CNPJ de uma empresa',
+                        isSelected: _cnpjDeEmpresa,
+                        onTap: () => setState(() => _cnpjDeEmpresa = true),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildCustomRadioButton(
+                        text: 'Tenho um imóvel registrado em CNPJ',
+                        isSelected: !_cnpjDeEmpresa,
+                        onTap: () => setState(() => _cnpjDeEmpresa = false),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              if (_isPessoaFisica) ...[
+                _InputFieldWithAnimation(
+                  label: 'Nome completo',
+                  hint: 'Nome completo',
+                  keyboardType: TextInputType.name,
+                  controller: _nomeController,
+                  errorText: _erroNome,
+                ),
+              ] else ...[
+                _InputFieldWithAnimation(
+                  label: 'Nome Fantasia',
+                  hint: 'Nome Fantasia',
+                  keyboardType: TextInputType.name,
+                  controller: _nomeFantasiaController,
+                  errorText: _erroNomeFantasia,
+                ),
+              ],
+
+              if (!_isPessoaFisica) ...[
+                _InputFieldWithAnimation(
+                  label: 'Razão Social',
+                  hint: 'Razão Social',
+                  controller: _razaoSocialController,
+                  errorText: _erroRazaoSocial,
+                ),
+              ],
+
+              if (!_isPessoaFisica) ...[
+                _InputFieldWithAnimation(
+                  label: 'Data de Fundação',
+                  hint: 'DD/MM/AAAA',
+                  suffixIcon: Icons.calendar_month,
+                  controller: _dataFundacaoController,
+                  readOnly: true,
+                  onTap: _fazerUploadDataFundacao,
+                  onSuffixIconTap: _fazerUploadDataFundacao,
+                  errorText: _erroDataFundacao,
+                ),
+              ],
+
+              _InputFieldWithAnimation(
+                label: 'Email',
+                hint: 'exemplo@email.com',
+                keyboardType: TextInputType.emailAddress,
+                controller: _emailController,
+                errorText: _erroEmail,
+                focusNode: _emailFocusNode,
+              ),
+              _InputFieldWithAnimation(
+                label: 'Telefone',
+                hint: '(__) _____-____',
+                keyboardType: TextInputType.phone,
+                inputFormatters: [MaskedInputFormatter('(##) #####-####')],
+                controller: _telefoneController,
+                errorText: _erroTelefone,
+                focusNode: _telefoneFocusNode,
+                prefixWidget: SeletorDDI(
+                  ddiInicial: _ddiSelecionado,
+                  corPrimaria: const Color(0xFF00A2FF),
+                  onChanged: (ddi) {
+                    setState(() => _ddiSelecionado = ddi);
+                    if (_erroTelefone != null) {
+                      setState(() => _erroTelefone = null);
+                    }
+                  },
+                ),
+              ),
+
+              if (_isPessoaFisica) ...[
+                _InputFieldWithAnimation(
+                  label: 'Data de Nascimento',
+                  hint: 'DD/MM/AAAA',
+                  suffixIcon: Icons.calendar_month,
+                  controller: _dataNascimentoController,
+                  readOnly: true,
+                  onTap: _fazerUploadDataNascimento,
+                  onSuffixIconTap: _fazerUploadDataNascimento,
+                  errorText: _erroDataNascimento,
+                ),
+              ],
+
+              const SizedBox(height: 40),
+
+              SizedBox(
+                width: double.infinity,
+                height: 55,
+                child: ElevatedButton(
+                  onPressed: _continuarCadastro,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF00A2FF),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    'Continuar',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(child: Divider(color: Colors.grey.shade300)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      'ou',
+                      style: TextStyle(color: Colors.grey.shade500),
+                    ),
+                  ),
+                  Expanded(child: Divider(color: Colors.grey.shade300)),
+                ],
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 55,
+                child: OutlinedButton.icon(
+                  onPressed: _carregandoGoogle ? null : _continuarComGoogle,
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFDADCE0)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                  icon: _carregandoGoogle
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Image.asset(
+                          'assets/images/icone/google-logo.png',
+                          height: 22,
+                        ),
+                  label: Text(
+                    _carregandoGoogle
+                        ? 'Conectando...'
+                        : 'Continuar com Google',
+                    style: const TextStyle(
+                      color: Colors.black87,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'Já tem uma conta? ',
+                    style: TextStyle(color: Colors.black, fontSize: 13),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const LoginPage(),
+                        ),
+                      );
+                    },
+                    child: const Text(
+                      'Faça login.',
+                      style: TextStyle(
+                        color: Color(0xFF00A2FF),
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
                 ],
               ),
-            ),
-
-            const SizedBox(height: 35),
-
-            if (_isPessoaFisica) ...[
-              _InputFieldWithAnimation(
-                label: 'CPF',
-                hint: '___.___.___-__',
-                keyboardType: TextInputType.number,
-                inputFormatters: [MaskedInputFormatter('###.###.###-##')],
-                controller: _cpfController,
-                errorText: _erroCpf,
-              ),
-            ] else ...[
-              _InputFieldWithAnimation(
-                label: 'CNPJ',
-                hint: '__.___.___/____-__',
-                keyboardType: TextInputType.number,
-                inputFormatters: [MaskedInputFormatter('##.###.###/####-##')],
-                controller: _cnpjController,
-                errorText: _erroCnpj,
-                focusNode: _cnpjFocusNode,
-              ),
-              const SizedBox(height: 10),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 25, left: 4, top: 5),
-                child: Column(
-                  children: [
-                    _buildCustomRadioButton(
-                      text: 'CNPJ de uma empresa',
-                      isSelected: _cnpjDeEmpresa,
-                      onTap: () => setState(() => _cnpjDeEmpresa = true),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildCustomRadioButton(
-                      text: 'Tenho um imóvel registrado em CNPJ',
-                      isSelected: !_cnpjDeEmpresa,
-                      onTap: () => setState(() => _cnpjDeEmpresa = false),
-                    ),
-                  ],
-                ),
-              ),
+              const SizedBox(height: 30),
             ],
-
-            if (_isPessoaFisica) ...[
-              _InputFieldWithAnimation(
-                label: 'Nome completo',
-                hint: 'Nome completo',
-                keyboardType: TextInputType.name,
-                controller: _nomeController,
-                errorText: _erroNome,
-              ),
-            ] else ...[
-              _InputFieldWithAnimation(
-                label: 'Nome Fantasia',
-                hint: 'Nome Fantasia',
-                keyboardType: TextInputType.name,
-                controller: _nomeFantasiaController,
-                errorText: _erroNomeFantasia,
-              ),
-            ],
-
-            if (!_isPessoaFisica) ...[
-              _InputFieldWithAnimation(
-                label: 'Razão Social',
-                hint: 'Razão Social',
-                controller: _razaoSocialController,
-                errorText: _erroRazaoSocial,
-              ),
-            ],
-
-            if (!_isPessoaFisica) ...[
-              _InputFieldWithAnimation(
-                label: 'Data de Fundação',
-                hint: 'DD/MM/AAAA',
-                suffixIcon: Icons.calendar_month,
-                controller: _dataFundacaoController,
-                readOnly: true,
-                onTap: _fazerUploadDataFundacao,
-                onSuffixIconTap: _fazerUploadDataFundacao,
-                errorText: _erroDataFundacao,
-              ),
-            ],
-
-            _InputFieldWithAnimation(
-              label: 'Email',
-              hint: 'exemplo@email.com',
-              keyboardType: TextInputType.emailAddress,
-              controller: _emailController,
-              errorText: _erroEmail,
-              focusNode: _emailFocusNode,
-            ),
-            _InputFieldWithAnimation(
-              label: 'Telefone',
-              hint: '(__) _____-____',
-              keyboardType: TextInputType.phone,
-              inputFormatters: [MaskedInputFormatter('(##) #####-####')],
-              controller: _telefoneController,
-              errorText: _erroTelefone,
-              focusNode: _telefoneFocusNode,
-              prefixWidget: SeletorDDI(
-                ddiInicial: _ddiSelecionado,
-                corPrimaria: const Color(0xFF00A2FF),
-                onChanged: (ddi) {
-                  setState(() => _ddiSelecionado = ddi);
-                  if (_erroTelefone != null) {
-                    setState(() => _erroTelefone = null);
-                  }
-                },
-              ),
-            ),
-
-            if (_isPessoaFisica) ...[
-              _InputFieldWithAnimation(
-                label: 'Data de Nascimento',
-                hint: 'DD/MM/AAAA',
-                suffixIcon: Icons.calendar_month,
-                controller: _dataNascimentoController,
-                readOnly: true,
-                onTap: _fazerUploadDataNascimento,
-                onSuffixIconTap: _fazerUploadDataNascimento,
-                errorText: _erroDataNascimento,
-              ),
-            ],
-
-            const SizedBox(height: 40),
-
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: ElevatedButton(
-                onPressed: _continuarCadastro,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00A2FF),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  elevation: 0,
-                ),
-                child: const Text(
-                  'Continuar',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(child: Divider(color: Colors.grey.shade300)),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Text(
-                    'ou',
-                    style: TextStyle(color: Colors.grey.shade500),
-                  ),
-                ),
-                Expanded(child: Divider(color: Colors.grey.shade300)),
-              ],
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: OutlinedButton.icon(
-                onPressed: _carregandoGoogle ? null : _continuarComGoogle,
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFFDADCE0)),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                ),
-                icon: _carregandoGoogle
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Image.asset(
-                        'assets/images/icone/google-logo.png',
-                        height: 22,
-                      ),
-                label: Text(
-                  _carregandoGoogle ? 'Conectando...' : 'Continuar com Google',
-                  style: const TextStyle(
-                    color: Colors.black87,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text(
-                  'Já tem uma conta? ',
-                  style: TextStyle(color: Colors.black, fontSize: 13),
-                ),
-                GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const LoginPage(),
-                      ),
-                    );
-                  },
-                  child: const Text(
-                    'Faça login.',
-                    style: TextStyle(
-                      color: Color(0xFF00A2FF),
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 30),
-          ],
+          ),
         ),
       ),
     );
@@ -1364,12 +1371,11 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
   bool _carregando = false;
 
   // Getters para verificar os requisitos em tempo real
-  bool get _temOitoCaracteres => _senhaController.text.length >= 8;
-  bool get _temMaiuscula => _senhaController.text.contains(RegExp(r'[A-Z]'));
-  bool get _temMinuscula => _senhaController.text.contains(RegExp(r'[a-z]'));
-  bool get _temSimbolo =>
-      _senhaController.text.contains(RegExp(r'[^A-Za-z0-9\s]'));
-  bool get _temNumero => _senhaController.text.contains(RegExp(r'[0-9]'));
+  bool get _temOitoCaracteres => senhaTemOitoCaracteres(_senhaController.text);
+  bool get _temMaiuscula => senhaTemMaiuscula(_senhaController.text);
+  bool get _temMinuscula => senhaTemMinuscula(_senhaController.text);
+  bool get _temSimbolo => senhaTemSimbolo(_senhaController.text);
+  bool get _temNumero => senhaTemNumero(_senhaController.text);
 
   @override
   void initState() {
@@ -1552,16 +1558,16 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
     } on AuthException catch (e) {
       String mensagemAmigavel = 'Ocorreu um erro ao registrar.';
 
-      if (e.toString().contains('AuthWeakPasswordException') ||
+        if (e.toString().contains('AuthWeakPasswordException') ||
           e.message.toLowerCase().contains('password should be at least') ||
-          e.statusCode == '422') {
+          e.message.toLowerCase().contains('weak password')) {
         // Lê do servidor quantos caracteres ele exige de verdade (o Supabase pode
         // pedir um mínimo maior do que as regras locais do app).
         final match = RegExp(
           r'at least (\d{1,3})',
           caseSensitive: false,
         ).firstMatch(e.message);
-        final requerido = match != null ? int.parse(match.group(1)!) : 8;
+        final requerido = match != null ? int.parse(match.group(1)!) : 12;
         mensagemAmigavel =
             'Senha muito fraca para o servidor! Ela precisa ter no mínimo '
             '$requerido caracteres, combinando letras maiúsculas, minúsculas, '
@@ -1657,7 +1663,7 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildRequisitoItem(
-                    'No mínimo 8 caracteres',
+                    'No mínimo 12 caracteres',
                     _temOitoCaracteres,
                   ),
                   _buildRequisitoItem(

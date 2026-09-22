@@ -7,6 +7,8 @@ import 'atualizar_senha.dart';
 import 'services/google_auth_service.dart';
 import 'onboarding/onboarding_controller.dart';
 import 'tela_inicial.dart';
+import 'services/verificacao_online.dart';
+import 'utils/app_navigation_util.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
@@ -19,6 +21,12 @@ void main() async {
   // 3. CONFIGURAR O LISTENER DIRETAMENTE NO MAIN
   Supabase.instance.client.auth.onAuthStateChange.listen((data) {
     final AuthChangeEvent event = data.event;
+
+    if (event == AuthChangeEvent.signedIn) {
+      VerificacaoOnline.instance.iniciar();
+    } else if (event == AuthChangeEvent.signedOut) {
+      VerificacaoOnline.instance.parar();
+    }
 
     if (event == AuthChangeEvent.passwordRecovery) {
       // O Future.microtask espera o Flutter terminar de carregar o MaterialApp
@@ -56,6 +64,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      VerificacaoOnline.instance.iniciar();
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      VerificacaoOnline.instance.parar();
+    }
     if (state == AppLifecycleState.detached && !_rascunhoLimpoAoEncerrar) {
       _rascunhoLimpoAoEncerrar = true;
       OnboardingController.instance.limparRascunho();
@@ -64,6 +79,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    VerificacaoOnline.instance.parar();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -72,6 +88,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     final session = Supabase.instance.client.auth.currentSession;
 
     if (session != null) {
+      VerificacaoOnline.instance.iniciar();
       try {
         final response = await GoogleAuthService.buscarPerfil(session.user.id);
 
@@ -118,6 +135,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: _navigatorKey,
+      navigatorObservers: [
+        AppRouteObserver.instance,
+      ],
       debugShowCheckedModeBanner: false,
       title: 'ConsertaJá',
       theme: ThemeData(
