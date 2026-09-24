@@ -8,6 +8,6 @@ void main() {
       const MaterialApp(home: MeusServicosProfissionalPage()),
     );
 
-    expect(find.text('Meus Serviços'), findsOneWidget);
+    expect(find.text('Meu Serviços Disponíveis'), findsOneWidget);
   });
 }
