@@ -3,8 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'gestao_equipe.dart';
-import 'solicitacao_aceita.dart';
 import 'services/solicitacoes_service.dart';
+import 'solicitacao_estado.dart';
 import 'tela_home_profissional.dart';
 import 'tela_chat_profissional.dart';
 import 'tela_mensagens.dart';
@@ -379,6 +379,17 @@ class _MeusServicosSolicitadosPageState
     );
   }
 
+  void _abrirSolicitacaoEstado(SolicitacaoRecebida item) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SolicitacaoEstadoPage(
+          idSolicitacao: item.idSolicitacao,
+          solicitacao: item,
+        ),
+      ),
+    );
+  }
+
   String _rotuloDataSolicitacao(DateTime data) {
     final agora = DateTime.now();
     final hoje = DateTime(agora.year, agora.month, agora.day);
@@ -582,13 +593,10 @@ class _MeusServicosSolicitadosPageState
         idProfissional: item.fkProfissional,
       );
       await _garantirStatusAceito(item.idSolicitacao);
-      if (!mounted) return;
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => SolicitacaoAceitaPage(solicitacao: item),
-        ),
-      );
       await _carregar();
+      if (mounted) {
+        _abrirSolicitacaoEstado(item);
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -691,14 +699,6 @@ class _MeusServicosSolicitadosPageState
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  void _abrirSolicitacaoAceita(SolicitacaoRecebida item) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => SolicitacaoAceitaPage(solicitacao: item),
       ),
     );
   }
@@ -999,10 +999,7 @@ class _MeusServicosSolicitadosPageState
 
   Widget _buildCard(SolicitacaoRecebida item) {
     if (_filtro == FiltroSolicitacao.novos && _ehAceita(item)) {
-      return GestureDetector(
-        onTap: () => _abrirSolicitacaoAceita(item),
-        child: _buildCardAceito(item),
-      );
+      return _buildCardAceito(item);
     }
     final corBase = CorOficio.parse(item.corOficio);
     final descricao = item.detalhes?.isNotEmpty == true
@@ -1164,13 +1161,10 @@ class _MeusServicosSolicitadosPageState
         ),
       ),
     );
-    if (_filtro == FiltroSolicitacao.aceitos && _ehAceita(item)) {
-      return GestureDetector(
-        onTap: () => _abrirSolicitacaoAceita(item),
-        child: card,
-      );
-    }
-    return card;
+    return GestureDetector(
+      onTap: () => _abrirSolicitacaoEstado(item),
+      child: card,
+    );
   }
 
   Widget _buildCardAceito(SolicitacaoRecebida item) {
@@ -1178,7 +1172,7 @@ class _MeusServicosSolicitadosPageState
         ? item.detalhes!
         : (item.descricaoServico ?? 'Detalhes não informados.');
     final agendada = _formatarAgendada(item.dataAgendada, item.horaAgendada);
-    return Container(
+    final cardAceito = Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -1345,7 +1339,7 @@ class _MeusServicosSolicitadosPageState
               if (_podeIniciarDeslocamento(item))
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: () {},
+                    onPressed: () => _abrirSolicitacaoEstado(item),
                     icon: const Icon(Icons.near_me_outlined, size: 18),
                     label: const Text('Iniciar deslocamento'),
                     style: FilledButton.styleFrom(
@@ -1372,6 +1366,10 @@ class _MeusServicosSolicitadosPageState
           ),
         ],
       ),
+    );
+    return GestureDetector(
+      onTap: () => _abrirSolicitacaoEstado(item),
+      child: cardAceito,
     );
   }
 
@@ -1437,7 +1435,7 @@ class _MeusServicosSolicitadosPageState
       child: OutlinedButton(
         onPressed: _filtro == FiltroSolicitacao.novos
             ? () => _recusar(item)
-            : null,
+            : () => _abrirSolicitacaoEstado(item),
         style: OutlinedButton.styleFrom(
           foregroundColor: _azul,
           side: const BorderSide(color: _azul),
@@ -1467,7 +1465,7 @@ class _MeusServicosSolicitadosPageState
         if (podeDeslocar)
           Expanded(
             child: ElevatedButton.icon(
-              onPressed: () {},
+              onPressed: () => _abrirSolicitacaoEstado(item),
               icon: const Icon(Icons.near_me_outlined, size: 18),
               label: const Text('Iniciar deslocamento'),
               style: ElevatedButton.styleFrom(
