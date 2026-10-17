@@ -18,6 +18,7 @@ class PedidoCliente {
   final double valor;
   final String? dataAg;
   final String? horaAg;
+  final String? dataSolicitacao;
   final String? img;
   final String? funcao;
   final String? corOficio;
@@ -34,6 +35,7 @@ class PedidoCliente {
     required this.valor,
     this.dataAg,
     this.horaAg,
+    this.dataSolicitacao,
     this.img,
     this.funcao,
     this.corOficio,
@@ -45,7 +47,19 @@ class PedidoCliente {
   });
 }
 
-enum FiltroPedido { todos, emAberto, emAndamento, concluidos }
+String textoSolicitado(PedidoCliente p) {
+  final valor = (p.dataSolicitacao ?? '').trim();
+  if (valor.isEmpty) return '';
+  try {
+    final data = DateTime.parse(valor).toLocal();
+    return 'Solicitado em ${data.day.toString().padLeft(2, '0')}/'
+        '${data.month.toString().padLeft(2, '0')}/${data.year}';
+  } catch (_) {
+    return 'Solicitado em $valor';
+  }
+}
+
+enum FiltroPedido { todos, emAberto, emAndamento, concluidos, recusados }
 
 class MeusPedidosPage extends StatefulWidget {
   final bool isVisitante;
@@ -131,7 +145,7 @@ class MeusPedidosState extends State<MeusPedidosPage> {
     final linhas = await db
         .from('solicitacoes')
         .select(
-          'id_solicitacao, data_agendada, hora_agendada, valor_final, fk_profissional, fk_grupo_empresa, fk_servico_prof, fk_status',
+          'id_solicitacao, data_solicitacao, data_agendada, hora_agendada, valor_final, fk_profissional, fk_grupo_empresa, fk_servico_prof, fk_status',
         )
         .eq('fk_usuario', idUsuario)
         .order('data_solicitacao', ascending: false);
@@ -351,6 +365,7 @@ class MeusPedidosState extends State<MeusPedidosPage> {
           valor: vFinal,
           dataAg: r['data_agendada']?.toString(),
           horaAg: r['hora_agendada']?.toString(),
+          dataSolicitacao: r['data_solicitacao']?.toString(),
           img: imgRaw.isNotEmpty ? imgRaw : null,
           funcao: func.isNotEmpty ? func : null,
           corOficio: corOf,
@@ -393,12 +408,17 @@ class MeusPedidosState extends State<MeusPedidosPage> {
     final v = s.trim().toLowerCase();
     return v.contains('conclu') ||
         v.contains('finaliz') ||
-        v.contains('cancel') ||
-        v.contains('recus');
+        v.contains('cancel');
+  }
+
+  bool ehRecusado(String s) {
+    return s.trim().toLowerCase().contains('recus');
   }
 
   List<PedidoCliente> get listaFiltrada {
-    var lista = todos;
+    var lista = filtro == FiltroPedido.todos
+        ? todos.where((p) => !ehRecusado(p.status)).toList()
+        : todos;
     if (filtro == FiltroPedido.emAberto) {
       lista = lista.where((p) => ehAberto(p.status)).toList();
     }
@@ -407,6 +427,9 @@ class MeusPedidosState extends State<MeusPedidosPage> {
     }
     if (filtro == FiltroPedido.concluidos) {
       lista = lista.where((p) => ehConcluido(p.status)).toList();
+    }
+    if (filtro == FiltroPedido.recusados) {
+      lista = lista.where((p) => ehRecusado(p.status)).toList();
     }
     final t = termo.trim().toLowerCase();
     if (t.isNotEmpty) {
@@ -425,22 +448,7 @@ class MeusPedidosState extends State<MeusPedidosPage> {
   int get qtdAberto => todos.where((p) => ehAberto(p.status)).length;
   int get qtdAndamento => todos.where((p) => ehAndamento(p.status)).length;
   int get qtdConcl => todos.where((p) => ehConcluido(p.status)).length;
-
-  String textoAgendado(PedidoCliente p) {
-    final d = (p.dataAg ?? '').trim();
-    var h = (p.horaAg ?? '').trim();
-    if (d.isEmpty && h.isEmpty) return '';
-    var dFmt = d;
-    try {
-      final dt = DateTime.parse(d);
-      final dd = dt.day.toString().padLeft(2, '0');
-      final mm = dt.month.toString().padLeft(2, '0');
-      dFmt = '$dd/$mm/${dt.year}';
-    } catch (_) {}
-    if (h.length >= 5) h = h.substring(0, 5);
-    if (dFmt.isNotEmpty && h.isNotEmpty) return '$dFmt - $h';
-    return dFmt.isNotEmpty ? dFmt : h;
-  }
+  int get qtdRecusados => todos.where((p) => ehRecusado(p.status)).length;
 
   String rotuloValor(PedidoCliente p) {
     final s = p.status.trim().toLowerCase();
@@ -690,10 +698,15 @@ class MeusPedidosState extends State<MeusPedidosPage> {
 
   Widget pills() {
     final items = [
-      (FiltroPedido.todos, 'Todos', todos.length),
+      (
+        FiltroPedido.todos,
+        'Todos',
+        todos.where((p) => !ehRecusado(p.status)).length,
+      ),
       (FiltroPedido.emAberto, 'Em Aberto', qtdAberto),
       (FiltroPedido.emAndamento, 'Em Andamento', qtdAndamento),
       (FiltroPedido.concluidos, 'Concluído', qtdConcl),
+      (FiltroPedido.recusados, 'Recusados', qtdRecusados),
     ];
     return SizedBox(
       height: 44,
@@ -858,7 +871,7 @@ class MeusPedidosState extends State<MeusPedidosPage> {
 
   Widget card(PedidoCliente p) {
     final e = estiloStatus(p.status);
-    final ag = textoAgendado(p);
+    final ag = textoSolicitado(p);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
@@ -878,9 +891,16 @@ class MeusPedidosState extends State<MeusPedidosPage> {
         children: [
           Row(
             children: [
-              Expanded(child: tagStatus(e)),
+              tagStatus(e),
+              const SizedBox(width: 10),
               if (ag.isNotEmpty)
-                Text(ag, style: const TextStyle(fontSize: 11, color: muted)),
+                Flexible(
+                  child: Text(
+                    ag,
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(fontSize: 11, color: muted),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 12),
@@ -1103,6 +1123,24 @@ class MeusPedidosState extends State<MeusPedidosPage> {
 
   StatusEstilo estiloStatus(String status) {
     final s = status.trim().toLowerCase();
+    if (s == 'aberto' || s == 'pendente' || s == 'novo') {
+      return const StatusEstilo(
+        rotulo: 'Aguardando profissional',
+        fundo: Color(0xFFE0F2FE),
+        texto: Color(0xFF0284C7),
+        borda: Color(0xFFBAE6FD),
+        icone: Icons.hourglass_top_outlined,
+      );
+    }
+    if (s.contains('recus')) {
+      return const StatusEstilo(
+        rotulo: 'Recusado',
+        fundo: Color(0xFFFEE2E2),
+        texto: Color(0xFFB91C1C),
+        borda: Color(0xFFFECACA),
+        icone: Icons.close_outlined,
+      );
+    }
     if (s.contains('cancel')) {
       return const StatusEstilo(
         rotulo: 'Cancelado',
