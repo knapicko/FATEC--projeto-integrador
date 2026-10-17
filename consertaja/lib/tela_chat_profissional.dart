@@ -5,8 +5,7 @@ import 'dart:typed_data';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart'
     show FilePicker, FileType, WindowsOptions;
-import 'package:file_selector/file_selector.dart'
-    show XTypeGroup, openFile;
+import 'package:file_selector/file_selector.dart' show XTypeGroup, openFile;
 import 'package:flutter/foundation.dart'
     show debugPrint, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
@@ -18,6 +17,7 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'widgets/skeleton_loading.dart';
 import 'package:url_launcher/url_launcher.dart' show LaunchMode, launchUrl;
 
 import 'services/chat_anexos_service.dart';
@@ -142,10 +142,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       if (_canalMensagens != null && _idUsuarioLogado != null) {
         _canalMensagens!.sendBroadcastMessage(
           event: 'digitando',
-          payload: {
-            'id_usuario': _idUsuarioLogado,
-            'digitando': digitando,
-          },
+          payload: {'id_usuario': _idUsuarioLogado, 'digitando': digitando},
         );
       }
     });
@@ -177,8 +174,9 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
         _extensaoGravacao = 'm4a';
       } else {
         _caminhoGravacao = '';
-        final suportaAac =
-            await _gravador.isEncoderSupported(AudioEncoder.aacLc);
+        final suportaAac = await _gravador.isEncoderSupported(
+          AudioEncoder.aacLc,
+        );
         _extensaoGravacao = suportaAac ? 'm4a' : 'webm';
       }
 
@@ -737,9 +735,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
         child: Stack(
           alignment: Alignment.center,
           children: [
-            InteractiveViewer(
-              child: Image.network(url, fit: BoxFit.contain),
-            ),
+            InteractiveViewer(child: Image.network(url, fit: BoxFit.contain)),
             Positioned(
               top: 40,
               right: 20,
@@ -810,8 +806,9 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       } else {
         if (widget.idGrupoEmpresa != null) {
           // Chat da EMPRESA (grupo_empresa): conversa cliente x empresa.
-          _souEmpresaNaConversa =
-              await _souMembroDoGrupo(widget.idGrupoEmpresa!);
+          _souEmpresaNaConversa = await _souMembroDoGrupo(
+            widget.idGrupoEmpresa!,
+          );
           _idGrupoEmpresaConversa = widget.idGrupoEmpresa;
           await _obterOuCriarConversaEmpresa(widget.idGrupoEmpresa!);
         } else {
@@ -870,16 +867,20 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       try {
         await _supabase
             .from('conversas')
-            .select('id_conversa, fk_usuario, fk_profissional, fk_grupo_empresa')
+            .select(
+              'id_conversa, fk_usuario, fk_profissional, fk_grupo_empresa',
+            )
             .limit(0);
       } catch (_) {
         temColunaGrupo = false;
       }
       final conversa = await _supabase
           .from('conversas')
-          .select(temColunaGrupo
-              ? 'fk_usuario, fk_profissional, fk_grupo_empresa'
-              : 'fk_usuario, fk_profissional')
+          .select(
+            temColunaGrupo
+                ? 'fk_usuario, fk_profissional, fk_grupo_empresa'
+                : 'fk_usuario, fk_profissional',
+          )
           .eq('id_conversa', _idConversa!)
           .maybeSingle();
       if (conversa == null) return;
@@ -920,7 +921,10 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
             .maybeSingle();
         final fkUsuarioProf = (dadosProf?['fk_usuario'] as num?)?.toInt();
         if (mounted) {
-          setState(() => _souProfissionalNaConversa = fkUsuarioProf == _idUsuarioLogado);
+          setState(
+            () =>
+                _souProfissionalNaConversa = fkUsuarioProf == _idUsuarioLogado,
+          );
         }
         return;
       }
@@ -1074,9 +1078,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
         } catch (_) {
           mensagens = await _supabase
               .from('mensagens')
-              .select(
-                'id_mensagem, conteudo, data_envio, fk_remitente_usuario',
-              )
+              .select('id_mensagem, conteudo, data_envio, fk_remitente_usuario')
               .eq('fk_conversa', _idConversa!)
               .order('data_envio', ascending: true);
         }
@@ -1251,9 +1253,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
         } catch (_) {
           mensagens = await _supabase
               .from('mensagens')
-              .select(
-                'id_mensagem, conteudo, data_envio, fk_remitente_usuario',
-              )
+              .select('id_mensagem, conteudo, data_envio, fk_remitente_usuario')
               .eq('fk_conversa', _idConversa!)
               .order('data_envio', ascending: true);
         }
@@ -1269,9 +1269,8 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       final otimistas = _mensagens.where((m) => m.id < 0).toList();
       final mesclada = [...lista];
       for (final o in otimistas) {
-        final jaConfirmada = lista.any(
-              (m) => m.conteudo == o.conteudo && m.ehRemetente,
-            ) ||
+        final jaConfirmada =
+            lista.any((m) => m.conteudo == o.conteudo && m.ehRemetente) ||
             // Anexo em upload: enquanto `enviando`, casa pelo tipo recente.
             (o.enviando &&
                 lista.any(
@@ -1370,7 +1369,8 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
 
       if (!mounted) return;
       if (inserida != null) {
-        final real = _mensagemDoMap(inserida) ??
+        final real =
+            _mensagemDoMap(inserida) ??
             _Mensagem(
               id: (inserida['id_mensagem'] as num?)?.toInt() ?? tempId,
               conteudo: textoParaEnviar,
@@ -1381,8 +1381,9 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
             );
 
         setState(() {
-          _mensagens =
-              _mensagens.map((m) => m.id == tempId ? real : m).toList();
+          _mensagens = _mensagens
+              .map((m) => m.id == tempId ? real : m)
+              .toList();
         });
         _scrollToBottom();
       } else {
@@ -1391,8 +1392,9 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     } on PostgrestException catch (e) {
       debugPrint('Erro ao enviar mensagem: ${e.message}');
       if (!mounted) return;
-      setState(() => _mensagens =
-          _mensagens.where((m) => m.id != tempId).toList());
+      setState(
+        () => _mensagens = _mensagens.where((m) => m.id != tempId).toList(),
+      );
       _mensagemController.text = textoParaEnviar;
       _mensagemController.selection = TextSelection.fromPosition(
         TextPosition(offset: _mensagemController.text.length),
@@ -1409,11 +1411,14 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     } catch (e) {
       debugPrint('Erro ao enviar mensagem: $e');
       if (!mounted) return;
-      setState(() => _mensagens =
-          _mensagens.where((m) => m.id != tempId).toList());
+      setState(
+        () => _mensagens = _mensagens.where((m) => m.id != tempId).toList(),
+      );
       _mensagemController.text = textoParaEnviar;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Não foi possível enviar. Tente de novo.')),
+        const SnackBar(
+          content: Text('Não foi possível enviar. Tente de novo.'),
+        ),
       );
     } finally {
       if (mounted) setState(() => _enviando = false);
@@ -1504,8 +1509,9 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       final foto = usuario?['foto_perfil_url']?.toString().trim();
       if (!mounted) return;
       setState(() {
-        _ultimaConexaoContato =
-            raw == null ? null : DateTime.tryParse(raw)?.toLocal();
+        _ultimaConexaoContato = raw == null
+            ? null
+            : DateTime.tryParse(raw)?.toLocal();
         if (_souProfissionalNaConversa && nome != null && nome.isNotEmpty) {
           _nomeContato = nome;
           _fotoContato = foto ?? '';
@@ -1567,46 +1573,46 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       backgroundColor: _chatBackground,
       appBar: _buildBarraContato(),
       body: _carregando
-          ? const Center(child: CircularProgressIndicator(color: _primaryBlue))
+          ? const SkeletonPage(layout: SkeletonLayout.messages)
           : _erroCarregamento != null && _mensagens.isEmpty
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.chat_bubble_outline,
-                          size: 48,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          _erroCarregamento!,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.black54),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: () {
-                            setState(() {
-                              _carregando = true;
-                              _erroCarregamento = null;
-                            });
-                            _inicializarChat();
-                          },
-                          child: const Text('Tentar de novo'),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              : Column(
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Expanded(child: _buildListaMensagens()),
-                    _buildBarraInput(),
+                    const Icon(
+                      Icons.chat_bubble_outline,
+                      size: 48,
+                      color: Colors.grey,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      _erroCarregamento!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.black54),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _carregando = true;
+                          _erroCarregamento = null;
+                        });
+                        _inicializarChat();
+                      },
+                      child: const Text('Tentar de novo'),
+                    ),
                   ],
                 ),
+              ),
+            )
+          : Column(
+              children: [
+                Expanded(child: _buildListaMensagens()),
+                _buildBarraInput(),
+              ],
+            ),
     );
   }
 
@@ -1614,14 +1620,15 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     final oficioExibido = _oficioContato.trim().isNotEmpty
         ? _oficioContato.trim()
         : widget.oficioPrincipal.trim();
-    final mostrarOficio = oficioExibido.isNotEmpty &&
+    final mostrarOficio =
+        oficioExibido.isNotEmpty &&
         oficioExibido.toLowerCase() != 'conversa' &&
         oficioExibido.toLowerCase() != 'cliente';
 
     final nomeExibido =
         (_nomeContato != null && _nomeContato!.trim().isNotEmpty)
-            ? _nomeContato!.trim()
-            : widget.nomeProfissional;
+        ? _nomeContato!.trim()
+        : widget.nomeProfissional;
 
     return AppBar(
       backgroundColor: Colors.white,
@@ -1682,11 +1689,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                       ),
                     ),
                     const SizedBox(width: 4),
-                    const Icon(
-                      Icons.verified,
-                      color: _primaryBlue,
-                      size: 17,
-                    ),
+                    const Icon(Icons.verified, color: _primaryBlue, size: 17),
                   ],
                 ),
                 const SizedBox(height: 3),
@@ -1745,8 +1748,8 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
   Widget _buildAvatarContato() {
     final nomeExibido =
         (_nomeContato != null && _nomeContato!.trim().isNotEmpty)
-            ? _nomeContato!.trim()
-            : widget.nomeProfissional;
+        ? _nomeContato!.trim()
+        : widget.nomeProfissional;
     final foto = (_fotoContato != null && _fotoContato!.trim().isNotEmpty)
         ? _fotoContato!.trim()
         : widget.fotoProfissional.trim();
@@ -1775,8 +1778,8 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
   Widget _buildMiniAvatarContato() {
     final nomeExibido =
         (_nomeContato != null && _nomeContato!.trim().isNotEmpty)
-            ? _nomeContato!.trim()
-            : widget.nomeProfissional;
+        ? _nomeContato!.trim()
+        : widget.nomeProfissional;
     final foto = (_fotoContato != null && _fotoContato!.trim().isNotEmpty)
         ? _fotoContato!.trim()
         : widget.fotoProfissional.trim();
@@ -1937,8 +1940,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
 
     final url = urlArquivo.isNotEmpty
         ? urlArquivo
-        : (separado?.url ??
-              (conteudo.startsWith('http') ? conteudo : ''));
+        : (separado?.url ?? (conteudo.startsWith('http') ? conteudo : ''));
 
     final nome = legenda.isNotEmpty
         ? legenda
@@ -1955,8 +1957,8 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     final texto = tipo == 'imagem'
         ? 'Enviando foto...'
         : tipo == 'audio'
-            ? 'Enviando áudio...'
-            : 'Enviando arquivo...';
+        ? 'Enviando áudio...'
+        : 'Enviando arquivo...';
 
     return Align(
       alignment: Alignment.centerRight,
@@ -2014,10 +2016,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
           children: [
             Text(
               mensagem.conteudo,
-              style: const TextStyle(
-                fontSize: 14.5,
-                color: Colors.white,
-              ),
+              style: const TextStyle(fontSize: 14.5, color: Colors.white),
             ),
             const SizedBox(height: 4),
             Row(
@@ -2070,18 +2069,12 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
           children: [
             Text(
               mensagem.conteudo,
-              style: const TextStyle(
-                fontSize: 14.5,
-                color: Color(0xFF111827),
-              ),
+              style: const TextStyle(fontSize: 14.5, color: Color(0xFF111827)),
             ),
             const SizedBox(height: 4),
             Text(
               DateFormat('HH:mm').format(mensagem.dataEnvio),
-              style: const TextStyle(
-                fontSize: 11,
-                color: Color(0xFF9CA3AF),
-              ),
+              style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF)),
             ),
           ],
         ),
@@ -2093,8 +2086,8 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     final fotoUrl = mensagem.urlArquivo?.trim().isNotEmpty == true
         ? mensagem.urlArquivo!.trim()
         : (mensagem.conteudo.trim().startsWith('http')
-            ? mensagem.conteudo.trim()
-            : '');
+              ? mensagem.conteudo.trim()
+              : '');
     // Sem URL real vinda do Supabase: não mostra imagem estática, usa texto.
     if (fotoUrl.isEmpty) {
       return mensagem.ehRemetente
@@ -2393,9 +2386,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
           maxWidth: MediaQuery.of(context).size.width * 0.76,
         ),
         decoration: BoxDecoration(
-          color: mensagem.ehRemetente
-              ? _primaryBlue
-              : Colors.white,
+          color: mensagem.ehRemetente ? _primaryBlue : Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -2446,8 +2437,8 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                             color: ehParteTocada
                                 ? Colors.white
                                 : (mensagem.ehRemetente
-                                    ? Colors.white.withValues(alpha: 0.35)
-                                    : const Color(0xFFD1D5DB)),
+                                      ? Colors.white.withValues(alpha: 0.35)
+                                      : const Color(0xFFD1D5DB)),
                             borderRadius: BorderRadius.circular(2),
                           ),
                         );
@@ -2498,9 +2489,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(
-          top: BorderSide(color: Color(0xFFEDF2F7), width: 1),
-        ),
+        border: Border(top: BorderSide(color: Color(0xFFEDF2F7), width: 1)),
       ),
       child: SafeArea(
         top: false,
@@ -2561,7 +2550,10 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                       ),
                       splashRadius: 18,
                       padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      constraints: const BoxConstraints(
+                        minWidth: 32,
+                        minHeight: 32,
+                      ),
                     ),
                     if (_souProfissionalNaConversa) ...[
                       const SizedBox(width: 4),
@@ -2574,7 +2566,10 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                         ),
                         splashRadius: 18,
                         padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
+                        ),
                       ),
                     ],
                   ],
@@ -2624,9 +2619,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(
-          top: BorderSide(color: Color(0xFFEDF2F7), width: 1),
-        ),
+        border: Border(top: BorderSide(color: Color(0xFFEDF2F7), width: 1)),
       ),
       child: SafeArea(
         top: false,
@@ -2678,9 +2671,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      Expanded(
-                        child: _OndaGravacao(nivel: _nivelGravacao),
-                      ),
+                      Expanded(child: _OndaGravacao(nivel: _nivelGravacao)),
                     ],
                   ),
                 ),
@@ -2842,8 +2833,7 @@ class _OndaGravacao extends StatelessWidget {
             final fator = 0.35 + (valor * 0.65);
             final base = barras[index] * fator;
             // Onda senoidal para dar movimento mesmo com volume constante.
-            final onda =
-                1 + 0.25 * (index % 2 == 0 ? valor : -valor * 0.5);
+            final onda = 1 + 0.25 * (index % 2 == 0 ? valor : -valor * 0.5);
             return Container(
               width: 3,
               height: (base * onda).clamp(4.0, 30.0),

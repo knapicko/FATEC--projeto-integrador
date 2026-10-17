@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'services/cor_dominante_service.dart';
 import 'services/validacao_telefone.dart';
+import 'widgets/skeleton_loading.dart';
 import 'services/formatacao_data.dart';
 import 'utils/iniciais.dart';
 import 'widgets/seletor_ddi.dart';
@@ -75,7 +76,8 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
       if (!mounted) return;
 
       _usuarioId = usuarioResponse?['id_usuario'] as int?;
-      String nome = usuarioResponse?['nome']?.toString() ?? 'Nome não encontrado';
+      String nome =
+          usuarioResponse?['nome']?.toString() ?? 'Nome não encontrado';
       String dataNascimento =
           usuarioResponse?['data_nascimento']?.toString() ?? '';
       String? fotoUrl = usuarioResponse?['foto_perfil_url']?.toString();
@@ -291,7 +293,9 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
       for (final bucketName in [bucketNovo, bucketLegado]) {
         try {
           if (kIsWeb) {
-            await _supabase.storage.from(bucketName).uploadBinary(
+            await _supabase.storage
+                .from(bucketName)
+                .uploadBinary(
                   fileName,
                   bytes,
                   fileOptions: const FileOptions(
@@ -301,7 +305,9 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                 );
           } else {
             final file = File(pickedFile.path);
-            await _supabase.storage.from(bucketName).upload(
+            await _supabase.storage
+                .from(bucketName)
+                .upload(
                   fileName,
                   file,
                   fileOptions: const FileOptions(
@@ -310,8 +316,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                   ),
                 );
           }
-          publicUrl =
-              _supabase.storage.from(bucketName).getPublicUrl(fileName);
+          publicUrl = _supabase.storage.from(bucketName).getPublicUrl(fileName);
           ultimoErro = null;
           break;
         } catch (bucketError) {
@@ -419,9 +424,10 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
               .maybeSingle();
           final idPerfil = (dadosProf?['fk_perfil'] as num?)?.toInt();
           if (idPerfil != null) {
-            await _supabase.from('perfil').update(
-              {'cor_banner': CorDominanteService.corPadrao},
-            ).eq('id_perfil', idPerfil);
+            await _supabase
+                .from('perfil')
+                .update({'cor_banner': CorDominanteService.corPadrao})
+                .eq('id_perfil', idPerfil);
           }
         }
       } catch (e) {
@@ -996,7 +1002,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
     if (_isLoading) {
       return Scaffold(
         backgroundColor: Colors.white,
-        body: Center(child: CircularProgressIndicator(color: _blue)),
+        body: const SkeletonPage(layout: SkeletonLayout.form),
       );
     }
 

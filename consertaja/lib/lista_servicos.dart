@@ -6,6 +6,7 @@ import 'perfil_loja.dart';
 import 'perfil_profissional.dart';
 import 'services/lista_servicos_service.dart';
 import 'services/servicos_profissional_service.dart';
+import 'widgets/skeleton_loading.dart';
 
 class ItemServicoLista {
   final int fkLista;
@@ -16,6 +17,7 @@ class ItemServicoLista {
   final String? detalhes;
   final String dataAgendada;
   final String horaAgendada;
+  final String horaAgendadaFim;
   final String titulo;
   final String? imagemUrl;
   final String? funcao;
@@ -36,6 +38,7 @@ class ItemServicoLista {
     this.detalhes,
     required this.dataAgendada,
     required this.horaAgendada,
+    required this.horaAgendadaFim,
     required this.titulo,
     this.imagemUrl,
     this.funcao,
@@ -133,18 +136,24 @@ class _ListaServicosState extends State<ListaServicos> {
       for (final row in assRows) {
         final fkLista = (row['fk_lista'] as num).toInt();
         final fkServicoProf = (row['fk_servico_prof'] as num).toInt();
-        final valorFinal = double.tryParse(row['valor_final']?.toString() ?? '0') ?? 0.0;
-        final tipoExecucao = row['tipo_execucao_escolhido']?.toString() ?? 'Retirada';
+        final valorFinal =
+            double.tryParse(row['valor_final']?.toString() ?? '0') ?? 0.0;
+        final tipoExecucao =
+            row['tipo_execucao_escolhido']?.toString() ?? 'Retirada';
         final fkEndereco = (row['fk_endereco_escolhido'] as num?)?.toInt();
         final detalhes = row['detalhes']?.toString();
         final dataAgendada = row['data_agendada']?.toString() ?? '';
         final horaAgendada = row['hora_agendada']?.toString() ?? '';
+        final horaAgendadaFim = row['hora_agendada_fim']?.toString() ?? '';
 
-        final servicoMap = row['servicos_profissional'] as Map<String, dynamic>?;
+        final servicoMap =
+            row['servicos_profissional'] as Map<String, dynamic>?;
         final titulo = servicoMap?['titulo']?.toString() ?? 'Conserto';
         final imagemUrl = servicoMap?['imagem_url']?.toString();
-        final idProfissional = (servicoMap?['fk_profissional'] as num?)?.toInt();
-        final idGrupoEmpresa = (servicoMap?['fk_grupo_empresa'] as num?)?.toInt();
+        final idProfissional = (servicoMap?['fk_profissional'] as num?)
+            ?.toInt();
+        final idGrupoEmpresa = (servicoMap?['fk_grupo_empresa'] as num?)
+            ?.toInt();
 
         // Ofício / Função
         String? funcao;
@@ -156,12 +165,16 @@ class _ListaServicosState extends State<ListaServicos> {
         // Busca dados do prestador (detalhe público)
         String nomePrestador = 'Caedss';
         String? fotoPrestador;
-        String enderecoPrestador = 'Travessa Doutor Eduardo Maffei, 87, Casa 3,...';
+        String enderecoPrestador =
+            'Travessa Doutor Eduardo Maffei, 87, Casa 3,...';
         String? tagEmpresa;
         bool ehLoja = idGrupoEmpresa != null;
 
         try {
-          final detalhePublico = await ServicosProfissionalService.buscarDetalhePublico(fkServicoProf);
+          final detalhePublico =
+              await ServicosProfissionalService.buscarDetalhePublico(
+                fkServicoProf,
+              );
           if (detalhePublico != null) {
             nomePrestador = detalhePublico.nomePrestador;
             fotoPrestador = detalhePublico.fotoPrestador;
@@ -181,6 +194,7 @@ class _ListaServicosState extends State<ListaServicos> {
             detalhes: detalhes,
             dataAgendada: dataAgendada,
             horaAgendada: horaAgendada,
+            horaAgendadaFim: horaAgendadaFim,
             titulo: titulo,
             imagemUrl: imagemUrl,
             funcao: funcao ?? 'Geral',
@@ -263,7 +277,9 @@ class _ListaServicosState extends State<ListaServicos> {
         }
 
         if (logradouro.isNotEmpty) {
-          final ruaNumero = numero.isNotEmpty ? '$logradouro, $numero' : logradouro;
+          final ruaNumero = numero.isNotEmpty
+              ? '$logradouro, $numero'
+              : logradouro;
           _enderecoUsuario = '$ruaNumero - $cidadeEstado';
         } else {
           _enderecoUsuario = cidadeEstado;
@@ -352,13 +368,15 @@ class _ListaServicosState extends State<ListaServicos> {
                       child: SizedBox(
                         width: 48,
                         height: 48,
-                        child: item.imagemUrl != null &&
+                        child:
+                            item.imagemUrl != null &&
                                 (item.imagemUrl!.startsWith('http://') ||
                                     item.imagemUrl!.startsWith('https://'))
                             ? Image.network(
                                 item.imagemUrl!,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) => _placeholderServico(),
+                                errorBuilder: (_, _, _) =>
+                                    _placeholderServico(),
                               )
                             : _placeholderServico(),
                       ),
@@ -537,7 +555,8 @@ class _ListaServicosState extends State<ListaServicos> {
                 child: ListView.separated(
                   shrinkWrap: true,
                   itemCount: _itens.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                  separatorBuilder: (_, _) =>
+                      const Divider(height: 1, color: Color(0xFFF1F5F9)),
                   itemBuilder: (context, i) {
                     final item = _itens[i];
                     return ListTile(
@@ -558,11 +577,18 @@ class _ListaServicosState extends State<ListaServicos> {
                         item.titulo,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
                       ),
                       subtitle: Text(
                         item.tipoExecucao,
-                        style: const TextStyle(color: _azul, fontWeight: FontWeight.w700, fontSize: 13),
+                        style: const TextStyle(
+                          color: _azul,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
                       ),
                     );
                   },
@@ -610,7 +636,9 @@ class _ListaServicosState extends State<ListaServicos> {
           'novembro',
           'dezembro',
         ];
-        final mesNome = (mesNum >= 1 && mesNum <= 12) ? meses[mesNum - 1] : 'junho';
+        final mesNome = (mesNum >= 1 && mesNum <= 12)
+            ? meses[mesNum - 1]
+            : 'junho';
 
         String horaFormatada = '13:00';
         if (horaStr.isNotEmpty) {
@@ -656,9 +684,7 @@ class _ListaServicosState extends State<ListaServicos> {
           .maybeSingle();
       final idStatus = (statusRow?['id_status'] as num?)?.toInt();
       if (idStatus == null) {
-        throw Exception(
-          'Status "Aberto" (Tipo "Serviço") não encontrado.',
-        );
+        throw Exception('Status "Aberto" (Tipo "Serviço") não encontrado.');
       }
 
       for (final item in _itens) {
@@ -673,10 +699,15 @@ class _ListaServicosState extends State<ListaServicos> {
           'fk_grupo_empresa': item.idGrupoEmpresa,
           'tipo_execucao': item.tipoExecucao,
           'detalhes': item.detalhes,
-          'data_agendada':
-              item.dataAgendada.isNotEmpty ? item.dataAgendada : null,
-          'hora_agendada':
-              item.horaAgendada.isNotEmpty ? item.horaAgendada : null,
+          'data_agendada': item.dataAgendada.isNotEmpty
+              ? item.dataAgendada
+              : null,
+          'hora_agendada': item.horaAgendada.isNotEmpty
+              ? item.horaAgendada
+              : null,
+          'hora_agendada_fim': item.horaAgendadaFim.isNotEmpty
+              ? item.horaAgendadaFim
+              : null,
         };
         await _supabase.from('solicitacoes').insert(dadosSolicitacao);
       }
@@ -765,11 +796,7 @@ class _ListaServicosState extends State<ListaServicos> {
               const Text(
                 'Foi enviada uma solicitação de serviço ao profissional e você deve aguardar o profissional responder.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: _textoMuted,
-                  height: 1.4,
-                ),
+                style: TextStyle(fontSize: 14, color: _textoMuted, height: 1.4),
               ),
               const SizedBox(height: 20),
               SizedBox(
@@ -828,22 +855,20 @@ class _ListaServicosState extends State<ListaServicos> {
             _buildHeader(count),
             Expanded(
               child: _carregando
-                  ? const Center(
-                      child: CircularProgressIndicator(color: _azul),
-                    )
+                  ? const SkeletonPage(layout: SkeletonLayout.cards)
                   : _itens.isEmpty
-                      ? _buildListaVazia()
-                      : RefreshIndicator(
-                          color: _azul,
-                          onRefresh: _carregarDados,
-                          child: ListView.builder(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            itemCount: _itens.length,
-                            itemBuilder: (context, index) {
-                              return _buildCardServico(_itens[index]);
-                            },
-                          ),
-                        ),
+                  ? _buildListaVazia()
+                  : RefreshIndicator(
+                      color: _azul,
+                      onRefresh: _carregarDados,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        itemCount: _itens.length,
+                        itemBuilder: (context, index) {
+                          return _buildCardServico(_itens[index]);
+                        },
+                      ),
+                    ),
             ),
             if (!_carregando && _itens.isNotEmpty)
               _buildBarraInferior(count, totalFormatado),
@@ -1070,7 +1095,8 @@ class _ListaServicosState extends State<ListaServicos> {
                   child: SizedBox(
                     width: 96,
                     height: 96,
-                    child: item.imagemUrl != null &&
+                    child:
+                        item.imagemUrl != null &&
                             (item.imagemUrl!.startsWith('http://') ||
                                 item.imagemUrl!.startsWith('https://'))
                         ? Image.network(
@@ -1168,7 +1194,11 @@ class _ListaServicosState extends State<ListaServicos> {
                 ),
 
                 const SizedBox(height: 12),
-                const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+                const Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: Color(0xFFF1F5F9),
+                ),
                 const SizedBox(height: 12),
 
                 // Formas de Pagamento
@@ -1343,7 +1373,10 @@ class _ListaServicosState extends State<ListaServicos> {
                             onTap: _abrirModalMetodosSelecionados,
                             borderRadius: BorderRadius.circular(4),
                             child: const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 2,
+                                vertical: 1,
+                              ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -1377,7 +1410,11 @@ class _ListaServicosState extends State<ListaServicos> {
                                 ),
                               ),
                               Icon(
-                                _obterIconeMetodo(metodos.isNotEmpty ? metodos.first : "Retirada"),
+                                _obterIconeMetodo(
+                                  metodos.isNotEmpty
+                                      ? metodos.first
+                                      : "Retirada",
+                                ),
                                 color: _azul,
                                 size: 17,
                               ),

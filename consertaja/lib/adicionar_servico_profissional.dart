@@ -12,6 +12,7 @@ import 'services/servicos_profissional_service.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'widgets/skeleton_loading.dart';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 Color _hexToColor(String hex) {
@@ -107,16 +108,16 @@ class _AdicionarServicoProfissionalPageState
     ]);
     final todosServicos = results[0] as List<ServicoProfissional>;
     final catalogo = results[1] as List<ServicoCatalogo>;
-    final contexto = results[2]
-        as ({
-          int idProfissional,
-          int? idGrupoEmpresa,
-          bool ehLoja,
-          bool ehMembroEmpresa,
-          bool ehDonoEmpresa,
-        })?;
-    final contaEmpresa =
-        widget.forcarModoEmpresa ? true : (results[3] as bool);
+    final contexto =
+        results[2]
+            as ({
+              int idProfissional,
+              int? idGrupoEmpresa,
+              bool ehLoja,
+              bool ehMembroEmpresa,
+              bool ehDonoEmpresa,
+            })?;
+    final contaEmpresa = widget.forcarModoEmpresa ? true : (results[3] as bool);
     final idGrupo = widget.idGrupoEmpresaInicial ?? contexto?.idGrupoEmpresa;
 
     // Distinção pela CONTA ATIVA:
@@ -124,9 +125,10 @@ class _AdicionarServicoProfissionalPageState
     // - profissional: SÓ serviços individuais (fk_grupo_empresa == null).
     final servicos = contaEmpresa
         ? todosServicos
-            .where((s) =>
-                s.fkGrupoEmpresa != null && s.fkGrupoEmpresa == idGrupo)
-            .toList()
+              .where(
+                (s) => s.fkGrupoEmpresa != null && s.fkGrupoEmpresa == idGrupo,
+              )
+              .toList()
         : todosServicos.where((s) => s.fkGrupoEmpresa == null).toList();
 
     // Ofícios da conta ativa (para filtrar as sugestões pelo mesmo ofício).
@@ -185,15 +187,15 @@ class _AdicionarServicoProfissionalPageState
     // A associação padrão segue a conta ativa (não o parâmetro solto).
     // Na EDIÇÃO, mantém a associação original do serviço (não troca o dono).
     // Fluxo gestão da equipe (forcarModoEmpresa): sempre "Loja".
-    final contaAtivaEfetiva =
-        widget.forcarModoEmpresa ? true : _contaEmpresaAtiva;
-    final travadoEfetivo =
-        widget.forcarContaAtiva || widget.forcarModoEmpresa;
+    final contaAtivaEfetiva = widget.forcarModoEmpresa
+        ? true
+        : _contaEmpresaAtiva;
+    final travadoEfetivo = widget.forcarContaAtiva || widget.forcarModoEmpresa;
     final associacaoPadrao = servicoParaEditar != null
         ? servicoParaEditar.fkGrupoEmpresa != null
         : (travadoEfetivo
-            ? contaAtivaEfetiva
-            : widget.associacaoEmpresaInicial);
+              ? contaAtivaEfetiva
+              : widget.associacaoEmpresaInicial);
     final mudou = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -310,9 +312,7 @@ class _AdicionarServicoProfissionalPageState
             // ── Conteúdo ──────────────────────────────────────────────────
             Expanded(
               child: _carregando
-                  ? const Center(
-                      child: CircularProgressIndicator(color: _primaryBlue),
-                    )
+                  ? const SkeletonPage(layout: SkeletonLayout.form)
                   : RefreshIndicator(
                       color: _primaryBlue,
                       onRefresh: _carregar,
@@ -880,7 +880,8 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
       // Default (vazio/sem linha/sem coluna) = 'Leva e Traz'.
       List<String> valoresSalvos = <String>[];
       if (_associacaoEmpresa) {
-        final idGrupo = _fkGrupoEmpresa ?? await _buscarIdGrupoDoUsuario(usuarioId);
+        final idGrupo =
+            _fkGrupoEmpresa ?? await _buscarIdGrupoDoUsuario(usuarioId);
         if (idGrupo != null) {
           if (mounted && _fkGrupoEmpresa == null) {
             setState(() => _fkGrupoEmpresa = idGrupo);
@@ -916,9 +917,9 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
           _tiposExecucaoSelecionados
             ..clear()
             ..addAll(
-              _separarValores(widget.servicoParaEditar?.tipoExecucao).where(
-                valoresSalvos.contains,
-              ),
+              _separarValores(
+                widget.servicoParaEditar?.tipoExecucao,
+              ).where(valoresSalvos.contains),
             );
           _carregandoMetodosEntrega = false;
         });
@@ -1203,9 +1204,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
                       : const Color(0xFFEAF9FF),
                   child: Icon(
                     Icons.person_outline_rounded,
-                    color: profissionalBloqueado
-                        ? Colors.grey
-                        : _primaryBlue,
+                    color: profissionalBloqueado ? Colors.grey : _primaryBlue,
                   ),
                 ),
                 title: Text(
@@ -1219,9 +1218,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
                       ? 'Indisponível na conta de empresa.'
                       : 'O serviço ficará visível no seu perfil individual.',
                   style: TextStyle(
-                    color: profissionalBloqueado
-                        ? Colors.grey
-                        : _textMuted,
+                    color: profissionalBloqueado ? Colors.grey : _textMuted,
                   ),
                 ),
                 trailing: !_associacaoEmpresa
@@ -1249,8 +1246,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
                       : const Color(0xFFEAF9FF),
                   child: Icon(
                     Icons.business_outlined,
-                    color:
-                        empresaBloqueada ? Colors.grey : _primaryBlue,
+                    color: empresaBloqueada ? Colors.grey : _primaryBlue,
                   ),
                 ),
                 title: Text(
@@ -1263,11 +1259,10 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
                   _fkGrupoEmpresa == null
                       ? 'Nenhuma empresa está associada a este perfil.'
                       : (empresaBloqueada
-                          ? 'Indisponível na conta profissional.'
-                          : 'O serviço ficará na conta da empresa vinculada ao seu CNPJ.'),
+                            ? 'Indisponível na conta profissional.'
+                            : 'O serviço ficará na conta da empresa vinculada ao seu CNPJ.'),
                   style: TextStyle(
-                    color:
-                        empresaBloqueada ? Colors.grey : _textMuted,
+                    color: empresaBloqueada ? Colors.grey : _textMuted,
                   ),
                 ),
                 trailing: _associacaoEmpresa
@@ -1767,7 +1762,6 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
       ],
     );
   }
-
 
   Widget _buildLabel(String texto) {
     return Text(

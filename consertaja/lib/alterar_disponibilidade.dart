@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'widgets/skeleton_loading.dart';
 
 /// Dados de uma exceção de calendário (dia bloqueado total ou parcialmente).
 class _DadosExcecao {
@@ -22,13 +23,26 @@ class _DadosExcecao {
     required TimeOfDay horaInicio,
     required TimeOfDay horaFim,
     String? observacao,
-  }) =>
-      _DadosExcecao(
-        diaInteiro: false,
-        horaInicio: horaInicio,
-        horaFim: horaFim,
-        observacao: observacao,
-      );
+  }) => _DadosExcecao(
+    diaInteiro: false,
+    horaInicio: horaInicio,
+    horaFim: horaFim,
+    observacao: observacao,
+  );
+}
+
+class _ServicoAgendado {
+  const _ServicoAgendado({
+    required this.idSolicitacao,
+    required this.data,
+    required this.nomeCliente,
+    required this.tituloServico,
+  });
+
+  final int idSolicitacao;
+  final DateTime data;
+  final String nomeCliente;
+  final String tituloServico;
 }
 
 class AlterarDisponibilidadePage extends StatefulWidget {
@@ -107,6 +121,7 @@ class _AlterarDisponibilidadePageState
   final Set<String> _mesesExcecoesCarregados = {};
 
   final Set<int> _diasComEventos = {};
+  List<_ServicoAgendado> _servicosAgendados = [];
 
   bool _salvando = false;
   bool _carregando = true;
@@ -213,8 +228,11 @@ class _AlterarDisponibilidadePageState
     setState(() => _carregando = true);
 
     try {
-      final idProfissional = widget.isEmpresa ? null : await _buscarIdProfissional();
-      final idEmpresa = widget.idGrupoEmpresa ??
+      final idProfissional = widget.isEmpresa
+          ? null
+          : await _buscarIdProfissional();
+      final idEmpresa =
+          widget.idGrupoEmpresa ??
           (widget.isEmpresa ? await _buscarIdGrupoEmpresa() : null);
 
       if (widget.isEmpresa && idEmpresa == null) {
@@ -226,6 +244,12 @@ class _AlterarDisponibilidadePageState
         return;
       }
 
+      _servicosAgendados = await _carregarServicosAgendados(
+        idProfissional: idProfissional,
+        idEmpresa: idEmpresa,
+      );
+      _sincronizarDiasComEventosVisiveis();
+
       // Busca o registro único de disponibilidade recorrente (fk_solicitacao = 0)
       final query = _supabase
           .from('agenda_profissional')
@@ -233,8 +257,14 @@ class _AlterarDisponibilidadePageState
           .eq('fk_solicitacao', 0);
 
       final response = widget.isEmpresa
-          ? await query.eq('fk_grupo_empresa', idEmpresa!).limit(1).maybeSingle()
-          : await query.eq('fk_profissional', idProfissional!).limit(1).maybeSingle();
+          ? await query
+                .eq('fk_grupo_empresa', idEmpresa!)
+                .limit(1)
+                .maybeSingle()
+          : await query
+                .eq('fk_profissional', idProfissional!)
+                .limit(1)
+                .maybeSingle();
 
       if (response != null) {
         // Converte a lista "segunda-feira,quinta-feira,sexta-feira"
@@ -275,16 +305,85 @@ class _AlterarDisponibilidadePageState
     }
   }
 
+  Future<List<_ServicoAgendado>> _carregarServicosAgendados({
+    required int? idProfissional,
+    required int? idEmpresa,
+  }) async {
+    final query = _supabase
+        .from('solicitacoes')
+        .select(
+          'id_solicitacao, data_agendada, fk_usuario, fk_servico_prof, '
+          'status!solicitacoes_fk_status_fkey(status)',
+        )
+        .not('data_agendada', 'is', null);
+    final rows = widget.isEmpresa
+        ? await query.eq('fk_grupo_empresa', idEmpresa!)
+        : await query.eq('fk_profissional', idProfissional!);
+    final resultado = <_ServicoAgendado>[];
+
+    for (final raw in rows) {
+      final status = raw['status'];
+      final statusTexto = status is Map
+          ? status['status']?.toString().toLowerCase() ?? ''
+          : status is List && status.isNotEmpty
+          ? (status.first as Map)['status']?.toString().toLowerCase() ?? ''
+          : '';
+      if (statusTexto.contains('recus') || statusTexto.contains('cancel')) {
+        continue;
+      }
+      final data = _parseDataExcecao(raw['data_agendada']);
+      final id = (raw['id_solicitacao'] as num?)?.toInt();
+      if (data == null || id == null) continue;
+
+      var nomeCliente = 'Cliente';
+      final idCliente = (raw['fk_usuario'] as num?)?.toInt();
+      if (idCliente != null) {
+        final cliente = await _supabase
+            .from('usuarios')
+            .select('nome')
+            .eq('id_usuario', idCliente)
+            .maybeSingle();
+        final nome = cliente?['nome']?.toString().trim() ?? '';
+        if (nome.isNotEmpty) nomeCliente = nome;
+      }
+
+      var tituloServico = 'Serviço';
+      final idServico = (raw['fk_servico_prof'] as num?)?.toInt();
+      if (idServico != null) {
+        final servico = await _supabase
+            .from('servicos_profissional')
+            .select('titulo')
+            .eq('id_servico_prof', idServico)
+            .maybeSingle();
+        final titulo = servico?['titulo']?.toString().trim() ?? '';
+        if (titulo.isNotEmpty) tituloServico = titulo;
+      }
+      resultado.add(
+        _ServicoAgendado(
+          idSolicitacao: id,
+          data: data,
+          nomeCliente: nomeCliente,
+          tituloServico: tituloServico,
+        ),
+      );
+    }
+    return resultado;
+  }
+
   /// Carrega as exceções do mês exibido da grade_horario_excecao.
   ///
   /// A coluna `dia_semana` é do tipo `date` (formato "YYYY-MM-DD"). As datas
   /// encontradas são convertidas em dias do mês para destacar no calendário.
-  Future<void> _carregarExcecoes({int? idProfissional, int? idGrupoEmpresa}) async {
+  Future<void> _carregarExcecoes({
+    int? idProfissional,
+    int? idGrupoEmpresa,
+  }) async {
     try {
       final id = widget.isEmpresa
           ? null
           : (idProfissional ?? await _buscarIdProfissional());
-      final idEmpresa = idGrupoEmpresa ??
+      final idEmpresa =
+          idGrupoEmpresa ??
           widget.idGrupoEmpresa ??
           (widget.isEmpresa ? await _buscarIdGrupoEmpresa() : null);
 
@@ -471,6 +570,10 @@ class _AlterarDisponibilidadePageState
   }
 
   void _alternarDataMultipla(DateTime data) {
+    if (_servicosDoDia(data).isNotEmpty) {
+      _mostrarServicosAgendados(data);
+      return;
+    }
     final normalizada = _normalizarData(data);
     setState(() {
       if (_datasSelecionadasMultipla.contains(normalizada)) {
@@ -482,6 +585,7 @@ class _AlterarDisponibilidadePageState
   }
 
   void _adicionarDataMultipla(DateTime data) {
+    if (_servicosDoDia(data).isNotEmpty) return;
     final normalizada = _normalizarData(data);
     if (_datasSelecionadasMultipla.contains(normalizada)) return;
     setState(() {
@@ -578,27 +682,29 @@ class _AlterarDisponibilidadePageState
   }
 
   Future<void> _confirmarBloqueioLote() async {
-    final datas = _datasSelecionadasMultipla
-        .where((data) => !_isDataBloqueada(data))
-        .toList()
-      ..sort((a, b) => a.compareTo(b));
+    final datas =
+        _datasSelecionadasMultipla
+            .where((data) => !_isDataBloqueada(data))
+            .toList()
+          ..sort((a, b) => a.compareTo(b));
 
     if (datas.isEmpty) return;
 
     setState(() => _salvandoLote = true);
 
     try {
-      final idProfissional = widget.isEmpresa ? null : await _buscarIdProfissional();
-      final idEmpresa = widget.idGrupoEmpresa ??
+      final idProfissional = widget.isEmpresa
+          ? null
+          : await _buscarIdProfissional();
+      final idEmpresa =
+          widget.idGrupoEmpresa ??
           (widget.isEmpresa ? await _buscarIdGrupoEmpresa() : null);
 
       if (widget.isEmpresa && idEmpresa == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text(
-                'Não foi possível identificar a empresa.',
-              ),
+              content: Text('Não foi possível identificar a empresa.'),
               backgroundColor: Colors.red,
             ),
           );
@@ -662,9 +768,7 @@ class _AlterarDisponibilidadePageState
   }
 
   Future<void> _confirmarDesbloqueioLote() async {
-    final datas = _datasSelecionadasMultipla
-        .where(_isDataBloqueada)
-        .toList()
+    final datas = _datasSelecionadasMultipla.where(_isDataBloqueada).toList()
       ..sort((a, b) => a.compareTo(b));
 
     if (datas.isEmpty) return;
@@ -672,17 +776,18 @@ class _AlterarDisponibilidadePageState
     setState(() => _salvandoLote = true);
 
     try {
-      final idProfissional = widget.isEmpresa ? null : await _buscarIdProfissional();
-      final idEmpresa = widget.idGrupoEmpresa ??
+      final idProfissional = widget.isEmpresa
+          ? null
+          : await _buscarIdProfissional();
+      final idEmpresa =
+          widget.idGrupoEmpresa ??
           (widget.isEmpresa ? await _buscarIdGrupoEmpresa() : null);
 
       if (widget.isEmpresa && idEmpresa == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text(
-                'Não foi possível identificar a empresa.',
-              ),
+              content: Text('Não foi possível identificar a empresa.'),
               backgroundColor: Colors.red,
             ),
           );
@@ -764,9 +869,9 @@ class _AlterarDisponibilidadePageState
       initialTime: inicio ? _horaInicio : _horaFim,
       builder: (context, child) {
         return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(primary: _blue),
-          ),
+          data: Theme.of(
+            context,
+          ).copyWith(colorScheme: const ColorScheme.light(primary: _blue)),
           child: child!,
         );
       },
@@ -800,6 +905,7 @@ class _AlterarDisponibilidadePageState
       _limparSelecaoMultipla();
     });
     _sincronizarDiasBloqueadosVisiveis();
+    _sincronizarDiasComEventosVisiveis();
     await _carregarExcecoes();
   }
 
@@ -810,11 +916,17 @@ class _AlterarDisponibilidadePageState
       _limparSelecaoMultipla();
     });
     _sincronizarDiasBloqueadosVisiveis();
+    _sincronizarDiasComEventosVisiveis();
     await _carregarExcecoes();
   }
 
   void _selecionarDiaCalendario(int dia) {
     if (_selecaoMultiplaAtiva) return;
+    final data = DateTime(_mesExibido.year, _mesExibido.month, dia);
+    if (_servicosDoDia(data).isNotEmpty) {
+      _mostrarServicosAgendados(data);
+      return;
+    }
     setState(() => _diaSelecionado = dia);
     _abrirBottomSheetExcecao(dia);
   }
@@ -823,6 +935,11 @@ class _AlterarDisponibilidadePageState
     if (_selecaoMultiplaAtiva) return;
 
     final data = _formatarDataExcecao(dia);
+    final dataCalendario = DateTime(_mesExibido.year, _mesExibido.month, dia);
+    if (_servicosDoDia(dataCalendario).isNotEmpty) {
+      _mostrarServicosAgendados(dataCalendario);
+      return;
+    }
     if (_excecoesLocal.containsKey(data)) {
       await _restaurarDiaSelecionado(dia);
       return;
@@ -836,8 +953,11 @@ class _AlterarDisponibilidadePageState
   }
 
   Future<void> _persistirExcecao(String data, _DadosExcecao excecao) async {
-    final idProfissional = widget.isEmpresa ? null : await _buscarIdProfissional();
-    final idEmpresa = widget.idGrupoEmpresa ??
+    final idProfissional = widget.isEmpresa
+        ? null
+        : await _buscarIdProfissional();
+    final idEmpresa =
+        widget.idGrupoEmpresa ??
         (widget.isEmpresa ? await _buscarIdGrupoEmpresa() : null);
 
     if (widget.isEmpresa && idEmpresa == null) return;
@@ -854,7 +974,9 @@ class _AlterarDisponibilidadePageState
       await queryDelete.eq('fk_profissional', idProfissional!);
     }
 
-    await _supabase.from('grade_horario_excecao').insert(
+    await _supabase
+        .from('grade_horario_excecao')
+        .insert(
           _excecaoParaSupabase(
             data,
             excecao,
@@ -864,9 +986,180 @@ class _AlterarDisponibilidadePageState
         );
   }
 
+  void _sincronizarDiasComEventosVisiveis() {
+    final prefixo =
+        '${_mesExibido.year}-${_mesExibido.month.toString().padLeft(2, '0')}-';
+    _diasComEventos
+      ..clear()
+      ..addAll(
+        _servicosAgendados
+            .map((servico) => _formatarDataCompleta(servico.data))
+            .where((data) => data.startsWith(prefixo))
+            .map((data) => int.tryParse(data.substring(8)))
+            .whereType<int>(),
+      );
+  }
+
+  List<_ServicoAgendado> _servicosDoDia(DateTime data) {
+    return _servicosAgendados
+        .where(
+          (servico) =>
+              servico.data.year == data.year &&
+              servico.data.month == data.month &&
+              servico.data.day == data.day,
+        )
+        .toList();
+  }
+
+  void _mostrarServicosAgendados(DateTime data) {
+    final servicos = _servicosDoDia(data);
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: _textGray.withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Serviços agendados em ${_formatarDataBrasileira(data)}',
+                style: const TextStyle(
+                  color: _textDark,
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...servicos.map(
+                (servico) => Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: _cardBlueBg,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.build_circle_outlined, color: _blue),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              servico.tituloServico,
+                              style: const TextStyle(
+                                color: _textDark,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Cliente: ${servico.nomeCliente}',
+                              style: const TextStyle(
+                                color: _textGray,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _mostrarConflitoFerias(List<_ServicoAgendado> conflitos) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: _textGray.withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Não foi possível definir as férias',
+                style: TextStyle(
+                  color: _blockedRed,
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'O período possui dias com serviços agendados:',
+                style: TextStyle(color: _textGray, fontSize: 14),
+              ),
+              const SizedBox(height: 12),
+              ...conflitos.map(
+                (servico) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    '${_formatarDataBrasileira(servico.data)} - '
+                    '${servico.tituloServico} (${servico.nomeCliente})',
+                    style: const TextStyle(
+                      color: _textDark,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _removerExcecao(String data) async {
-    final idProfissional = widget.isEmpresa ? null : await _buscarIdProfissional();
-    final idEmpresa = widget.idGrupoEmpresa ??
+    final idProfissional = widget.isEmpresa
+        ? null
+        : await _buscarIdProfissional();
+    final idEmpresa =
+        widget.idGrupoEmpresa ??
         (widget.isEmpresa ? await _buscarIdGrupoEmpresa() : null);
 
     if (widget.isEmpresa && idEmpresa == null) return;
@@ -995,8 +1288,11 @@ class _AlterarDisponibilidadePageState
     setState(() => _salvando = true);
 
     try {
-      final idProfissional = widget.isEmpresa ? null : await _buscarIdProfissional();
-      final idEmpresa = widget.idGrupoEmpresa ??
+      final idProfissional = widget.isEmpresa
+          ? null
+          : await _buscarIdProfissional();
+      final idEmpresa =
+          widget.idGrupoEmpresa ??
           (widget.isEmpresa ? await _buscarIdGrupoEmpresa() : null);
 
       if (widget.isEmpresa && idEmpresa == null) {
@@ -1016,7 +1312,9 @@ class _AlterarDisponibilidadePageState
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Não foi possível identificar seu perfil profissional.'),
+              content: Text(
+                'Não foi possível identificar seu perfil profissional.',
+              ),
               backgroundColor: Colors.red,
             ),
           );
@@ -1027,8 +1325,9 @@ class _AlterarDisponibilidadePageState
 
       // Dias escolhidos em texto, ex: "segunda-feira,terça-feira,sexta-feira"
       final diasOrdenados = _diasSemanaAtivos.toList()..sort();
-      final diasTexto =
-          diasOrdenados.map((indice) => _nomesDias[indice]).join(',');
+      final diasTexto = diasOrdenados
+          .map((indice) => _nomesDias[indice])
+          .join(',');
 
       // Deleta os registros antigos de disponibilidade recorrente deste
       // profissional / empresa para que não fiquem dias/horários acumulados de saves antigos.
@@ -1088,10 +1387,8 @@ class _AlterarDisponibilidadePageState
   }
 
   Future<void> _selecionarDataFerias({required bool inicio}) async {
-    final dataReferencia = (inicio
-            ? _dataInicioFerias
-            : _dataFimFerias) ??
-        DateTime.now();
+    final dataReferencia =
+        (inicio ? _dataInicioFerias : _dataFimFerias) ?? DateTime.now();
 
     final dataSelecionada = await showDatePicker(
       context: context,
@@ -1136,8 +1433,11 @@ class _AlterarDisponibilidadePageState
     final fimCorreto = dataFim.isBefore(dataInicio) ? dataInicio : dataFim;
 
     try {
-      final idProfissional = widget.isEmpresa ? null : await _buscarIdProfissional();
-      final idEmpresa = widget.idGrupoEmpresa ??
+      final idProfissional = widget.isEmpresa
+          ? null
+          : await _buscarIdProfissional();
+      final idEmpresa =
+          widget.idGrupoEmpresa ??
           (widget.isEmpresa ? await _buscarIdGrupoEmpresa() : null);
 
       if (widget.isEmpresa && idEmpresa == null) {
@@ -1168,6 +1468,21 @@ class _AlterarDisponibilidadePageState
         dataAtual = dataAtual.add(const Duration(days: 1));
       }
 
+      final conflitos = _servicosAgendados
+          .where(
+            (servico) => datas.any(
+              (data) =>
+                  data.year == servico.data.year &&
+                  data.month == servico.data.month &&
+                  data.day == servico.data.day,
+            ),
+          )
+          .toList();
+      if (conflitos.isNotEmpty) {
+        if (mounted) _mostrarConflitoFerias(conflitos);
+        return;
+      }
+
       for (final data in datas) {
         final chave = _formatarDataCompleta(data);
         await _persistirExcecao(
@@ -1181,8 +1496,9 @@ class _AlterarDisponibilidadePageState
       setState(() {
         _excecoesLocal.addAll({
           for (final data in datas)
-            _formatarDataCompleta(data):
-                _DadosExcecao.diaInteiro(observacao: 'Férias'),
+            _formatarDataCompleta(data): _DadosExcecao.diaInteiro(
+              observacao: 'Férias',
+            ),
         });
         _sincronizarDiasBloqueadosVisiveis();
         _dataInicioFerias = null;
@@ -1200,9 +1516,7 @@ class _AlterarDisponibilidadePageState
       debugPrint('Erro ao salvar período de férias: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Erro ao salvar o período de férias.'),
-          ),
+          const SnackBar(content: Text('Erro ao salvar o período de férias.')),
         );
       }
     }
@@ -1267,11 +1581,7 @@ class _AlterarDisponibilidadePageState
           SizedBox(height: 8),
           Text(
             'Configure seus dias e horários de trabalho padrão, ou ajuste dias específicos no calendário abaixo.',
-            style: TextStyle(
-              color: _textGray,
-              fontSize: 14,
-              height: 1.45,
-            ),
+            style: TextStyle(color: _textGray, fontSize: 14, height: 1.45),
           ),
         ],
       ),
@@ -1401,7 +1711,11 @@ class _AlterarDisponibilidadePageState
               ),
               child: Row(
                 children: [
-                  Icon(Icons.access_time, color: _textGray.withValues(alpha: 0.7), size: 18),
+                  Icon(
+                    Icons.access_time,
+                    color: _textGray.withValues(alpha: 0.7),
+                    size: 18,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     valor,
@@ -1490,7 +1804,11 @@ class _AlterarDisponibilidadePageState
       children: [
         GestureDetector(
           onTap: _mesAnterior,
-          child: Icon(Icons.chevron_left, color: _textGray.withValues(alpha: 0.7), size: 22),
+          child: Icon(
+            Icons.chevron_left,
+            color: _textGray.withValues(alpha: 0.7),
+            size: 22,
+          ),
         ),
         const SizedBox(width: 8),
         Text(
@@ -1504,16 +1822,17 @@ class _AlterarDisponibilidadePageState
         const SizedBox(width: 8),
         GestureDetector(
           onTap: _proximoMes,
-          child: Icon(Icons.chevron_right, color: _textGray.withValues(alpha: 0.7), size: 22),
+          child: Icon(
+            Icons.chevron_right,
+            color: _textGray.withValues(alpha: 0.7),
+            size: 22,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildCelulaDia({
-    required int? dia,
-    required bool mesAtual,
-  }) {
+  Widget _buildCelulaDia({required int? dia, required bool mesAtual}) {
     if (dia == null) {
       return const SizedBox(height: 40);
     }
@@ -1522,14 +1841,16 @@ class _AlterarDisponibilidadePageState
         mesAtual && !_selecaoMultiplaAtiva && _diaSelecionado == dia;
     final isBloqueado = mesAtual && _diasBloqueados.contains(dia);
     final temEvento = mesAtual && _diasComEventos.contains(dia);
-    final isMultiSelecionado = mesAtual &&
+    final isMultiSelecionado =
+        mesAtual &&
         _selecaoMultiplaAtiva &&
         _isDataMultiSelecionada(
           DateTime(_mesExibido.year, _mesExibido.month, dia),
         );
 
     final hoje = DateTime.now();
-    final isHoje = mesAtual &&
+    final isHoje =
+        mesAtual &&
         dia == hoje.day &&
         _mesExibido.year == hoje.year &&
         _mesExibido.month == hoje.month;
@@ -1592,10 +1913,8 @@ class _AlterarDisponibilidadePageState
             color: isBloqueado
                 ? _blockedRed
                 : (isMultiSelecionado || isSelecionado || temEvento)
-                    ? (isSelecionado && !isMultiSelecionado
-                        ? Colors.white
-                        : _blue)
-                    : Colors.transparent,
+                ? (isSelecionado && !isMultiSelecionado ? Colors.white : _blue)
+                : Colors.transparent,
             shape: BoxShape.circle,
           ),
         ),
@@ -1698,10 +2017,7 @@ class _AlterarDisponibilidadePageState
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Divider(
-            height: 1,
-            color: _textGray.withValues(alpha: 0.2),
-          ),
+          child: Divider(height: 1, color: _textGray.withValues(alpha: 0.2)),
         ),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1863,11 +2179,7 @@ class _AlterarDisponibilidadePageState
           const SizedBox(height: 12),
           const Text(
             'Selecione o intervalo de datas em que você estará ausente.',
-            style: TextStyle(
-              color: _textDark,
-              fontSize: 15,
-              height: 1.4,
-            ),
+            style: TextStyle(color: _textDark, fontSize: 15, height: 1.4),
           ),
           const SizedBox(height: 16),
           Row(
@@ -1893,10 +2205,9 @@ class _AlterarDisponibilidadePageState
   Widget _buildListaExcecoes() {
     final prefixo =
         '${_mesExibido.year}-${_mesExibido.month.toString().padLeft(2, '0')}-';
-    final excecoesMes = _excecoesLocal.entries
-        .where((e) => e.key.startsWith(prefixo))
-        .toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
+    final excecoesMes =
+        _excecoesLocal.entries.where((e) => e.key.startsWith(prefixo)).toList()
+          ..sort((a, b) => a.key.compareTo(b.key));
 
     if (excecoesMes.isEmpty) {
       return Container(
@@ -1965,10 +2276,7 @@ class _AlterarDisponibilidadePageState
                   const SizedBox(height: 2),
                   Text(
                     excecao.observacao!,
-                    style: const TextStyle(
-                      color: _textGray,
-                      fontSize: 12,
-                    ),
+                    style: const TextStyle(color: _textGray, fontSize: 12),
                   ),
                 ],
               ],
@@ -2046,8 +2354,7 @@ class _AlterarDisponibilidadePageState
     final exibirFab =
         _selecaoMultiplaAtiva && _datasSelecionadasMultipla.isNotEmpty;
     final exibirFabBloquear = exibirFab && _temDatasNaoBloqueadasSelecionadas();
-    final exibirFabDesbloquear =
-        exibirFab && _temDatasBloqueadasSelecionadas();
+    final exibirFabDesbloquear = exibirFab && _temDatasBloqueadasSelecionadas();
 
     return Scaffold(
       backgroundColor: _background,
@@ -2059,8 +2366,9 @@ class _AlterarDisponibilidadePageState
                 children: [
                   if (exibirFabDesbloquear) ...[
                     FloatingActionButton(
-                      onPressed:
-                          _salvandoLote ? null : _confirmarDesbloqueioLote,
+                      onPressed: _salvandoLote
+                          ? null
+                          : _confirmarDesbloqueioLote,
                       backgroundColor: _blue,
                       elevation: 4,
                       child: _salvandoLote
@@ -2081,8 +2389,7 @@ class _AlterarDisponibilidadePageState
                   ],
                   if (exibirFabBloquear)
                     FloatingActionButton(
-                      onPressed:
-                          _salvandoLote ? null : _confirmarBloqueioLote,
+                      onPressed: _salvandoLote ? null : _confirmarBloqueioLote,
                       backgroundColor: _blockedRed,
                       elevation: 4,
                       child: _salvandoLote
@@ -2106,9 +2413,7 @@ class _AlterarDisponibilidadePageState
             _buildHeader(),
             Expanded(
               child: _carregando
-                  ? const Center(
-                      child: CircularProgressIndicator(color: _blue),
-                    )
+                  ? const SkeletonPage(layout: SkeletonLayout.calendar)
                   : SingleChildScrollView(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2177,7 +2482,8 @@ class _GerenciarExcecaoBottomSheetState
     );
     if (existente != null && !existente.diaInteiro) {
       _diaInteiro = false;
-      _horaInicio = existente.horaInicio ?? const TimeOfDay(hour: 13, minute: 0);
+      _horaInicio =
+          existente.horaInicio ?? const TimeOfDay(hour: 13, minute: 0);
       _horaFim = existente.horaFim ?? const TimeOfDay(hour: 17, minute: 0);
     } else {
       _diaInteiro = true;
@@ -2219,9 +2525,9 @@ class _GerenciarExcecaoBottomSheetState
       initialTime: inicio ? _horaInicio : _horaFim,
       builder: (context, child) {
         return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(primary: _blue),
-          ),
+          data: Theme.of(
+            context,
+          ).copyWith(colorScheme: const ColorScheme.light(primary: _blue)),
           child: child!,
         );
       },
@@ -2256,9 +2562,7 @@ class _GerenciarExcecaoBottomSheetState
     setState(() => _confirmando = true);
 
     final excecao = _diaInteiro
-        ? _DadosExcecao.diaInteiro(
-            observacao: _observacaoController.text,
-          )
+        ? _DadosExcecao.diaInteiro(observacao: _observacaoController.text)
         : _DadosExcecao.parcial(
             horaInicio: _horaInicio,
             horaFim: _horaFim,
@@ -2328,11 +2632,7 @@ class _GerenciarExcecaoBottomSheetState
               const SizedBox(height: 4),
               Text(
                 descricao,
-                style: TextStyle(
-                  color: descCor,
-                  fontSize: 13,
-                  height: 1.35,
-                ),
+                style: TextStyle(color: descCor, fontSize: 13, height: 1.35),
               ),
             ],
           ),
@@ -2353,10 +2653,10 @@ class _GerenciarExcecaoBottomSheetState
     required bool habilitado,
     required VoidCallback onTap,
   }) {
-    final corTexto =
-        habilitado ? _textDark : _textGray.withValues(alpha: 0.45);
-    final corRotulo =
-        habilitado ? _textGray : _textGray.withValues(alpha: 0.35);
+    final corTexto = habilitado ? _textDark : _textGray.withValues(alpha: 0.45);
+    final corRotulo = habilitado
+        ? _textGray
+        : _textGray.withValues(alpha: 0.35);
     final corBorda = habilitado
         ? _textGray.withValues(alpha: 0.25)
         : _textGray.withValues(alpha: 0.15);
@@ -2395,11 +2695,7 @@ class _GerenciarExcecaoBottomSheetState
                       ),
                     ),
                   ),
-                  Icon(
-                    Icons.access_time,
-                    color: corRotulo,
-                    size: 18,
-                  ),
+                  Icon(Icons.access_time, color: corRotulo, size: 18),
                 ],
               ),
             ),
@@ -2466,7 +2762,10 @@ class _GerenciarExcecaoBottomSheetState
                 ),
                 const SizedBox(height: 16),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: _cardBlueBg,
                     borderRadius: BorderRadius.circular(10),
@@ -2534,10 +2833,7 @@ class _GerenciarExcecaoBottomSheetState
                   decoration: InputDecoration(
                     labelText: 'Observação (opcional)',
                     hintText: 'Ex.: Férias, consulta médica, etc.',
-                    labelStyle: const TextStyle(
-                      color: _textGray,
-                      fontSize: 13,
-                    ),
+                    labelStyle: const TextStyle(color: _textGray, fontSize: 13),
                     hintStyle: TextStyle(
                       color: _textGray.withValues(alpha: 0.6),
                       fontSize: 13,

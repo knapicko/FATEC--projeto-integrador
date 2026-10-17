@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'widgets/skeleton_loading.dart';
 import 'utils/icone_oficio.dart';
 
 class AreaAtuacaoPage extends StatefulWidget {
@@ -107,9 +108,9 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
     } catch (e) {
       if (mounted) {
         setState(() => _carregando = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao carregar dados: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erro ao carregar dados: $e')));
       }
     }
   }
@@ -143,8 +144,8 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
       final id = (oficio['id_oficio'] as num?)?.toInt();
       if (id == null) return false;
       if (slotIndex < _oficiosSelecionados.length) {
-        final atual =
-            (_oficiosSelecionados[slotIndex]['id_oficio'] as num?)?.toInt();
+        final atual = (_oficiosSelecionados[slotIndex]['id_oficio'] as num?)
+            ?.toInt();
         if (id == atual) return true;
       }
       return !idsSelecionados.contains(id);
@@ -240,9 +241,7 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
   Future<void> _salvarAlteracoes() async {
     if (_idProfissional == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Perfil profissional não encontrado.'),
-        ),
+        const SnackBar(content: Text('Perfil profissional não encontrado.')),
       );
       return;
     }
@@ -280,9 +279,9 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
       Navigator.pop(context);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao salvar: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erro ao salvar: $e')));
       }
     } finally {
       if (mounted) setState(() => _salvando = false);
@@ -667,11 +666,7 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
                         color: Colors.white,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
-                        Icons.check,
-                        color: _blue,
-                        size: 14,
-                      ),
+                      child: const Icon(Icons.check, color: _blue, size: 14),
                     ),
                   ],
                 ),
@@ -686,7 +681,7 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
       backgroundColor: _background,
       body: SafeArea(
         child: _carregando
-            ? const Center(child: CircularProgressIndicator(color: _blue))
+            ? const SkeletonPage(layout: SkeletonLayout.grid)
             : Column(
                 children: [
                   _buildHeader(),

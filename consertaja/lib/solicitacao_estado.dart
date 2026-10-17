@@ -11,7 +11,10 @@ import 'tela_chat_profissional.dart';
 import 'tela_meu_perfil_profissional.dart';
 import 'utils/app_navigation_util.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
+import 'utils/cor_oficio.dart';
+import 'utils/icone_oficio.dart';
 import 'utils/iniciais.dart';
+import 'widgets/skeleton_loading.dart';
 
 /// Modalidades suportadas de acordo com o design
 enum ModalidadeExecucao {
@@ -35,7 +38,9 @@ enum ModalidadeExecucao {
     if (s.contains('leva') && s.contains('traz')) {
       return ModalidadeExecucao.levaETraz;
     }
-    if (s.contains('retirad') || (s.contains('retirada') && s.contains('local'))) {
+
+    if (s.contains('retirad') ||
+        (s.contains('retirada') && s.contains('local'))) {
       return ModalidadeExecucao.retiradaNoLocal;
     }
     if (s.contains('receba') || (s.contains('receba') && s.contains('casa'))) {
@@ -53,16 +58,46 @@ class ItemChecklist {
   ItemChecklist(this.titulo, {this.marcado = false});
 }
 
+class _AndamentoHeaderDelegate extends SliverPersistentHeaderDelegate {
+  _AndamentoHeaderDelegate({required this.child});
+
+  final Widget child;
+
+  @override
+  double get minExtent => 78;
+
+  @override
+  double get maxExtent => 78;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return child;
+  }
+
+  @override
+  bool shouldRebuild(covariant _AndamentoHeaderDelegate oldDelegate) {
+    return oldDelegate.child != child;
+  }
+}
+
 class SolicitacaoEstadoPage extends StatefulWidget {
   final int idSolicitacao;
   final SolicitacaoRecebida? solicitacao;
   final bool recemAceito;
+  final String? nomeClienteInicial;
+  final String? fotoClienteInicial;
 
   const SolicitacaoEstadoPage({
     super.key,
     required this.idSolicitacao,
     this.solicitacao,
     this.recemAceito = false,
+    this.nomeClienteInicial,
+    this.fotoClienteInicial,
   });
 
   @override
@@ -90,7 +125,6 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
   String _categoriaTitulo = 'Conserto e Reparo';
   String _nomeCliente = 'Cliente';
   String? _fotoCliente;
-  String? _telefoneCliente;
   String _modeloEquipamento = '';
   String _tituloServico = 'Serviço Solicitado';
   String _relatoCliente = '';
@@ -104,6 +138,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
   String _periodoExibicao = 'Hoje à tarde';
   String _horaExibicao = '14:00';
   String _janelaExibicao = 'Janela: 14h - 16h';
+  String _horaFimExibicao = '16:00';
+  String? _funcaoOficio;
+  String? _corOficio;
 
   String _enderecoLinha1 = 'Rua das Acácias, 452 - Apto 82';
   String _enderecoLinha2 = 'Mooca, São Paulo - SP';
@@ -144,11 +181,18 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
     );
 
     _idSolicitacao = widget.idSolicitacao;
-    _codigoPedido = '#PED-${DateTime.now().year}-${_idSolicitacao.toString().padLeft(4, '0')}';
+    _codigoPedido =
+        '#PED-${DateTime.now().year}-${_idSolicitacao.toString().padLeft(4, '0')}';
 
     // Preenche com dados iniciais se disponíveis
     if (widget.solicitacao != null) {
       _aplicarDadosIniciais(widget.solicitacao!);
+    }
+    if (widget.nomeClienteInicial?.trim().isNotEmpty == true) {
+      _nomeCliente = widget.nomeClienteInicial!.trim();
+    }
+    if (widget.fotoClienteInicial?.trim().isNotEmpty == true) {
+      _fotoCliente = widget.fotoClienteInicial!.trim();
     }
 
     _carregarPerfilLogado();
@@ -166,7 +210,8 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
       final user = _supabase.auth.currentUser;
       if (user == null) return;
 
-      bool ehEmpresa = BottomNavigationBarProfissional.leituraSincronaContaEmpresa();
+      bool ehEmpresa =
+          BottomNavigationBarProfissional.leituraSincronaContaEmpresa();
 
       final usuarioRow = await _supabase
           .from('usuarios')
@@ -238,7 +283,10 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
     _nomeCliente = s.nomeCliente;
     _fotoCliente = s.fotoCliente;
     _tituloServico = s.tituloServico;
-    _categoriaTitulo = s.funcao?.isNotEmpty == true ? s.funcao! : s.tituloServico;
+    _categoriaTitulo = s.funcao?.isNotEmpty == true
+        ? s.funcao!
+        : s.tituloServico;
+    _funcaoOficio = s.funcao ?? '';
     _modeloEquipamento = s.tituloServico;
     if (s.detalhes?.isNotEmpty == true) {
       _relatoCliente = s.detalhes!;
@@ -258,22 +306,26 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
 
   void _formatarPrecoValor(double valor) {
     if (valor <= 0) {
-      _valorExibicao = 'R\$ 150,00 - 250,00';
+      _valorExibicao = 'R\$ 0,00';
     } else {
-      final min = (valor * 0.85).round();
-      final max = (valor * 1.25).round();
-      if (min != max) {
-        _valorExibicao = 'R\$ $min,00 - $max,00';
-      } else {
-        _valorExibicao = 'R\$ ${valor.toStringAsFixed(2).replaceAll('.', ',')}';
-      }
+      _valorExibicao = 'R\$ ${valor.toStringAsFixed(2).replaceAll('.', ',')}';
     }
   }
 
-  void _formatarDataHora(String? data, String? hora) {
+  void _formatarDataHora(String? data, String? hora, [String? horaFim]) {
     const meses = [
-      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+      'Janeiro',
+      'Fevereiro',
+      'Março',
+      'Abril',
+      'Maio',
+      'Junho',
+      'Julho',
+      'Agosto',
+      'Setembro',
+      'Outubro',
+      'Novembro',
+      'Dezembro',
     ];
 
     if (data != null && data.isNotEmpty) {
@@ -287,9 +339,11 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
 
           final dtAgendada = DateTime(ano, mes, dia);
           final hoje = DateTime.now();
-          final diff = DateTime(dtAgendada.year, dtAgendada.month, dtAgendada.day)
-              .difference(DateTime(hoje.year, hoje.month, hoje.day))
-              .inDays;
+          final diff = DateTime(
+            dtAgendada.year,
+            dtAgendada.month,
+            dtAgendada.day,
+          ).difference(DateTime(hoje.year, hoje.month, hoje.day)).inDays;
 
           if (diff == 0) {
             _periodoExibicao = 'Hoje à tarde';
@@ -310,9 +364,17 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         if (partesH.isNotEmpty) {
           final h = int.tryParse(partesH[0]) ?? 14;
           final m = partesH.length > 1 ? partesH[1] : '00';
-          _horaExibicao = '${h.toString().padLeft(2, '0')}:${m.padLeft(2, '0')}';
-          final hFim = (h + 2) % 24;
-          _janelaExibicao = 'Janela: ${h}h - ${hFim}h';
+          _horaExibicao =
+              '${h.toString().padLeft(2, '0')}:${m.padLeft(2, '0')}';
+          final fim = horaFim?.trim().isNotEmpty == true
+              ? horaFim!.trim()
+              : '${((h + 2) % 24).toString().padLeft(2, '0')}:00';
+          final partesFim = fim.split(':');
+          final hFim = int.tryParse(partesFim.first) ?? ((h + 2) % 24);
+          final mFim = partesFim.length > 1 ? partesFim[1] : '00';
+          _horaFimExibicao =
+              '${hFim.toString().padLeft(2, '0')}:${mFim.padLeft(2, '0')}';
+          _janelaExibicao = 'Janela: $_horaExibicao - $_horaFimExibicao';
         }
       } catch (_) {}
     }
@@ -323,28 +385,46 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
     if (cat.contains('ar') || cat.contains('clima') || cat.contains('split')) {
       _checklistItens = [
         ItemChecklist('Multímetro e manômetro de teste', marcado: true),
-        ItemChecklist('EPIs adequados (luvas, óculos de proteção)', marcado: true),
+        ItemChecklist(
+          'EPIs adequados (luvas, óculos de proteção)',
+          marcado: true,
+        ),
         ItemChecklist('Gás refrigerante e bomba de vácuo', marcado: true),
         ItemChecklist('Kit de chaves isoladas e alicates', marcado: false),
         ItemChecklist('Recipiente para drenagem de água', marcado: false),
       ];
-    } else if (cat.contains('celular') || cat.contains('comput') || cat.contains('noteb') || cat.contains('eletron')) {
+    } else if (cat.contains('celular') ||
+        cat.contains('comput') ||
+        cat.contains('noteb') ||
+        cat.contains('eletron')) {
       _checklistItens = [
         ItemChecklist('Manta e pulseira antiestática', marcado: true),
         ItemChecklist('Kit chaves de precisão Torx e Phillips', marcado: true),
         ItemChecklist('Estação de solda e soprador térmico', marcado: true),
-        ItemChecklist('Álcool isopropílico 99% e pincel antiestático', marcado: false),
+        ItemChecklist(
+          'Álcool isopropílico 99% e pincel antiestático',
+          marcado: false,
+        ),
       ];
     } else if (cat.contains('eletric') || cat.contains('fiacao')) {
       _checklistItens = [
-        ItemChecklist('Alicate amperímetro / multímetro True-RMS', marcado: true),
+        ItemChecklist(
+          'Alicate amperímetro / multímetro True-RMS',
+          marcado: true,
+        ),
         ItemChecklist('EPIs de isolamento 1000V', marcado: true),
-        ItemChecklist('Fita isolante antichama e conectores Wago', marcado: true),
+        ItemChecklist(
+          'Fita isolante antichama e conectores Wago',
+          marcado: true,
+        ),
         ItemChecklist('Passa-fios de nylon / aço', marcado: false),
       ];
     } else {
       _checklistItens = [
-        ItemChecklist('Conjunto de ferramentas manuais e chaves', marcado: true),
+        ItemChecklist(
+          'Conjunto de ferramentas manuais e chaves',
+          marcado: true,
+        ),
         ItemChecklist('EPIs adequados de segurança', marcado: true),
         ItemChecklist('Peças de reposição e vedações de teste', marcado: true),
         ItemChecklist('Pano de limpeza e lubrificante técnico', marcado: false),
@@ -358,7 +438,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
           .from('solicitacoes')
           .select(
             'id_solicitacao, data_solicitacao, valor_final, detalhes, '
-            'data_agendada, hora_agendada, tipo_execucao, fk_grupo_empresa, '
+            'data_agendada, hora_agendada, hora_agendada_fim, tipo_execucao, fk_grupo_empresa, '
             'fk_status, fk_profissional, fk_usuario, fk_endereco, fk_servico_prof',
           )
           .eq('id_solicitacao', _idSolicitacao)
@@ -371,12 +451,14 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
 
       final idSolicitacao = (row['id_solicitacao'] as num).toInt();
       _codigoPedido = '#PED-2026-${idSolicitacao.toString().padLeft(4, '0')}';
-      _tipoExecucaoOriginal = row['tipo_execucao']?.toString().trim() ?? 'Leva e Traz';
+      _tipoExecucaoOriginal =
+          row['tipo_execucao']?.toString().trim() ?? 'Leva e Traz';
       _modalidade = ModalidadeExecucao.fromString(_tipoExecucaoOriginal);
       _fkGrupoEmpresa = (row['fk_grupo_empresa'] as num?)?.toInt();
       _fkProfissional = (row['fk_profissional'] as num?)?.toInt() ?? 0;
 
-      final valorFinal = double.tryParse(row['valor_final']?.toString() ?? '0') ?? 0.0;
+      final valorFinal =
+          double.tryParse(row['valor_final']?.toString() ?? '0') ?? 0.0;
       _formatarPrecoValor(valorFinal);
 
       final detalhes = row['detalhes']?.toString().trim() ?? '';
@@ -384,7 +466,11 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         _relatoCliente = detalhes;
       }
 
-      _formatarDataHora(row['data_agendada']?.toString(), row['hora_agendada']?.toString());
+      _formatarDataHora(
+        row['data_agendada']?.toString(),
+        row['hora_agendada']?.toString(),
+        row['hora_agendada_fim']?.toString(),
+      );
 
       // 1. Dados do Cliente
       final idCliente = (row['fk_usuario'] as num?)?.toInt();
@@ -392,7 +478,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         try {
           final u = await _supabase
               .from('usuarios')
-              .select('nome, foto_perfil_url, telefone')
+              .select('nome, foto_perfil_url')
               .eq('id_usuario', idCliente)
               .maybeSingle();
           if (u != null) {
@@ -400,8 +486,6 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
             if (n.isNotEmpty) _nomeCliente = n;
             final f = u['foto_perfil_url']?.toString().trim() ?? '';
             if (f.isNotEmpty) _fotoCliente = f;
-            final tel = u['telefone']?.toString().trim() ?? '';
-            if (tel.isNotEmpty) _telefoneCliente = tel;
           }
         } catch (_) {}
       }
@@ -433,13 +517,15 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
             final Map<String, dynamic>? ofMap = ofRaw is Map<String, dynamic>
                 ? ofRaw
                 : (ofRaw is List && ofRaw.isNotEmpty
-                    ? Map<String, dynamic>.from(ofRaw.first as Map)
-                    : null);
+                      ? Map<String, dynamic>.from(ofRaw.first as Map)
+                      : null);
             if (ofMap != null) {
               final func = ofMap['funcao']?.toString().trim() ?? '';
               if (func.isNotEmpty) {
                 _categoriaTitulo = func;
+                _funcaoOficio = func;
               }
+              _corOficio = ofMap['cor']?.toString().trim();
             }
           }
         } catch (_) {}
@@ -513,14 +599,19 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                       .eq('id_estado', idEst)
                       .maybeSingle();
                   if (est != null) {
-                    estSigla = est['sigla_estado']?.toString().trim() ?? estSigla;
+                    estSigla =
+                        est['sigla_estado']?.toString().trim() ?? estSigla;
                   }
                 }
               }
             }
 
-            _enderecoLinha1 = comp.isNotEmpty ? '$log, $numStr - $comp' : '$log, $numStr';
-            _enderecoLinha2 = bai.isNotEmpty ? '$bai, $cidNome - $estSigla' : '$cidNome - $estSigla';
+            _enderecoLinha1 = comp.isNotEmpty
+                ? '$log, $numStr - $comp'
+                : '$log, $numStr';
+            _enderecoLinha2 = bai.isNotEmpty
+                ? '$bai, $cidNome - $estSigla'
+                : '$cidNome - $estSigla';
             _trajetoOverlayTexto = 'Trajeto mais rápido via $log';
           }
         } catch (_) {}
@@ -553,49 +644,13 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
     );
   }
 
-  Future<void> _ligarCliente() async {
-    final tel = _telefoneCliente?.replaceAll(RegExp(r'\D'), '');
-    if (tel != null && tel.isNotEmpty) {
-      final uri = Uri.parse('tel:$tel');
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri);
-        return;
-      }
-    }
-
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Ligar para Cliente', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: Text(
-          _telefoneCliente != null && _telefoneCliente!.isNotEmpty
-              ? 'Telefone da cliente: $_telefoneCliente'
-              : 'O número de telefone da cliente $_nomeCliente não está disponível no momento. Utilize o chat para conversar.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Fechar', style: TextStyle(color: _azul, fontWeight: FontWeight.bold)),
-          ),
-          if (_telefoneCliente == null || _telefoneCliente!.isEmpty)
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                _abrirChat();
-              },
-              style: FilledButton.styleFrom(backgroundColor: _azul),
-              child: const Text('Abrir Chat'),
-            ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _iniciarRota() async {
-    final enderecoBusca = Uri.encodeComponent('$_enderecoLinha1, $_enderecoLinha2');
-    final googleMapsUrl = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$enderecoBusca');
+    final enderecoBusca = Uri.encodeComponent(
+      '$_enderecoLinha1, $_enderecoLinha2',
+    );
+    final googleMapsUrl = Uri.parse(
+      'https://www.google.com/maps/dir/?api=1&destination=$enderecoBusca',
+    );
 
     try {
       if (await canLaunchUrl(googleMapsUrl)) {
@@ -643,7 +698,12 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
       isScrollControlled: true,
       builder: (ctx) => SafeArea(
         child: Container(
-          padding: EdgeInsets.fromLTRB(22, 16, 22, MediaQuery.of(ctx).viewInsets.bottom + 24),
+          padding: EdgeInsets.fromLTRB(
+            22,
+            16,
+            22,
+            MediaQuery.of(ctx).viewInsets.bottom + 24,
+          ),
           decoration: const BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
@@ -672,7 +732,11 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                       color: Colors.red.shade50,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
+                    child: const Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.red,
+                      size: 28,
+                    ),
                   ),
                   const SizedBox(width: 14),
                   const Expanded(
@@ -705,7 +769,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                     Navigator.pop(ctx);
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Imprevisto registrado: "$motivo". Notificando cliente.'),
+                        content: Text(
+                          'Imprevisto registrado: "$motivo". Notificando cliente.',
+                        ),
                         backgroundColor: Colors.black87,
                       ),
                     );
@@ -713,7 +779,10 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
                     margin: const EdgeInsets.only(bottom: 8),
                     decoration: BoxDecoration(
                       color: _fundoCinza,
@@ -722,7 +791,11 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                        const Icon(
+                          Icons.error_outline,
+                          color: Colors.red,
+                          size: 20,
+                        ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
@@ -734,7 +807,11 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                             ),
                           ),
                         ),
-                        const Icon(Icons.arrow_forward_ios, size: 14, color: _textoMuted),
+                        const Icon(
+                          Icons.arrow_forward_ios,
+                          size: 14,
+                          color: _textoMuted,
+                        ),
                       ],
                     ),
                   ),
@@ -760,44 +837,51 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
               _buildHeader(),
               Expanded(
                 child: _carregando && widget.solicitacao == null
-                    ? const Center(child: CircularProgressIndicator(color: _azul))
+                    ? const SkeletonPage(layout: SkeletonLayout.request)
                     : _erro != null && widget.solicitacao == null
-                        ? Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(24),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    _erro!,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(color: _textoMuted),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  FilledButton(
-                                    onPressed: _carregarDadosCompletos,
-                                    style: FilledButton.styleFrom(backgroundColor: _azul),
-                                    child: const Text('Tentar novamente'),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          )
-                        : RefreshIndicator(
-                        color: _azul,
-                        onRefresh: _carregarDadosCompletos,
-                        child: SingleChildScrollView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                _erro!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(color: _textoMuted),
+                              ),
+                              const SizedBox(height: 12),
+                              FilledButton(
+                                onPressed: _carregarDadosCompletos,
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: _azul,
+                                ),
+                                child: const Text('Tentar novamente'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : NestedScrollView(
+                        headerSliverBuilder: (context, innerBoxIsScrolled) => [
+                          SliverPersistentHeader(
+                            pinned: true,
+                            delegate: _AndamentoHeaderDelegate(
+                              child: _buildEtapasAndamentoCompacto(),
+                            ),
+                          ),
+                        ],
+                        body: RefreshIndicator(
+                          color: _azul,
+                          onRefresh: _carregarDadosCompletos,
+                          child: ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
                             children: [
                               if (widget.recemAceito) ...[
                                 _buildCardConfirmacaoAceite(),
                                 const SizedBox(height: 14),
                               ],
-                              _buildCardAndamentoPedido(),
-                              const SizedBox(height: 14),
                               _buildCardPerfilCliente(),
                               const SizedBox(height: 14),
                               _buildCardServicoSelecionado(),
@@ -809,7 +893,8 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                               _buildCardLocalizacao(),
                               const SizedBox(height: 14),
                               _buildCardEstimativaCombinada(),
-                              if (_modalidade == ModalidadeExecucao.recebaEmCasa) ...[
+                              if (_modalidade ==
+                                  ModalidadeExecucao.recebaEmCasa) ...[
                                 const SizedBox(height: 14),
                                 _buildCardChecklistEspecialista(),
                               ],
@@ -832,7 +917,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
   // 1. HEADER
   // ==========================================
   Widget _buildHeader() {
-    final titulo = _tituloServico.isNotEmpty ? _tituloServico : _categoriaTitulo;
+    final titulo = _tituloServico.isNotEmpty
+        ? _tituloServico
+        : _categoriaTitulo;
 
     return Container(
       color: Colors.white,
@@ -871,7 +958,8 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                 ),
               ),
               child: ClipOval(
-                child: _fotoPerfilLogado != null && _fotoPerfilLogado!.isNotEmpty
+                child:
+                    _fotoPerfilLogado != null && _fotoPerfilLogado!.isNotEmpty
                     ? Image.network(
                         _fotoPerfilLogado!,
                         width: 42,
@@ -945,7 +1033,10 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: _azul,
                         borderRadius: BorderRadius.circular(20),
@@ -1006,6 +1097,145 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
   // ==========================================
   // 3. CARD DE ANDAMENTO DO PEDIDO
   // ==========================================
+  Widget _buildEtapasAndamentoCompacto() {
+    late final List<String> etapas;
+    late final List<IconData> icones;
+
+    switch (_modalidade) {
+      case ModalidadeExecucao.levaETraz:
+        etapas = ['Aceito', 'Busca', 'Processo', 'Entrega', 'Concluído'];
+        icones = [
+          Icons.check,
+          Icons.radio_button_checked,
+          Icons.business_center_outlined,
+          Icons.local_shipping_outlined,
+          Icons.check_circle_outline,
+        ];
+        break;
+      case ModalidadeExecucao.atendimentoDomicilio:
+        etapas = ['Aceito', 'Deslocamento', 'No Local', 'Concluído'];
+        icones = [
+          Icons.check,
+          Icons.radio_button_checked,
+          Icons.business_center_outlined,
+          Icons.check_circle_outline,
+        ];
+        break;
+      case ModalidadeExecucao.retiradaNoLocal:
+        etapas = ['Aceito', 'Cliente', 'Processo', 'Cliente', 'Concluído'];
+        icones = [
+          Icons.check,
+          Icons.radio_button_checked,
+          Icons.business_center_outlined,
+          Icons.local_shipping_outlined,
+          Icons.check_circle_outline,
+        ];
+        break;
+      case ModalidadeExecucao.recebaEmCasa:
+        etapas = ['Aceito', 'Cliente', 'Processo', 'Entrega', 'Concluído'];
+        icones = [
+          Icons.check,
+          Icons.radio_button_checked,
+          Icons.business_center_outlined,
+          Icons.local_shipping_outlined,
+          Icons.check_circle_outline,
+        ];
+        break;
+    }
+
+    return Material(
+      color: Colors.white,
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: List.generate(etapas.length, (index) {
+            final isFirst = index == 0;
+            final isLast = index == etapas.length - 1;
+            final isDone = index == 0;
+            final isCurrent = index == 1;
+            return Expanded(
+              child: Column(
+                children: [
+                  SizedBox(
+                    height: 38,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: isFirst
+                                  ? const SizedBox()
+                                  : Container(
+                                      height: 3,
+                                      color: index == 1
+                                          ? _azul
+                                          : const Color(0xFFCBD5E1),
+                                    ),
+                            ),
+                            const SizedBox(width: 28),
+                            Expanded(
+                              child: isLast
+                                  ? const SizedBox()
+                                  : Container(
+                                      height: 3,
+                                      color: index == 0
+                                          ? _azul
+                                          : const Color(0xFFCBD5E1),
+                                    ),
+                            ),
+                          ],
+                        ),
+                        if (isDone)
+                          _buildCirculoSonar(icones[index])
+                        else
+                          Container(
+                            width: 30,
+                            height: 30,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: isCurrent
+                                  ? Colors.white
+                                  : const Color(0xFFF1F5F9),
+                              border: Border.all(
+                                color: isCurrent
+                                    ? const Color(0xFF64748B)
+                                    : const Color(0xFFCBD5E1),
+                                width: isCurrent ? 2 : 1.5,
+                              ),
+                            ),
+                            child: Icon(
+                              icones[index],
+                              size: 16,
+                              color: isCurrent ? _textoEscuro : _textoMuted,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    etapas[index],
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: isDone ? FontWeight.w800 : FontWeight.w600,
+                      color: isDone ? _azul : _textoMuted,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+
   Widget _buildCardAndamentoPedido() {
     late final List<String> etapas;
     late final List<IconData> icones;
@@ -1104,7 +1334,8 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
               final isLast = index == etapas.length - 1;
               final isDone = index == 0; // Aceito
               final isCurrent = index == 1; // Próximo passo
-              final isLineDone = index == 0; // Linha entre Aceito e próximo passo em azul
+              final isLineDone =
+                  index == 0; // Linha entre Aceito e próximo passo em azul
 
               return Expanded(
                 child: Column(
@@ -1199,7 +1430,11 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
               children: [
                 const Padding(
                   padding: EdgeInsets.only(top: 2),
-                  child: Icon(Icons.info_outline, color: _textoEscuro, size: 20),
+                  child: Icon(
+                    Icons.info_outline,
+                    color: _textoEscuro,
+                    size: 20,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -1294,7 +1529,8 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                             width: 56,
                             height: 56,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => _avatarFallback(_nomeCliente),
+                            errorBuilder: (_, _, _) =>
+                                _avatarFallback(_nomeCliente),
                           )
                         : _avatarFallback(_nomeCliente),
                   ),
@@ -1309,7 +1545,11 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 2),
                       ),
-                      child: const Icon(Icons.check, color: Colors.white, size: 10),
+                      child: const Icon(
+                        Icons.check,
+                        color: Colors.white,
+                        size: 10,
+                      ),
                     ),
                   ),
                 ],
@@ -1355,7 +1595,11 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                   height: 44,
                   child: OutlinedButton.icon(
                     onPressed: _abrirChat,
-                    icon: const Icon(Icons.chat_bubble_outline, color: _azul, size: 18),
+                    icon: const Icon(
+                      Icons.chat_bubble_outline,
+                      color: _azul,
+                      size: 18,
+                    ),
                     label: const Text(
                       'Conversar no Chat',
                       style: TextStyle(
@@ -1366,30 +1610,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                     ),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: _azul, width: 1.5),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: SizedBox(
-                  height: 44,
-                  child: FilledButton.icon(
-                    onPressed: _ligarCliente,
-                    icon: const Icon(Icons.phone_outlined, color: _textoEscuro, size: 18),
-                    label: const Text(
-                      'Ligar para Cliente',
-                      style: TextStyle(
-                        color: _textoEscuro,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(22),
                       ),
-                    ),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFFF1F5F9),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
                     ),
                   ),
                 ),
@@ -1406,10 +1629,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
       width: 56,
       height: 56,
       alignment: Alignment.center,
-      decoration: const BoxDecoration(
-        color: _azul,
-        shape: BoxShape.circle,
-      ),
+      decoration: const BoxDecoration(color: _azul, shape: BoxShape.circle),
       child: Text(
         obterIniciais(nome),
         style: const TextStyle(
@@ -1448,10 +1668,15 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: _azul,
+                  color: CorOficio.parse(_corOficio),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.toys_outlined, color: Colors.white, size: 24),
+                child: IconeOficio.imagemPorFuncao(
+                  (_funcaoOficio?.isNotEmpty == true)
+                      ? _funcaoOficio
+                      : _categoriaTitulo,
+                  tamanho: 26,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1482,7 +1707,10 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF1F5F9),
                   borderRadius: BorderRadius.circular(12),
@@ -1546,7 +1774,10 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                   right: 0,
                   bottom: 0,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.bottomCenter,
@@ -1559,7 +1790,11 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.photo_camera_outlined, color: Colors.white, size: 16),
+                        const Icon(
+                          Icons.photo_camera_outlined,
+                          color: Colors.white,
+                          size: 16,
+                        ),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
@@ -1592,11 +1827,18 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.build_circle_outlined, size: 48, color: Colors.grey.shade600),
+            Icon(
+              Icons.build_circle_outlined,
+              size: 48,
+              color: Colors.grey.shade600,
+            ),
             const SizedBox(height: 8),
             Text(
               _tituloServico,
-              style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.grey.shade700,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ],
         ),
@@ -1702,7 +1944,10 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
                   color: _azul,
                   borderRadius: BorderRadius.circular(18),
@@ -1747,7 +1992,11 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
             const SizedBox(height: 12),
             Row(
               children: [
-                const Icon(Icons.local_shipping_outlined, color: _azul, size: 18),
+                const Icon(
+                  Icons.local_shipping_outlined,
+                  color: _azul,
+                  size: 18,
+                ),
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
@@ -1801,7 +2050,11 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
               children: [
                 const Row(
                   children: [
-                    Icon(Icons.calendar_today_outlined, color: _textoEscuro, size: 18),
+                    Icon(
+                      Icons.calendar_today_outlined,
+                      color: _textoEscuro,
+                      size: 18,
+                    ),
                     SizedBox(width: 6),
                     Text(
                       'Data',
@@ -1984,7 +2237,8 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                     ),
                     children: [
                       TileLayer(
-                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        urlTemplate:
+                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                         userAgentPackageName: 'br.com.consertaja',
                       ),
                       CircleLayer(
@@ -2022,7 +2276,10 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                     left: 12,
                     right: 12,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.95),
                         borderRadius: BorderRadius.circular(12),
@@ -2038,7 +2295,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            rotaIniciada ? Icons.directions_car : Icons.info_outline,
+                            rotaIniciada
+                                ? Icons.directions_car
+                                : Icons.info_outline,
                             size: 16,
                             color: _textoEscuro,
                           ),
@@ -2071,7 +2330,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
   }
 
   // ==========================================
-  // 9. CARD DE ESTIMATIVA COMBINADA
+  // 9. CARD DE PREÇO ATUAL
   // ==========================================
   Widget _buildCardEstimativaCombinada() {
     final bool mostrarTaxaVisita =
@@ -2098,7 +2357,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Estimativa Combinada',
+                'Preço atual',
                 style: TextStyle(
                   color: _textoMuted,
                   fontSize: 14.5,
@@ -2133,7 +2392,10 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: _azul,
                   borderRadius: BorderRadius.circular(14),
@@ -2162,7 +2424,11 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
               children: [
                 Padding(
                   padding: EdgeInsets.only(top: 2),
-                  child: Icon(Icons.verified_user_outlined, color: _azul, size: 20),
+                  child: Icon(
+                    Icons.verified_user_outlined,
+                    color: _azul,
+                    size: 20,
+                  ),
                 ),
                 SizedBox(width: 10),
                 Expanded(
@@ -2217,7 +2483,10 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: _azul.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
@@ -2264,7 +2533,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                         item.titulo,
                         style: TextStyle(
                           fontSize: 14,
-                          fontWeight: item.marcado ? FontWeight.w700 : FontWeight.w500,
+                          fontWeight: item.marcado
+                              ? FontWeight.w700
+                              : FontWeight.w500,
                           color: item.marcado ? _textoEscuro : _textoMuted,
                           decoration: item.marcado ? TextDecoration.none : null,
                         ),
@@ -2307,7 +2578,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
               backgroundColor: _azul,
               foregroundColor: Colors.white,
               elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(26),
+              ),
             ),
           ),
         );
@@ -2321,7 +2594,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Aguardando cliente se deslocar até seu estabelecimento.'),
+                  content: Text(
+                    'Aguardando cliente se deslocar até seu estabelecimento.',
+                  ),
                   backgroundColor: _azul,
                 ),
               );
@@ -2339,7 +2614,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
               backgroundColor: _azul,
               foregroundColor: Colors.white,
               elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(26),
+              ),
             ),
           ),
         );
@@ -2353,7 +2630,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Aguardando o cliente realizar a entrega do item.'),
+                  content: Text(
+                    'Aguardando o cliente realizar a entrega do item.',
+                  ),
                   backgroundColor: _azul,
                 ),
               );
@@ -2371,7 +2650,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
               backgroundColor: _azul,
               foregroundColor: Colors.white,
               elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(26),
+              ),
             ),
           ),
         );
@@ -2389,7 +2670,11 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                 height: 48,
                 child: FilledButton.icon(
                   onPressed: _salvarNaAgenda,
-                  icon: const Icon(Icons.calendar_today_outlined, color: _textoEscuro, size: 18),
+                  icon: const Icon(
+                    Icons.calendar_today_outlined,
+                    color: _textoEscuro,
+                    size: 18,
+                  ),
                   label: const Text(
                     'Salvar na Agenda',
                     style: TextStyle(
@@ -2401,7 +2686,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFFF1F5F9),
                     elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
                   ),
                 ),
               ),
@@ -2412,7 +2699,11 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                 height: 48,
                 child: FilledButton.icon(
                   onPressed: _relatarImprevisto,
-                  icon: const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 20),
+                  icon: const Icon(
+                    Icons.warning_amber_rounded,
+                    color: Color(0xFFDC2626),
+                    size: 20,
+                  ),
                   label: const Text(
                     'Relatar Imprevisto',
                     style: TextStyle(
@@ -2424,7 +2715,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFFF1F5F9),
                     elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
                   ),
                 ),
               ),

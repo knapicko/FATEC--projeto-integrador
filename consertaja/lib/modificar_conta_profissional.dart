@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'widgets/skeleton_loading.dart';
 import 'services/cor_dominante_service.dart';
 import 'utils/iniciais.dart';
 
@@ -274,9 +275,7 @@ class _ModificarContaProfissionalPageState
                 );
           }
 
-          publicUrl = _supabase.storage
-              .from(bucketName)
-              .getPublicUrl(fileName);
+          publicUrl = _supabase.storage.from(bucketName).getPublicUrl(fileName);
           bucketUsado = bucketName;
           ultimoErro = null;
           break;
@@ -394,7 +393,7 @@ class _ModificarContaProfissionalPageState
       backgroundColor: _bg,
       body: SafeArea(
         child: _carregando
-            ? const Center(child: CircularProgressIndicator(color: _blue))
+            ? const SkeletonPage(layout: SkeletonLayout.form)
             : SingleChildScrollView(
                 padding: const EdgeInsets.only(bottom: 24),
                 child: Column(
@@ -468,7 +467,11 @@ class _ModificarContaProfissionalPageState
                 child: IconButton(
                   padding: EdgeInsets.zero,
                   splashRadius: 16,
-                  icon: const Icon(Icons.edit_outlined, size: 18, color: Color(0xFF0FB3FF)),
+                  icon: const Icon(
+                    Icons.edit_outlined,
+                    size: 18,
+                    color: Color(0xFF0FB3FF),
+                  ),
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
@@ -504,7 +507,7 @@ class _ModificarContaProfissionalPageState
                             : null,
                         child:
                             (_fotoPerfilUrl == null || _fotoPerfilUrl!.isEmpty)
-                                            ? Text(
+                            ? Text(
                                 obterIniciais(_nomeCompleto),
                                 style: const TextStyle(
                                   color: _blue,

@@ -14,6 +14,7 @@ import 'tela_servico.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/icone_oficio.dart';
 import 'utils/iniciais.dart';
+import 'widgets/skeleton_loading.dart';
 
 // Cores temáticas fiéis ao design
 const Color _kPrimaryCyan = Color(0xFF0FB3FF);
@@ -69,8 +70,9 @@ class _BlinkingSignalDotState extends State<_BlinkingSignalDot>
               width: 14,
               height: 14,
               decoration: BoxDecoration(
-                color: const Color(0xFF10B981)
-                    .withValues(alpha: _animation.value * 0.35),
+                color: const Color(
+                  0xFF10B981,
+                ).withValues(alpha: _animation.value * 0.35),
                 shape: BoxShape.circle,
               ),
             ),
@@ -78,8 +80,9 @@ class _BlinkingSignalDotState extends State<_BlinkingSignalDot>
               width: 8,
               height: 8,
               decoration: BoxDecoration(
-                color: const Color(0xFF10B981)
-                    .withValues(alpha: 0.35 + (_animation.value * 0.65)),
+                color: const Color(
+                  0xFF10B981,
+                ).withValues(alpha: 0.35 + (_animation.value * 0.65)),
                 shape: BoxShape.circle,
               ),
             ),
@@ -192,8 +195,9 @@ class _PerfilLojaState extends State<PerfilLoja> {
   bool _enderecoCarregado = false;
 
   // --- Galeria = postagens da empresa (postagens.fk_grupo_empresa) ---
-  Future<List<PostagemResumo>> _postagensGaleriaFuture =
-      Future.value(<PostagemResumo>[]);
+  Future<List<PostagemResumo>> _postagensGaleriaFuture = Future.value(
+    <PostagemResumo>[],
+  );
 
   // Controller do mapa: initialCenter só vale na 1ª construção (quando o
   // endereço ainda é null). Quando o endereço real chega, damos move()
@@ -313,10 +317,12 @@ class _PerfilLojaState extends State<PerfilLoja> {
           final corHex = grupo['cor_tag_empresa']?.toString();
           final foto = grupo['foto_url_empresa']?.toString();
           final banner = grupo['banner_url_empresa']?.toString();
-          final seguidores = (grupo['seguidores_empresa'] as num?)?.toInt() ?? 0;
+          final seguidores =
+              (grupo['seguidores_empresa'] as num?)?.toInt() ?? 0;
           final comp = grupo['compartilhar_funcionarios'];
           final bool compBool = comp == true;
-          final descricaoDb = grupo['descricao_empresa']?.toString().trim() ?? '';
+          final descricaoDb =
+              grupo['descricao_empresa']?.toString().trim() ?? '';
           final anosDb = grupo['anos_mercado']?.toString().trim() ?? '';
 
           setState(() {
@@ -337,7 +343,9 @@ class _PerfilLojaState extends State<PerfilLoja> {
             _compartilharFuncionarios = compBool;
             if (!compBool && _abaAtiva == 'Equipe') {
               _abaAtiva = 'Serviços';
-            } else if (compBool && _abaAtiva == 'Serviços' && widget.compartilharFuncionarios == null) {
+            } else if (compBool &&
+                _abaAtiva == 'Serviços' &&
+                widget.compartilharFuncionarios == null) {
               _abaAtiva = 'Equipe';
             }
           });
@@ -357,13 +365,16 @@ class _PerfilLojaState extends State<PerfilLoja> {
       List<ServicoProfissional> servicos = [];
       if (idGrupo != null) {
         try {
-          var lista =
-              await ServicosProfissionalService.buscarServicosEmpresa(idGrupo);
+          var lista = await ServicosProfissionalService.buscarServicosEmpresa(
+            idGrupo,
+          );
           final idGrupoFinal = idGrupo;
           lista = lista
-              .where((s) =>
-                  s.fkGrupoEmpresa != null &&
-                  s.fkGrupoEmpresa == idGrupoFinal)
+              .where(
+                (s) =>
+                    s.fkGrupoEmpresa != null &&
+                    s.fkGrupoEmpresa == idGrupoFinal,
+              )
               .toList();
           servicos = lista;
         } catch (e) {
@@ -411,11 +422,9 @@ class _PerfilLojaState extends State<PerfilLoja> {
           final f = s.funcao?.trim();
           if (f != null && f.isNotEmpty && !nomesVistos.contains(f)) {
             nomesVistos.add(f);
-            oficiosCarregados.add(OficioInfo(
-              funcao: f,
-              categoria: 'Geral',
-              cor: '#0FB3FF',
-            ));
+            oficiosCarregados.add(
+              OficioInfo(funcao: f, categoria: 'Geral', cor: '#0FB3FF'),
+            );
           }
         }
       }
@@ -461,7 +470,8 @@ class _PerfilLojaState extends State<PerfilLoja> {
                   .maybeSingle();
 
               final nomeDono =
-                  usuarioDono?['nome']?.toString().trim() ?? 'Responsável da Loja';
+                  usuarioDono?['nome']?.toString().trim() ??
+                  'Responsável da Loja';
               final fotoDono =
                   usuarioDono?['foto_perfil_url']?.toString().trim() ?? '';
 
@@ -493,7 +503,8 @@ class _PerfilLojaState extends State<PerfilLoja> {
 
           for (final m in membros) {
             final idProf = (m['id_profissional'] as num?)?.toInt();
-            if (idProf == null || idsProfissionaisAdicionados.contains(idProf)) {
+            if (idProf == null ||
+                idsProfissionaisAdicionados.contains(idProf)) {
               continue;
             }
             idsProfissionaisAdicionados.add(idProf);
@@ -503,7 +514,8 @@ class _PerfilLojaState extends State<PerfilLoja> {
                 u?['nome']?.toString().trim() ?? 'Profissional da Equipe';
             final foto = u?['foto_perfil_url']?.toString().trim() ?? '';
 
-            final bool ehResponsavel = (idProf == _idProfissionalDono) ||
+            final bool ehResponsavel =
+                (idProf == _idProfissionalDono) ||
                 (fkPerfil != null && m['fk_perfil'] == fkPerfil);
 
             novosProfissionais.add({
@@ -556,7 +568,9 @@ class _PerfilLojaState extends State<PerfilLoja> {
     if (!_temAgendaCadastrada) return false;
     final agora = DateTime.now();
     final horarioHoje = _horariosPorDia[_nomeDiaSemana(agora.weekday)];
-    if (horarioHoje == null || horarioHoje.isEmpty || horarioHoje == 'Fechado') {
+    if (horarioHoje == null ||
+        horarioHoje.isEmpty ||
+        horarioHoje == 'Fechado') {
       return false;
     }
     final partes = horarioHoje.split(' - ');
@@ -668,7 +682,9 @@ class _PerfilLojaState extends State<PerfilLoja> {
           return mapa[d] ?? d;
         })
         .toList();
-    final diasTexto = diasAbertos.isEmpty ? '' : ' (${diasAbertos.join(' a ')})';
+    final diasTexto = diasAbertos.isEmpty
+        ? ''
+        : ' (${diasAbertos.join(' a ')})';
     final aberto = _estaAbertoAgora();
     return '${aberto ? 'Aberto agora' : 'Fechado agora'} • $_faixaHorarioDisponibilidade$diasTexto';
   }
@@ -769,7 +785,9 @@ class _PerfilLojaState extends State<PerfilLoja> {
       }
       final endList = await supabase
           .from('enderecos')
-          .select('cep, logradouro, numero, bairro, fk_cidade, latitude, longitude')
+          .select(
+            'cep, logradouro, numero, bairro, fk_cidade, latitude, longitude',
+          )
           .eq('id_endereco', idEnd)
           .limit(1);
       if (endList.isEmpty) {
@@ -797,7 +815,8 @@ class _PerfilLojaState extends State<PerfilLoja> {
                 .select('sigla_estado')
                 .eq('id_estado', idEst)
                 .limit(1);
-            if (est.isNotEmpty) uf = est.first['sigla_estado']?.toString() ?? '';
+            if (est.isNotEmpty)
+              uf = est.first['sigla_estado']?.toString() ?? '';
           }
         }
       }
@@ -882,18 +901,20 @@ class _PerfilLojaState extends State<PerfilLoja> {
           }
         }
         final dataRaw = row['data_postagem']?.toString();
-        lista.add(PostagemResumo(
-          idPostagem: id,
-          titulo: (doTexto != null && doTexto.isNotEmpty)
-              ? doTexto
-              : (imagemUrl != null ? 'Postagem' : 'Sem título'),
-          imagemUrl: imagemUrl,
-          dataPostagem: dataRaw != null
-              ? DateTime.tryParse(dataRaw) ?? DateTime.now()
-              : DateTime.now(),
-          curtidas: 0,
-          arquivado: row['arquivado'] == true,
-        ));
+        lista.add(
+          PostagemResumo(
+            idPostagem: id,
+            titulo: (doTexto != null && doTexto.isNotEmpty)
+                ? doTexto
+                : (imagemUrl != null ? 'Postagem' : 'Sem título'),
+            imagemUrl: imagemUrl,
+            dataPostagem: dataRaw != null
+                ? DateTime.tryParse(dataRaw) ?? DateTime.now()
+                : DateTime.now(),
+            curtidas: 0,
+            arquivado: row['arquivado'] == true,
+          ),
+        );
       }
       if (!mounted) return;
       setState(() {
@@ -929,7 +950,11 @@ class _PerfilLojaState extends State<PerfilLoja> {
               const SizedBox(height: 16),
               const Text(
                 'Horários de funcionamento',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _kDarkSlate),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: _kDarkSlate,
+                ),
               ),
               const SizedBox(height: 6),
               Text(
@@ -950,15 +975,26 @@ class _PerfilLojaState extends State<PerfilLoja> {
                     children: [
                       Text(
                         _nomeDiaExibicao(diaChave),
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _kDarkSlate),
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: _kDarkSlate,
+                        ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
-                          color: aberto ? const Color(0xFFDEF7EC) : const Color(0xFFF1F5F9),
+                          color: aberto
+                              ? const Color(0xFFDEF7EC)
+                              : const Color(0xFFF1F5F9),
                           borderRadius: BorderRadius.circular(999),
                           border: Border.all(
-                            color: aberto ? const Color(0xFF10B981) : const Color(0xFFE2E8F0),
+                            color: aberto
+                                ? const Color(0xFF10B981)
+                                : const Color(0xFFE2E8F0),
                           ),
                         ),
                         child: Text(
@@ -966,7 +1002,9 @@ class _PerfilLojaState extends State<PerfilLoja> {
                           style: TextStyle(
                             fontSize: 13.5,
                             fontWeight: FontWeight.bold,
-                            color: aberto ? const Color(0xFF046C4E) : _kTextMuted,
+                            color: aberto
+                                ? const Color(0xFF046C4E)
+                                : _kTextMuted,
                           ),
                         ),
                       ),
@@ -1147,15 +1185,15 @@ class _PerfilLojaState extends State<PerfilLoja> {
 
             // 3. Seção: Equipe de Especialistas (exibida apenas se compartilhar_funcionarios == true)
             if (_compartilharFuncionarios)
-              SliverToBoxAdapter(
-                key: _equipeKey,
-                child: _buildSecaoEquipe(),
-              ),
+              SliverToBoxAdapter(key: _equipeKey, child: _buildSecaoEquipe()),
 
             // 4. Seção: Localização e Atendimento
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 child: _buildSecaoLocalizacao(),
               ),
             ),
@@ -1164,7 +1202,10 @@ class _PerfilLojaState extends State<PerfilLoja> {
             SliverToBoxAdapter(
               key: _servicosKey,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 child: _buildSecaoServicosOferecidos(),
               ),
             ),
@@ -1173,7 +1214,10 @@ class _PerfilLojaState extends State<PerfilLoja> {
             SliverToBoxAdapter(
               key: _sobreKey,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1191,7 +1235,10 @@ class _PerfilLojaState extends State<PerfilLoja> {
             SliverToBoxAdapter(
               key: _avaliacoesKey,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1213,7 +1260,8 @@ class _PerfilLojaState extends State<PerfilLoja> {
   // 1. BANNER COM GRADIENTE, VOLTAR, OPÇÕES E LOGO CENTRALIZADA COM SELO
   // =========================================================================
   Widget _buildCabecalhoSuperiorComLogo() {
-    final usaBannerRede = _bannerUrlEmpresa != null &&
+    final usaBannerRede =
+        _bannerUrlEmpresa != null &&
         _bannerUrlEmpresa!.isNotEmpty &&
         (_bannerUrlEmpresa!.startsWith('http://') ||
             _bannerUrlEmpresa!.startsWith('https://'));
@@ -1232,11 +1280,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
                 : const LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [
-                      _kDarkBlueStart,
-                      Color(0xFF003D7A),
-                      _kDarkBlueEnd,
-                    ],
+                    colors: [_kDarkBlueStart, Color(0xFF003D7A), _kDarkBlueEnd],
                   ),
             image: usaBannerRede
                 ? DecorationImage(
@@ -1254,11 +1298,19 @@ class _PerfilLojaState extends State<PerfilLoja> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Colors.white, size: 24),
+                    icon: const Icon(
+                      Icons.arrow_back,
+                      color: Colors.white,
+                      size: 24,
+                    ),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.more_vert, color: Colors.white, size: 24),
+                    icon: const Icon(
+                      Icons.more_vert,
+                      color: Colors.white,
+                      size: 24,
+                    ),
                     onPressed: () {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -1320,11 +1372,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
                     ],
                   ),
                   child: const Center(
-                    child: Icon(
-                      Icons.check,
-                      color: Colors.white,
-                      size: 15,
-                    ),
+                    child: Icon(Icons.check, color: Colors.white, size: 15),
                   ),
                 ),
               ),
@@ -1336,7 +1384,8 @@ class _PerfilLojaState extends State<PerfilLoja> {
   }
 
   Widget _buildFotoLoja() {
-    final bool usaImagemRede = _fotoUrlEmpresa != null &&
+    final bool usaImagemRede =
+        _fotoUrlEmpresa != null &&
         _fotoUrlEmpresa!.isNotEmpty &&
         (_fotoUrlEmpresa!.startsWith('http://') ||
             _fotoUrlEmpresa!.startsWith('https://'));
@@ -1435,7 +1484,8 @@ class _PerfilLojaState extends State<PerfilLoja> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
               decoration: BoxDecoration(
-                color: _corTagEmpresa?.withValues(alpha: 0.15) ??
+                color:
+                    _corTagEmpresa?.withValues(alpha: 0.15) ??
                     const Color(0xFFE0F2FE),
                 borderRadius: BorderRadius.circular(8),
               ),
@@ -1463,8 +1513,10 @@ class _PerfilLojaState extends State<PerfilLoja> {
                 final corTexto = CorOficio.corTexto(corBase);
 
                 return Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 7,
+                  ),
                   decoration: BoxDecoration(
                     color: corFundo,
                     borderRadius: BorderRadius.circular(20),
@@ -1537,7 +1589,10 @@ class _PerfilLojaState extends State<PerfilLoja> {
                     style: OutlinedButton.styleFrom(
                       backgroundColor: const Color(0xFFF8FAFC),
                       foregroundColor: const Color(0xFF0284C7),
-                      side: const BorderSide(color: Color(0xFFBAE6FD), width: 1.5),
+                      side: const BorderSide(
+                        color: Color(0xFFBAE6FD),
+                        width: 1.5,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
@@ -1709,11 +1764,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
   }
 
   Widget _buildDivisorVertical() {
-    return Container(
-      height: 28,
-      width: 1,
-      color: _kBorderColor,
-    );
+    return Container(height: 28, width: 1, color: _kBorderColor);
   }
 
   // =========================================================================
@@ -1731,7 +1782,11 @@ class _PerfilLojaState extends State<PerfilLoja> {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
         child: Row(
           children: [
-            const Icon(Icons.search_rounded, color: Color(0xFF94A3B8), size: 22),
+            const Icon(
+              Icons.search_rounded,
+              color: Color(0xFF94A3B8),
+              size: 22,
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: TextField(
@@ -1752,11 +1807,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
                 ),
               ),
             ),
-            const Icon(
-              Icons.tune_rounded,
-              color: Color(0xFF94A3B8),
-              size: 20,
-            ),
+            const Icon(Icons.tune_rounded, color: Color(0xFF94A3B8), size: 20),
           ],
         ),
       ),
@@ -1791,10 +1842,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
                   SizedBox(height: 2),
                   Text(
                     'Profissionais verificados e vinculados',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: _kTextMuted,
-                    ),
+                    style: TextStyle(fontSize: 12, color: _kTextMuted),
                   ),
                 ],
               ),
@@ -1826,9 +1874,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
         if (_carregandoProfissionais)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 24),
-            child: Center(
-              child: CircularProgressIndicator(color: _kPrimaryCyan),
-            ),
+            child: Center(child: const SkeletonProfileCard()),
           )
         else
           SizedBox(
@@ -1904,17 +1950,15 @@ class _PerfilLojaState extends State<PerfilLoja> {
               backgroundImage: usaFotoRede ? NetworkImage(foto) : null,
               child: !usaFotoRede
                   ? (foto.isNotEmpty && foto.startsWith('assets/')
-                      ? ClipOval(
-                          child: Image.asset(foto, fit: BoxFit.cover),
-                        )
-                      : Text(
-                          obterIniciais(nome),
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: _kPrimaryCyan,
-                          ),
-                        ))
+                        ? ClipOval(child: Image.asset(foto, fit: BoxFit.cover))
+                        : Text(
+                            obterIniciais(nome),
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: _kPrimaryCyan,
+                            ),
+                          ))
                   : null,
             ),
             const SizedBox(height: 10),
@@ -2045,7 +2089,9 @@ class _PerfilLojaState extends State<PerfilLoja> {
                         // já nasce centralizado no pinpoint.
                         onMapReady: () {
                           final e = _enderecoEmpresa;
-                          if (e != null && e.temCoordenadas && !_mapaCentralizado) {
+                          if (e != null &&
+                              e.temCoordenadas &&
+                              !_mapaCentralizado) {
                             _mapaCentralizado = true;
                             try {
                               _mapController.move(
@@ -2073,10 +2119,12 @@ class _PerfilLojaState extends State<PerfilLoja> {
                               ),
                               radius: 68,
                               useRadiusInMeter: false,
-                              color: const Color(0xFF0284C7)
-                                  .withValues(alpha: 0.12),
-                              borderColor: const Color(0xFF0284C7)
-                                  .withValues(alpha: 0.35),
+                              color: const Color(
+                                0xFF0284C7,
+                              ).withValues(alpha: 0.12),
+                              borderColor: const Color(
+                                0xFF0284C7,
+                              ).withValues(alpha: 0.35),
                               borderStrokeWidth: 1.5,
                             ),
                           ],
@@ -2101,8 +2149,9 @@ class _PerfilLojaState extends State<PerfilLoja> {
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: _kPrimaryCyan
-                                          .withValues(alpha: 0.4),
+                                      color: _kPrimaryCyan.withValues(
+                                        alpha: 0.4,
+                                      ),
                                       blurRadius: 10,
                                       spreadRadius: 2,
                                     ),
@@ -2145,7 +2194,9 @@ class _PerfilLojaState extends State<PerfilLoja> {
                             const _BlinkingSignalDot(),
                             const SizedBox(width: 6),
                             Text(
-                              _estaAbertoAgora() ? 'Aberto agora' : 'Fechado agora',
+                              _estaAbertoAgora()
+                                  ? 'Aberto agora'
+                                  : 'Fechado agora',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
@@ -2218,8 +2269,9 @@ class _PerfilLojaState extends State<PerfilLoja> {
                             color: const Color(0xFFF0F9FF),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: const Color(0xFFBAE6FD)
-                                  .withValues(alpha: 0.8),
+                              color: const Color(
+                                0xFFBAE6FD,
+                              ).withValues(alpha: 0.8),
                             ),
                           ),
                           child: const Icon(
@@ -2234,7 +2286,8 @@ class _PerfilLojaState extends State<PerfilLoja> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                _enderecoEmpresa?.apelido ?? 'Endereço da empresa',
+                                _enderecoEmpresa?.apelido ??
+                                    'Endereço da empresa',
                                 style: const TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.bold,
@@ -2245,8 +2298,8 @@ class _PerfilLojaState extends State<PerfilLoja> {
                               Text(
                                 _enderecoCarregado
                                     ? (_enderecoEmpresa != null
-                                        ? '${_enderecoEmpresa!.logradouro}${_enderecoEmpresa!.numero.isNotEmpty ? ', ${_enderecoEmpresa!.numero}' : ''}'
-                                        : 'Endereço não cadastrado')
+                                          ? '${_enderecoEmpresa!.logradouro}${_enderecoEmpresa!.numero.isNotEmpty ? ', ${_enderecoEmpresa!.numero}' : ''}'
+                                          : 'Endereço não cadastrado')
                                     : 'Carregando endereço...',
                                 style: const TextStyle(
                                   fontSize: 13,
@@ -2258,8 +2311,8 @@ class _PerfilLojaState extends State<PerfilLoja> {
                               Text(
                                 _enderecoCarregado
                                     ? (_enderecoEmpresa != null
-                                        ? '${_enderecoEmpresa!.bairro}${_enderecoEmpresa!.cidade.isNotEmpty ? ', ${_enderecoEmpresa!.cidade}' : ''}${_enderecoEmpresa!.estado.isNotEmpty ? ' - ${_enderecoEmpresa!.estado}' : ''} • CEP ${_enderecoEmpresa!.cep}'
-                                        : '')
+                                          ? '${_enderecoEmpresa!.bairro}${_enderecoEmpresa!.cidade.isNotEmpty ? ', ${_enderecoEmpresa!.cidade}' : ''}${_enderecoEmpresa!.estado.isNotEmpty ? ' - ${_enderecoEmpresa!.estado}' : ''} • CEP ${_enderecoEmpresa!.cep}'
+                                          : '')
                                     : '',
                                 style: const TextStyle(
                                   fontSize: 12,
@@ -2348,8 +2401,9 @@ class _PerfilLojaState extends State<PerfilLoja> {
                                   if (!mounted) return;
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
-                                      content:
-                                          Text('Abrindo no Google Maps...'),
+                                      content: Text(
+                                        'Abrindo no Google Maps...',
+                                      ),
                                       behavior: SnackBarBehavior.floating,
                                     ),
                                   );
@@ -2434,10 +2488,10 @@ class _PerfilLojaState extends State<PerfilLoja> {
         Text(
           _descricaoEmpresa.isNotEmpty
               ? (isDescricaoExpandida
-                  ? _descricaoEmpresa
-                  : (_descricaoEmpresa.length > 220
-                      ? '${_descricaoEmpresa.substring(0, 220)}...'
-                      : _descricaoEmpresa))
+                    ? _descricaoEmpresa
+                    : (_descricaoEmpresa.length > 220
+                          ? '${_descricaoEmpresa.substring(0, 220)}...'
+                          : _descricaoEmpresa))
               : 'Esta empresa ainda não cadastrou uma descrição.',
           style: const TextStyle(
             fontSize: 13,
@@ -2594,10 +2648,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
                 SizedBox(height: 2),
                 Text(
                   'Fotos reais de trabalhos realizados',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: _kTextMuted,
-                  ),
+                  style: TextStyle(fontSize: 12, color: _kTextMuted),
                 ),
               ],
             ),
@@ -2665,66 +2716,67 @@ class _PerfilLojaState extends State<PerfilLoja> {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                    if (item.imagemUrl != null && item.imagemUrl!.isNotEmpty)
-                      Image.network(
-                        item.imagemUrl!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
+                        if (item.imagemUrl != null &&
+                            item.imagemUrl!.isNotEmpty)
+                          Image.network(
+                            item.imagemUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: const Color(0xFFE2E8F0),
+                                child: const Icon(
+                                  Icons.broken_image_outlined,
+                                  color: Colors.grey,
+                                  size: 32,
+                                ),
+                              );
+                            },
+                          )
+                        else
+                          Container(
                             color: const Color(0xFFE2E8F0),
                             child: const Icon(
-                              Icons.broken_image_outlined,
+                              Icons.image_outlined,
                               color: Colors.grey,
                               size: 32,
                             ),
-                          );
-                        },
-                      )
-                    else
-                      Container(
-                        color: const Color(0xFFE2E8F0),
-                        child: const Icon(
-                          Icons.image_outlined,
-                          color: Colors.grey,
-                          size: 32,
-                        ),
-                      ),
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      height: 65,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.bottomCenter,
-                            end: Alignment.topCenter,
-                            colors: [
-                              Colors.black.withValues(alpha: 0.85),
-                              Colors.transparent,
-                            ],
+                          ),
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          height: 65,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [
+                                  Colors.black.withValues(alpha: 0.85),
+                                  Colors.transparent,
+                                ],
+                              ),
+                            ),
+                            alignment: Alignment.bottomLeft,
+                            padding: const EdgeInsets.all(12),
+                            child: Text(
+                              item.titulo,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ),
-                        alignment: Alignment.bottomLeft,
-                        padding: const EdgeInsets.all(12),
-                        child: Text(
-                          item.titulo,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
+                      ],
                     ),
-                  ],
-                ),
-              );
-            },
-          ),
-        );
+                  );
+                },
+              ),
+            );
           },
         ),
       ],
@@ -2745,12 +2797,14 @@ class _PerfilLojaState extends State<PerfilLoja> {
       final d = s.descricao.toLowerCase();
       final f = (s.funcao ?? '').toLowerCase();
 
-      final bateBusca = _filtroServicos.isEmpty ||
+      final bateBusca =
+          _filtroServicos.isEmpty ||
           t.contains(_filtroServicos) ||
           d.contains(_filtroServicos) ||
           f.contains(_filtroServicos);
 
-      final bateCategoria = _categoriaServicoSelecionada == 'Todos' ||
+      final bateCategoria =
+          _categoriaServicoSelecionada == 'Todos' ||
           f.contains(_categoriaServicoSelecionada.toLowerCase()) ||
           t.contains(_categoriaServicoSelecionada.toLowerCase());
 
@@ -2771,10 +2825,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
         const SizedBox(height: 2),
         const Text(
           'Contratação direta com garantia ConsertaJá',
-          style: TextStyle(
-            fontSize: 12,
-            color: _kTextMuted,
-          ),
+          style: TextStyle(fontSize: 12, color: _kTextMuted),
         ),
         const SizedBox(height: 14),
 
@@ -2791,8 +2842,10 @@ class _PerfilLojaState extends State<PerfilLoja> {
                 },
                 child: Container(
                   margin: const EdgeInsets.only(right: 8),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 7,
+                  ),
                   decoration: BoxDecoration(
                     color: isSelected
                         ? const Color(0xFFF0F9FF)
@@ -2807,8 +2860,9 @@ class _PerfilLojaState extends State<PerfilLoja> {
                     cat,
                     style: TextStyle(
                       fontSize: 12.5,
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.w500,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.w500,
                       color: isSelected
                           ? const Color(0xFF0284C7)
                           : const Color(0xFF475569),
@@ -2882,7 +2936,8 @@ class _PerfilLojaState extends State<PerfilLoja> {
   }
 
   Widget _buildCardServicoCatalogo(ServicoProfissional servico) {
-    final bool usaImagemRede = servico.imagemUrl != null &&
+    final bool usaImagemRede =
+        servico.imagemUrl != null &&
         servico.imagemUrl!.trim().isNotEmpty &&
         (servico.imagemUrl!.startsWith('http://') ||
             servico.imagemUrl!.startsWith('https://'));
@@ -2892,10 +2947,8 @@ class _PerfilLojaState extends State<PerfilLoja> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => TelaServico(
-              idServico: servico.id,
-              servicoInicial: servico,
-            ),
+            builder: (context) =>
+                TelaServico(idServico: servico.id, servicoInicial: servico),
           ),
         );
       },
@@ -2995,10 +3048,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
                         SizedBox(width: 2),
                         Text(
                           '(180)',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: _kTextMuted,
-                          ),
+                          style: TextStyle(fontSize: 10, color: _kTextMuted),
                         ),
                       ],
                     ),
@@ -3059,10 +3109,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
               ),
             ),
             SizedBox(width: 4),
-            Text(
-              '(923)',
-              style: TextStyle(fontSize: 14, color: _kTextMuted),
-            ),
+            Text('(923)', style: TextStyle(fontSize: 14, color: _kTextMuted)),
           ],
         ),
         const SizedBox(height: 12),
@@ -3191,7 +3238,9 @@ class _PerfilLojaState extends State<PerfilLoja> {
         child: Text(
           texto,
           style: TextStyle(
-            color: isSelected ? const Color(0xFF0284C7) : const Color(0xFF475569),
+            color: isSelected
+                ? const Color(0xFF0284C7)
+                : const Color(0xFF475569),
             fontWeight: FontWeight.w600,
             fontSize: 12,
           ),
@@ -3467,8 +3516,9 @@ class _AbasLojaDelegate extends SliverPersistentHeaderDelegate {
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 13,
-                            fontWeight:
-                                isActive ? FontWeight.bold : FontWeight.w600,
+                            fontWeight: isActive
+                                ? FontWeight.bold
+                                : FontWeight.w600,
                             color: isActive
                                 ? _kPrimaryCyan
                                 : const Color(0xFF64748B),

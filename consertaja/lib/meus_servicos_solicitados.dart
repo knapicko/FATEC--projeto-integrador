@@ -14,6 +14,7 @@ import 'utils/bottom_navigation_bar_profissional.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/iniciais.dart';
 import 'widgets/imagem_servico.dart';
+import 'widgets/skeleton_loading.dart';
 
 /// Solicitação de serviço recebida pelo profissional (conta independente ou
 /// conta empresa). Cada linha de `solicitacoes` vira um card.
@@ -739,7 +740,7 @@ class _MeusServicosSolicitadosPageState
             _buildFiltros(),
             Expanded(
               child: _carregando
-                  ? const Center(child: CircularProgressIndicator(color: _azul))
+                  ? const SkeletonPage(layout: SkeletonLayout.cards)
                   : _erro != null
                   ? Center(
                       child: Padding(

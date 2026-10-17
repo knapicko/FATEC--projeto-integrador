@@ -15,16 +15,13 @@ import 'tela_chat_profissional.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/icone_oficio.dart';
 import 'utils/iniciais.dart';
+import 'widgets/skeleton_loading.dart';
 
 class TelaServico extends StatefulWidget {
   final int? idServico;
   final ServicoProfissional? servicoInicial;
 
-  const TelaServico({
-    super.key,
-    this.idServico,
-    this.servicoInicial,
-  });
+  const TelaServico({super.key, this.idServico, this.servicoInicial});
 
   @override
   State<TelaServico> createState() => _TelaServicoState();
@@ -49,10 +46,12 @@ class _TelaServicoState extends State<TelaServico> {
   List<String> _sheetMetodosDisponiveis = [];
   String? _sheetTipoExecucaoSelecionado;
   bool _sheetDropdownMetodosAberto = false;
-  final TextEditingController _sheetDetalhesController = TextEditingController();
+  final TextEditingController _sheetDetalhesController =
+      TextEditingController();
   DateTime? _sheetDataSelecionada;
   String? _sheetHorarioSelecionado;
   String? _sheetHoraAgendadaSql;
+  String? _sheetHoraAgendadaFimSql;
   List<Map<String, dynamic>> _sheetAgendasProfissional = [];
   List<Map<String, dynamic>> _sheetExcecoesProfissional = [];
   bool _sheetDadosCarregados = false;
@@ -158,7 +157,7 @@ class _TelaServicoState extends State<TelaServico> {
       child: Scaffold(
         backgroundColor: Colors.white,
         body: _carregando
-            ? const Center(child: CircularProgressIndicator(color: _azul))
+            ? const SkeletonServiceDetail()
             : detalhe == null || servico == null
             ? _buildErro()
             : Column(
@@ -235,7 +234,11 @@ class _TelaServicoState extends State<TelaServico> {
             children: [
               IconButton(
                 onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.arrow_back, color: Colors.white, size: 24),
+                icon: const Icon(
+                  Icons.arrow_back,
+                  color: Colors.white,
+                  size: 24,
+                ),
               ),
               Expanded(
                 child: Text(
@@ -595,12 +598,13 @@ class _TelaServicoState extends State<TelaServico> {
         ? detalhe.nomePrestador.trim()
         : 'Prestador';
 
-    final bool temTagEmpresa = detalhe.ehLoja &&
+    final bool temTagEmpresa =
+        detalhe.ehLoja &&
         detalhe.tagEmpresa != null &&
         detalhe.tagEmpresa!.trim().isNotEmpty;
     final String tagEmpresa = detalhe.tagEmpresa?.trim() ?? '';
-    final corEmpresaBase = detalhe.corTagEmpresa != null &&
-            detalhe.corTagEmpresa!.isNotEmpty
+    final corEmpresaBase =
+        detalhe.corTagEmpresa != null && detalhe.corTagEmpresa!.isNotEmpty
         ? CorOficio.parse(detalhe.corTagEmpresa!)
         : _azul;
     final Color corFundoEmpresa = CorOficio.corFundo(corEmpresaBase);
@@ -609,12 +613,12 @@ class _TelaServicoState extends State<TelaServico> {
     final String? categoria = detalhe.servico.funcao?.trim().isNotEmpty == true
         ? detalhe.servico.funcao!.trim()
         : null;
-    final corOficioBase = detalhe.servico.cor != null &&
-            detalhe.servico.cor!.isNotEmpty
+    final corOficioBase =
+        detalhe.servico.cor != null && detalhe.servico.cor!.isNotEmpty
         ? CorOficio.parse(detalhe.servico.cor!)
         : (categoria != null
-            ? CorOficio.parse(categoria)
-            : const Color(0xFF64748B));
+              ? CorOficio.parse(categoria)
+              : const Color(0xFF64748B));
     final Color corFundoOficio = CorOficio.corFundo(corOficioBase);
     final Color corTextoOficio = CorOficio.corTexto(corOficioBase);
 
@@ -918,11 +922,7 @@ class _TelaServicoState extends State<TelaServico> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(
-                      Icons.check,
-                      color: Color(0xFF10B981),
-                      size: 17,
-                    ),
+                    const Icon(Icons.check, color: Color(0xFF10B981), size: 17),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -1095,10 +1095,7 @@ class _TelaServicoState extends State<TelaServico> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: _azul,
                   borderRadius: BorderRadius.circular(6),
@@ -1382,7 +1379,11 @@ class _TelaServicoState extends State<TelaServico> {
                       color: Color(0xFF334155),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.person, color: Colors.white, size: 20),
+                    child: const Icon(
+                      Icons.person,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                   ),
                 ),
               ),
@@ -1432,7 +1433,11 @@ class _TelaServicoState extends State<TelaServico> {
             '"Muito bom serviço, o profissional realmente sabe fazer muito bem aquilo que ele prometeu! O cabo ficou super firme e sem folgas."',
             maxLines: 4,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 11.5, height: 1.35, color: Color(0xFF334155)),
+            style: TextStyle(
+              fontSize: 11.5,
+              height: 1.35,
+              color: Color(0xFF334155),
+            ),
           ),
           const Spacer(),
           Container(
@@ -1555,7 +1560,11 @@ class _TelaServicoState extends State<TelaServico> {
             '"Atendimento excelente, me salvou de ter que jogar minha panela fora! Colocou o cabo novo e ficou melhor que de loja."',
             maxLines: 4,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 11.5, height: 1.35, color: Color(0xFF334155)),
+            style: TextStyle(
+              fontSize: 11.5,
+              height: 1.35,
+              color: Color(0xFF334155),
+            ),
           ),
           const Spacer(),
           const Row(
@@ -1758,10 +1767,7 @@ class _TelaServicoState extends State<TelaServico> {
                   icon: const Icon(Icons.add, size: 20),
                   label: const Text(
                     'Adicionar Serviço',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 15,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
                   ),
                 ),
               ),
@@ -1795,7 +1801,9 @@ class _TelaServicoState extends State<TelaServico> {
         if (_sheetIdUsuario != null) {
           final vinculos = await supabase
               .from('ass_usuario_endereco')
-              .select('fk_endereco, apelido_endereco, tipo_endereco, endereco_ativo')
+              .select(
+                'fk_endereco, apelido_endereco, tipo_endereco, endereco_ativo',
+              )
               .eq('fk_usuario', _sheetIdUsuario!);
 
           final enderecosCarregados = <_EnderecoUsuarioItem>[];
@@ -1804,7 +1812,9 @@ class _TelaServicoState extends State<TelaServico> {
             if (idEnd == null) continue;
             final end = await supabase
                 .from('enderecos')
-                .select('logradouro, numero, complemento, bairro, cep, fk_cidade')
+                .select(
+                  'logradouro, numero, complemento, bairro, cep, fk_cidade',
+                )
                 .eq('id_endereco', idEnd)
                 .maybeSingle();
             if (end == null) continue;
@@ -1833,23 +1843,28 @@ class _TelaServicoState extends State<TelaServico> {
             final sigla = est?['sigla_estado']?.toString().trim() ?? '';
 
             final partes = [
-              if (logr.isNotEmpty) (numStr.isNotEmpty ? '$logr, $numStr' : logr),
+              if (logr.isNotEmpty)
+                (numStr.isNotEmpty ? '$logr, $numStr' : logr),
               if (bairro.isNotEmpty) bairro,
-              if (cidNome.isNotEmpty) (sigla.isNotEmpty ? '$cidNome - $sigla' : cidNome),
+              if (cidNome.isNotEmpty)
+                (sigla.isNotEmpty ? '$cidNome - $sigla' : cidNome),
             ];
             final linha = partes.join(', ');
-            final tipo = v['tipo_endereco']?.toString().trim().isNotEmpty == true
+            final tipo =
+                v['tipo_endereco']?.toString().trim().isNotEmpty == true
                 ? v['tipo_endereco'].toString().trim()
                 : (v['apelido_endereco']?.toString().trim().isNotEmpty == true
-                    ? v['apelido_endereco'].toString().trim()
-                    : 'Casa');
+                      ? v['apelido_endereco'].toString().trim()
+                      : 'Casa');
 
             enderecosCarregados.add(
               _EnderecoUsuarioItem(
                 id: idEnd,
                 tipoEndereco: tipo,
                 apelido: v['apelido_endereco']?.toString().trim() ?? '',
-                linhaFormatada: linha.isNotEmpty ? linha : 'Endereço cadastrado',
+                linhaFormatada: linha.isNotEmpty
+                    ? linha
+                    : 'Endereço cadastrado',
                 principal: v['endereco_ativo'] == true,
               ),
             );
@@ -1858,11 +1873,13 @@ class _TelaServicoState extends State<TelaServico> {
           if (mounted) {
             setState(() {
               _sheetEnderecosCliente = enderecosCarregados;
-              if (_sheetEnderecoClienteSelecionado == null && enderecosCarregados.isNotEmpty) {
-                _sheetEnderecoClienteSelecionado = enderecosCarregados.firstWhere(
-                  (e) => e.principal,
-                  orElse: () => enderecosCarregados.first,
-                );
+              if (_sheetEnderecoClienteSelecionado == null &&
+                  enderecosCarregados.isNotEmpty) {
+                _sheetEnderecoClienteSelecionado = enderecosCarregados
+                    .firstWhere(
+                      (e) => e.principal,
+                      orElse: () => enderecosCarregados.first,
+                    );
               }
             });
           }
@@ -1885,15 +1902,21 @@ class _TelaServicoState extends State<TelaServico> {
       }
 
       if (metodos.isEmpty) {
-        metodos.addAll(['Leva e Traz', 'Retirado no Local', 'Receba em Casa', 'Atendimento em Domicílio']);
+        metodos.addAll([
+          'Leva e Traz',
+          'Retirado no Local',
+          'Receba em Casa',
+          'Atendimento em Domicílio',
+        ]);
       }
 
       // 3. Agenda e Exceções
       try {
         final agendas = await supabase
             .from('agenda_profissional')
-            .select('dias_semana, hora_ini, hora_fim')
-            .eq('fk_profissional', servico.fkProfissional);
+            .select('dias_semana, hora_ini, hora_fim, fk_solicitacao')
+            .eq('fk_profissional', servico.fkProfissional)
+            .eq('fk_solicitacao', 0);
         _sheetAgendasProfissional = List<Map<String, dynamic>>.from(agendas);
       } catch (_) {}
 
@@ -1914,7 +1937,9 @@ class _TelaServicoState extends State<TelaServico> {
         setState(() {
           _sheetMetodosDisponiveis = metodos;
           if (_sheetTipoExecucaoSelecionado == null ||
-              !_sheetMetodosDisponiveis.contains(_sheetTipoExecucaoSelecionado)) {
+              !_sheetMetodosDisponiveis.contains(
+                _sheetTipoExecucaoSelecionado,
+              )) {
             _sheetTipoExecucaoSelecionado = _sheetMetodosDisponiveis.first;
           }
           _sheetDadosCarregados = true;
@@ -1949,19 +1974,14 @@ class _TelaServicoState extends State<TelaServico> {
     final detalhe = _detalhe;
     final servico = detalhe?.servico;
     if (servico == null) {
-      return Container(
-        height: 200,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: const Center(child: CircularProgressIndicator(color: _azul)),
-      );
+      return const SkeletonServiceSheet();
     }
 
     final tipoExecucao = _sheetTipoExecucaoSelecionado ?? 'Leva e Traz';
     final bool ehRecebaEmCasa = tipoExecucao == 'Receba em Casa';
-    final bool ehRetiradoNoLocal = tipoExecucao == 'Retirado no Local' || tipoExecucao == 'Retirada no Local';
+    final bool ehRetiradoNoLocal =
+        tipoExecucao == 'Retirado no Local' ||
+        tipoExecucao == 'Retirada no Local';
     // Leva e Traz ou Atendimento em Domicílio
     final bool ehApenasCliente = !ehRecebaEmCasa && !ehRetiradoNoLocal;
 
@@ -2048,7 +2068,11 @@ class _TelaServicoState extends State<TelaServico> {
                 alignment: Alignment.centerLeft,
                 child: IconButton(
                   onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.arrow_back, color: Colors.white, size: 24),
+                  icon: const Icon(
+                    Icons.arrow_back,
+                    color: Colors.white,
+                    size: 24,
+                  ),
                 ),
               ),
               Center(
@@ -2091,7 +2115,9 @@ class _TelaServicoState extends State<TelaServico> {
   Widget _buildPasso1Servico(ServicoProfissional servico) {
     final corOficio = servico.cor != null && servico.cor!.isNotEmpty
         ? CorOficio.parse(servico.cor!)
-        : (servico.funcao != null ? CorOficio.parse(servico.funcao!) : const Color(0xFF0FB3FF));
+        : (servico.funcao != null
+              ? CorOficio.parse(servico.funcao!)
+              : const Color(0xFF0FB3FF));
 
     return Container(
       width: double.infinity,
@@ -2111,10 +2137,7 @@ class _TelaServicoState extends State<TelaServico> {
               borderRadius: BorderRadius.circular(14),
             ),
             alignment: Alignment.center,
-            child: IconeOficio.imagemPorFuncao(
-              servico.funcao,
-              tamanho: 30,
-            ),
+            child: IconeOficio.imagemPorFuncao(servico.funcao, tamanho: 30),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -2172,7 +2195,9 @@ class _TelaServicoState extends State<TelaServico> {
               color: const Color(0xFFF8FAFC),
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: _sheetDropdownMetodosAberto ? _azul : const Color(0xFFE2E8F0),
+                color: _sheetDropdownMetodosAberto
+                    ? _azul
+                    : const Color(0xFFE2E8F0),
                 width: _sheetDropdownMetodosAberto ? 1.5 : 1,
               ),
             ),
@@ -2255,7 +2280,10 @@ class _TelaServicoState extends State<TelaServico> {
                     setState(() {});
                   },
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
                     child: Row(
                       children: [
                         Icon(
@@ -2269,7 +2297,9 @@ class _TelaServicoState extends State<TelaServico> {
                             m,
                             style: TextStyle(
                               fontSize: 14,
-                              fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
+                              fontWeight: sel
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
                               color: sel ? _azul : const Color(0xFF1E293B),
                             ),
                           ),
@@ -2311,7 +2341,11 @@ class _TelaServicoState extends State<TelaServico> {
               borderRadius: BorderRadius.circular(14),
             ),
             alignment: Alignment.center,
-            child: const Icon(Icons.location_on, color: Color(0xFF64748B), size: 26),
+            child: const Icon(
+              Icons.location_on,
+              color: Color(0xFF64748B),
+              size: 26,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -2357,8 +2391,8 @@ class _TelaServicoState extends State<TelaServico> {
     final linha = endereco?.linhaFormatada.isNotEmpty == true
         ? endereco!.linhaFormatada
         : (_sheetIdUsuario == null
-            ? 'Faça login para selecionar seu endereço'
-            : 'Nenhum endereço cadastrado');
+              ? 'Faça login para selecionar seu endereço'
+              : 'Nenhum endereço cadastrado');
 
     return InkWell(
       onTap: () => _mostrarModalSelecaoEnderecos(context, setSheetState),
@@ -2412,7 +2446,11 @@ class _TelaServicoState extends State<TelaServico> {
             ),
             const Padding(
               padding: EdgeInsets.only(right: 4),
-              child: Icon(Icons.edit_outlined, color: Color(0xFF64748B), size: 22),
+              child: Icon(
+                Icons.edit_outlined,
+                color: Color(0xFF64748B),
+                size: 22,
+              ),
             ),
           ],
         ),
@@ -2441,7 +2479,10 @@ class _TelaServicoState extends State<TelaServico> {
                 maxLines: 4,
                 maxLength: 500,
                 onChanged: (_) => setSheetState(() {}),
-                style: const TextStyle(fontSize: 13.5, color: Color(0xFF1E293B)),
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  color: Color(0xFF1E293B),
+                ),
                 decoration: const InputDecoration(
                   hintText: 'Descreva o seu serviço',
                   hintStyle: TextStyle(
@@ -2475,8 +2516,8 @@ class _TelaServicoState extends State<TelaServico> {
     final textoData = _sheetDataSelecionada != null
         ? _formatarDataVisual(_sheetDataSelecionada!)
         : 'Selecione uma data';
-    final textoHorario = _sheetHorarioSelecionado != null &&
-            _sheetHorarioSelecionado!.isNotEmpty
+    final textoHorario =
+        _sheetHorarioSelecionado != null && _sheetHorarioSelecionado!.isNotEmpty
         ? _sheetHorarioSelecionado!
         : 'Selecione um horário';
 
@@ -2632,7 +2673,9 @@ class _TelaServicoState extends State<TelaServico> {
               child: SizedBox(
                 height: 48,
                 child: ElevatedButton(
-                  onPressed: _sheetEnviando ? null : () => _confirmarSolicitacao(servico),
+                  onPressed: _sheetEnviando
+                      ? null
+                      : () => _confirmarSolicitacao(servico),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _azul,
                     foregroundColor: Colors.white,
@@ -2666,7 +2709,10 @@ class _TelaServicoState extends State<TelaServico> {
     );
   }
 
-  void _mostrarModalSelecaoEnderecos(BuildContext parentContext, StateSetter setSheetState) {
+  void _mostrarModalSelecaoEnderecos(
+    BuildContext parentContext,
+    StateSetter setSheetState,
+  ) {
     showModalBottomSheet(
       context: parentContext,
       backgroundColor: Colors.transparent,
@@ -2716,30 +2762,46 @@ class _TelaServicoState extends State<TelaServico> {
                   child: ListView.separated(
                     shrinkWrap: true,
                     itemCount: _sheetEnderecosCliente.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                    separatorBuilder: (_, __) =>
+                        const Divider(height: 1, color: Color(0xFFE2E8F0)),
                     itemBuilder: (context, i) {
                       final item = _sheetEnderecosCliente[i];
-                      final selecionado = _sheetEnderecoClienteSelecionado?.id == item.id;
-                      final icone = item.tipoEndereco.toLowerCase().contains('trabalho')
+                      final selecionado =
+                          _sheetEnderecoClienteSelecionado?.id == item.id;
+                      final icone =
+                          item.tipoEndereco.toLowerCase().contains('trabalho')
                           ? Icons.work_outline
                           : Icons.home_outlined;
 
                       return ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 4,
+                        ),
                         leading: Container(
                           width: 42,
                           height: 42,
                           decoration: BoxDecoration(
-                            color: selecionado ? const Color(0xFFE0F2FE) : const Color(0xFFF1F5F9),
+                            color: selecionado
+                                ? const Color(0xFFE0F2FE)
+                                : const Color(0xFFF1F5F9),
                             shape: BoxShape.circle,
                           ),
-                          child: Icon(icone, color: selecionado ? _azul : const Color(0xFF64748B), size: 22),
+                          child: Icon(
+                            icone,
+                            color: selecionado
+                                ? _azul
+                                : const Color(0xFF64748B),
+                            size: 22,
+                          ),
                         ),
                         title: Text(
                           item.tipoEndereco,
                           style: TextStyle(
                             fontSize: 14,
-                            fontWeight: selecionado ? FontWeight.w800 : FontWeight.w600,
+                            fontWeight: selecionado
+                                ? FontWeight.w800
+                                : FontWeight.w600,
                             color: const Color(0xFF1E293B),
                           ),
                         ),
@@ -2747,11 +2809,17 @@ class _TelaServicoState extends State<TelaServico> {
                           item.linhaFormatada,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: Color(0xFF64748B),
+                          ),
                         ),
                         trailing: selecionado
                             ? const Icon(Icons.check_circle, color: _azul)
-                            : const Icon(Icons.radio_button_unchecked, color: Color(0xFFCBD5E1)),
+                            : const Icon(
+                                Icons.radio_button_unchecked,
+                                color: Color(0xFFCBD5E1),
+                              ),
                         onTap: () {
                           setSheetState(() {
                             _sheetEnderecoClienteSelecionado = item;
@@ -2770,7 +2838,10 @@ class _TelaServicoState extends State<TelaServico> {
     );
   }
 
-  void _mostrarModalCalendario(BuildContext parentContext, StateSetter setSheetState) {
+  void _mostrarModalCalendario(
+    BuildContext parentContext,
+    StateSetter setSheetState,
+  ) {
     DateTime mesAtual = DateTime(
       _sheetDataSelecionada?.year ?? DateTime.now().year,
       _sheetDataSelecionada?.month ?? DateTime.now().month,
@@ -2786,15 +2857,34 @@ class _TelaServicoState extends State<TelaServico> {
             final primeiroDia = DateTime(mesAtual.year, mesAtual.month, 1);
             final ultimoDia = DateTime(mesAtual.year, mesAtual.month + 1, 0);
             final diaInicioSemana = primeiroDia.weekday % 7;
-            final totalCelulas = ((diaInicioSemana + ultimoDia.day) / 7).ceil() * 7;
+            final totalCelulas =
+                ((diaInicioSemana + ultimoDia.day) / 7).ceil() * 7;
             final hoje = DateTime.now();
             final hojeSemHora = DateTime(hoje.year, hoje.month, hoje.day);
 
             const meses = [
-              'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-              'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+              'Janeiro',
+              'Fevereiro',
+              'Março',
+              'Abril',
+              'Maio',
+              'Junho',
+              'Julho',
+              'Agosto',
+              'Setembro',
+              'Outubro',
+              'Novembro',
+              'Dezembro',
             ];
-            const diasSemanaCabecalho = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
+            const diasSemanaCabecalho = [
+              'DOM',
+              'SEG',
+              'TER',
+              'QUA',
+              'QUI',
+              'SEX',
+              'SÁB',
+            ];
 
             return Container(
               decoration: const BoxDecoration(
@@ -2831,18 +2921,30 @@ class _TelaServicoState extends State<TelaServico> {
                       Row(
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.chevron_left, color: Color(0xFF64748B)),
+                            icon: const Icon(
+                              Icons.chevron_left,
+                              color: Color(0xFF64748B),
+                            ),
                             onPressed: () {
                               setModalState(() {
-                                mesAtual = DateTime(mesAtual.year, mesAtual.month - 1);
+                                mesAtual = DateTime(
+                                  mesAtual.year,
+                                  mesAtual.month - 1,
+                                );
                               });
                             },
                           ),
                           IconButton(
-                            icon: const Icon(Icons.chevron_right, color: Color(0xFF64748B)),
+                            icon: const Icon(
+                              Icons.chevron_right,
+                              color: Color(0xFF64748B),
+                            ),
                             onPressed: () {
                               setModalState(() {
-                                mesAtual = DateTime(mesAtual.year, mesAtual.month + 1);
+                                mesAtual = DateTime(
+                                  mesAtual.year,
+                                  mesAtual.month + 1,
+                                );
                               });
                             },
                           ),
@@ -2872,12 +2974,13 @@ class _TelaServicoState extends State<TelaServico> {
                   GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 7,
-                      mainAxisSpacing: 8,
-                      crossAxisSpacing: 6,
-                      childAspectRatio: 1.05,
-                    ),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 7,
+                          mainAxisSpacing: 8,
+                          crossAxisSpacing: 6,
+                          childAspectRatio: 1.05,
+                        ),
                     itemCount: totalCelulas,
                     itemBuilder: (context, index) {
                       final ehAntes = index < diaInicioSemana;
@@ -2888,22 +2991,36 @@ class _TelaServicoState extends State<TelaServico> {
                         return const SizedBox.shrink();
                       }
 
-                      final dataDia = DateTime(mesAtual.year, mesAtual.month, diaNumero);
-                      final dataSemHora = DateTime(dataDia.year, dataDia.month, dataDia.day);
+                      final dataDia = DateTime(
+                        mesAtual.year,
+                        mesAtual.month,
+                        diaNumero,
+                      );
+                      final dataSemHora = DateTime(
+                        dataDia.year,
+                        dataDia.month,
+                        dataDia.day,
+                      );
                       final isPassado = dataSemHora.isBefore(hojeSemHora);
-                      final isDisponivelAgenda = _isDiaDisponivelNaAgenda(dataDia);
+                      final isDisponivelAgenda = _isDiaDisponivelNaAgenda(
+                        dataDia,
+                      );
 
                       final exc = _buscarExcecaoData(dataDia);
                       final bool temExcecao = exc != null;
-                      final bool isExcecaoDiaInteiro = temExcecao && _isExcecaoDiaInteiro(exc);
+                      final bool excecaoDiaInteiro =
+                          temExcecao && _isExcecaoDiaInteiro(exc);
+                      final bool excecaoParcial =
+                          temExcecao && !excecaoDiaInteiro;
 
-                      final bool selecionado = _sheetDataSelecionada != null &&
+                      final bool selecionado =
+                          _sheetDataSelecionada != null &&
                           _sheetDataSelecionada!.year == dataDia.year &&
                           _sheetDataSelecionada!.month == dataDia.month &&
                           _sheetDataSelecionada!.day == dataDia.day;
 
-                      // 1. Exceção de dia inteiro (bloqueado em vermelho)
-                      if (!isPassado && temExcecao && isExcecaoDiaInteiro) {
+                      // Apenas uma exceção de dia inteiro bloqueia a data.
+                      if (!isPassado && excecaoDiaInteiro) {
                         return InkWell(
                           onTap: () {
                             final obs = exc['observacao']?.toString();
@@ -2923,7 +3040,9 @@ class _TelaServicoState extends State<TelaServico> {
                             decoration: BoxDecoration(
                               color: const Color(0xFFFFF0F3),
                               borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: const Color(0xFFCE4257)),
+                              border: Border.all(
+                                color: const Color(0xFFCE4257),
+                              ),
                             ),
                             alignment: Alignment.center,
                             child: Text(
@@ -2938,8 +3057,12 @@ class _TelaServicoState extends State<TelaServico> {
                         );
                       }
 
-                      // 2. Data disponível (agenda do profissional ou exceção parcial)
-                      final bool isEscolhavel = !isPassado && (isDisponivelAgenda || (temExcecao && !isExcecaoDiaInteiro));
+                      // Uma exceção parcial bloqueia somente os horários que
+                      // colidem com o intervalo de ausência.
+                      final bool isEscolhavel =
+                          !isPassado &&
+                          isDisponivelAgenda &&
+                          (!temExcecao || excecaoParcial);
 
                       if (isEscolhavel) {
                         return InkWell(
@@ -2948,6 +3071,7 @@ class _TelaServicoState extends State<TelaServico> {
                               _sheetDataSelecionada = dataDia;
                               _sheetHorarioSelecionado = null;
                               _sheetHoraAgendadaSql = null;
+                              _sheetHoraAgendadaFimSql = null;
                             });
                             setState(() {});
                             Navigator.pop(ctx);
@@ -2955,7 +3079,9 @@ class _TelaServicoState extends State<TelaServico> {
                           borderRadius: BorderRadius.circular(10),
                           child: Container(
                             decoration: BoxDecoration(
-                              color: selecionado ? const Color(0xFF0FB3FF) : Colors.white,
+                              color: selecionado
+                                  ? const Color(0xFF0FB3FF)
+                                  : Colors.white,
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
                                 color: const Color(0xFF0FB3FF),
@@ -2968,7 +3094,9 @@ class _TelaServicoState extends State<TelaServico> {
                               style: TextStyle(
                                 fontSize: 13.5,
                                 fontWeight: FontWeight.w700,
-                                color: selecionado ? Colors.white : const Color(0xFF0F172A),
+                                color: selecionado
+                                    ? Colors.white
+                                    : const Color(0xFF0F172A),
                               ),
                             ),
                           ),
@@ -2997,7 +3125,10 @@ class _TelaServicoState extends State<TelaServico> {
     );
   }
 
-  void _mostrarModalHorarios(BuildContext parentContext, StateSetter setSheetState) {
+  void _mostrarModalHorarios(
+    BuildContext parentContext,
+    StateSetter setSheetState,
+  ) {
     if (_sheetDataSelecionada == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -3009,43 +3140,53 @@ class _TelaServicoState extends State<TelaServico> {
 
     final exc = _buscarExcecaoData(_sheetDataSelecionada!);
     final bool temExcecaoParcial = exc != null && !_isExcecaoDiaInteiro(exc);
-    final TimeOfDay? excIni = temExcecaoParcial ? _parseTimeOfDay(exc['hora_ini']) : null;
-    final TimeOfDay? excFim = temExcecaoParcial ? _parseTimeOfDay(exc['hora_fim']) : null;
+    final TimeOfDay? excIni = temExcecaoParcial
+        ? _parseTimeOfDay(exc['hora_ini'])
+        : null;
+    final TimeOfDay? excFim = temExcecaoParcial
+        ? _parseTimeOfDay(exc['hora_fim'])
+        : null;
 
     final todosSlots = [
       _OpcaoHorarioItem(
         label: '08:00 - 10:00 (Manhã)',
         horaSql: '08:00:00',
+        horaFimSql: '10:00:00',
         inicio: const TimeOfDay(hour: 8, minute: 0),
         fim: const TimeOfDay(hour: 10, minute: 0),
       ),
       _OpcaoHorarioItem(
         label: '09:00 - 12:00 (Manhã)',
         horaSql: '09:00:00',
+        horaFimSql: '12:00:00',
         inicio: const TimeOfDay(hour: 9, minute: 0),
         fim: const TimeOfDay(hour: 12, minute: 0),
       ),
       _OpcaoHorarioItem(
         label: '10:00 - 12:00 (Manhã)',
         horaSql: '10:00:00',
+        horaFimSql: '12:00:00',
         inicio: const TimeOfDay(hour: 10, minute: 0),
         fim: const TimeOfDay(hour: 12, minute: 0),
       ),
       _OpcaoHorarioItem(
         label: '13:00 - 15:00 (Tarde)',
         horaSql: '13:00:00',
+        horaFimSql: '15:00:00',
         inicio: const TimeOfDay(hour: 13, minute: 0),
         fim: const TimeOfDay(hour: 15, minute: 0),
       ),
       _OpcaoHorarioItem(
         label: '14:00 - 17:00 (Tarde)',
         horaSql: '14:00:00',
+        horaFimSql: '17:00:00',
         inicio: const TimeOfDay(hour: 14, minute: 0),
         fim: const TimeOfDay(hour: 17, minute: 0),
       ),
       _OpcaoHorarioItem(
         label: '15:00 - 18:00 (Tarde)',
         horaSql: '15:00:00',
+        horaFimSql: '18:00:00',
         inicio: const TimeOfDay(hour: 15, minute: 0),
         fim: const TimeOfDay(hour: 18, minute: 0),
       ),
@@ -3089,20 +3230,43 @@ class _TelaServicoState extends State<TelaServico> {
                 child: ListView.separated(
                   shrinkWrap: true,
                   itemCount: todosSlots.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                  separatorBuilder: (_, __) =>
+                      const Divider(height: 1, color: Color(0xFFE2E8F0)),
                   itemBuilder: (context, i) {
                     final slot = todosSlots[i];
-                    final bloqueado = excIni != null &&
+                    final bloqueado =
+                        excIni != null &&
                         excFim != null &&
-                        _intervalosColidem(slot.inicio, slot.fim, excIni, excFim);
+                        _intervalosColidem(
+                          slot.inicio,
+                          slot.fim,
+                          excIni,
+                          excFim,
+                        );
+                    final agenda = _agendaDoDia(_sheetDataSelecionada!);
+                    final agendaInicio = _parseTimeOfDay(agenda?['hora_ini']);
+                    final agendaFim = _parseTimeOfDay(agenda?['hora_fim']);
+                    final foraDaAgenda =
+                        agendaInicio == null ||
+                        agendaFim == null ||
+                        !_horarioContemIntervalo(
+                          agendaInicio,
+                          agendaFim,
+                          slot.inicio,
+                          slot.fim,
+                        );
+                    final indisponivel = bloqueado || foraDaAgenda;
                     final selecionado = _sheetHorarioSelecionado == slot.label;
 
                     return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                      enabled: !bloqueado,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
+                      enabled: !indisponivel,
                       leading: Icon(
                         Icons.access_time,
-                        color: bloqueado
+                        color: indisponivel
                             ? const Color(0xFFCBD5E1)
                             : (selecionado ? _azul : const Color(0xFF64748B)),
                       ),
@@ -3110,30 +3274,45 @@ class _TelaServicoState extends State<TelaServico> {
                         slot.label,
                         style: TextStyle(
                           fontSize: 14.5,
-                          fontWeight: selecionado ? FontWeight.w800 : FontWeight.w600,
-                          color: bloqueado
+                          fontWeight: selecionado
+                              ? FontWeight.w800
+                              : FontWeight.w600,
+                          color: indisponivel
                               ? const Color(0xFF94A3B8)
                               : (selecionado ? _azul : const Color(0xFF1E293B)),
-                          decoration: bloqueado ? TextDecoration.lineThrough : null,
+                          decoration: indisponivel
+                              ? TextDecoration.lineThrough
+                              : null,
                         ),
                       ),
-                      subtitle: bloqueado
+                      subtitle: indisponivel
                           ? const Text(
-                              'Indisponível neste horário por exceção do profissional',
-                              style: TextStyle(fontSize: 11.5, color: Color(0xFFCE4257)),
+                              'Indisponível neste horário conforme a agenda do profissional',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: Color(0xFFCE4257),
+                              ),
                             )
                           : null,
                       trailing: selecionado
                           ? const Icon(Icons.check_circle, color: _azul)
-                          : (bloqueado
-                              ? const Icon(Icons.block, color: Color(0xFFCBD5E1), size: 18)
-                              : const Icon(Icons.radio_button_unchecked, color: Color(0xFFCBD5E1))),
-                      onTap: bloqueado
+                          : (indisponivel
+                                ? const Icon(
+                                    Icons.block,
+                                    color: Color(0xFFCBD5E1),
+                                    size: 18,
+                                  )
+                                : const Icon(
+                                    Icons.radio_button_unchecked,
+                                    color: Color(0xFFCBD5E1),
+                                  )),
+                      onTap: indisponivel
                           ? null
                           : () {
                               setSheetState(() {
                                 _sheetHorarioSelecionado = slot.label;
                                 _sheetHoraAgendadaSql = slot.horaSql;
+                                _sheetHoraAgendadaFimSql = slot.horaFimSql;
                               });
                               setState(() {});
                               Navigator.pop(ctx);
@@ -3172,17 +3351,23 @@ class _TelaServicoState extends State<TelaServico> {
 
     if (_sheetIdUsuario == null) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('Não foi possível identificar o usuário.')),
+        const SnackBar(
+          content: Text('Não foi possível identificar o usuário.'),
+        ),
       );
       return;
     }
 
     final tipoExecucao = _sheetTipoExecucaoSelecionado ?? 'Leva e Traz';
-    final precisaEnderecoCliente = tipoExecucao != 'Retirado no Local' && tipoExecucao != 'Retirada no Local';
+    final precisaEnderecoCliente =
+        tipoExecucao != 'Retirado no Local' &&
+        tipoExecucao != 'Retirada no Local';
 
     if (precisaEnderecoCliente && _sheetEnderecoClienteSelecionado == null) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('Selecione um endereço para o atendimento.')),
+        const SnackBar(
+          content: Text('Selecione um endereço para o atendimento.'),
+        ),
       );
       return;
     }
@@ -3196,7 +3381,9 @@ class _TelaServicoState extends State<TelaServico> {
 
     if (_sheetHorarioSelecionado == null) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('Selecione um horário para o agendamento.')),
+        const SnackBar(
+          content: Text('Selecione um horário para o agendamento.'),
+        ),
       );
       return;
     }
@@ -3207,6 +3394,7 @@ class _TelaServicoState extends State<TelaServico> {
       final valorFinal = servico.valor > 0 ? servico.valor : 18.99;
       final dataAgendadaSql = _formatarDataSql(_sheetDataSelecionada!);
       final horaAgendadaSql = _sheetHoraAgendadaSql ?? '09:00:00';
+      final horaAgendadaFimSql = _sheetHoraAgendadaFimSql ?? '10:00:00';
       final detalhesTexto = _sheetDetalhesController.text.trim().isEmpty
           ? null
           : _sheetDetalhesController.text.trim();
@@ -3242,6 +3430,7 @@ class _TelaServicoState extends State<TelaServico> {
         'detalhes': detalhesTexto,
         'data_agendada': dataAgendadaSql,
         'hora_agendada': horaAgendadaSql,
+        'hora_agendada_fim': horaAgendadaFimSql,
       };
       await supabase.from('ass_servicos_lista').upsert(dadosAss);
 
@@ -3295,24 +3484,41 @@ class _TelaServicoState extends State<TelaServico> {
   }
 
   bool _isDiaDisponivelNaAgenda(DateTime data) {
-    if (_sheetAgendasProfissional.isEmpty) {
-      return data.weekday >= 1 && data.weekday <= 5;
-    }
+    return _agendaDoDia(data) != null;
+  }
+
+  Map<String, dynamic>? _agendaDoDia(DateTime data) {
     const nomes = [
-      'segunda',
-      'terca',
-      'quarta',
-      'quinta',
-      'sexta',
+      'segunda-feira',
+      'terca-feira',
+      'quarta-feira',
+      'quinta-feira',
+      'sexta-feira',
       'sabado',
       'domingo',
     ];
     final nomeDia = nomes[data.weekday - 1];
     for (final agenda in _sheetAgendasProfissional) {
-      final texto = _removerAcentos(agenda['dias_semana']?.toString() ?? '').toLowerCase();
-      if (texto.contains(nomeDia)) return true;
+      final texto = _removerAcentos(
+        agenda['dias_semana']?.toString() ?? '',
+      ).toLowerCase();
+      final dias = texto
+          .split(',')
+          .map((dia) => dia.trim().replaceAll(RegExp(r'\s+'), ' '))
+          .toList();
+      if (dias.contains(nomeDia)) return agenda;
     }
-    return false;
+    return null;
+  }
+
+  bool _horarioContemIntervalo(
+    TimeOfDay agendaInicio,
+    TimeOfDay agendaFim,
+    TimeOfDay slotInicio,
+    TimeOfDay slotFim,
+  ) {
+    return _horaParaMinutos(slotInicio) >= _horaParaMinutos(agendaInicio) &&
+        _horaParaMinutos(slotFim) <= _horaParaMinutos(agendaFim);
   }
 
   String _removerAcentos(String valor) {
@@ -3368,7 +3574,9 @@ class _TelaServicoState extends State<TelaServico> {
 
   TimeOfDay? _parseTimeOfDay(dynamic raw) {
     if (raw == null) return null;
-    final match = RegExp(r'^(\d{1,2}):(\d{2})').firstMatch(raw.toString().trim());
+    final match = RegExp(
+      r'^(\d{1,2}):(\d{2})',
+    ).firstMatch(raw.toString().trim());
     if (match == null) return null;
     return TimeOfDay(
       hour: int.parse(match.group(1)!),
@@ -3378,7 +3586,12 @@ class _TelaServicoState extends State<TelaServico> {
 
   int _horaParaMinutos(TimeOfDay time) => time.hour * 60 + time.minute;
 
-  bool _intervalosColidem(TimeOfDay ini1, TimeOfDay fim1, TimeOfDay ini2, TimeOfDay fim2) {
+  bool _intervalosColidem(
+    TimeOfDay ini1,
+    TimeOfDay fim1,
+    TimeOfDay ini2,
+    TimeOfDay fim2,
+  ) {
     final mIni1 = _horaParaMinutos(ini1);
     final mFim1 = _horaParaMinutos(fim1);
     final mIni2 = _horaParaMinutos(ini2);
@@ -3406,14 +3619,15 @@ class _EnderecoUsuarioItem {
 class _OpcaoHorarioItem {
   final String label;
   final String horaSql;
+  final String horaFimSql;
   final TimeOfDay inicio;
   final TimeOfDay fim;
 
   const _OpcaoHorarioItem({
     required this.label,
     required this.horaSql,
+    required this.horaFimSql,
     required this.inicio,
     required this.fim,
   });
 }
-

@@ -6,6 +6,7 @@ import 'adicionar_servico_profissional.dart';
 import 'models/servico_profissional.dart';
 import 'services/servicos_profissional_service.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
+import 'widgets/skeleton_loading.dart';
 
 // ── Helper ──────────────────────────────────────────────────────────────────
 Color _hexToColorMSP(String hex) {
@@ -84,14 +85,15 @@ class _MeusServicosProfissionalPageState
       _lerContaEmpresaAtiva(),
     ]);
     final servicos = resultados[0] as List<ServicoProfissional>;
-    final contexto = resultados[1]
-        as ({
-          int idProfissional,
-          int? idGrupoEmpresa,
-          bool ehLoja,
-          bool ehMembroEmpresa,
-          bool ehDonoEmpresa,
-        })?;
+    final contexto =
+        resultados[1]
+            as ({
+              int idProfissional,
+              int? idGrupoEmpresa,
+              bool ehLoja,
+              bool ehMembroEmpresa,
+              bool ehDonoEmpresa,
+            })?;
     // Distinção pela CONTA ATIVA (mesma flag da home):
     // - empresa ativa: mostra SÓ serviços da empresa (fk_grupo_empresa).
     // - profissional (CNPJ): mostra SÓ serviços individuais
@@ -109,8 +111,9 @@ class _MeusServicosProfissionalPageState
           .toList();
     } else {
       // Individuais do profissional logado (nunca os da empresa).
-      servicosExibidos =
-          servicos.where((s) => s.fkGrupoEmpresa == null).toList();
+      servicosExibidos = servicos
+          .where((s) => s.fkGrupoEmpresa == null)
+          .toList();
     }
     if (mounted) {
       setState(() {
@@ -229,7 +232,7 @@ class _MeusServicosProfissionalPageState
               color: _blue,
               onRefresh: _carregar,
               child: _carregando
-                  ? const Center(child: CircularProgressIndicator(color: _blue))
+                  ? const SkeletonPage(layout: SkeletonLayout.cards)
                   : _servicosFiltrados.isEmpty
                   ? _buildEmptyState()
                   : ListView.separated(
@@ -261,20 +264,20 @@ class _MeusServicosProfissionalPageState
       ),
 
       // ── FAB ─────────────────────────────────────────────────────────────
-        floatingActionButton: _ehMembroEmpresa
+      floatingActionButton: _ehMembroEmpresa
           ? null
           : FloatingActionButton.extended(
-        onPressed: () => _abrirTelaServico(),
-        backgroundColor: _blue,
-        foregroundColor: Colors.white,
-        elevation: 4,
-        shape: const StadiumBorder(),
-        icon: const Icon(Icons.add_rounded, size: 20),
-        label: const Text(
-          'Novo Serviço',
-          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-        ),
-        ),
+              onPressed: () => _abrirTelaServico(),
+              backgroundColor: _blue,
+              foregroundColor: Colors.white,
+              elevation: 4,
+              shape: const StadiumBorder(),
+              icon: const Icon(Icons.add_rounded, size: 20),
+              label: const Text(
+                'Novo Serviço',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              ),
+            ),
     );
   }
 

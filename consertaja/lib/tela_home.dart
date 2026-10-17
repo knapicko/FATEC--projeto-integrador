@@ -17,6 +17,7 @@ import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/iniciais.dart';
 import 'widgets/imagem_servico.dart';
 import 'widgets/tag_oficio.dart';
+import 'widgets/skeleton_loading.dart';
 import 'utils/app_navigation_util.dart';
 
 class ServicoPopular {
@@ -313,8 +314,7 @@ class _TelaHomeState extends State<TelaHome> {
           }
         }
         // Grupos vinculados via profissional (associado a empresa).
-        final extras =
-            idsGrupo.where((e) => !grupos.containsKey(e)).toList();
+        final extras = idsGrupo.where((e) => !grupos.containsKey(e)).toList();
         if (extras.isNotEmpty) {
           try {
             final gRows2 = await supabase
@@ -394,8 +394,8 @@ class _TelaHomeState extends State<TelaHome> {
         final Map<String, dynamic>? ofMap = ofRaw is Map<String, dynamic>
             ? ofRaw
             : (ofRaw is List && ofRaw.isNotEmpty
-                ? Map<String, dynamic>.from(ofRaw.first)
-                : null);
+                  ? Map<String, dynamic>.from(ofRaw.first)
+                  : null);
         final funcao = ofMap?['funcao']?.toString().trim() ?? '';
         // Coluna `cor` = enum Cores Oficio ('vinho', 'roxo', 'azul claro'...);
         // `CorOficio.parse` resolve o nome para a cor. OficioInfo.fromMap
@@ -404,8 +404,7 @@ class _TelaHomeState extends State<TelaHome> {
             ? null
             : OficioInfo.fromMap(Map<String, dynamic>.from(ofMap)).cor;
 
-        String categoriaExibicao =
-            funcao.isNotEmpty ? funcao : 'Serviço';
+        String categoriaExibicao = funcao.isNotEmpty ? funcao : 'Serviço';
         String? nomePrestador;
         String? fotoPrestador;
         String? tagEmpresa;
@@ -739,8 +738,7 @@ class _TelaHomeState extends State<TelaHome> {
 
       // 2. Sessão/onboarding em memória (login Google recente).
       try {
-        final fotoMemoria =
-            GoogleAuthService.ultimaFotoUrl?.trim() ?? '';
+        final fotoMemoria = GoogleAuthService.ultimaFotoUrl?.trim() ?? '';
         if (fotoMemoria.isNotEmpty) {
           return {
             'nome': GoogleAuthService.extrairNome(user),
@@ -751,12 +749,13 @@ class _TelaHomeState extends State<TelaHome> {
 
       // 3. Fallback: foto do Google (auth metadata).
       final meta = user.userMetadata ?? <String, dynamic>{};
-      final fotoMeta = (meta['avatar_url'] ??
-              meta['picture'] ??
-              meta['foto_perfil_url'] ??
-              meta['fotoPerfilUrl'])
-          ?.toString()
-          .trim();
+      final fotoMeta =
+          (meta['avatar_url'] ??
+                  meta['picture'] ??
+                  meta['foto_perfil_url'] ??
+                  meta['fotoPerfilUrl'])
+              ?.toString()
+              .trim();
       if (fotoMeta != null && fotoMeta.isNotEmpty) {
         return {
           'nome': meta['full_name'] ?? meta['nome'] ?? meta['name'],
@@ -937,18 +936,18 @@ class _TelaHomeState extends State<TelaHome> {
                 .select('funcao, categoria, cor')
                 .inFilter('id_oficio', idsOficios);
 
-              final Set<String> funcoesVistas = {};
-              for (final row in oficiosData) {
-                final info = OficioInfo.fromMap(row);
-                final chave = info.funcao.trim().toLowerCase();
-                if (info.funcao.trim().isNotEmpty &&
-                    !funcoesVistas.contains(chave)) {
-                  funcoesVistas.add(chave);
-                  oficiosLoja.add(info);
-                }
+            final Set<String> funcoesVistas = {};
+            for (final row in oficiosData) {
+              final info = OficioInfo.fromMap(row);
+              final chave = info.funcao.trim().toLowerCase();
+              if (info.funcao.trim().isNotEmpty &&
+                  !funcoesVistas.contains(chave)) {
+                funcoesVistas.add(chave);
+                oficiosLoja.add(info);
               }
             }
-          } catch (_) {}
+          }
+        } catch (_) {}
 
         final corBase = CorOficio.parse(corHex);
         final tagEmpresaFormatada = (tag != null && tag.isNotEmpty)
@@ -958,8 +957,8 @@ class _TelaHomeState extends State<TelaHome> {
         final descricaoFinal = descricaoDb.isNotEmpty
             ? descricaoDb
             : (oficiosLoja.take(3).map((o) => o.funcao).join(' • ').isNotEmpty
-                ? oficiosLoja.take(3).map((o) => o.funcao).join(' • ')
-                : 'Especialistas em reparos e serviços');
+                  ? oficiosLoja.take(3).map((o) => o.funcao).join(' • ')
+                  : 'Especialistas em reparos e serviços');
 
         lista.add(
           LojaPopular(
@@ -1386,520 +1385,532 @@ class _TelaHomeState extends State<TelaHome> {
       isHome: true,
       child: Scaffold(
         backgroundColor: Colors.white,
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          children: [
-            const SizedBox(height: 8),
+        body: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            children: [
+              const SizedBox(height: 8),
 
-            // Cabeçalho
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: _buildEnderecoAtual()),
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.only(right: 12, top: 4),
-                      child: Icon(
-                        Icons.notifications_outlined,
-                        color: _primaryBlue,
-                        size: 26,
-                      ),
-                    ),
-                    Positioned(
-                      right: 4,
-                      top: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
+              // Cabeçalho
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: _buildEnderecoAtual()),
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.only(right: 12, top: 4),
+                        child: Icon(
+                          Icons.notifications_outlined,
                           color: _primaryBlue,
-                          shape: BoxShape.circle,
-                        ),
-                        constraints: const BoxConstraints(
-                          minWidth: 18,
-                          minHeight: 18,
-                        ),
-                        child: const Text(
-                          '2',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          size: 26,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                GestureDetector(
-                  onTap: () => _navegarParaPerfil(context),
-                  onLongPress: () => _exibirDialogSair(context),
-                  child: widget.isVisitante
-                      ? CircleAvatar(
-                          radius: 20,
-                          backgroundColor: Colors.grey.shade200,
-                          child: Icon(
-                            Icons.person,
-                            color: Colors.grey.shade600,
-                            size: 22,
+                      Positioned(
+                        right: 4,
+                        top: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: _primaryBlue,
+                            shape: BoxShape.circle,
                           ),
-                        )
-                      : FutureBuilder<Map<String, dynamic>?>(
-                          future: _dadosUsuarioFuture,
-                          builder: (context, snapshot) {
-                            final fotoUrl = (snapshot.data?['foto_perfil_url']
-                                    as String?)
-                                ?.trim();
-                            final nome = snapshot.data?['nome']
-                                ?.toString()
-                                .trim();
-                            if (snapshot.connectionState ==
-                                    ConnectionState.waiting &&
-                                fotoUrl == null) {
-                              return CircleAvatar(
-                                radius: 20,
-                                backgroundColor: Colors.grey.shade200,
-                                child: const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: _primaryBlue,
-                                  ),
-                                ),
-                              );
-                            }
-                            if (fotoUrl != null && fotoUrl.isNotEmpty) {
-                              return ClipOval(
-                                child: Image.network(
-                                  fotoUrl,
-                                  width: 40,
-                                  height: 40,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) =>
-                                      _avatarUsuarioFallback(nome),
-                                ),
-                              );
-                            }
-                            return _avatarUsuarioFallback(nome);
-                          },
-                        ),
-                ),
-              ],
-            ),
-
-            SizedBox(height: alturaDaTela * 0.02),
-
-            // Barra de pesquisa + radar
-            Row(
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => _navegarParaBusca(context),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade200),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.04),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
+                          constraints: const BoxConstraints(
+                            minWidth: 18,
+                            minHeight: 18,
                           ),
-                        ],
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 14,
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.search, color: Colors.grey.shade500),
-                          const SizedBox(width: 12),
-                          Text(
-                            'Qual será o serviço de hoje?',
+                          child: const Text(
+                            '2',
+                            textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: Colors.grey.shade500,
-                              fontSize: 14,
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.grey.shade200),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+                        ),
                       ),
                     ],
                   ),
-                  child: const Icon(Icons.radar, color: _primaryBlue, size: 24),
-                ),
-              ],
-            ),
-
-            SizedBox(height: alturaDaTela * 0.025),
-
-            if (widget.isVisitante) ...[
-              GestureDetector(
-                onTap: () {
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (_) => const TelaInicial()),
-                    (route) => false,
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [_primaryBlue, Color(0xFF0066FF)],
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Acesse agora',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
+                  GestureDetector(
+                    onTap: () => _navegarParaPerfil(context),
+                    onLongPress: () => _exibirDialogSair(context),
+                    child: widget.isVisitante
+                        ? CircleAvatar(
+                            radius: 20,
+                            backgroundColor: Colors.grey.shade200,
+                            child: Icon(
+                              Icons.person,
+                              color: Colors.grey.shade600,
+                              size: 22,
                             ),
-                            SizedBox(height: 6),
+                          )
+                        : FutureBuilder<Map<String, dynamic>?>(
+                            future: _dadosUsuarioFuture,
+                            builder: (context, snapshot) {
+                              final fotoUrl =
+                                  (snapshot.data?['foto_perfil_url'] as String?)
+                                      ?.trim();
+                              final nome = snapshot.data?['nome']
+                                  ?.toString()
+                                  .trim();
+                              if (snapshot.connectionState ==
+                                      ConnectionState.waiting &&
+                                  fotoUrl == null) {
+                                return CircleAvatar(
+                                  radius: 20,
+                                  backgroundColor: Colors.grey.shade200,
+                                  child: const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: _primaryBlue,
+                                    ),
+                                  ),
+                                );
+                              }
+                              if (fotoUrl != null && fotoUrl.isNotEmpty) {
+                                return ClipOval(
+                                  child: Image.network(
+                                    fotoUrl,
+                                    width: 40,
+                                    height: 40,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) =>
+                                        _avatarUsuarioFallback(nome),
+                                  ),
+                                );
+                              }
+                              return _avatarUsuarioFallback(nome);
+                            },
+                          ),
+                  ),
+                ],
+              ),
+
+              SizedBox(height: alturaDaTela * 0.02),
+
+              // Barra de pesquisa + radar
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => _navegarParaBusca(context),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade200),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.04),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 14,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.search, color: Colors.grey.shade500),
+                            const SizedBox(width: 12),
                             Text(
-                              'Entre ou cadastre-se para ter acesso completo ao ConsertaJá',
+                              'Qual será o serviço de hoje?',
                               style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 12,
+                                color: Colors.grey.shade500,
+                                fontSize: 14,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: const BoxDecoration(
-                          color: Colors.white24,
-                          shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.grey.shade200),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
                         ),
-                        child: const Icon(
-                          Icons.arrow_forward,
-                          color: Colors.white,
-                          size: 28,
-                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.radar,
+                      color: _primaryBlue,
+                      size: 24,
+                    ),
+                  ),
+                ],
+              ),
+
+              SizedBox(height: alturaDaTela * 0.025),
+
+              if (widget.isVisitante) ...[
+                GestureDetector(
+                  onTap: () {
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (_) => const TelaInicial()),
+                      (route) => false,
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [_primaryBlue, Color(0xFF0066FF)],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
                       ),
-                    ],
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Acesse agora',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              SizedBox(height: 6),
+                              Text(
+                                'Entre ou cadastre-se para ter acesso completo ao ConsertaJá',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: const BoxDecoration(
+                            color: Colors.white24,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.arrow_forward,
+                            color: Colors.white,
+                            size: 28,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              SizedBox(height: alturaDaTela * 0.025),
-            ],
-
-            // Tipos de Serviços
-            _buildSectionHeader(
-              titulo: 'Tipos de Serviços',
-              linkVerTodos: 'Ver todos',
-            ),
-            const SizedBox(height: 12),
-            GridView.count(
-              crossAxisCount: 4,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 8,
-              childAspectRatio: larguraCategoria / 72,
-              children: [
-                _buildCategoriaServico('Ar Cond.', Icons.ac_unit),
-                _buildCategoriaServico('Reformas', Icons.handyman_outlined),
-                _buildCategoriaServico(
-                  'Limpeza',
-                  Icons.cleaning_services_outlined,
-                ),
-                _buildCategoriaServico('Aulas', Icons.school_outlined),
-                _buildCategoriaServico('Assistência', Icons.build_outlined),
-                _buildCategoriaServico('Fretes', Icons.local_shipping_outlined),
-                _buildCategoriaServico('Beleza', Icons.content_cut),
-                _buildCategoriaServico('Mais', Icons.more_horiz, isMais: true),
+                SizedBox(height: alturaDaTela * 0.025),
               ],
-            ),
 
-            SizedBox(height: alturaDaTela * 0.03),
-
-            // Profissionais Perto de Você
-            _buildSectionHeader(
-              titulo: 'Profissionais Perto de Você',
-              tituloColor: _primaryBlue,
-              mostrarRadar: true,
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 110,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                itemCount: listaPerfis.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (context, index) {
-                  return _buildCardProfissional(
-                    listaPerfis[index],
-                    largura: larguraDaTela * 0.78,
-                  );
-                },
+              // Tipos de Serviços
+              _buildSectionHeader(
+                titulo: 'Tipos de Serviços',
+                linkVerTodos: 'Ver todos',
               ),
-            ),
-
-            SizedBox(height: alturaDaTela * 0.03),
-
-            // Serviços Perto de Você
-            _buildSectionHeader(
-              titulo: 'Serviços Perto de Você',
-              tituloColor: _primaryBlue,
-              mostrarRadar: true,
-              linkVerTodos: 'Ver todos',
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 130,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                itemCount: listaServicosProximos.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (context, index) {
-                  return _buildCardServicoProximo(listaServicosProximos[index]);
-                },
+              const SizedBox(height: 12),
+              GridView.count(
+                crossAxisCount: 4,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 8,
+                childAspectRatio: larguraCategoria / 72,
+                children: [
+                  _buildCategoriaServico('Ar Cond.', Icons.ac_unit),
+                  _buildCategoriaServico('Reformas', Icons.handyman_outlined),
+                  _buildCategoriaServico(
+                    'Limpeza',
+                    Icons.cleaning_services_outlined,
+                  ),
+                  _buildCategoriaServico('Aulas', Icons.school_outlined),
+                  _buildCategoriaServico('Assistência', Icons.build_outlined),
+                  _buildCategoriaServico(
+                    'Fretes',
+                    Icons.local_shipping_outlined,
+                  ),
+                  _buildCategoriaServico('Beleza', Icons.content_cut),
+                  _buildCategoriaServico(
+                    'Mais',
+                    Icons.more_horiz,
+                    isMais: true,
+                  ),
+                ],
               ),
-            ),
 
-            SizedBox(height: alturaDaTela * 0.03),
+              SizedBox(height: alturaDaTela * 0.03),
 
-            // Profissionais em destaque
-            FutureBuilder<List<PerfilPopular>>(
-              future: _buscarProfissionaisDestaque(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Center(
-                      child: CircularProgressIndicator(color: _primaryBlue),
-                    ),
-                  );
-                }
-
-                final perfis = snapshot.data ?? <PerfilPopular>[];
-
-                if (perfis.isEmpty) {
-                  return const SizedBox.shrink();
-                }
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildSectionHeader(titulo: 'Profissionais em destaque'),
-                    const SizedBox(height: 12),
-                    ...perfis
-                        .take(3)
-                        .map(
-                          (perfil) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        PerfilProfissionalPage(
-                                          nomeInicial: perfil.nome,
-                                          imagemInicial: perfil.caminhoImagem,
-                                          profissao: perfil.profissao,
-                                          avaliacao: perfil.avaliacao,
-                                          totalAvaliacoes:
-                                              perfil.totalAvaliacoes,
-                                        ),
-                                  ),
-                                );
-                              },
-                              child: _buildCardProfissionalDestaque(perfil),
-                            ),
-                          ),
-                        ),
-                    _buildOutlineButton('Ver todos os profissionais'),
-                  ],
-                );
-              },
-            ),
-
-            SizedBox(height: alturaDaTela * 0.03),
-
-            // Lojas em destaque
-            FutureBuilder<List<LojaPopular>>(
-              future: _buscarLojasDestaque(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Center(
-                      child: CircularProgressIndicator(color: _primaryBlue),
-                    ),
-                  );
-                }
-
-                final lojas = snapshot.data ?? <LojaPopular>[];
-
-                if (lojas.isEmpty) {
-                  return const SizedBox.shrink();
-                }
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildSectionHeader(titulo: 'Lojas em destaque'),
-                    const SizedBox(height: 12),
-                    ...lojas
-                        .take(3)
-                        .map(
-                          (loja) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => PerfilLoja(
-                                      idGrupoEmpresa: loja.idGrupoEmpresa,
-                                      nomeEmpresa: loja.titulo,
-                                      fotoUrlEmpresa: loja.caminhoImagem,
-                                      bannerUrlEmpresa: loja.bannerUrl,
-                                      tagEmpresa: loja.tagEmpresa,
-                                      corTagEmpresa: loja.corTagEmpresaHex,
-                                    ),
-                                  ),
-                                );
-                              },
-                              child: _buildCardLojaVertical(loja),
-                            ),
-                          ),
-                        ),
-                    _buildOutlineButton('Ver todos os profissionais'),
-                  ],
-                );
-              },
-            ),
-
-            SizedBox(height: alturaDaTela * 0.03),
-
-            // Serviços populares — todos de `servicos_profissional`
-            _buildSectionHeader(titulo: 'Serviços populares'),
-            const SizedBox(height: 12),
-            if (_carregandoServicosPopulares)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: Center(
-                  child: CircularProgressIndicator(color: _primaryBlue),
-                ),
-              )
-            else if (_servicosPopulares.isEmpty)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: _cardDecoration(),
-                child: const Text(
-                  'Nenhum serviço cadastrado no momento.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 13, color: Colors.black54),
-                ),
-              )
-            else
+              // Profissionais Perto de Você
+              _buildSectionHeader(
+                titulo: 'Profissionais Perto de Você',
+                tituloColor: _primaryBlue,
+                mostrarRadar: true,
+              ),
+              const SizedBox(height: 12),
               SizedBox(
-                height: 220,
+                height: 110,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   physics: const BouncingScrollPhysics(),
-                  itemCount: _servicosPopulares.length,
+                  itemCount: listaPerfis.length,
                   separatorBuilder: (_, __) => const SizedBox(width: 12),
                   itemBuilder: (context, index) {
-                    final servico = _servicosPopulares[index];
-                    return GestureDetector(
-                      onTap: servico.idServicoProf == null
-                          ? null
-                          : () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => TelaServico(
-                                    idServico: servico.idServicoProf,
-                                  ),
-                                ),
-                              );
-                            },
-                      child: _buildCardServicoPopular(servico),
+                    return _buildCardProfissional(
+                      listaPerfis[index],
+                      largura: larguraDaTela * 0.78,
                     );
                   },
                 ),
               ),
 
-            const SizedBox(height: 24),
-          ],
+              SizedBox(height: alturaDaTela * 0.03),
+
+              // Serviços Perto de Você
+              _buildSectionHeader(
+                titulo: 'Serviços Perto de Você',
+                tituloColor: _primaryBlue,
+                mostrarRadar: true,
+                linkVerTodos: 'Ver todos',
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 130,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: listaServicosProximos.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  itemBuilder: (context, index) {
+                    return _buildCardServicoProximo(
+                      listaServicosProximos[index],
+                    );
+                  },
+                ),
+              ),
+
+              SizedBox(height: alturaDaTela * 0.03),
+
+              // Profissionais em destaque
+              FutureBuilder<List<PerfilPopular>>(
+                future: _buscarProfissionaisDestaque(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: const SkeletonProfileCard(),
+                    );
+                  }
+
+                  final perfis = snapshot.data ?? <PerfilPopular>[];
+
+                  if (perfis.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildSectionHeader(titulo: 'Profissionais em destaque'),
+                      const SizedBox(height: 12),
+                      ...perfis
+                          .take(3)
+                          .map(
+                            (perfil) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          PerfilProfissionalPage(
+                                            nomeInicial: perfil.nome,
+                                            imagemInicial: perfil.caminhoImagem,
+                                            profissao: perfil.profissao,
+                                            avaliacao: perfil.avaliacao,
+                                            totalAvaliacoes:
+                                                perfil.totalAvaliacoes,
+                                          ),
+                                    ),
+                                  );
+                                },
+                                child: _buildCardProfissionalDestaque(perfil),
+                              ),
+                            ),
+                          ),
+                      _buildOutlineButton('Ver todos os profissionais'),
+                    ],
+                  );
+                },
+              ),
+
+              SizedBox(height: alturaDaTela * 0.03),
+
+              // Lojas em destaque
+              FutureBuilder<List<LojaPopular>>(
+                future: _buscarLojasDestaque(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(
+                        child: CircularProgressIndicator(color: _primaryBlue),
+                      ),
+                    );
+                  }
+
+                  final lojas = snapshot.data ?? <LojaPopular>[];
+
+                  if (lojas.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildSectionHeader(titulo: 'Lojas em destaque'),
+                      const SizedBox(height: 12),
+                      ...lojas
+                          .take(3)
+                          .map(
+                            (loja) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => PerfilLoja(
+                                        idGrupoEmpresa: loja.idGrupoEmpresa,
+                                        nomeEmpresa: loja.titulo,
+                                        fotoUrlEmpresa: loja.caminhoImagem,
+                                        bannerUrlEmpresa: loja.bannerUrl,
+                                        tagEmpresa: loja.tagEmpresa,
+                                        corTagEmpresa: loja.corTagEmpresaHex,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                child: _buildCardLojaVertical(loja),
+                              ),
+                            ),
+                          ),
+                      _buildOutlineButton('Ver todos os profissionais'),
+                    ],
+                  );
+                },
+              ),
+
+              SizedBox(height: alturaDaTela * 0.03),
+
+              // Serviços populares — todos de `servicos_profissional`
+              _buildSectionHeader(titulo: 'Serviços populares'),
+              const SizedBox(height: 12),
+              if (_carregandoServicosPopulares)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(
+                    child: CircularProgressIndicator(color: _primaryBlue),
+                  ),
+                )
+              else if (_servicosPopulares.isEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: _cardDecoration(),
+                  child: const Text(
+                    'Nenhum serviço cadastrado no momento.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13, color: Colors.black54),
+                  ),
+                )
+              else
+                SizedBox(
+                  height: 220,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    itemCount: _servicosPopulares.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                    itemBuilder: (context, index) {
+                      final servico = _servicosPopulares[index];
+                      return GestureDetector(
+                        onTap: servico.idServicoProf == null
+                            ? null
+                            : () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => TelaServico(
+                                      idServico: servico.idServicoProf,
+                                    ),
+                                  ),
+                                );
+                              },
+                        child: _buildCardServicoPopular(servico),
+                      );
+                    },
+                  ),
+                ),
+
+              const SizedBox(height: 24),
+            ],
+          ),
+        ),
+        bottomNavigationBar: BottomNavigationBarCliente(
+          currentIndex: 0,
+          // Tocar em Home estando na Home recarrega os endereços da página.
+          onReselecionarAbaAtual: (_) {
+            if (mounted) {
+              setState(() {
+                _enderecosFuture = _carregarEnderecosCliente();
+              });
+            }
+          },
+          onTap: (index) {
+            if (index == 1) {
+              AppNavigationUtil.navegarAba(
+                context,
+                SeguindoClientePage(isVisitante: widget.isVisitante),
+                isHome: false,
+              );
+            } else if (index == 2) {
+              AppNavigationUtil.navegarAba(
+                context,
+                TelaMensagensPage(isVisitante: widget.isVisitante),
+                isHome: false,
+              );
+            } else if (index == 3) {
+              AppNavigationUtil.navegarAba(
+                context,
+                MeusPedidosPage(isVisitante: widget.isVisitante),
+                isHome: false,
+              );
+            } else if (index == 4) {
+              _navegarParaPerfil(context);
+            }
+          },
         ),
       ),
-      bottomNavigationBar: BottomNavigationBarCliente(
-        currentIndex: 0,
-        // Tocar em Home estando na Home recarrega os endereços da página.
-        onReselecionarAbaAtual: (_) {
-          if (mounted) {
-            setState(() {
-              _enderecosFuture = _carregarEnderecosCliente();
-            });
-          }
-        },
-        onTap: (index) {
-          if (index == 1) {
-            AppNavigationUtil.navegarAba(
-              context,
-              SeguindoClientePage(isVisitante: widget.isVisitante),
-              isHome: false,
-            );
-          } else if (index == 2) {
-            AppNavigationUtil.navegarAba(
-              context,
-              TelaMensagensPage(isVisitante: widget.isVisitante),
-              isHome: false,
-            );
-          } else if (index == 3) {
-            AppNavigationUtil.navegarAba(
-              context,
-              MeusPedidosPage(isVisitante: widget.isVisitante),
-              isHome: false,
-            );
-          } else if (index == 4) {
-            _navegarParaPerfil(context);
-          }
-        },
-      ),
-    ),);
+    );
   }
 
   Widget _buildCategoriaServico(
@@ -2379,7 +2390,9 @@ class _TelaHomeState extends State<TelaHome> {
   }
 
   Widget _avatarUsuarioFallback([String? nome]) {
-    final iniciais = obterIniciais((nome ?? '').trim().isNotEmpty ? nome! : '?');
+    final iniciais = obterIniciais(
+      (nome ?? '').trim().isNotEmpty ? nome! : '?',
+    );
     return CircleAvatar(
       radius: 20,
       backgroundColor: _primaryBlue,
@@ -2483,9 +2496,7 @@ class _TelaHomeState extends State<TelaHome> {
                                     height: 20,
                                     fit: BoxFit.cover,
                                     errorBuilder: (_, __, ___) =>
-                                        _avatarFallbackPrestador(
-                                      nomePrestador,
-                                    ),
+                                        _avatarFallbackPrestador(nomePrestador),
                                   )
                                 : _avatarFallbackPrestador(nomePrestador),
                           ),

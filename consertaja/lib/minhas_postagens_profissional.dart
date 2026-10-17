@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'models/postagem_resumo.dart';
 import 'services/postagens_profissional_service.dart';
+import 'widgets/skeleton_loading.dart';
 
 class MinhasPostagensProfissionalPage extends StatefulWidget {
   const MinhasPostagensProfissionalPage({super.key});
@@ -267,13 +268,15 @@ class _MinhasPostagensProfissionalPageState
             .where((p) => p.idPostagem != postagem.idPostagem)
             .toList();
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Postagem apagada.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Postagem apagada.')));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Não foi possível apagar a postagem. Verifique as permissões do Supabase.'),
+          content: Text(
+            'Não foi possível apagar a postagem. Verifique as permissões do Supabase.',
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -311,7 +314,10 @@ class _MinhasPostagensProfissionalPageState
             onPressed: () => Navigator.pop(context, true),
             child: const Text(
               'Arquivar',
-              style: TextStyle(color: _archiveGray, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: _archiveGray,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -359,13 +365,15 @@ class _MinhasPostagensProfissionalPageState
           return p;
         }).toList();
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Postagem arquivada.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Postagem arquivada.')));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Não foi possível arquivar a postagem. Verifique as permissões do Supabase.'),
+          content: Text(
+            'Não foi possível arquivar a postagem. Verifique as permissões do Supabase.',
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -403,14 +411,8 @@ class _MinhasPostagensProfissionalPageState
               controller: _buscaController,
               decoration: InputDecoration(
                 hintText: 'Pesquisar postagens...',
-                hintStyle: TextStyle(
-                  color: Colors.grey.shade500,
-                  fontSize: 14,
-                ),
-                prefixIcon: Icon(
-                  Icons.search,
-                  color: Colors.grey.shade500,
-                ),
+                hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14),
+                prefixIcon: Icon(Icons.search, color: Colors.grey.shade500),
                 suffixIcon: _termoBusca.isNotEmpty
                     ? IconButton(
                         icon: Icon(
@@ -443,9 +445,7 @@ class _MinhasPostagensProfissionalPageState
           ),
           Expanded(
             child: _carregando
-                ? const Center(
-                    child: CircularProgressIndicator(color: _primaryBlue),
-                  )
+                ? const SkeletonPage(layout: SkeletonLayout.grid)
                 : _postagensFiltradas.isEmpty
                 ? _buildEstadoVazio()
                 : RefreshIndicator(
@@ -482,7 +482,9 @@ class _MinhasPostagensProfissionalPageState
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              buscando ? Icons.search_off_outlined : Icons.photo_library_outlined,
+              buscando
+                  ? Icons.search_off_outlined
+                  : Icons.photo_library_outlined,
               size: 48,
               color: Colors.grey.shade400,
             ),
@@ -503,10 +505,7 @@ class _MinhasPostagensProfissionalPageState
               Text(
                 'Tente buscar por outro termo',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey.shade500,
-                ),
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
               ),
             ],
           ],
@@ -559,9 +558,7 @@ class _MinhasPostagensProfissionalPageState
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
-                          color: arquivada
-                              ? Colors.grey.shade500
-                              : _titleDark,
+                          color: arquivada ? Colors.grey.shade500 : _titleDark,
                           height: 1.2,
                         ),
                       ),
@@ -622,10 +619,7 @@ class _MinhasPostagensProfissionalPageState
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.9),
                       shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.grey.shade300,
-                        width: 1,
-                      ),
+                      border: Border.all(color: Colors.grey.shade300, width: 1),
                     ),
                     child: Icon(
                       Icons.archive_outlined,
@@ -644,10 +638,7 @@ class _MinhasPostagensProfissionalPageState
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.9),
                       shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.red.shade300,
-                        width: 1,
-                      ),
+                      border: Border.all(color: Colors.red.shade300, width: 1),
                     ),
                     child: Icon(
                       Icons.delete_outlined,
