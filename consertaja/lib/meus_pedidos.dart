@@ -500,6 +500,7 @@ class MeusPedidosState extends State<MeusPedidosPage> {
               : 'Atendimento',
           idProfissional: ehEmp ? null : p.idProf,
           idGrupoEmpresa: ehEmp ? p.idGrupo : null,
+          idSolicitacao: p.id,
         ),
       ),
     );

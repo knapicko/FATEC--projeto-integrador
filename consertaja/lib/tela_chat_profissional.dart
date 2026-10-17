@@ -33,6 +33,7 @@ class TelaChatProfissional extends StatefulWidget {
   /// Quando informado, o chat é da EMPRESA (grupo_empresa) e não do
   /// profissional individual: a conversa usa fk_grupo_empresa.
   final int? idGrupoEmpresa;
+  final int? idSolicitacao;
 
   /// Permite abrir um chat já existente a partir da lista de mensagens.
   final int? idConversa;
@@ -44,6 +45,7 @@ class TelaChatProfissional extends StatefulWidget {
     required this.oficioPrincipal,
     this.idProfissional,
     this.idGrupoEmpresa,
+    this.idSolicitacao,
     this.idConversa,
   });
 
@@ -80,6 +82,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
   bool _contatoDigitando = false;
   Timer? _timerDigitandoTimeout;
   Timer? _debounceDigitandoEnvio;
+  _ResumoSolicitacao? _resumoSolicitacao;
 
   // ---- Gravação de áudio (estilo WhatsApp) ----
   final _gravador = AudioRecorder();
@@ -833,10 +836,13 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
 
       _oficioContato = widget.oficioPrincipal;
       await _carregarStatusContato();
+      await _vincularSolicitacaoConversa();
+      await _carregarResumoSolicitacao();
       if (_oficioContato.trim().isEmpty ||
           _oficioContato.trim().toLowerCase() == 'conversa') {
         await _carregarOficioContato();
       }
+
       await _carregarMensagens();
       await _marcarRecebidasComoLidas();
       _assinarMensagensTempoReal();
@@ -857,6 +863,118 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
         setState(() => _carregando = false);
         _rolarParaFim(animado: false);
       }
+    }
+  }
+
+  Future<void> _vincularSolicitacaoConversa() async {
+    if (_idConversa == null || widget.idSolicitacao == null) return;
+
+    try {
+      await _supabase
+          .from('conversas')
+          .update({'fk_solicitacao': widget.idSolicitacao})
+          .eq('id_conversa', _idConversa!);
+    } catch (e) {
+      debugPrint('Erro ao vincular solicitação à conversa: $e');
+    }
+  }
+
+  Future<void> _carregarResumoSolicitacao() async {
+    if (_idConversa == null) return;
+
+    try {
+      var idSolicitacao = widget.idSolicitacao;
+      if (idSolicitacao == null) {
+        Map<String, dynamic>? conversa;
+        try {
+          conversa = await _supabase
+              .from('conversas')
+              .select(
+                'fk_solicitacao, fk_usuario, fk_profissional, fk_grupo_empresa',
+              )
+              .eq('id_conversa', _idConversa!)
+              .maybeSingle();
+        } catch (_) {
+          conversa = await _supabase
+              .from('conversas')
+              .select('fk_usuario, fk_profissional, fk_grupo_empresa')
+              .eq('id_conversa', _idConversa!)
+              .maybeSingle();
+        }
+        idSolicitacao = (conversa?['fk_solicitacao'] as num?)?.toInt();
+
+        if (idSolicitacao == null && conversa != null) {
+          final idCliente = (conversa['fk_usuario'] as num?)?.toInt();
+          final idProfissional = (conversa['fk_profissional'] as num?)?.toInt();
+          final idGrupo = (conversa['fk_grupo_empresa'] as num?)?.toInt();
+          if (idCliente != null) {
+            dynamic consulta = _supabase
+                .from('solicitacoes')
+                .select('id_solicitacao')
+                .eq('fk_usuario', idCliente);
+            if (idGrupo != null) {
+              consulta = consulta.eq('fk_grupo_empresa', idGrupo);
+            } else if (idProfissional != null) {
+              consulta = consulta.eq('fk_profissional', idProfissional);
+            }
+            final solicitacao = await consulta
+                .order('data_solicitacao', ascending: false)
+                .limit(1)
+                .maybeSingle();
+            idSolicitacao = (solicitacao?['id_solicitacao'] as num?)?.toInt();
+          }
+        }
+      }
+      if (idSolicitacao == null) return;
+
+      final solicitacao = await _supabase
+          .from('solicitacoes')
+          .select('id_solicitacao, fk_status, fk_servico_prof')
+          .eq('id_solicitacao', idSolicitacao)
+          .maybeSingle();
+      if (solicitacao == null) return;
+
+      final idStatus = (solicitacao['fk_status'] as num?)?.toInt();
+      final idServico = (solicitacao['fk_servico_prof'] as num?)?.toInt();
+      String? status;
+      String? nomeServico;
+
+      if (idStatus != null) {
+        final statusRow = await _supabase
+            .from('status')
+            .select('status')
+            .eq('id_status', idStatus)
+            .maybeSingle();
+        status = statusRow?['status']?.toString().trim();
+      }
+      if (idServico != null) {
+        final servico = await _supabase
+            .from('servicos_profissional')
+            .select('titulo')
+            .eq('id_servico_prof', idServico)
+            .maybeSingle();
+        nomeServico = servico?['titulo']?.toString().trim();
+      }
+
+      if (!mounted || status == null || status.isEmpty) return;
+      final statusExibido = status;
+      final statusNormalizado = statusExibido.toLowerCase();
+      if (statusNormalizado.contains('cancel') ||
+          statusNormalizado.contains('recus') ||
+          statusNormalizado.contains('conclu')) {
+        return;
+      }
+      setState(() {
+        _resumoSolicitacao = _ResumoSolicitacao(
+          codigo: 'OS #${idSolicitacao.toString().padLeft(4, '0')}',
+          nomeServico: nomeServico?.isNotEmpty == true
+              ? nomeServico!
+              : 'Solicitação de serviço',
+          status: statusExibido,
+        );
+      });
+    } catch (e) {
+      debugPrint('Erro ao carregar resumo da solicitação: $e');
     }
   }
 
@@ -1635,8 +1753,15 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       elevation: 0,
       scrolledUnderElevation: 0,
       bottom: PreferredSize(
-        preferredSize: const Size.fromHeight(1),
-        child: Container(height: 1, color: const Color(0xFFE5E7EB)),
+        preferredSize: Size.fromHeight(_resumoSolicitacao == null ? 1 : 64),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_resumoSolicitacao != null)
+              _buildResumoSolicitacao(_resumoSolicitacao!),
+            Container(height: 1, color: const Color(0xFFE5E7EB)),
+          ],
+        ),
       ),
       leading: IconButton(
         onPressed: () => Navigator.pop(context),
@@ -1742,6 +1867,72 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
           icon: const Icon(Icons.more_vert, color: Color(0xFF374151)),
         ),
       ],
+    );
+  }
+
+  Widget _buildResumoSolicitacao(_ResumoSolicitacao resumo) {
+    return Container(
+      height: 63,
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 34),
+      child: Row(
+        children: [
+          const Icon(Icons.build_outlined, color: Color(0xFF006DCC), size: 25),
+          const SizedBox(width: 14),
+          Flexible(
+            flex: 0,
+            child: Text(
+              resumo.codigo,
+              style: const TextStyle(
+                color: Color(0xFF1F2937),
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12),
+            child: Text(
+              '•',
+              style: TextStyle(
+                color: Color(0xFFC5D0DC),
+                fontSize: 22,
+                height: 1,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              resumo.nomeServico,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFF64748B),
+                fontSize: 17,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEAF4FF),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Text(
+              resumo.status,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFF006DCC),
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -2771,6 +2962,18 @@ class _Mensagem {
 
 /// Opções do menu de anexos do chat.
 enum _OpcaoAnexo { galeria, documento }
+
+class _ResumoSolicitacao {
+  final String codigo;
+  final String nomeServico;
+  final String status;
+
+  const _ResumoSolicitacao({
+    required this.codigo,
+    required this.nomeServico,
+    required this.status,
+  });
+}
 
 /// Bolinha vermelha pulsando indicando gravação em andamento.
 class _PulsoVermelho extends StatefulWidget {

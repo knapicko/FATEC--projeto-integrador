@@ -375,6 +375,7 @@ class _MeusServicosSolicitadosPageState
               ? item.fkProfissional
               : null,
           idGrupoEmpresa: item.fkGrupoEmpresa,
+          idSolicitacao: item.idSolicitacao,
         ),
       ),
     );

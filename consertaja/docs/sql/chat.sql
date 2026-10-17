@@ -10,6 +10,13 @@
 ALTER TABLE public.usuarios
   ADD COLUMN IF NOT EXISTS ultima_conexao timestamptz;
 
+-- 0.1) Vincula o chat à solicitação/OS exibida no cabeçalho da conversa.
+ALTER TABLE public.conversas
+  ADD COLUMN IF NOT EXISTS fk_solicitacao bigint;
+
+CREATE INDEX IF NOT EXISTS idx_conversas_fk_solicitacao
+  ON public.conversas (fk_solicitacao);
+
 -- 1) Uma conversa por par (cliente, profissional) — evita duplicar chat.
 DO $$
 BEGIN
@@ -191,5 +198,4 @@ BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.conversas;
   END IF;
 END $$;
-
 
