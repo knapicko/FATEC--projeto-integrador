@@ -639,6 +639,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
           oficioPrincipal: _categoriaTitulo,
           idProfissional: _fkGrupoEmpresa == null ? _fkProfissional : null,
           idGrupoEmpresa: _fkGrupoEmpresa,
+          idSolicitacao: _idSolicitacao,
         ),
       ),
     );

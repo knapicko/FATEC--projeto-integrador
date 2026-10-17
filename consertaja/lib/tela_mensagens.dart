@@ -578,6 +578,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
           resultado.add(
             _ConversaResumo(
               idConversa: idConv,
+              idSolicitacao: (conv['fk_solicitacao'] as num?)?.toInt(),
               nomeContato: nomeContato,
               fotoUrl: fotoUrl,
               oficioContato: 'Cliente',
@@ -605,6 +606,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
           resultado.add(
             _ConversaResumo(
               idConversa: idConv,
+              idSolicitacao: (conv['fk_solicitacao'] as num?)?.toInt(),
               nomeContato: nomePorGrupo[idGrupoConv] ?? 'Empresa',
               fotoUrl: fotoPorGrupo[idGrupoConv] ?? '',
               oficioContato: 'Loja e Oficina Especializada',
@@ -635,6 +637,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
         resultado.add(
           _ConversaResumo(
             idConversa: idConv,
+            idSolicitacao: (conv['fk_solicitacao'] as num?)?.toInt(),
             nomeContato: contato['nome']?.toString() ?? 'Nome não encontrado',
             fotoUrl: contato['foto_perfil_url']?.toString() ?? '',
             oficioContato: oficioPorProfissional[chaveContato] ?? '',
@@ -1169,6 +1172,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
                 idGrupoEmpresa: conversa.ehChatEmpresa
                     ? conversa.idGrupoEmpresa
                     : null,
+                idSolicitacao: conversa.idSolicitacao,
                 idConversa: conversa.idConversa > 0
                     ? conversa.idConversa
                     : null,
@@ -1394,6 +1398,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
 
 class _ConversaResumo {
   final int idConversa;
+  final int? idSolicitacao;
   final String nomeContato;
   final String fotoUrl;
   final String oficioContato;
@@ -1412,6 +1417,7 @@ class _ConversaResumo {
 
   const _ConversaResumo({
     required this.idConversa,
+    this.idSolicitacao,
     required this.nomeContato,
     this.fotoUrl = '',
     this.oficioContato = '',
