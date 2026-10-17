@@ -17,6 +17,7 @@ import 'tela_meu_perfil_profissional.dart';
 import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
 import 'utils/app_navigation_util.dart';
+import 'widgets/skeleton_loading.dart';
 
 /// Constantes dos nomes das tabelas no Supabase
 const String _tabelaEndereco = 'enderecos';
@@ -618,7 +619,9 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
 
       // Empresa: limpa o ativo de TODOS os enderecos do grupo e ativa o
       // escolhido. Profissional: idem no seu vinculo. Cliente: original.
-      if (widget.isProfissional && _contaEmpresaAtiva && _idGrupoEmpresa != null) {
+      if (widget.isProfissional &&
+          _contaEmpresaAtiva &&
+          _idGrupoEmpresa != null) {
         await supabase
             .from(_tabelaAssGrupoEmpresaEndereco)
             .update({'endereco_ativo': false})
@@ -774,7 +777,9 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
       final eraPrincipal = endereco.principal;
 
       // Deleta o VINCULO da tabela certa (nunca o endereco de outro dono).
-      if (widget.isProfissional && _contaEmpresaAtiva && _idGrupoEmpresa != null) {
+      if (widget.isProfissional &&
+          _contaEmpresaAtiva &&
+          _idGrupoEmpresa != null) {
         await supabase
             .from(_tabelaAssGrupoEmpresaEndereco)
             .delete()
@@ -812,7 +817,9 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
 
       if (eraPrincipal) {
         // Promove outro vinculo do MESMO dono a principal.
-        if (widget.isProfissional && _contaEmpresaAtiva && _idGrupoEmpresa != null) {
+        if (widget.isProfissional &&
+            _contaEmpresaAtiva &&
+            _idGrupoEmpresa != null) {
           final restantes = await supabase
               .from(_tabelaAssGrupoEmpresaEndereco)
               .select('fk_endereco')
@@ -1266,9 +1273,7 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
   Widget _buildBotaoAdicionar() {
     // Profissional independente = 1 endereco comercial. Empresa = N
     // (matriz/filiais), entao o botao continua aparecendo.
-    if (widget.isProfissional &&
-        !_contaEmpresaAtiva &&
-        _enderecos.isNotEmpty) {
+    if (widget.isProfissional && !_contaEmpresaAtiva && _enderecos.isNotEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -1405,7 +1410,7 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
           _buildBarraPesquisa(),
           Expanded(
             child: _carregando
-                ? const Center(child: CircularProgressIndicator(color: _blue))
+                ? const SkeletonPage(layout: SkeletonLayout.cards)
                 : _erro
                 ? Center(
                     child: Column(
@@ -1440,8 +1445,8 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
                           widget.isProfissional && _contaEmpresaAtiva
                               ? 'Endereço Principal da Empresa'
                               : widget.isProfissional
-                                  ? 'Endereço do Profissional'
-                                  : 'Endereço Principal',
+                              ? 'Endereço do Profissional'
+                              : 'Endereço Principal',
                         ),
                         _buildCardPrincipal(enderecoPrincipal),
                         const SizedBox(height: 20),
@@ -1919,10 +1924,7 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
           vinculosDono = await supabase
               .from(tabelaAssociativa)
               .select('fk_endereco')
-              .eq(
-                filtroDono.keys.first,
-                filtroDono.values.first as Object,
-              );
+              .eq(filtroDono.keys.first, filtroDono.values.first as Object);
         } catch (_) {
           // Banco ainda sem a migration -> volta para a legada.
           tabelaNovaExiste = false;

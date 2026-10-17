@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'widgets/skeleton_loading.dart';
 
 import 'meus_pedidos.dart';
 import 'perfil_profissional.dart';
@@ -168,72 +169,83 @@ class _SeguindoClientePageState extends State<SeguindoClientePage> {
           backgroundColor: _primaryBlue,
           elevation: 0,
           leading: IconButton(
-            onPressed: () => AppNavigationUtil.tratarBotaoVoltar(context, isHome: false),
-            icon: const Icon(Icons.arrow_back_ios, size: 20, color: Colors.white),
+            onPressed: () =>
+                AppNavigationUtil.tratarBotaoVoltar(context, isHome: false),
+            icon: const Icon(
+              Icons.arrow_back_ios,
+              size: 20,
+              color: Colors.white,
+            ),
           ),
-        title: const Text(
-          'Seguindo',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+          title: const Text(
+            'Seguindo',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
           ),
+          centerTitle: true,
         ),
-        centerTitle: true,
-      ),
-      body: Column(
-        children: [
-          _buildBarraPesquisa(),
-          Expanded(
-            child: FutureBuilder<List<_ProfissionalSeguido>>(
-              future: _profissionaisFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: _blue));
-                }
-                if (snapshot.hasError) {
-                  return const Center(
-                    child: Text('Não foi possível carregar os profissionais.'),
+        body: Column(
+          children: [
+            _buildBarraPesquisa(),
+            Expanded(
+              child: FutureBuilder<List<_ProfissionalSeguido>>(
+                future: _profissionaisFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const SkeletonPage(layout: SkeletonLayout.cards);
+                  }
+                  if (snapshot.hasError) {
+                    return const Center(
+                      child: Text(
+                        'Não foi possível carregar os profissionais.',
+                      ),
+                    );
+                  }
+                  final termo = _termoBusca.trim().toLowerCase();
+                  final profissionais = (snapshot.data ?? [])
+                      .where(
+                        (profissional) =>
+                            termo.isEmpty ||
+                            profissional.nome.toLowerCase().contains(termo) ||
+                            profissional.oficios.any(
+                              (oficio) => oficio.toLowerCase().contains(termo),
+                            ),
+                      )
+                      .toList();
+                  if (profissionais.isEmpty) {
+                    return const Center(
+                      child: Text('Nenhum profissional encontrado.'),
+                    );
+                  }
+                  return ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(14, 20, 14, 24),
+                    itemCount: profissionais.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 13),
+                    itemBuilder: (context, index) =>
+                        _buildCard(profissionais[index]),
                   );
-                }
-                final termo = _termoBusca.trim().toLowerCase();
-                final profissionais = (snapshot.data ?? [])
-                    .where(
-                      (profissional) =>
-                          termo.isEmpty ||
-                          profissional.nome.toLowerCase().contains(termo) ||
-                          profissional.oficios.any(
-                            (oficio) => oficio.toLowerCase().contains(termo),
-                          ),
-                    )
-                    .toList();
-                if (profissionais.isEmpty) {
-                  return const Center(child: Text('Nenhum profissional encontrado.'));
-                }
-                return ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(14, 20, 14, 24),
-                  itemCount: profissionais.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 13),
-                  itemBuilder: (context, index) => _buildCard(profissionais[index]),
-                );
-              },
+                },
               ),
             ),
           ],
         ),
-      bottomNavigationBar: BottomNavigationBarCliente(
-        currentIndex: 1,
-        // Tocar em Seguindo estando em Seguindo recarrega a lista.
-        onReselecionarAbaAtual: (_) {
-          if (mounted) {
-            setState(() {
-              _profissionaisFuture = _carregarProfissionais();
-            });
-          }
-        },
-        onTap: _navegar,
+        bottomNavigationBar: BottomNavigationBarCliente(
+          currentIndex: 1,
+          // Tocar em Seguindo estando em Seguindo recarrega a lista.
+          onReselecionarAbaAtual: (_) {
+            if (mounted) {
+              setState(() {
+                _profissionaisFuture = _carregarProfissionais();
+              });
+            }
+          },
+          onTap: _navegar,
+        ),
       ),
-    ),);
+    );
   }
 
   Widget _buildBarraPesquisa() {

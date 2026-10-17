@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'widgets/skeleton_loading.dart';
 import 'utils/icone_oficio.dart';
 
 class ConfiguracoesEmpresaPage extends StatefulWidget {
@@ -232,9 +233,9 @@ class _ConfiguracoesEmpresaPageState extends State<ConfiguracoesEmpresaPage> {
       // 5. Carrega os ofícios próprios da empresa
       if (_idGrupoEmpresa != null) {
         final associacoes = await _supabase
-        .from('ass_oficio_grupo_empresa')
+            .from('ass_oficio_grupo_empresa')
             .select('fk_oficio')
-        .eq('fk_grupo_empresa', _idGrupoEmpresa!);
+            .eq('fk_grupo_empresa', _idGrupoEmpresa!);
 
         final idsOficios = associacoes
             .map((e) => (e['fk_oficio'] as num?)?.toInt())
@@ -712,7 +713,7 @@ class _ConfiguracoesEmpresaPageState extends State<ConfiguracoesEmpresaPage> {
         ),
       ),
       body: _carregando
-          ? const Center(child: CircularProgressIndicator(color: _primaryBlue))
+          ? const SkeletonPage(layout: SkeletonLayout.form)
           : SafeArea(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),

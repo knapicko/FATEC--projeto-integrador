@@ -64,7 +64,8 @@ ALTER TABLE public.solicitacoes
   ADD COLUMN IF NOT EXISTS tipo_entrega text,
   ADD COLUMN IF NOT EXISTS detalhes text,
   ADD COLUMN IF NOT EXISTS data_agendada date,
-  ADD COLUMN IF NOT EXISTS hora_agendada time without time zone;
+  ADD COLUMN IF NOT EXISTS hora_agendada time without time zone,
+  ADD COLUMN IF NOT EXISTS hora_agendada_fim time without time zone;
 
 DO $$
 BEGIN

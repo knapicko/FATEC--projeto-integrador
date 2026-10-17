@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'widgets/skeleton_loading.dart';
 
 import 'models/metodo_entrega.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
@@ -245,16 +246,18 @@ class _MetodoEntregaProfissionalPageState
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Preferências de entrega salvas com sucesso.')),
+        const SnackBar(
+          content: Text('Preferências de entrega salvas com sucesso.'),
+        ),
       );
 
       Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao salvar: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro ao salvar: $e')));
     } finally {
       if (mounted) {
         setState(() => _salvando = false);
@@ -304,7 +307,9 @@ class _MetodoEntregaProfissionalPageState
             color: selecionada ? const Color(0xFFEAF8FF) : _cardFill,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: selecionada ? _primaryBlue.withValues(alpha: 0.6) : _cardBorder,
+              color: selecionada
+                  ? _primaryBlue.withValues(alpha: 0.6)
+                  : _cardBorder,
             ),
           ),
           child: Row(
@@ -315,11 +320,7 @@ class _MetodoEntregaProfissionalPageState
                 child: _buildCheckBox(selecionada),
               ),
               const SizedBox(width: 12),
-              Icon(
-                opcao.icone,
-                color: _primaryBlue,
-                size: 26,
-              ),
+              Icon(opcao.icone, color: _primaryBlue, size: 26),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -363,7 +364,10 @@ class _MetodoEntregaProfissionalPageState
         automaticallyImplyLeading: false,
         leading: IconButton(
           onPressed: () => Navigator.of(context).maybePop(),
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: _primaryBlue),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: _primaryBlue,
+          ),
           splashRadius: 20,
         ),
         centerTitle: true,
@@ -379,7 +383,7 @@ class _MetodoEntregaProfissionalPageState
         ),
       ),
       body: _carregando
-          ? const Center(child: CircularProgressIndicator(color: _primaryBlue))
+          ? const SkeletonPage(layout: SkeletonLayout.cards)
           : SafeArea(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 18),
@@ -413,32 +417,32 @@ class _MetodoEntregaProfissionalPageState
                           const SizedBox(height: 6),
                           const Text(
                             '(Nota: Você pode selecionar mais de uma opção)',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: _textMuted,
-                            ),
+                            style: TextStyle(fontSize: 14, color: _textMuted),
                           ),
                           const SizedBox(height: 24),
                           ...metodosEntregaOpcoes
-                              .where((opcao) => opcao.valor != 'Atendimento em Domicílio')
-                              .map((opcao) => Padding(
-                                    padding: const EdgeInsets.only(bottom: 12),
-                                    child: _buildOpcaoEntrega(opcao),
-                                  )),
+                              .where(
+                                (opcao) =>
+                                    opcao.valor != 'Atendimento em Domicílio',
+                              )
+                              .map(
+                                (opcao) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: _buildOpcaoEntrega(opcao),
+                                ),
+                              ),
                           const SizedBox(height: 12),
                           const Text(
                             '(Nota: Marque esta opção se o seu trabalho exige ir até o cliente)',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: _textMuted,
-                            ),
+                            style: TextStyle(fontSize: 14, color: _textMuted),
                           ),
                           const SizedBox(height: 12),
                           Padding(
                             padding: const EdgeInsets.only(bottom: 12),
                             child: _buildOpcaoEntrega(
                               metodosEntregaOpcoes.firstWhere(
-                                (opcao) => opcao.valor == 'Atendimento em Domicílio',
+                                (opcao) =>
+                                    opcao.valor == 'Atendimento em Domicílio',
                               ),
                             ),
                           ),
@@ -465,7 +469,10 @@ class _MetodoEntregaProfissionalPageState
                                 ),
                                 elevation: 0,
                               ),
-                              icon: const Icon(Icons.save_alt_rounded, size: 20),
+                              icon: const Icon(
+                                Icons.save_alt_rounded,
+                                size: 20,
+                              ),
                               label: const Text(
                                 'Salvar Preferências',
                                 style: TextStyle(

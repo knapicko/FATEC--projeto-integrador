@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'widgets/skeleton_loading.dart';
 
 import 'gestao_equipe.dart';
 import 'meus_pedidos.dart';
@@ -110,11 +111,9 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
           .maybeSingle();
       final idUsuario = (usuario?['id_usuario'] as num?)?.toInt();
 
-      bool ehProfissional = widget.isProfissional ||
-          (usuario?['tipo_conta'] ?? '')
-                  .toString()
-                  .trim()
-                  .toLowerCase() ==
+      bool ehProfissional =
+          widget.isProfissional ||
+          (usuario?['tipo_conta'] ?? '').toString().trim().toLowerCase() ==
               'profissional';
 
       String? fotoEmpresa;
@@ -149,10 +148,10 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
           _minhaFotoConta = fotoEmpresa;
           _meuNomeConta = nomeEmpresa.isNotEmpty ? nomeEmpresa : 'Empresa';
         } else {
-          final fotoProf =
-              (usuario?['foto_perfil_url'] as String?)?.trim();
-          _minhaFotoConta =
-              (fotoProf != null && fotoProf.isNotEmpty) ? fotoProf : null;
+          final fotoProf = (usuario?['foto_perfil_url'] as String?)?.trim();
+          _minhaFotoConta = (fotoProf != null && fotoProf.isNotEmpty)
+              ? fotoProf
+              : null;
           _meuNomeConta = (usuario?['nome'] as String?)?.trim() ?? '';
         }
       });
@@ -200,18 +199,18 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
       _idUsuarioLogado = idUsuario;
 
       // 1) Identifica se é profissional por prop, por tipo_conta ou por presença em dados_profissionais
-      bool isProfissional = widget.isProfissional ||
-          (usuario?['tipo_conta'] ?? '')
-                  .toString()
-                  .trim()
-                  .toLowerCase() ==
+      bool isProfissional =
+          widget.isProfissional ||
+          (usuario?['tipo_conta'] ?? '').toString().trim().toLowerCase() ==
               'profissional';
 
       bool temColunaGrupo = true;
       try {
         await _supabase
             .from('conversas')
-            .select('id_conversa, fk_usuario, fk_profissional, fk_grupo_empresa')
+            .select(
+              'id_conversa, fk_usuario, fk_profissional, fk_grupo_empresa',
+            )
             .limit(0);
       } catch (_) {
         temColunaGrupo = false;
@@ -221,9 +220,11 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
       try {
         dadosProfMeu = await _supabase
             .from('dados_profissionais')
-            .select(temColunaGrupo
-                ? 'id_profissional, fk_grupo_empresa'
-                : 'id_profissional')
+            .select(
+              temColunaGrupo
+                  ? 'id_profissional, fk_grupo_empresa'
+                  : 'id_profissional',
+            )
             .eq('fk_usuario', idUsuario)
             .maybeSingle();
         if (dadosProfMeu != null) {
@@ -242,8 +243,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
 
       if (isProfissional) {
         final idProf = (dadosProfMeu?['id_profissional'] as num?)?.toInt();
-        final idGrupoMeu =
-            (dadosProfMeu?['fk_grupo_empresa'] as num?)?.toInt();
+        final idGrupoMeu = (dadosProfMeu?['fk_grupo_empresa'] as num?)?.toInt();
         if (idProf == null && idGrupoMeu == null) {
           _aplicarLista([]);
           return;
@@ -256,8 +256,9 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
                 .select()
                 .eq('fk_grupo_empresa', idGrupoMeu);
             todas.addAll(
-              (daEmpresa as List)
-                  .map((e) => Map<String, dynamic>.from(e as Map)),
+              (daEmpresa as List).map(
+                (e) => Map<String, dynamic>.from(e as Map),
+              ),
             );
           }
         } else {
@@ -303,8 +304,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
           if (!ultimaPorConversa.containsKey(id)) {
             ultimaPorConversa[id] = Map<String, dynamic>.from(mensagem);
           }
-          final remetente =
-              (mensagem['fk_remitente_usuario'] as num?)?.toInt();
+          final remetente = (mensagem['fk_remitente_usuario'] as num?)?.toInt();
           if (remetente != null && remetente != idUsuario) {
             remetentesOutrosPorConversa
                 .putIfAbsent(id, () => <int>{})
@@ -327,7 +327,9 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
         if (idsSolicitacao.isNotEmpty) {
           final solicitacoes = await _supabase
               .from('solicitacoes')
-              .select('id_solicitacao, data_aceite, fk_servico_prof, fk_usuario')
+              .select(
+                'id_solicitacao, data_aceite, fk_servico_prof, fk_usuario',
+              )
               .inFilter('id_solicitacao', idsSolicitacao);
           for (final row in solicitacoes as List) {
             final idSol = (row['id_solicitacao'] as num?)?.toInt();
@@ -356,8 +358,8 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
               for (final row in servicos)
                 if ((row['id_servico_prof'] as num?) != null &&
                     row['titulo'] != null)
-                  (row['id_servico_prof'] as num).toInt():
-                      row['titulo'].toString(),
+                  (row['id_servico_prof'] as num).toInt(): row['titulo']
+                      .toString(),
             };
             final solicitacaoPorId = <int, Map<String, dynamic>>{
               for (final row in solicitacoes)
@@ -372,8 +374,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
               if (solicitacao == null || solicitacao['data_aceite'] == null) {
                 continue;
               }
-              final idServ =
-                  (solicitacao['fk_servico_prof'] as num?)?.toInt();
+              final idServ = (solicitacao['fk_servico_prof'] as num?)?.toInt();
               final titulo = idServ == null ? null : tituloPorServico[idServ];
               final idConv = (conv['id_conversa'] as num?)?.toInt();
               if (idConv != null && titulo != null && titulo.isNotEmpty) {
@@ -385,7 +386,8 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
       } catch (_) {}
 
       final Map<int, Map<String, dynamic>> contatoPorChave;
-      final Map<int, int> clientePorConversa = {}; // idConversa -> idUsuario do cliente
+      final Map<int, int> clientePorConversa =
+          {}; // idConversa -> idUsuario do cliente
 
       if (isProfissional) {
         final idsClientes = <int>{};
@@ -423,8 +425,9 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
           contatoPorChave = {
             for (final row in usuarios)
               if ((row['id_usuario'] as num?) != null)
-                (row['id_usuario'] as num).toInt():
-                    Map<String, dynamic>.from(row),
+                (row['id_usuario'] as num).toInt(): Map<String, dynamic>.from(
+                  row,
+                ),
           };
         } else {
           contatoPorChave = {};
@@ -475,8 +478,9 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
           usuarioPorId = <int, Map<String, dynamic>>{
             for (final row in usuarios)
               if ((row['id_usuario'] as num?) != null)
-                (row['id_usuario'] as num).toInt():
-                    Map<String, dynamic>.from(row),
+                (row['id_usuario'] as num).toInt(): Map<String, dynamic>.from(
+                  row,
+                ),
           };
         }
         contatoPorChave = <int, Map<String, dynamic>>{
@@ -553,8 +557,8 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
         final ehEmpresa = idGrupoConv != null;
 
         final ultima = ultimaPorConversa[idConv];
-        final remetenteUltima =
-            (ultima?['fk_remitente_usuario'] as num?)?.toInt();
+        final remetenteUltima = (ultima?['fk_remitente_usuario'] as num?)
+            ?.toInt();
         final ultimaLida = ultima?['lida'] == true;
         final ultimaEnviadaPorMim =
             remetenteUltima != null && remetenteUltima == idUsuario;
@@ -563,15 +567,13 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
 
         if (isProfissional) {
           final idCliente = clientePorConversa[idConv];
-          final contato =
-              idCliente != null ? contatoPorChave[idCliente] : null;
+          final contato = idCliente != null ? contatoPorChave[idCliente] : null;
 
           final nomeContato =
               contato?['nome']?.toString().trim().isNotEmpty == true
-                  ? contato!['nome'].toString().trim()
-                  : 'Cliente';
-          final fotoUrl =
-              contato?['foto_perfil_url']?.toString().trim() ?? '';
+              ? contato!['nome'].toString().trim()
+              : 'Cliente';
+          final fotoUrl = contato?['foto_perfil_url']?.toString().trim() ?? '';
 
           resultado.add(
             _ConversaResumo(
@@ -625,8 +627,9 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
         }
 
         final chaveContato = (conv['fk_profissional'] as num?)?.toInt();
-        final contato =
-            chaveContato == null ? null : contatoPorChave[chaveContato];
+        final contato = chaveContato == null
+            ? null
+            : contatoPorChave[chaveContato];
         if (contato == null) continue;
 
         resultado.add(
@@ -733,8 +736,8 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
 
   static bool _eTabelaIndisponivel(Object erro) {
     if (erro is! PostgrestException) return false;
-    final texto =
-        '${erro.message} ${erro.details ?? ''} ${erro.hint ?? ''}'.toLowerCase();
+    final texto = '${erro.message} ${erro.details ?? ''} ${erro.hint ?? ''}'
+        .toLowerCase();
     return erro.code == '42P01' ||
         (texto.contains('conversas') || texto.contains('mensagens')) &&
             (texto.contains('not found') ||
@@ -781,8 +784,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
   String? _previaMensagem(Map<String, dynamic>? ultima) {
     if (ultima == null) return null;
 
-    final tipo = (ultima['tipo_mensagem']?.toString() ?? 'Texto')
-        .toLowerCase();
+    final tipo = (ultima['tipo_mensagem']?.toString() ?? 'Texto').toLowerCase();
     final conteudo = ultima['conteudo']?.toString() ?? '';
 
     if (tipo == 'imagem') return '📷 Foto';
@@ -840,9 +842,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
 
   Widget _buildLista() {
     if (_carregando && _conversas.isEmpty) {
-      return const Center(
-        child: CircularProgressIndicator(color: _primaryBlue),
-      );
+      return const SkeletonPage(layout: SkeletonLayout.messages);
     }
     if (_erro != null && _conversas.isEmpty) {
       return Center(
@@ -884,8 +884,9 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
 
   Widget _buildAvatarMinhaConta() {
     final foto = (_minhaFotoConta ?? '').trim();
-    final nomeBase =
-        _meuNomeConta.trim().isNotEmpty ? _meuNomeConta.trim() : 'Conta';
+    final nomeBase = _meuNomeConta.trim().isNotEmpty
+        ? _meuNomeConta.trim()
+        : 'Conta';
     final Widget imagem;
     if (foto.startsWith('http')) {
       imagem = CircleAvatar(
@@ -971,8 +972,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
         key: const ValueKey('bottomProfissional'),
         currentIndex: 2,
         // Tocar em Mensagens estando em Mensagens recarrega a lista.
-        onReselecionarAbaAtual: (_) =>
-            _carregarConversas(mostrarLoading: true),
+        onReselecionarAbaAtual: (_) => _carregarConversas(mostrarLoading: true),
         onTap: _navegar,
       );
     }
@@ -1163,11 +1163,15 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
                 oficioPrincipal: conversa.subtituloServico,
                 // Empresa usa fk_grupo_empresa (chat próprio da loja);
                 // profissional individual usa fk_profissional.
-                idProfissional:
-                    conversa.ehChatEmpresa ? null : conversa.idProfissional,
-                idGrupoEmpresa:
-                    conversa.ehChatEmpresa ? conversa.idGrupoEmpresa : null,
-                idConversa: conversa.idConversa > 0 ? conversa.idConversa : null,
+                idProfissional: conversa.ehChatEmpresa
+                    ? null
+                    : conversa.idProfissional,
+                idGrupoEmpresa: conversa.ehChatEmpresa
+                    ? conversa.idGrupoEmpresa
+                    : null,
+                idConversa: conversa.idConversa > 0
+                    ? conversa.idConversa
+                    : null,
               ),
             ),
           );
@@ -1251,25 +1255,23 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
                           // conversa enviada por mim), para mostrar se foi
                           // lida (azul duplo) ou não (cinza).
                           if (conversa.ultimaMensagemEnviadaPorMim &&
-                              (conversa.ultimaMensagem
-                                      ?.trim()
-                                      .isNotEmpty ==
+                              (conversa.ultimaMensagem?.trim().isNotEmpty ==
                                   true)) ...[
                             Icon(
                               conversa.ultimaMensagemLida
                                   ? Icons.done_all
                                   : Icons.done,
                               size: 16,
-                              color:
-                                  conversa.ultimaMensagemLida
-                                      ? _primaryBlue
-                                      : Colors.grey.shade400,
+                              color: conversa.ultimaMensagemLida
+                                  ? _primaryBlue
+                                  : Colors.grey.shade400,
                             ),
                             const SizedBox(width: 4),
                           ],
                           Expanded(
                             child: Text(
-                              conversa.ultimaMensagem ?? 'Nenhuma mensagem ainda',
+                              conversa.ultimaMensagem ??
+                                  'Nenhuma mensagem ainda',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(

@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS public.ass_servicos_lista (
     detalhes text,
     data_agendada date NOT NULL,
     hora_agendada time without time zone NOT NULL,
+    hora_agendada_fim time without time zone,
     data_criacao timestamp with time zone NOT NULL DEFAULT now(),
     CONSTRAINT ass_servicos_lista_pkey PRIMARY KEY (fk_lista, fk_servico_prof),
     CONSTRAINT ass_servicos_lista_fk_lista_fkey FOREIGN KEY (fk_lista)
@@ -39,6 +40,9 @@ CREATE TABLE IF NOT EXISTS public.ass_servicos_lista (
     CONSTRAINT ass_servicos_lista_fk_endereco_escolhido_fkey FOREIGN KEY (fk_endereco_escolhido)
         REFERENCES public.enderecos(id_endereco) ON DELETE SET NULL
 );
+
+ALTER TABLE public.ass_servicos_lista
+    ADD COLUMN IF NOT EXISTS hora_agendada_fim time without time zone;
 
 CREATE INDEX IF NOT EXISTS ass_servicos_lista_fk_lista_idx
     ON public.ass_servicos_lista (fk_lista);

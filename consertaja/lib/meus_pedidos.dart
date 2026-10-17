@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'widgets/skeleton_loading.dart';
 import 'seguindo_cliente.dart';
 import 'tela_chat_profissional.dart';
 import 'tela_home.dart';
@@ -542,7 +543,7 @@ class MeusPedidosState extends State<MeusPedidosPage> {
 
   Widget corpo() {
     if (carregando) {
-      return const Center(child: CircularProgressIndicator(color: azul));
+      return const SkeletonPage(layout: SkeletonLayout.cards);
     }
     if (erro != null) {
       return Center(

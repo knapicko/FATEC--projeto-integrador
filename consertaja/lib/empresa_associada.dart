@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'widgets/skeleton_loading.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/icone_oficio.dart';
 import 'utils/iniciais.dart';
@@ -312,7 +313,7 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
               ],
       ),
       body: _carregando
-          ? const Center(child: CircularProgressIndicator(color: _blue))
+          ? const SkeletonPage(layout: SkeletonLayout.cards)
           : _empresa == null
           ? const Center(child: Text('Você não faz parte de nenhuma empresa'))
           : RefreshIndicator(

@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'widgets/skeleton_loading.dart';
 import 'alterar_disponibilidade.dart';
 import 'area_atuacao.dart';
 import 'editar_informacoes.dart';
@@ -595,7 +596,10 @@ class _TelaMeuPerfilProfissionalPageState
         } else if (index == 2) {
           AppNavigationUtil.navegarAba(
             context,
-            TelaMensagensPage(isVisitante: widget.isVisitante, isProfissional: true),
+            TelaMensagensPage(
+              isVisitante: widget.isVisitante,
+              isProfissional: true,
+            ),
             isHome: false,
           );
         } else if (index == 3) {
@@ -620,205 +624,218 @@ class _TelaMeuPerfilProfissionalPageState
     return AppBackHandler(
       child: Scaffold(
         backgroundColor: _background,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            Expanded(
-              child: _isLoading
-                  ? const Center(
-                      child:
-                          CircularProgressIndicator(color: _blue),
-                    )
-                  : ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  _buildTopHeader(),
-                  if (!widget.isVisitante && _avisosAtivos.isNotEmpty)
-                    _buildAvisoAtual(),
-                  if (!widget.isVisitante) _buildEditarMeusDados(),
-                  _buildSectionTitle('Sua Atividade'),
-                  _buildProfileItem(
-                    label: 'Meus Endereços',
-                    fallbackIcon: Icons.location_on_outlined,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => MeusEnderecosPage(
-                            isVisitante: widget.isVisitante,
-                            isProfissional: true,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildProfileItem(
-                    label: 'Histórico de Pedidos',
-                    fallbackIcon: Icons.inventory_2_outlined,
-                  ),
-                  _buildProfileItem(
-                    label: 'Minhas Avaliações',
-                    fallbackIcon: Icons.star_rounded,
-                    useRoundedIcon: true,
-                  ),
-                  _buildProfileItem(
-                    label: 'Minha Área de Atuação',
-                    fallbackIcon: Icons.work_outline,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const AreaAtuacaoPage(),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildProfileItem(
-                    label: 'Meus Documentos',
-                    fallbackIcon: Icons.description_outlined,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const MeusDocumentosPage(),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildProfileItem(
-                    label: 'Ajustar Disponibilidade',
-                    fallbackIcon: Icons.event_available_outlined,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const AlterarDisponibilidadePage(),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildProfileItem(
-                    label: 'Notificações',
-                    fallbackIcon: Icons.notifications_none_rounded,
-                  ),
-
-                  const Divider(height: 1, thickness: 1, color: _divider),
-
-                  _buildSectionTitle('Suporte'),
-                  _buildProfileItem(
-                    label: 'Perguntas Frequentes',
-                    fallbackIcon: Icons.help_outline_rounded,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const PerguntasFrequentesPage(),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildProfileItem(
-                    label: 'Fale Conosco',
-                    fallbackIcon: Icons.support_agent_rounded,
-                  ),
-
-                  const Divider(height: 1, thickness: 1, color: _divider),
-
-                  _buildProfileItem(
-                    label: 'Sobre a ConsertaJá',
-                    imageAsset: 'assets/images/ConsertaJa_Cinza.png',
-                    fallbackIcon: Icons.info_outline_rounded,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const SobreConsertaJaPage(),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildProfileItem(
-                    label: 'Configurações',
-                    fallbackIcon: Icons.settings_outlined,
-                  ),
-                  _buildProfileItem(
-                    label: 'Termos de Uso',
-                    semIcone: true,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const TermosDeUsoPage(),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildProfileItem(
-                    label: 'Política de Privacidade',
-                    semIcone: true,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const PoliticaDePrivacidadePage(),
-                        ),
-                      );
-                    },
-                  ),
-
-                  const Divider(height: 1, thickness: 1, color: _divider),
-
-                  InkWell(
-                    onTap: _sairDaConta,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                      child: Row(
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              Expanded(
+                child: _isLoading
+                    ? const SkeletonPage(layout: SkeletonLayout.profile)
+                    : ListView(
+                        padding: EdgeInsets.zero,
                         children: [
-                          const SizedBox(
-                            width: 28,
-                            child: Center(
-                              child: Icon(
-                                Icons.logout,
-                                color: Colors.red,
-                                size: 24,
+                          _buildTopHeader(),
+                          if (!widget.isVisitante && _avisosAtivos.isNotEmpty)
+                            _buildAvisoAtual(),
+                          if (!widget.isVisitante) _buildEditarMeusDados(),
+                          _buildSectionTitle('Sua Atividade'),
+                          _buildProfileItem(
+                            label: 'Meus Endereços',
+                            fallbackIcon: Icons.location_on_outlined,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => MeusEnderecosPage(
+                                    isVisitante: widget.isVisitante,
+                                    isProfissional: true,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          _buildProfileItem(
+                            label: 'Histórico de Pedidos',
+                            fallbackIcon: Icons.inventory_2_outlined,
+                          ),
+                          _buildProfileItem(
+                            label: 'Minhas Avaliações',
+                            fallbackIcon: Icons.star_rounded,
+                            useRoundedIcon: true,
+                          ),
+                          _buildProfileItem(
+                            label: 'Minha Área de Atuação',
+                            fallbackIcon: Icons.work_outline,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const AreaAtuacaoPage(),
+                                ),
+                              );
+                            },
+                          ),
+                          _buildProfileItem(
+                            label: 'Meus Documentos',
+                            fallbackIcon: Icons.description_outlined,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const MeusDocumentosPage(),
+                                ),
+                              );
+                            },
+                          ),
+                          _buildProfileItem(
+                            label: 'Ajustar Disponibilidade',
+                            fallbackIcon: Icons.event_available_outlined,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const AlterarDisponibilidadePage(),
+                                ),
+                              );
+                            },
+                          ),
+                          _buildProfileItem(
+                            label: 'Notificações',
+                            fallbackIcon: Icons.notifications_none_rounded,
+                          ),
+
+                          const Divider(
+                            height: 1,
+                            thickness: 1,
+                            color: _divider,
+                          ),
+
+                          _buildSectionTitle('Suporte'),
+                          _buildProfileItem(
+                            label: 'Perguntas Frequentes',
+                            fallbackIcon: Icons.help_outline_rounded,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const PerguntasFrequentesPage(),
+                                ),
+                              );
+                            },
+                          ),
+                          _buildProfileItem(
+                            label: 'Fale Conosco',
+                            fallbackIcon: Icons.support_agent_rounded,
+                          ),
+
+                          const Divider(
+                            height: 1,
+                            thickness: 1,
+                            color: _divider,
+                          ),
+
+                          _buildProfileItem(
+                            label: 'Sobre a ConsertaJá',
+                            imageAsset: 'assets/images/ConsertaJa_Cinza.png',
+                            fallbackIcon: Icons.info_outline_rounded,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const SobreConsertaJaPage(),
+                                ),
+                              );
+                            },
+                          ),
+                          _buildProfileItem(
+                            label: 'Configurações',
+                            fallbackIcon: Icons.settings_outlined,
+                          ),
+                          _buildProfileItem(
+                            label: 'Termos de Uso',
+                            semIcone: true,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const TermosDeUsoPage(),
+                                ),
+                              );
+                            },
+                          ),
+                          _buildProfileItem(
+                            label: 'Política de Privacidade',
+                            semIcone: true,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const PoliticaDePrivacidadePage(),
+                                ),
+                              );
+                            },
+                          ),
+
+                          const Divider(
+                            height: 1,
+                            thickness: 1,
+                            color: _divider,
+                          ),
+
+                          InkWell(
+                            onTap: _sairDaConta,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 14,
+                              ),
+                              child: Row(
+                                children: [
+                                  const SizedBox(
+                                    width: 28,
+                                    child: Center(
+                                      child: Icon(
+                                        Icons.logout,
+                                        color: Colors.red,
+                                        size: 24,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  const Expanded(
+                                    child: Text(
+                                      'Sair da conta',
+                                      style: TextStyle(
+                                        color: Colors.red,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w400,
+                                      ),
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.chevron_right,
+                                    color: Colors.red,
+                                    size: 20,
+                                  ),
+                                ],
                               ),
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          const Expanded(
-                            child: Text(
-                              'Sair da conta',
-                              style: TextStyle(
-                                color: Colors.red,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w400,
-                              ),
-                            ),
-                          ),
-                          const Icon(
-                            Icons.chevron_right,
-                            color: Colors.red,
-                            size: 20,
-                          ),
+
+                          const SizedBox(height: 20),
                         ],
                       ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-                ],
               ),
-            ),
-          ],
+            ],
+          ),
         ),
+        bottomNavigationBar: _buildBottomNav(),
       ),
-      bottomNavigationBar: _buildBottomNav(),
-    ),);
+    );
   }
 }

@@ -14,6 +14,7 @@ import 'tela_servico.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/icone_oficio.dart';
 import 'utils/iniciais.dart';
+import 'widgets/skeleton_loading.dart';
 
 class _DadosEnderecoProfissional {
   final String apelido;
@@ -295,9 +296,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
       _corBanner = widget.corBannerInicial!;
     } else if (widget.corBannerHexInicial != null &&
         widget.corBannerHexInicial!.trim().isNotEmpty) {
-      _corBanner = CorDominanteService.paraColor(
-        widget.corBannerHexInicial,
-      );
+      _corBanner = CorDominanteService.paraColor(widget.corBannerHexInicial);
     } else if (_cacheCorBannerPorNome.containsKey(chaveCache)) {
       _corBanner = _cacheCorBannerPorNome[chaveCache]!;
     }
@@ -705,7 +704,8 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
 
       // 4. Se ainda não achou, busca por nome (atual ou inicial)
       if (response == null) {
-        final nomeBusca = _nome.isNotEmpty && _nome != 'Profissional não encontrado'
+        final nomeBusca =
+            _nome.isNotEmpty && _nome != 'Profissional não encontrado'
             ? _nome
             : widget.nomeInicial;
         final query = await supabase
@@ -716,7 +716,8 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
             .limit(1);
         if (query.isNotEmpty) {
           response = query.first;
-        } else if (nomeBusca != widget.nomeInicial && widget.nomeInicial.isNotEmpty) {
+        } else if (nomeBusca != widget.nomeInicial &&
+            widget.nomeInicial.isNotEmpty) {
           final queryIni = await supabase
               .from('usuarios')
               .select('nome, foto_perfil_url, id_usuario')
@@ -756,9 +757,13 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
               )
               .eq('fk_usuario', fkUsuario)
               .maybeSingle();
-          idProfissional = (dadosProf?['id_profissional'] as num?)?.toInt() ?? idProfissional;
+          idProfissional =
+              (dadosProf?['id_profissional'] as num?)?.toInt() ??
+              idProfissional;
           fkPerfil = (dadosProf?['fk_perfil'] as num?)?.toInt() ?? fkPerfil;
-          idGrupoEmpresa = (dadosProf?['fk_grupo_empresa'] as num?)?.toInt() ?? idGrupoEmpresa;
+          idGrupoEmpresa =
+              (dadosProf?['fk_grupo_empresa'] as num?)?.toInt() ??
+              idGrupoEmpresa;
           anosExperiencia = dadosProf?['anos_experiencia']?.toString();
           metodoEntregaRaw = dadosProf?['metodo_entrega']?.toString();
           debugPrint(
@@ -790,7 +795,8 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
 
         setState(() {
           _idGrupoEmpresa = idGrupoEmpresa;
-          _nome = response?['nome']?.toString() ?? 'Profissional não encontrado';
+          _nome =
+              response?['nome']?.toString() ?? 'Profissional não encontrado';
           final foto = response?['foto_perfil_url']?.toString();
           String? novaFoto;
           if (foto != null && foto.isNotEmpty && foto != 'null') {
@@ -862,17 +868,18 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
         // recalcula a partir da foto atual (ou usa o novo default
         // 0xFF0FB3FF quando não há foto) e salva no Supabase.
         if (fkPerfil != null && mounted) {
-          final precisaRecalcular = corBanner == null ||
+          final precisaRecalcular =
+              corBanner == null ||
               corBanner.trim().isEmpty ||
               corBanner.trim().toLowerCase() == 'null' ||
               corBanner.trim().toUpperCase() == '0XFF0A6E9D';
           if (precisaRecalcular) {
             final fotoAtual = _fotoUrl;
-            final corRecalculada =
-                await CorDominanteService.extrairDaUrl(fotoAtual);
+            final corRecalculada = await CorDominanteService.extrairDaUrl(
+              fotoAtual,
+            );
             if (mounted) {
-              final corNova =
-                  CorDominanteService.paraColor(corRecalculada);
+              final corNova = CorDominanteService.paraColor(corRecalculada);
               // Só dá setState se a cor realmente mudou -> sem "piscar".
               if (corNova != _corBanner) {
                 setState(() {
@@ -882,11 +889,14 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
               _cacheCorBannerPorNome[_nome.trim().toLowerCase()] = _corBanner;
             }
             try {
-              await supabase.from('perfil').update(
-                {'cor_banner': corRecalculada},
-              ).eq('id_perfil', fkPerfil);
+              await supabase
+                  .from('perfil')
+                  .update({'cor_banner': corRecalculada})
+                  .eq('id_perfil', fkPerfil);
             } catch (e) {
-              debugPrint('⚠️ [PerfilProfissional] Falha ao salvar cor recalculada: $e');
+              debugPrint(
+                '⚠️ [PerfilProfissional] Falha ao salvar cor recalculada: $e',
+              );
             }
           }
         }
@@ -1926,8 +1936,10 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
         }
         return;
       }
-      final ehMembroEmpresa = await ServicosProfissionalService
-          .profissionalEhMembroEmpresa(idProfissional);
+      final ehMembroEmpresa =
+          await ServicosProfissionalService.profissionalEhMembroEmpresa(
+            idProfissional,
+          );
       if (ehMembroEmpresa) {
         if (mounted) {
           setState(() {
@@ -2303,10 +2315,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
     _carregandoSeguimento = false;
 
     // 3. Recarrega os dados completos do usuário logado e do perfil profissional
-    await Future.wait([
-      _carregarUsuarioLogado(),
-      _carregarDadosProfissional(),
-    ]);
+    await Future.wait([_carregarUsuarioLogado(), _carregarDadosProfissional()]);
 
     if (mounted) {
       setState(() {});
@@ -4130,9 +4139,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const SizedBox(
                   height: 140,
-                  child: Center(
-                    child: CircularProgressIndicator(color: _primaryBlue),
-                  ),
+                  child: Center(child: const SkeletonProfileCard()),
                 );
               }
 
@@ -4540,7 +4547,8 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                     final categoria = _categorias[index];
                     final isSelected = _categoriaServico == categoria;
                     return GestureDetector(
-                      onTap: () => setState(() => _categoriaServico = categoria),
+                      onTap: () =>
+                          setState(() => _categoriaServico = categoria),
                       child: Container(
                         margin: const EdgeInsets.only(right: 8),
                         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -4578,7 +4586,10 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
             if (servicosFiltrados.isEmpty)
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 24,
+                  horizontal: 16,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF8FAFC),
                   borderRadius: BorderRadius.circular(16),
@@ -4619,158 +4630,157 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
     final corTag = servico.cor != null && servico.cor!.isNotEmpty
         ? CorOficio.parse(servico.cor)
         : (servico.funcao != null && servico.funcao!.isNotEmpty
-            ? CorOficio.parse(servico.funcao!)
-            : _primaryBlue);
+              ? CorOficio.parse(servico.funcao!)
+              : _primaryBlue);
 
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => TelaServico(
-              idServico: servico.id,
-              servicoInicial: servico,
-            ),
+            builder: (_) =>
+                TelaServico(idServico: servico.id, servicoInicial: servico),
           ),
         );
       },
       child: Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _borderColor),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Imagem do serviço com tag de categoria sobreposta
-          Expanded(
-            flex: 11,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (servico.imagemUrl != null &&
-                    servico.imagemUrl!.trim().isNotEmpty)
-                  Image.network(
-                    servico.imagemUrl!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => _buildFallbackImagemServico(),
-                  )
-                else
-                  _buildFallbackImagemServico(),
-                if (servico.funcao != null && servico.funcao!.trim().isNotEmpty)
-                  Positioned(
-                    top: 8,
-                    left: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: CorOficio.corFundo(corTag),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        servico.funcao!,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: CorOficio.corTexto(corTag),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _borderColor),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
-          ),
-          // Informações do serviço
-          Expanded(
-            flex: 9,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Imagem do serviço com tag de categoria sobreposta
+            Expanded(
+              flex: 11,
+              child: Stack(
+                fit: StackFit.expand,
                 children: [
-                  Text(
-                    servico.titulo,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: _textDark,
-                      height: 1.2,
+                  if (servico.imagemUrl != null &&
+                      servico.imagemUrl!.trim().isNotEmpty)
+                    Image.network(
+                      servico.imagemUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => _buildFallbackImagemServico(),
+                    )
+                  else
+                    _buildFallbackImagemServico(),
+                  if (servico.funcao != null &&
+                      servico.funcao!.trim().isNotEmpty)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: CorOficio.corFundo(corTag),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          servico.funcao!,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: CorOficio.corTexto(corTag),
+                          ),
+                        ),
+                      ),
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    '${servico.tipoExecucao} • Carga ${servico.cargaServico}',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: Color(0xFF64748B),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Row(
-                    children: [
-                      Text(
-                        widget.avaliacao.toStringAsFixed(1),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: _textDark,
-                        ),
-                      ),
-                      const SizedBox(width: 3),
-                      const Icon(Icons.star, color: _starGold, size: 13),
-                      const SizedBox(width: 3),
-                      Text(
-                        '(${_avaliacoes.length})',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFF94A3B8),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Divider(height: 1, color: _borderColor),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Preço Médio',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: Color(0xFF0FB3FF),
-                        ),
-                      ),
-                      const SizedBox(height: 1),
-                      Text(
-                        'R\$ ${servico.valor.toStringAsFixed(2).replaceAll('.', ',')}',
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: _priceOrange,
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),
-          ),
-        ],
-      ),
+            // Informações do serviço
+            Expanded(
+              flex: 9,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      servico.titulo,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: _textDark,
+                        height: 1.2,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      '${servico.tipoExecucao} • Carga ${servico.cargaServico}',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: Color(0xFF64748B),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Row(
+                      children: [
+                        Text(
+                          widget.avaliacao.toStringAsFixed(1),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: _textDark,
+                          ),
+                        ),
+                        const SizedBox(width: 3),
+                        const Icon(Icons.star, color: _starGold, size: 13),
+                        const SizedBox(width: 3),
+                        Text(
+                          '(${_avaliacoes.length})',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF94A3B8),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 1, color: _borderColor),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Preço Médio',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Color(0xFF0FB3FF),
+                          ),
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          'R\$ ${servico.valor.toStringAsFixed(2).replaceAll('.', ',')}',
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: _priceOrange,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

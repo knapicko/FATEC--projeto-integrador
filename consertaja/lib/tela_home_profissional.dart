@@ -12,11 +12,13 @@ import 'area_atuacao.dart';
 import 'editar_informacoes.dart';
 import 'empresa_associada.dart';
 import 'gestao_equipe.dart';
+import 'configuracoes_empresa.dart';
 import 'meus_enderecos.dart';
 import 'modificar_conta_profissional.dart';
 import 'metodo_entrega_profissional.dart';
 import 'meus_servicos_profissional.dart';
 import 'meus_servicos_solicitados.dart';
+import 'solicitacao_estado.dart';
 import 'minhas_postagens_profissional.dart';
 import 'models/postagem_resumo.dart';
 import 'services/postagens_profissional_service.dart';
@@ -26,6 +28,7 @@ import 'tela_mensagens.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
 import 'utils/iniciais.dart';
+import 'widgets/skeleton_loading.dart';
 import 'widgets/tag_oficio.dart';
 import 'utils/app_navigation_util.dart';
 
@@ -46,6 +49,7 @@ class _DiaAgendaCalendario {
     this.observacaoExcecao,
     this.horaInicioExcecao,
     this.horaFimExcecao,
+    required this.servicos,
   });
 
   final DateTime data;
@@ -55,6 +59,7 @@ class _DiaAgendaCalendario {
   final String? observacaoExcecao;
   final TimeOfDay? horaInicioExcecao;
   final TimeOfDay? horaFimExcecao;
+  final List<_ServicoAgendado> servicos;
 
   bool get isExcecao =>
       observacaoExcecao != null ||
@@ -71,6 +76,24 @@ class _DiaAgendaCalendario {
         data.month == agora.month &&
         data.day == agora.day;
   }
+
+  bool get temServico => servicos.isNotEmpty;
+}
+
+class _ServicoAgendado {
+  const _ServicoAgendado({
+    required this.idSolicitacao,
+    required this.nomeCliente,
+    required this.tituloServico,
+    required this.data,
+    this.fotoCliente,
+  });
+
+  final int idSolicitacao;
+  final String nomeCliente;
+  final String? fotoCliente;
+  final String tituloServico;
+  final DateTime data;
 }
 
 class _OficiosPerfil {
@@ -1171,6 +1194,13 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
       final primeiraData = _formatarDataCompleta(diasDaSemana.first);
       final ultimaData = _formatarDataCompleta(diasDaSemana.last);
 
+      final servicos = await _carregarServicosAgendados(
+        idProfissional: idProfissional,
+        idEmpresa: idEmpresa,
+        inicio: primeiraData,
+        fim: ultimaData,
+      );
+
       List<Map<String, dynamic>> excecoes = [];
       try {
         final queryExcecoes = supabase
@@ -1214,6 +1244,11 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           _DiaAgendaCalendario(
             data: dia,
             disponivel: disponivel,
+            servicos: servicos
+                .where(
+                  (servico) => _formatarDataCompleta(servico.data) == chave,
+                )
+                .toList(),
             observacaoExcecao: observacao,
             horaInicioExcecao: horaIni,
             horaFimExcecao: horaFim,
@@ -1238,8 +1273,85 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
       (i) => _DiaAgendaCalendario(
         data: hoje.add(Duration(days: i)),
         disponivel: false,
+        servicos: const [],
       ),
     );
+  }
+
+  Future<List<_ServicoAgendado>> _carregarServicosAgendados({
+    required int? idProfissional,
+    required int? idEmpresa,
+    required String inicio,
+    required String fim,
+  }) async {
+    final supabase = Supabase.instance.client;
+    final query = supabase
+        .from('solicitacoes')
+        .select(
+          'id_solicitacao, data_agendada, fk_usuario, fk_servico_prof, '
+          'fk_grupo_empresa, fk_profissional, '
+          'status!solicitacoes_fk_status_fkey(status)',
+        )
+        .not('data_agendada', 'is', null)
+        .gte('data_agendada', inicio)
+        .lte('data_agendada', fim);
+    final rows = _contaEmpresaAtiva
+        ? await query.eq('fk_grupo_empresa', idEmpresa!)
+        : await query.eq('fk_profissional', idProfissional!);
+
+    final resultado = <_ServicoAgendado>[];
+    for (final raw in rows) {
+      final status = raw['status'];
+      final statusTexto = status is Map
+          ? status['status']?.toString().toLowerCase() ?? ''
+          : status is List && status.isNotEmpty
+          ? (status.first as Map)['status']?.toString().toLowerCase() ?? ''
+          : '';
+      if (statusTexto.contains('recus') || statusTexto.contains('cancel')) {
+        continue;
+      }
+
+      final data = _parseDataExcecao(raw['data_agendada']);
+      final id = (raw['id_solicitacao'] as num?)?.toInt();
+      if (data == null || id == null) continue;
+
+      var nomeCliente = 'Cliente';
+      String? fotoCliente;
+      final idCliente = (raw['fk_usuario'] as num?)?.toInt();
+      if (idCliente != null) {
+        final cliente = await supabase
+            .from('usuarios')
+            .select('nome, foto_perfil_url')
+            .eq('id_usuario', idCliente)
+            .maybeSingle();
+        final nome = cliente?['nome']?.toString().trim() ?? '';
+        if (nome.isNotEmpty) nomeCliente = nome;
+        final foto = cliente?['foto_perfil_url']?.toString().trim() ?? '';
+        if (foto.isNotEmpty) fotoCliente = foto;
+      }
+
+      var titulo = 'Serviço';
+      final idServico = (raw['fk_servico_prof'] as num?)?.toInt();
+      if (idServico != null) {
+        final servico = await supabase
+            .from('servicos_profissional')
+            .select('titulo')
+            .eq('id_servico_prof', idServico)
+            .maybeSingle();
+        final tituloRaw = servico?['titulo']?.toString().trim() ?? '';
+        if (tituloRaw.isNotEmpty) titulo = tituloRaw;
+      }
+      resultado.add(
+        _ServicoAgendado(
+          idSolicitacao: id,
+          nomeCliente: nomeCliente,
+          fotoCliente: fotoCliente,
+          tituloServico: titulo,
+          data: data,
+        ),
+      );
+    }
+    return resultado;
   }
 
   String _formatarDataExcecaoPopup(DateTime data) {
@@ -1357,6 +1469,18 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           ],
         );
       },
+    );
+  }
+
+  void _abrirServicoAgendado(_ServicoAgendado servico) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SolicitacaoEstadoPage(
+          idSolicitacao: servico.idSolicitacao,
+          nomeClienteInicial: servico.nomeCliente,
+          fotoClienteInicial: servico.fotoCliente,
+        ),
+      ),
     );
   }
 
@@ -1508,121 +1632,126 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                 await _mostrarBottomSheetTrocaConta();
                               },
                               child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 20),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                ),
                                 child: Row(
                                   children: [
                                     Stack(
                                       clipBehavior: Clip.none,
                                       children: [
-                                    Container(
-                                      width: 58,
-                                      height: 58,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: _primaryBlue,
-                                          width: 2,
+                                        Container(
+                                          width: 58,
+                                          height: 58,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: _primaryBlue,
+                                              width: 2,
+                                            ),
+                                          ),
+                                          child: ClipOval(
+                                            child:
+                                                fotoUrl != null &&
+                                                    fotoUrl.isNotEmpty
+                                                ? Image.network(
+                                                    fotoUrl,
+                                                    fit: BoxFit.cover,
+                                                    errorBuilder: (_, _, _) =>
+                                                        _buildAvatarIniciais(
+                                                          nome,
+                                                        ),
+                                                  )
+                                                : _buildAvatarIniciais(nome),
+                                          ),
                                         ),
-                                      ),
-                                      child: ClipOval(
-                                        child:
-                                            fotoUrl != null &&
-                                                fotoUrl.isNotEmpty
-                                            ? Image.network(
-                                                fotoUrl,
-                                                fit: BoxFit.cover,
-                                                errorBuilder: (_, _, _) =>
-                                                    _buildAvatarIniciais(nome),
-                                              )
-                                            : _buildAvatarIniciais(nome),
+                                        Positioned(
+                                          bottom: 0,
+                                          right: 0,
+                                          child: Container(
+                                            width: 18,
+                                            height: 18,
+                                            decoration: BoxDecoration(
+                                              color: _primaryBlue,
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                color: Colors.white,
+                                                width: 1.5,
+                                              ),
+                                            ),
+                                            child: const Center(
+                                              child: Icon(
+                                                Icons.check,
+                                                color: Colors.white,
+                                                size: 10,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(width: 14),
+
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            nome,
+                                            style: const TextStyle(
+                                              fontSize: 19,
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFF1E293B),
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.location_on,
+                                                size: 16,
+                                                color: _primaryBlue,
+                                              ),
+                                              const SizedBox(width: 3),
+                                              Expanded(
+                                                child: Text(
+                                                  endereco,
+                                                  style: const TextStyle(
+                                                    fontSize: 13.5,
+                                                    color: Color(0xFF64748B),
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                    Positioned(
-                                      bottom: 0,
-                                      right: 0,
-                                      child: Container(
-                                        width: 18,
-                                        height: 18,
-                                        decoration: BoxDecoration(
-                                          color: _primaryBlue,
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: Colors.white,
-                                            width: 1.5,
-                                          ),
-                                        ),
-                                        child: const Center(
-                                          child: Icon(
-                                            Icons.check,
-                                            color: Colors.white,
-                                            size: 10,
-                                          ),
-                                        ),
+                                    const SizedBox(width: 8),
+
+                                    const Padding(
+                                      padding: EdgeInsets.all(4),
+                                      child: Icon(
+                                        Icons.swap_horiz,
+                                        size: 26,
+                                        color: Color(0xFF374151),
                                       ),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(width: 14),
-
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        nome,
-                                        style: const TextStyle(
-                                          fontSize: 19,
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xFF1E293B),
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Row(
-                                        children: [
-                                          const Icon(
-                                            Icons.location_on,
-                                            size: 16,
-                                            color: _primaryBlue,
-                                          ),
-                                          const SizedBox(width: 3),
-                                          Expanded(
-                                            child: Text(
-                                              endereco,
-                                              style: const TextStyle(
-                                                fontSize: 13.5,
-                                                color: Color(0xFF64748B),
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-
-                                const Padding(
-                                  padding: EdgeInsets.all(4),
-                                  child: Icon(
-                                    Icons.swap_horiz,
-                                    size: 26,
-                                    color: Color(0xFF374151),
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
                           ),
-                        ),
-                      ),
 
-                      const SizedBox(height: 16),
+                          const SizedBox(height: 16),
                           const Divider(
                             height: 1,
                             thickness: 1,
@@ -1630,19 +1759,23 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                           ),
                           const SizedBox(height: 8),
 
-                          // Opção 1: Editar dados pessoais
+                          // Opção 1: dados pessoais ou empresariais
                           _buildOpcaoBottomSheet(
                             iconeWidget: const Icon(
                               Icons.person_outline_rounded,
                               color: _primaryBlue,
                               size: 28,
                             ),
-                            titulo: 'Editar dados pessoais',
+                            titulo: _contaEmpresaAtiva
+                                ? 'Editar dados empresariais'
+                                : 'Editar dados pessoais',
                             onTap: () async {
                               Navigator.of(bottomSheetContext).pop();
                               await Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (_) => const EditarInformacoesPage(),
+                                  builder: (_) => _contaEmpresaAtiva
+                                      ? const GestaoEquipePage()
+                                      : const EditarInformacoesPage(),
                                 ),
                               );
                               if (mounted) {
@@ -1702,7 +1835,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                             },
                           ),
 
-                          // Opção 3: Minha área de atuação
+                          // Opção 3: área de atuação ou configurações da empresa
                           _buildOpcaoBottomSheet(
                             iconeWidget: Container(
                               width: 38,
@@ -1720,12 +1853,16 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                 ),
                               ),
                             ),
-                            titulo: 'Minha área de atuação',
+                            titulo: _contaEmpresaAtiva
+                                ? 'Configurações da empresa'
+                                : 'Minha área de atuação',
                             onTap: () async {
                               Navigator.of(bottomSheetContext).pop();
                               await Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (_) => const AreaAtuacaoPage(),
+                                  builder: (_) => _contaEmpresaAtiva
+                                      ? const ConfiguracoesEmpresaPage()
+                                      : const AreaAtuacaoPage(),
                                 ),
                               );
                               if (mounted) {
@@ -3275,15 +3412,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
         final dias = snapshot.data ?? <_DiaAgendaCalendario>[];
 
         if (snapshot.connectionState != ConnectionState.done) {
-          return const SizedBox(
-            height: 72,
-            child: Center(
-              child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                color: _primaryBlue,
-              ),
-            ),
-          );
+          return const SkeletonAgenda();
         }
 
         return Column(
@@ -3334,6 +3463,60 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     final isHoje = dia.isHoje;
     final isExcecao = dia.isExcecao;
     final isExcecaoParcial = dia.isExcecaoParcial;
+
+    if (dia.temServico) {
+      final servico = dia.servicos.length == 1 ? dia.servicos.first : null;
+      return GestureDetector(
+        onTap: servico == null ? null : () => _abrirServicoAgendado(servico),
+        child: Container(
+          height: 72,
+          margin: const EdgeInsets.symmetric(horizontal: 1.5),
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+          decoration: BoxDecoration(
+            color: _primaryBlue,
+            borderRadius: BorderRadius.circular(6),
+            border: isHoje ? Border.all(color: Colors.white, width: 2) : null,
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                '${dia.data.day}',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              if (isHoje) ...[
+                const SizedBox(height: 2),
+                const Text(
+                  'Hoje',
+                  style: TextStyle(
+                    fontSize: 8,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 2),
+              Text(
+                servico?.nomeCliente ?? '${dia.servicos.length} serviços',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 7,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                  height: 1.2,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     if (isExcecao) {
       // Exceção parcial (hora_ini e hora_fim preenchidos): borda vermelha,
