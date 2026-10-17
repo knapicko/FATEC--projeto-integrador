@@ -210,6 +210,7 @@ SET search_path = public
 AS $$
 DECLARE
   pedido public.solicitacoes;
+  status_aceito bigint;
 BEGIN
   IF NOT EXISTS (
     SELECT 1
@@ -239,8 +240,20 @@ BEGIN
     RAISE EXCEPTION 'Profissional nao pertence a sessao autenticada';
   END IF;
 
+  SELECT id_status
+  INTO status_aceito
+  FROM public.status
+  WHERE tipo_status::text = 'Serviço'
+    AND status = 'Aceito'
+  LIMIT 1;
+
+  IF status_aceito IS NULL THEN
+    RAISE EXCEPTION 'Status Aceito ausente. Execute status_solicitacao_aceito_recusado.sql';
+  END IF;
+
   UPDATE public.solicitacoes AS s
   SET data_aceite = now(),
+      fk_status = status_aceito,
       fk_profissional = p_id_profissional
   WHERE s.id_solicitacao = p_id_solicitacao
     AND s.data_aceite IS NULL
@@ -265,6 +278,85 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.aceitar_solicitacao(bigint, bigint)
+  TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.recusar_solicitacao(
+  p_id_solicitacao bigint,
+  p_id_profissional bigint
+)
+RETURNS public.solicitacoes
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  pedido public.solicitacoes;
+  status_recusado bigint;
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.dados_profissionais dp
+    WHERE dp.id_profissional = p_id_profissional
+      AND (
+        dp.fk_usuario = (
+          SELECT u.id_usuario
+          FROM public.usuarios u
+          WHERE u.auth_id = auth.uid()
+          LIMIT 1
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM public.dados_profissionais sessao
+          WHERE sessao.fk_usuario = (
+            SELECT u.id_usuario
+            FROM public.usuarios u
+            WHERE u.auth_id = auth.uid()
+            LIMIT 1
+          )
+            AND sessao.fk_grupo_empresa IS NOT NULL
+            AND sessao.fk_grupo_empresa = dp.fk_grupo_empresa
+        )
+      )
+  ) THEN
+    RAISE EXCEPTION 'Profissional nao pertence a sessao autenticada';
+  END IF;
+
+  SELECT id_status
+  INTO status_recusado
+  FROM public.status
+  WHERE tipo_status::text = 'Serviço'
+    AND status = 'Recusado'
+  LIMIT 1;
+
+  IF status_recusado IS NULL THEN
+    RAISE EXCEPTION 'Status Recusado ausente. Execute status_solicitacao_aceito_recusado.sql';
+  END IF;
+
+  UPDATE public.solicitacoes AS s
+  SET fk_status = status_recusado
+  WHERE s.id_solicitacao = p_id_solicitacao
+    AND s.data_aceite IS NULL
+    AND (
+      s.fk_profissional = p_id_profissional
+      OR EXISTS (
+        SELECT 1
+        FROM public.dados_profissionais dp_grupo
+        WHERE dp_grupo.id_profissional = p_id_profissional
+          AND dp_grupo.fk_grupo_empresa = s.fk_grupo_empresa
+          AND s.fk_grupo_empresa IS NOT NULL
+      )
+    )
+  RETURNING s.* INTO pedido;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Solicitacao inexistente, ja aceita ou sem permissao';
+  END IF;
+
+  RETURN pedido;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.recusar_solicitacao(bigint, bigint)
   TO authenticated;
 
 -- 6. RLS das solicitacoes.

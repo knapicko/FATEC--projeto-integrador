@@ -3,7 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'gestao_equipe.dart';
+import 'solicitacao_aceita.dart';
+import 'services/solicitacoes_service.dart';
 import 'tela_home_profissional.dart';
+import 'tela_chat_profissional.dart';
 import 'tela_mensagens.dart';
 import 'tela_meu_perfil_profissional.dart';
 import 'utils/app_navigation_util.dart';
@@ -24,10 +27,13 @@ class SolicitacaoRecebida {
   final String tipoExecucao;
   final int? fkGrupoEmpresa;
   final int fkProfissional;
+  final int? fkUsuario;
+  final int? fkEndereco;
   final String? statusTexto;
 
   final String nomeCliente;
   final String? fotoCliente;
+  final String? imagemAnexoUrl;
 
   final String tituloServico;
   final String? descricaoServico;
@@ -45,9 +51,12 @@ class SolicitacaoRecebida {
     required this.tipoExecucao,
     this.fkGrupoEmpresa,
     required this.fkProfissional,
+    this.fkUsuario,
+    this.fkEndereco,
     this.statusTexto,
     required this.nomeCliente,
     this.fotoCliente,
+    this.imagemAnexoUrl,
     required this.tituloServico,
     this.descricaoServico,
     this.imagemServicoUrl,
@@ -58,7 +67,7 @@ class SolicitacaoRecebida {
 
 /// Filtros da tela — espelham o `status` da tabela `status`.
 enum FiltroSolicitacao {
-  novos('Novos'),
+  novos('Todos'),
   aceitos('Aceitos'),
   recusados('Recusados'),
   emAndamento('Em andamento'),
@@ -124,6 +133,7 @@ class _MeusServicosSolicitadosPageState
     });
     _carregar();
   }
+
   Future<void> _carregar() async {
     setState(() {
       _carregando = true;
@@ -150,10 +160,12 @@ class _MeusServicosSolicitadosPageState
       // Empresa: SÓ fk_grupo_empresa do grupo. Independente: SÓ do
       // profissional SEM fk_grupo_empresa.
       // Há 2 FKs solicitacoes->status; desambigua pela constraint.
-      var query = _supabase.from('solicitacoes').select(
+      var query = _supabase
+          .from('solicitacoes')
+          .select(
             'id_solicitacao, data_solicitacao, valor_final, detalhes, '
             'data_agendada, hora_agendada, tipo_execucao, fk_grupo_empresa, '
-            'fk_status, fk_profissional, fk_usuario, fk_servico_prof, '
+            'fk_status, fk_profissional, fk_usuario, fk_endereco, fk_servico_prof, '
             'status!solicitacoes_fk_status_fkey(status)',
           );
       if (_contaEmpresaAtiva) {
@@ -199,7 +211,7 @@ class _MeusServicosSolicitadosPageState
     final idSolicitacao = (row['id_solicitacao'] as num).toInt();
     final dataSolicitacao =
         DateTime.tryParse(row['data_solicitacao']?.toString() ?? '') ??
-            DateTime.now();
+        DateTime.now();
     final valorFinal =
         double.tryParse(row['valor_final']?.toString() ?? '0') ?? 0.0;
     final detalhes = row['detalhes']?.toString().trim().isNotEmpty == true
@@ -207,16 +219,14 @@ class _MeusServicosSolicitadosPageState
         : null;
     final tipoExecucao =
         row['tipo_execucao']?.toString().trim().isNotEmpty == true
-            ? row['tipo_execucao'].toString().trim()
-            : 'Serviço';
+        ? row['tipo_execucao'].toString().trim()
+        : 'Serviço';
     final fkGrupo = (row['fk_grupo_empresa'] as num?)?.toInt();
     final fkProf = (row['fk_profissional'] as num?)?.toInt() ?? 0;
-    final statusRaw = row['status'];
-    final statusTexto = statusRaw is Map
-        ? statusRaw['status']?.toString()
-        : statusRaw?.toString();
+    final statusTexto = _extrairStatus(row['status']);
     String nomeCliente = 'Cliente';
     String? fotoCliente;
+    String? imagemAnexoUrl;
     try {
       final idCliente = (row['fk_usuario'] as num?)?.toInt();
       if (idCliente != null) {
@@ -230,6 +240,16 @@ class _MeusServicosSolicitadosPageState
         final foto = u?['foto_perfil_url']?.toString().trim() ?? '';
         if (foto.isNotEmpty) fotoCliente = foto;
       }
+    } catch (_) {}
+    try {
+      final anexo = await _supabase
+          .from('solicitacoes_anexos')
+          .select('anexo_url')
+          .eq('fk_solicitacao', idSolicitacao)
+          .limit(1)
+          .maybeSingle();
+      final url = anexo?['anexo_url']?.toString().trim() ?? '';
+      if (url.isNotEmpty) imagemAnexoUrl = url;
     } catch (_) {}
     String titulo = 'Serviço';
     String? descricao;
@@ -255,8 +275,8 @@ class _MeusServicosSolicitadosPageState
           final Map<String, dynamic>? ofMap = ofRaw is Map<String, dynamic>
               ? ofRaw
               : (ofRaw is List && ofRaw.isNotEmpty
-                  ? Map<String, dynamic>.from(ofRaw.first as Map)
-                  : null);
+                    ? Map<String, dynamic>.from(ofRaw.first as Map)
+                    : null);
           if (ofMap != null) {
             final info = OficioInfo.fromMap(ofMap);
             if (info.funcao.isNotEmpty) funcao = info.funcao;
@@ -275,9 +295,12 @@ class _MeusServicosSolicitadosPageState
       tipoExecucao: tipoExecucao,
       fkGrupoEmpresa: fkGrupo,
       fkProfissional: fkProf,
+      fkUsuario: (row['fk_usuario'] as num?)?.toInt(),
+      fkEndereco: (row['fk_endereco'] as num?)?.toInt(),
       statusTexto: statusTexto,
       nomeCliente: nomeCliente,
       fotoCliente: fotoCliente,
+      imagemAnexoUrl: imagemAnexoUrl,
       tituloServico: titulo,
       descricaoServico: descricao,
       imagemServicoUrl: imagemUrl,
@@ -286,30 +309,74 @@ class _MeusServicosSolicitadosPageState
     );
   }
 
-  List<SolicitacaoRecebida> get _filtradas {
-    bool ehNovo(SolicitacaoRecebida s) =>
-        FiltroSolicitacao.porStatus(s.statusTexto) ==
-            FiltroSolicitacao.novos ||
-        FiltroSolicitacao.porStatus(s.statusTexto) == null;
-    if (_filtro == FiltroSolicitacao.novos) {
-      return _todas.where(ehNovo).toList();
+  String? _extrairStatus(dynamic statusRaw) {
+    if (statusRaw is Map) return statusRaw['status']?.toString();
+    if (statusRaw is List && statusRaw.isNotEmpty) {
+      final primeiro = statusRaw.first;
+      if (primeiro is Map) return primeiro['status']?.toString();
+      return primeiro?.toString();
     }
+    final texto = statusRaw?.toString().trim();
+    return texto == null || texto.isEmpty ? null : texto;
+  }
+
+  List<SolicitacaoRecebida> get _filtradas {
+    final aceitos = _todas.where((item) => _ehAceita(item)).toList();
+    final abertos = _todas.where(_ehAberta).toList();
+    if (_filtro == FiltroSolicitacao.novos) {
+      return [...aceitos, ...abertos.where((item) => !aceitos.contains(item))];
+    }
+
     return _todas
         .where((s) => FiltroSolicitacao.porStatus(s.statusTexto) == _filtro)
         .toList();
   }
 
+  int get _quantidadeAceitosTodos =>
+      _todas.where((item) => _ehAceita(item)).length;
+
+  bool _ehAceita(SolicitacaoRecebida item) =>
+      FiltroSolicitacao.porStatus(item.statusTexto) ==
+      FiltroSolicitacao.aceitos;
+
+  bool _ehAberta(SolicitacaoRecebida item) {
+    final status = FiltroSolicitacao.porStatus(item.statusTexto);
+    return status == FiltroSolicitacao.novos || status == null;
+  }
+
   int _contar(FiltroSolicitacao filtro) {
-    bool ehNovo(SolicitacaoRecebida s) =>
-        FiltroSolicitacao.porStatus(s.statusTexto) ==
-            FiltroSolicitacao.novos ||
-        FiltroSolicitacao.porStatus(s.statusTexto) == null;
     if (filtro == FiltroSolicitacao.novos) {
-      return _todas.where(ehNovo).length;
+      return _todas.where((item) => _ehAceita(item) || _ehAberta(item)).length;
     }
     return _todas
         .where((s) => FiltroSolicitacao.porStatus(s.statusTexto) == filtro)
         .length;
+  }
+
+  bool _podeIniciarDeslocamento(SolicitacaoRecebida item) {
+    final tipo = item.tipoExecucao
+        .toLowerCase()
+        .replaceAll('á', 'a')
+        .replaceAll('ã', 'a')
+        .replaceAll('â', 'a');
+    return (tipo.contains('leva') && tipo.contains('traz')) ||
+        tipo.contains('domicilio');
+  }
+
+  void _abrirChat(SolicitacaoRecebida item) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => TelaChatProfissional(
+          nomeProfissional: item.nomeCliente,
+          fotoProfissional: item.fotoCliente ?? '',
+          oficioPrincipal: item.funcao ?? item.tituloServico,
+          idProfissional: item.fkGrupoEmpresa == null
+              ? item.fkProfissional
+              : null,
+          idGrupoEmpresa: item.fkGrupoEmpresa,
+        ),
+      ),
+    );
   }
 
   String _rotuloDataSolicitacao(DateTime data) {
@@ -327,8 +394,18 @@ class _MeusServicosSolicitadosPageState
   String _formatarAgendada(String? data, String? hora) {
     if ((data ?? '').isEmpty) return '';
     const meses = [
-      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+      'Janeiro',
+      'Fevereiro',
+      'Março',
+      'Abril',
+      'Maio',
+      'Junho',
+      'Julho',
+      'Agosto',
+      'Setembro',
+      'Outubro',
+      'Novembro',
+      'Dezembro',
     ];
     try {
       final partes = data!.split('-');
@@ -364,21 +441,115 @@ class _MeusServicosSolicitadosPageState
     return Icons.handyman_outlined;
   }
 
-  Future<void> _mudarStatus(SolicitacaoRecebida item, String novoStatus) async {
+  Widget _buildConfirmacaoRecusaSheet() {
+    return SafeArea(
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(22, 12, 22, 22),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFCBD5E1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+            const SizedBox(height: 22),
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.close_rounded,
+                color: Colors.red,
+                size: 28,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Recusar solicitação?',
+              style: TextStyle(
+                color: _textoEscuro,
+                fontSize: 21,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Esta solicitação será marcada como recusada e não aparecerá mais na aba Novos.',
+              style: TextStyle(color: _textoMuted, fontSize: 14, height: 1.4),
+            ),
+            const SizedBox(height: 22),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const Text(
+                  'Sim, recusar solicitação',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+            const SizedBox(height: 9),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: OutlinedButton(
+                onPressed: () => Navigator.pop(context, false),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _textoEscuro,
+                  side: const BorderSide(color: Color(0xFFE2E8F0)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const Text(
+                  'Cancelar',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _recusar(SolicitacaoRecebida item) async {
+    final confirmar = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => _buildConfirmacaoRecusaSheet(),
+    );
+    if (confirmar != true || !mounted) return;
     try {
-      final row = await _supabase
-          .from('status')
-          .select('id_status')
-          .eq('tipo_status', 'Serviço')
-          .eq('status', novoStatus)
-          .limit(1)
-          .maybeSingle();
-      final idStatus = (row?['id_status'] as num?)?.toInt();
-      if (idStatus == null) throw Exception('Status ausente.');
-      await _supabase
-          .from('solicitacoes')
-          .update({'fk_status': idStatus})
-          .eq('id_solicitacao', item.idSolicitacao);
+      await _supabase.rpc(
+        'recusar_solicitacao',
+        params: {
+          'p_id_solicitacao': item.idSolicitacao,
+          'p_id_profissional': item.fkProfissional,
+        },
+      );
       await _carregar();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -396,6 +567,162 @@ class _MeusServicosSolicitadosPageState
       }
     }
   }
+
+  Future<void> _aceitar(SolicitacaoRecebida item) async {
+    final confirmar = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _buildConfirmacaoAceiteSheet(item),
+    );
+    if (confirmar != true || !mounted) return;
+    try {
+      await SolicitacoesService.aceitar(
+        idSolicitacao: item.idSolicitacao,
+        idProfissional: item.fkProfissional,
+      );
+      await _garantirStatusAceito(item.idSolicitacao);
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => SolicitacaoAceitaPage(solicitacao: item),
+        ),
+      );
+      await _carregar();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao aceitar: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildConfirmacaoAceiteSheet(SolicitacaoRecebida item) {
+    return SafeArea(
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(22, 12, 22, 22),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Color(0xFFCBD5E1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+            const SizedBox(height: 22),
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: _azul.withValues(alpha: .12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check_rounded, color: _azul, size: 29),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Aceitar pedido?',
+              style: TextStyle(
+                color: _textoEscuro,
+                fontSize: 21,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Você aceitará o serviço "${item.tituloServico}" para '
+              '${item.nomeCliente}.',
+              style: const TextStyle(
+                color: _textoMuted,
+                fontSize: 14,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 22),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: _azul,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const Text(
+                  'Sim, aceitar pedido',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+            const SizedBox(height: 9),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: OutlinedButton(
+                onPressed: () => Navigator.pop(context, false),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _textoEscuro,
+                  side: const BorderSide(color: Color(0xFFE2E8F0)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const Text(
+                  'Cancelar',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _abrirSolicitacaoAceita(SolicitacaoRecebida item) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SolicitacaoAceitaPage(solicitacao: item),
+      ),
+    );
+  }
+
+  Future<void> _garantirStatusAceito(int idSolicitacao) async {
+    final status = await _supabase
+        .from('status')
+        .select('id_status')
+        .eq('tipo_status', 'Serviço')
+        .eq('status', 'Aceito')
+        .limit(1)
+        .maybeSingle();
+    final idStatus = (status?['id_status'] as num?)?.toInt();
+    if (idStatus == null) {
+      throw Exception(
+        'Status Aceito ausente. Execute o SQL de status do serviço.',
+      );
+    }
+    await _supabase
+        .from('solicitacoes')
+        .update({'fk_status': idStatus})
+        .eq('id_solicitacao', idSolicitacao);
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -408,34 +735,48 @@ class _MeusServicosSolicitadosPageState
             _buildFiltros(),
             Expanded(
               child: _carregando
-                  ? const Center(
-                      child: CircularProgressIndicator(color: _azul),
-                    )
+                  ? const Center(child: CircularProgressIndicator(color: _azul))
                   : _erro != null
-                      ? Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Text(
-                              _erro!,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(color: _textoMuted),
-                            ),
-                          ),
-                        )
-                      : _filtradas.isEmpty
-                          ? _buildListaVazia()
-                          : RefreshIndicator(
-                              color: _azul,
-                              onRefresh: _carregar,
-                              child: ListView.builder(
-                                padding: const EdgeInsets.fromLTRB(
-                                  14, 4, 14, 16,
-                                ),
-                                itemCount: _filtradas.length,
-                                itemBuilder: (context, index) =>
-                                    _buildCard(_filtradas[index]),
-                              ),
-                            ),
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          _erro!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: _textoMuted),
+                        ),
+                      ),
+                    )
+                  : _filtradas.isEmpty
+                  ? _buildListaVazia()
+                  : RefreshIndicator(
+                      color: _azul,
+                      onRefresh: _carregar,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(14, 4, 14, 16),
+                        itemCount:
+                            _filtro == FiltroSolicitacao.novos &&
+                                _quantidadeAceitosTodos > 0 &&
+                                _filtradas.length > _quantidadeAceitosTodos
+                            ? _filtradas.length + 1
+                            : _filtradas.length,
+                        itemBuilder: (context, index) {
+                          final temDivisoria =
+                              _filtro == FiltroSolicitacao.novos &&
+                              _quantidadeAceitosTodos > 0 &&
+                              _filtradas.length > _quantidadeAceitosTodos;
+                          if (temDivisoria &&
+                              index == _quantidadeAceitosTodos) {
+                            return _buildDivisoriaNovos();
+                          }
+                          final indiceCard =
+                              temDivisoria && index > _quantidadeAceitosTodos
+                              ? index - 1
+                              : index;
+                          return _buildCard(_filtradas[indiceCard]);
+                        },
+                      ),
+                    ),
             ),
           ],
         ),
@@ -547,7 +888,7 @@ class _MeusServicosSolicitadosPageState
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 14),
           itemCount: FiltroSolicitacao.values.length,
-          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          separatorBuilder: (_, _) => const SizedBox(width: 8),
           itemBuilder: (context, index) {
             final filtro = FiltroSolicitacao.values[index];
             final ativo = _filtro == filtro;
@@ -556,7 +897,8 @@ class _MeusServicosSolicitadosPageState
               onTap: () => setState(() => _filtro = filtro),
               child: Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 14, vertical: 8,
+                  horizontal: 14,
+                  vertical: 8,
                 ),
                 decoration: BoxDecoration(
                   color: ativo ? _azul.withValues(alpha: 0.12) : Colors.white,
@@ -573,15 +915,15 @@ class _MeusServicosSolicitadosPageState
                       style: TextStyle(
                         color: ativo ? _azul : _textoMuted,
                         fontSize: 13,
-                        fontWeight:
-                            ativo ? FontWeight.w800 : FontWeight.w500,
+                        fontWeight: ativo ? FontWeight.w800 : FontWeight.w500,
                       ),
                     ),
                     if (filtro == FiltroSolicitacao.novos && total > 0) ...[
                       const SizedBox(width: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 7, vertical: 2,
+                          horizontal: 7,
+                          vertical: 2,
                         ),
                         decoration: BoxDecoration(
                           color: _azul,
@@ -631,13 +973,43 @@ class _MeusServicosSolicitadosPageState
     );
   }
 
+  Widget _buildDivisoriaNovos() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          const Expanded(child: Divider(color: Color(0xFFCBD5E1))),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Text(
+              'SOLICITAÇÕES EM ABERTO',
+              style: TextStyle(
+                color: _textoMuted,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: .5,
+              ),
+            ),
+          ),
+          const Expanded(child: Divider(color: Color(0xFFCBD5E1))),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCard(SolicitacaoRecebida item) {
+    if (_filtro == FiltroSolicitacao.novos && _ehAceita(item)) {
+      return GestureDetector(
+        onTap: () => _abrirSolicitacaoAceita(item),
+        child: _buildCardAceito(item),
+      );
+    }
     final corBase = CorOficio.parse(item.corOficio);
     final descricao = item.detalhes?.isNotEmpty == true
         ? item.detalhes!
         : (item.descricaoServico ?? '');
     final agendada = _formatarAgendada(item.dataAgendada, item.horaAgendada);
-    return Container(
+    final card = Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -677,7 +1049,8 @@ class _MeusServicosSolicitadosPageState
                         const SizedBox(height: 4),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 3,
+                            horizontal: 10,
+                            vertical: 3,
                           ),
                           decoration: BoxDecoration(
                             color: CorOficio.corFundo(corBase),
@@ -698,7 +1071,8 @@ class _MeusServicosSolicitadosPageState
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 4,
+                    horizontal: 8,
+                    vertical: 4,
                   ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF1F5F9),
@@ -782,9 +1156,221 @@ class _MeusServicosSolicitadosPageState
               ],
             ),
             const SizedBox(height: 12),
-            _buildBotoes(item),
+            if (_filtro == FiltroSolicitacao.novos)
+              _buildBotoes(item)
+            else if (_filtro == FiltroSolicitacao.aceitos)
+              _buildBotoesAceito(item),
           ],
         ),
+      ),
+    );
+    if (_filtro == FiltroSolicitacao.aceitos && _ehAceita(item)) {
+      return GestureDetector(
+        onTap: () => _abrirSolicitacaoAceita(item),
+        child: card,
+      );
+    }
+    return card;
+  }
+
+  Widget _buildCardAceito(SolicitacaoRecebida item) {
+    final descricao = item.detalhes?.isNotEmpty == true
+        ? item.detalhes!
+        : (item.descricaoServico ?? 'Detalhes não informados.');
+    final agendada = _formatarAgendada(item.dataAgendada, item.horaAgendada);
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: _azul, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: _azul.withValues(alpha: .12),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: _azul.withValues(alpha: .14),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Text(
+              '●  SERVIÇO ACEITO • EM ANDAMENTO',
+              style: TextStyle(
+                color: _azul,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              _buildAvatarCliente(item),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.nomeCliente,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: _textoEscuro,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (item.funcao?.isNotEmpty == true)
+                      Container(
+                        margin: const EdgeInsets.only(top: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade100,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          item.funcao!,
+                          style: const TextStyle(
+                            color: Color(0xFF8A5A00),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 11,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: _azul,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  _formatarPreco(item.valorFinal),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              border: Border.all(color: _azul.withValues(alpha: .28)),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.tituloServico,
+                  style: const TextStyle(
+                    color: Color(0xFF073B78),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 7),
+                Text(
+                  descricao,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: _textoMuted,
+                    fontSize: 14,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: _buildImagemServicoAceito(item),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 13),
+          Row(
+            children: [
+              const Icon(Icons.calendar_month_outlined, color: _azul),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  agendada.isEmpty ? 'Agendamento não informado' : agendada,
+                  style: const TextStyle(
+                    color: _textoEscuro,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          const Row(
+            children: [
+              Icon(Icons.verified_outlined, color: _azul),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Valor acordado e pagamento garantido no app',
+                  style: TextStyle(color: _azul, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              if (_podeIniciarDeslocamento(item))
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () {},
+                    icon: const Icon(Icons.near_me_outlined, size: 18),
+                    label: const Text('Iniciar deslocamento'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _azul,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                    ),
+                  ),
+                ),
+              if (_podeIniciarDeslocamento(item)) const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _abrirChat(item),
+                  icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                  label: const Text('Mensagem'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _textoEscuro,
+                    side: const BorderSide(color: Color(0xFFB8C2D1)),
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -830,7 +1416,7 @@ class _MeusServicosSolicitadosPageState
       height: 44,
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: () => _mudarStatus(item, 'Aceito'),
+        onPressed: () => _aceitar(item),
         style: ElevatedButton.styleFrom(
           backgroundColor: _azul,
           foregroundColor: Colors.white,
@@ -850,7 +1436,7 @@ class _MeusServicosSolicitadosPageState
       width: double.infinity,
       child: OutlinedButton(
         onPressed: _filtro == FiltroSolicitacao.novos
-            ? () => _mudarStatus(item, 'Recusado')
+            ? () => _recusar(item)
             : null,
         style: OutlinedButton.styleFrom(
           foregroundColor: _azul,
@@ -874,6 +1460,67 @@ class _MeusServicosSolicitadosPageState
     );
   }
 
+  Widget _buildBotoesAceito(SolicitacaoRecebida item) {
+    final podeDeslocar = _podeIniciarDeslocamento(item);
+    return Row(
+      children: [
+        if (podeDeslocar)
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: () {},
+              icon: const Icon(Icons.near_me_outlined, size: 18),
+              label: const Text('Iniciar deslocamento'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _azul,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
+        if (podeDeslocar) const SizedBox(width: 8),
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: () => _abrirChat(item),
+            icon: const Icon(Icons.chat_bubble_outline, size: 18),
+            label: const Text('Mensagem'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: _textoEscuro,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildImagemServicoAceito(SolicitacaoRecebida item) {
+    final anexo = item.imagemAnexoUrl?.trim() ?? '';
+    if (anexo.isNotEmpty) {
+      return Image.network(
+        anexo,
+        width: double.infinity,
+        height: 130,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => _imagemServicoFallback(item),
+      );
+    }
+    return _imagemServicoFallback(item);
+  }
+
+  Widget _imagemServicoFallback(SolicitacaoRecebida item) {
+    return SizedBox(
+      width: double.infinity,
+      height: 130,
+      child: ImagemServico(
+        imagemUrl: item.imagemServicoUrl,
+        funcao: item.funcao,
+        cor: item.corOficio,
+        height: 130,
+      ),
+    );
+  }
+
   Widget _buildAvatarCliente(SolicitacaoRecebida item) {
     final foto = item.fotoCliente?.trim() ?? '';
     if (foto.isNotEmpty) {
@@ -883,7 +1530,7 @@ class _MeusServicosSolicitadosPageState
           width: 44,
           height: 44,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _avatarIniciais(item.nomeCliente),
+          errorBuilder: (_, _, _) => _avatarIniciais(item.nomeCliente),
         ),
       );
     }
