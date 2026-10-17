@@ -5,8 +5,12 @@ import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'gestao_equipe.dart';
 import 'meus_servicos_solicitados.dart';
 import 'tela_chat_profissional.dart';
+import 'tela_meu_perfil_profissional.dart';
+import 'utils/app_navigation_util.dart';
+import 'utils/bottom_navigation_bar_profissional.dart';
 import 'utils/iniciais.dart';
 
 /// Modalidades suportadas de acordo com o design
@@ -52,18 +56,21 @@ class ItemChecklist {
 class SolicitacaoEstadoPage extends StatefulWidget {
   final int idSolicitacao;
   final SolicitacaoRecebida? solicitacao;
+  final bool recemAceito;
 
   const SolicitacaoEstadoPage({
     super.key,
     required this.idSolicitacao,
     this.solicitacao,
+    this.recemAceito = false,
   });
 
   @override
   State<SolicitacaoEstadoPage> createState() => _SolicitacaoEstadoPageState();
 }
 
-class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage> {
+class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
+    with SingleTickerProviderStateMixin {
   static const Color _azul = Color(0xFF0FB3FF);
   static const Color _azulEscuro = Color(0xFF0284C7);
   static const Color _fundoCinza = Color(0xFFF8FAFC);
@@ -114,9 +121,28 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage> {
   int? _fkGrupoEmpresa;
   int _fkProfissional = 0;
 
+  // Perfil logado do usuário (diferenciando empresa x profissional)
+  bool _ehContaEmpresa = false;
+  String? _fotoPerfilLogado;
+  String? _nomePerfilLogado;
+  int? _idGrupoEmpresaLogado;
+
+  late AnimationController _sonarController;
+  late Animation<double> _sonarAnimation;
+
   @override
   void initState() {
     super.initState();
+    _sonarController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    )..repeat();
+
+    _sonarAnimation = CurvedAnimation(
+      parent: _sonarController,
+      curve: Curves.easeOut,
+    );
+
     _idSolicitacao = widget.idSolicitacao;
     _codigoPedido = '#PED-${DateTime.now().year}-${_idSolicitacao.toString().padLeft(4, '0')}';
 
@@ -125,7 +151,87 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage> {
       _aplicarDadosIniciais(widget.solicitacao!);
     }
 
+    _carregarPerfilLogado();
     _carregarDadosCompletos();
+  }
+
+  @override
+  void dispose() {
+    _sonarController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _carregarPerfilLogado() async {
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) return;
+
+      bool ehEmpresa = BottomNavigationBarProfissional.leituraSincronaContaEmpresa();
+
+      final usuarioRow = await _supabase
+          .from('usuarios')
+          .select('id_usuario, nome, foto_perfil_url')
+          .eq('auth_id', user.id)
+          .maybeSingle();
+
+      final idUsuario = (usuarioRow?['id_usuario'] as num?)?.toInt();
+      if (idUsuario == null) return;
+
+      final dp = await _supabase
+          .from('dados_profissionais')
+          .select('id_profissional, fk_grupo_empresa')
+          .eq('fk_usuario', idUsuario)
+          .maybeSingle();
+
+      final idGrupo = (dp?['fk_grupo_empresa'] as num?)?.toInt();
+
+      String? foto;
+      String? nome = usuarioRow?['nome']?.toString().trim();
+
+      if (ehEmpresa && idGrupo != null) {
+        final grupo = await _supabase
+            .from('grupo_empresa')
+            .select('id_grupo_empresa, nome_empresa, foto_url_empresa')
+            .eq('id_grupo_empresa', idGrupo)
+            .maybeSingle();
+        if (grupo != null) {
+          final fEmp = grupo['foto_url_empresa']?.toString().trim();
+          if (fEmp != null && fEmp.isNotEmpty) foto = fEmp;
+          final nEmp = grupo['nome_empresa']?.toString().trim() ?? '';
+          if (nEmp.isNotEmpty) nome = nEmp;
+        }
+      } else {
+        ehEmpresa = false;
+        final fUsu = usuarioRow?['foto_perfil_url']?.toString().trim();
+        if (fUsu != null && fUsu.isNotEmpty) foto = fUsu;
+      }
+
+      if (mounted) {
+        setState(() {
+          _ehContaEmpresa = ehEmpresa;
+          _fotoPerfilLogado = foto;
+          _nomePerfilLogado = nome;
+          _idGrupoEmpresaLogado = idGrupo;
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _navegarParaPerfilLogado() {
+    if (_ehContaEmpresa && _idGrupoEmpresaLogado != null) {
+      Navigator.of(context).push(
+        AppNavigationUtil.rotaSemAnimacao(
+          const GestaoEquipePage(),
+          nome: 'GestaoEquipePage',
+        ),
+      );
+    } else {
+      AppNavigationUtil.navegarAba(
+        context,
+        const TelaMeuPerfilProfissionalPage(isVisitante: false),
+        isHome: false,
+      );
+    }
   }
 
   void _aplicarDadosIniciais(SolicitacaoRecebida s) {
@@ -686,8 +792,10 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _buildCardConfirmacaoAceite(),
-                              const SizedBox(height: 14),
+                              if (widget.recemAceito) ...[
+                                _buildCardConfirmacaoAceite(),
+                                const SizedBox(height: 14),
+                              ],
                               _buildCardAndamentoPedido(),
                               const SizedBox(height: 14),
                               _buildCardPerfilCliente(),
@@ -724,6 +832,8 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage> {
   // 1. HEADER
   // ==========================================
   Widget _buildHeader() {
+    final titulo = _tituloServico.isNotEmpty ? _tituloServico : _categoriaTitulo;
+
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
@@ -736,7 +846,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage> {
           const SizedBox(width: 4),
           Expanded(
             child: Text(
-              _categoriaTitulo,
+              titulo,
               style: const TextStyle(
                 color: _azul,
                 fontSize: 19,
@@ -747,19 +857,52 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage> {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          Container(
-            width: 40,
-            height: 40,
-            decoration: const BoxDecoration(
-              color: _azul,
-              shape: BoxShape.circle,
+          GestureDetector(
+            onTap: _navegarParaPerfilLogado,
+            child: Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: _azul,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: _azul.withValues(alpha: 0.35),
+                  width: 1.5,
+                ),
+              ),
+              child: ClipOval(
+                child: _fotoPerfilLogado != null && _fotoPerfilLogado!.isNotEmpty
+                    ? Image.network(
+                        _fotoPerfilLogado!,
+                        width: 42,
+                        height: 42,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => _iconeAvatarLogadoFallback(),
+                      )
+                    : _iconeAvatarLogadoFallback(),
+              ),
             ),
-            child: const Icon(Icons.person, color: Colors.white, size: 22),
           ),
           const SizedBox(width: 8),
         ],
       ),
     );
+  }
+
+  Widget _iconeAvatarLogadoFallback() {
+    if (_nomePerfilLogado != null && _nomePerfilLogado!.isNotEmpty) {
+      return Center(
+        child: Text(
+          obterIniciais(_nomePerfilLogado!),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      );
+    }
+    return const Icon(Icons.person, color: Colors.white, size: 22);
   }
 
   // ==========================================
@@ -866,7 +1009,6 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage> {
   Widget _buildCardAndamentoPedido() {
     late final List<String> etapas;
     late final List<IconData> icones;
-    late final String tagTexto;
     late final String instrucaoTexto;
 
     switch (_modalidade) {
@@ -879,7 +1021,6 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage> {
           Icons.local_shipping_outlined,
           Icons.check_circle_outline,
         ];
-        tagTexto = 'Etapa 1 de 5';
         instrucaoTexto =
             'Você aceitou o pedido. O próximo passo é iniciar o deslocamento até o cliente para buscar o produto.';
         break;
@@ -892,7 +1033,6 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage> {
           Icons.business_center_outlined,
           Icons.check_circle_outline,
         ];
-        tagTexto = 'A Caminho (Próximo)';
         instrucaoTexto =
             'Você aceitou o pedido. O próximo passo é iniciar o deslocamento até o cliente para cumprir o horário agendado.';
         break;
@@ -906,7 +1046,6 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage> {
           Icons.local_shipping_outlined,
           Icons.check_circle_outline,
         ];
-        tagTexto = 'A Caminho (Próximo)';
         instrucaoTexto =
             'Você aceitou o pedido. O próximo passo é aguardar o cliente para receber o produto.';
         break;
@@ -920,7 +1059,6 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage> {
           Icons.local_shipping_outlined,
           Icons.check_circle_outline,
         ];
-        tagTexto = 'A Caminho (Próximo)';
         instrucaoTexto =
             'Você aceitou o pedido. O próximo passo é aguardar o cliente para receber o produto.';
         break;
@@ -943,117 +1081,109 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          const Row(
             children: [
-              const Row(
-                children: [
-                  Icon(Icons.show_chart, color: _textoEscuro, size: 22),
-                  SizedBox(width: 8),
-                  Text(
-                    'Andamento do Pedido',
-                    style: TextStyle(
-                      color: _textoEscuro,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
-                decoration: BoxDecoration(
-                  color: _azul,
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (tagTexto.contains('Próximo')) ...[
-                      const Icon(Icons.circle, color: Colors.white, size: 6),
-                      const SizedBox(width: 5),
-                    ],
-                    Text(
-                      tagTexto,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ],
+              Icon(Icons.show_chart, color: _textoEscuro, size: 22),
+              SizedBox(width: 8),
+              Text(
+                'Andamento do Pedido',
+                style: TextStyle(
+                  color: _textoEscuro,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 22),
-          // Stepper Horizontal
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final stepCount = etapas.length;
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: List.generate(stepCount * 2 - 1, (index) {
-                  if (index.isOdd) {
-                    final stepIndex = index ~/ 2;
-                    final isActiveLine = stepIndex == 0;
-                    return Expanded(
-                      child: Container(
-                        height: 2.5,
-                        color: isActiveLine ? _azul : const Color(0xFFE2E8F0),
-                      ),
-                    );
-                  }
+          const SizedBox(height: 18),
+          // Stepper Horizontal com alinhamento perfeito de linhas e círculos
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: List.generate(etapas.length, (index) {
+              final isFirst = index == 0;
+              final isLast = index == etapas.length - 1;
+              final isDone = index == 0; // Aceito
+              final isCurrent = index == 1; // Próximo passo
+              final isLineDone = index == 0; // Linha entre Aceito e próximo passo em azul
 
-                  final step = index ~/ 2;
-                  final isDone = step == 0; // "Aceito" está concluído
-                  final isCurrent = step == 1; // Próximo passo
-
-                  return Column(
-                    children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isDone
-                              ? _azul
-                              : isCurrent
-                                  ? Colors.white
-                                  : const Color(0xFFF1F5F9),
-                          border: Border.all(
-                            color: isDone
-                                ? _azul
-                                : isCurrent
-                                    ? const Color(0xFF64748B)
-                                    : const Color(0xFFCBD5E1),
-                            width: isCurrent ? 2.5 : 1.5,
+              return Expanded(
+                child: Column(
+                  children: [
+                    SizedBox(
+                      height: 52,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          // Linhas de conexão que tocam exatamente os círculos e ficam perfeitamente centralizadas
+                          Row(
+                            children: [
+                              Expanded(
+                                child: isFirst
+                                    ? const SizedBox()
+                                    : Container(
+                                        height: 3,
+                                        color: index == 1
+                                            ? _azul
+                                            : const Color(0xFFCBD5E1),
+                                      ),
+                              ),
+                              const SizedBox(width: 36),
+                              Expanded(
+                                child: isLast
+                                    ? const SizedBox()
+                                    : Container(
+                                        height: 3,
+                                        color: isLineDone
+                                            ? _azul
+                                            : const Color(0xFFCBD5E1),
+                                      ),
+                              ),
+                            ],
                           ),
-                        ),
-                        child: Icon(
-                          icones[step],
-                          size: 18,
-                          color: isDone
-                              ? Colors.white
-                              : isCurrent
-                                  ? _textoEscuro
-                                  : _textoMuted,
-                        ),
+                          // Círculo com animação sonar no passo atual (em azul)
+                          if (isDone)
+                            _buildCirculoSonar(icones[index])
+                          else
+                            Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isCurrent
+                                    ? Colors.white
+                                    : const Color(0xFFF1F5F9),
+                                border: Border.all(
+                                  color: isCurrent
+                                      ? const Color(0xFF64748B)
+                                      : const Color(0xFFCBD5E1),
+                                  width: isCurrent ? 2.5 : 1.5,
+                                ),
+                              ),
+                              child: Icon(
+                                icones[index],
+                                size: 18,
+                                color: isCurrent ? _textoEscuro : _textoMuted,
+                              ),
+                            ),
+                        ],
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        etapas[step],
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: isDone ? FontWeight.w800 : FontWeight.w600,
-                          color: isDone ? _azul : _textoMuted,
-                        ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      etapas[index],
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: isDone ? FontWeight.w800 : FontWeight.w600,
+                        color: isDone ? _azul : _textoMuted,
                       ),
-                    ],
-                  );
-                }),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
               );
-            },
+            }),
           ),
           const SizedBox(height: 20),
           // Caixa cinza de instruções
@@ -1085,6 +1215,47 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage> {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCirculoSonar(IconData icone) {
+    return SizedBox(
+      width: 52,
+      height: 52,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          AnimatedBuilder(
+            animation: _sonarAnimation,
+            builder: (context, _) {
+              final val = _sonarAnimation.value;
+              final ringSize = 36.0 + (val * 14.0);
+              final opacity = ((1.0 - val) * 0.6).clamp(0.0, 1.0);
+              return Container(
+                width: ringSize,
+                height: ringSize,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: _azul.withValues(alpha: opacity),
+                    width: 2.0,
+                  ),
+                  color: _azul.withValues(alpha: opacity * 0.25),
+                ),
+              );
+            },
+          ),
+          Container(
+            width: 36,
+            height: 36,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: _azul,
+            ),
+            child: Icon(icone, size: 18, color: Colors.white),
           ),
         ],
       ),

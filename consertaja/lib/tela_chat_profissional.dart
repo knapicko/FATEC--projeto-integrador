@@ -71,6 +71,8 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
   List<_Mensagem> _mensagens = [];
   DateTime? _ultimaConexaoContato;
   String _oficioContato = '';
+  String? _nomeContato;
+  String? _fotoContato;
   RealtimeChannel? _canalMensagens;
   Timer? _pollingMensagens;
   Timer? _timerStatusContato;
@@ -1494,14 +1496,20 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
 
       final usuario = await _supabase
           .from('usuarios')
-          .select('ultima_conexao')
+          .select('nome, foto_perfil_url, ultima_conexao')
           .eq('id_usuario', idUsuarioContato)
           .maybeSingle();
       final raw = usuario?['ultima_conexao']?.toString();
+      final nome = usuario?['nome']?.toString().trim();
+      final foto = usuario?['foto_perfil_url']?.toString().trim();
       if (!mounted) return;
       setState(() {
         _ultimaConexaoContato =
             raw == null ? null : DateTime.tryParse(raw)?.toLocal();
+        if (_souProfissionalNaConversa && nome != null && nome.isNotEmpty) {
+          _nomeContato = nome;
+          _fotoContato = foto ?? '';
+        }
       });
     } catch (e) {
       debugPrint('Erro ao carregar status do contato: $e');
@@ -1610,6 +1618,11 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
         oficioExibido.toLowerCase() != 'conversa' &&
         oficioExibido.toLowerCase() != 'cliente';
 
+    final nomeExibido =
+        (_nomeContato != null && _nomeContato!.trim().isNotEmpty)
+            ? _nomeContato!.trim()
+            : widget.nomeProfissional;
+
     return AppBar(
       backgroundColor: Colors.white,
       elevation: 0,
@@ -1659,7 +1672,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                   children: [
                     Flexible(
                       child: Text(
-                        widget.nomeProfissional,
+                        nomeExibido,
                         style: const TextStyle(
                           color: Color(0xFF111827),
                           fontSize: 16,
@@ -1730,7 +1743,14 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
   }
 
   Widget _buildAvatarContato() {
-    final foto = widget.fotoProfissional.trim();
+    final nomeExibido =
+        (_nomeContato != null && _nomeContato!.trim().isNotEmpty)
+            ? _nomeContato!.trim()
+            : widget.nomeProfissional;
+    final foto = (_fotoContato != null && _fotoContato!.trim().isNotEmpty)
+        ? _fotoContato!.trim()
+        : widget.fotoProfissional.trim();
+
     if (foto.startsWith('http')) {
       return CircleAvatar(
         radius: 20,
@@ -1742,7 +1762,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       radius: 20,
       backgroundColor: const Color(0xFFDCE5EE),
       child: Text(
-        obterIniciais(widget.nomeProfissional),
+        obterIniciais(nomeExibido),
         style: const TextStyle(
           color: Color(0xFF5E6F7E),
           fontWeight: FontWeight.w700,
@@ -1753,7 +1773,14 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
   }
 
   Widget _buildMiniAvatarContato() {
-    final foto = widget.fotoProfissional.trim();
+    final nomeExibido =
+        (_nomeContato != null && _nomeContato!.trim().isNotEmpty)
+            ? _nomeContato!.trim()
+            : widget.nomeProfissional;
+    final foto = (_fotoContato != null && _fotoContato!.trim().isNotEmpty)
+        ? _fotoContato!.trim()
+        : widget.fotoProfissional.trim();
+
     if (foto.startsWith('http')) {
       return CircleAvatar(
         radius: 13,
@@ -1765,7 +1792,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       radius: 13,
       backgroundColor: const Color(0xFFDCE5EE),
       child: Text(
-        obterIniciais(widget.nomeProfissional),
+        obterIniciais(nomeExibido),
         style: const TextStyle(
           color: Color(0xFF5E6F7E),
           fontWeight: FontWeight.w700,

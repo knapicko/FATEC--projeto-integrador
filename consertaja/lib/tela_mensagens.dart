@@ -105,34 +105,45 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
 
       final usuario = await _supabase
           .from('usuarios')
-          .select('id_usuario, nome, foto_perfil_url')
+          .select('id_usuario, nome, foto_perfil_url, tipo_conta')
           .eq('auth_id', authUser.id)
           .maybeSingle();
       final idUsuario = (usuario?['id_usuario'] as num?)?.toInt();
 
+      bool ehProfissional = widget.isProfissional ||
+          (usuario?['tipo_conta'] ?? '')
+                  .toString()
+                  .trim()
+                  .toLowerCase() ==
+              'profissional';
+
       String? fotoEmpresa;
       String nomeEmpresa = '';
-      if (idUsuario != null && ativa) {
+      if (idUsuario != null) {
         final dadosProf = await _supabase
             .from('dados_profissionais')
-            .select('fk_grupo_empresa')
+            .select('id_profissional, fk_grupo_empresa')
             .eq('fk_usuario', idUsuario)
             .maybeSingle();
-        final idGrupo = (dadosProf?['fk_grupo_empresa'] as num?)?.toInt();
-        if (idGrupo != null) {
-          final grupo = await _supabase
-              .from('grupo_empresa')
-              .select('nome_empresa, foto_url_empresa')
-              .eq('id_grupo_empresa', idGrupo)
-              .maybeSingle();
-          fotoEmpresa = (grupo?['foto_url_empresa'] as String?)?.trim();
-          if (fotoEmpresa != null && fotoEmpresa.isEmpty) fotoEmpresa = null;
-          nomeEmpresa = (grupo?['nome_empresa'] as String?)?.trim() ?? '';
+        if (dadosProf != null) {
+          ehProfissional = true;
+          final idGrupo = (dadosProf['fk_grupo_empresa'] as num?)?.toInt();
+          if (idGrupo != null && ativa) {
+            final grupo = await _supabase
+                .from('grupo_empresa')
+                .select('nome_empresa, foto_url_empresa')
+                .eq('id_grupo_empresa', idGrupo)
+                .maybeSingle();
+            fotoEmpresa = (grupo?['foto_url_empresa'] as String?)?.trim();
+            if (fotoEmpresa != null && fotoEmpresa.isEmpty) fotoEmpresa = null;
+            nomeEmpresa = (grupo?['nome_empresa'] as String?)?.trim() ?? '';
+          }
         }
       }
 
       if (!mounted) return;
       setState(() {
+        _isProfissional = ehProfissional;
         _contaEmpresaAtiva = ativa;
         if (ativa && fotoEmpresa != null) {
           _minhaFotoConta = fotoEmpresa;
@@ -188,22 +199,14 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
       }
       _idUsuarioLogado = idUsuario;
 
-      final isProfissional =
-          (usuario?['tipo_conta'] ?? '').toString() == 'Profissional' ||
-          widget.isProfissional;
-      if (mounted) {
-        setState(() => _isProfissional = isProfissional);
-      } else {
-        _isProfissional = isProfissional;
-      }
+      // 1) Identifica se é profissional por prop, por tipo_conta ou por presença em dados_profissionais
+      bool isProfissional = widget.isProfissional ||
+          (usuario?['tipo_conta'] ?? '')
+                  .toString()
+                  .trim()
+                  .toLowerCase() ==
+              'profissional';
 
-      final List<Map<String, dynamic>> conversas;
-      // IDs dos grupos (chats da empresa) — visível nos dois ramos abaixo
-      // e no carregamento de nomes/fotos da loja mais adiante.
-      var idsGrupos = <int>[];
-      // Conta ativa (empresa x profissional): a lista do profissional segue
-      // a flag isProfissional, mas distingue os chats da empresa
-      // (fk_grupo_empresa) dos chats individuais (fk_profissional).
       bool temColunaGrupo = true;
       try {
         await _supabase
@@ -213,25 +216,39 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
       } catch (_) {
         temColunaGrupo = false;
       }
-      if (isProfissional) {
-        final dadosProf = await _supabase
+
+      Map<String, dynamic>? dadosProfMeu;
+      try {
+        dadosProfMeu = await _supabase
             .from('dados_profissionais')
             .select(temColunaGrupo
                 ? 'id_profissional, fk_grupo_empresa'
                 : 'id_profissional')
             .eq('fk_usuario', idUsuario)
             .maybeSingle();
-        final idProf = (dadosProf?['id_profissional'] as num?)?.toInt();
+        if (dadosProfMeu != null) {
+          isProfissional = true;
+        }
+      } catch (_) {}
+
+      if (mounted) {
+        setState(() => _isProfissional = isProfissional);
+      } else {
+        _isProfissional = isProfissional;
+      }
+
+      final List<Map<String, dynamic>> conversas;
+      var idsGrupos = <int>[];
+
+      if (isProfissional) {
+        final idProf = (dadosProfMeu?['id_profissional'] as num?)?.toInt();
         final idGrupoMeu =
-            (dadosProf?['fk_grupo_empresa'] as num?)?.toInt();
+            (dadosProfMeu?['fk_grupo_empresa'] as num?)?.toInt();
         if (idProf == null && idGrupoMeu == null) {
           _aplicarLista([]);
           return;
         }
         final todas = <Map<String, dynamic>>[];
-        // Distinção pela CONTA ATIVA (mesma flag da home):
-        // - conta empresa ativa: SÓ chats da empresa (fk_grupo_empresa).
-        // - conta profissional (CNPJ): SÓ chats individuais (fk_profissional).
         if (_contaEmpresaAtiva) {
           if (temColunaGrupo && idGrupoMeu != null) {
             final daEmpresa = await _supabase
@@ -244,11 +261,13 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
             );
           }
         } else {
-          // Chats individuais do profissional (fk_grupo_empresa NULL).
+          // Chats individuais do profissional
           if (idProf != null) {
             final query = _supabase.from('conversas').select();
             dynamic q = query.eq('fk_profissional', idProf);
-            if (temColunaGrupo) q = q.isFilter('fk_grupo_empresa', null);
+            if (temColunaGrupo && idGrupoMeu != null) {
+              q = q.isFilter('fk_grupo_empresa', null);
+            }
             todas.addAll(
               (await q as List).map((e) => Map<String, dynamic>.from(e as Map)),
             );
@@ -267,24 +286,149 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
         return;
       }
 
-      final Map<int, Map<String, dynamic>> contatoPorChave;
-      if (isProfissional) {
-        final idsClientes = {
+      final idsConversas = {
+        ...conversas
+            .map((row) => (row['id_conversa'] as num?)?.toInt())
+            .whereType<int>(),
+      }.toList();
+
+      final ultimaPorConversa = <int, Map<String, dynamic>>{};
+      final naoLidasPorConversa = <int, int>{};
+      final remetentesOutrosPorConversa = <int, Set<int>>{};
+      try {
+        final mensagens = await _buscarMensagens(idsConversas);
+        for (final mensagem in mensagens) {
+          final id = (mensagem['fk_conversa'] as num?)?.toInt();
+          if (id == null) continue;
+          if (!ultimaPorConversa.containsKey(id)) {
+            ultimaPorConversa[id] = Map<String, dynamic>.from(mensagem);
+          }
+          final remetente =
+              (mensagem['fk_remitente_usuario'] as num?)?.toInt();
+          if (remetente != null && remetente != idUsuario) {
+            remetentesOutrosPorConversa
+                .putIfAbsent(id, () => <int>{})
+                .add(remetente);
+            if (mensagem['lida'] != true) {
+              naoLidasPorConversa[id] = (naoLidasPorConversa[id] ?? 0) + 1;
+            }
+          }
+        }
+      } catch (_) {}
+
+      final servicoPorConversa = <int, String>{};
+      final clientePorSolicitacao = <int, int>{};
+      try {
+        final idsSolicitacao = {
           ...conversas
-              .map((row) => (row['fk_usuario'] as num?)?.toInt())
+              .map((row) => (row['fk_solicitacao'] as num?)?.toInt())
               .whereType<int>(),
         }.toList();
-        if (idsClientes.isEmpty) {
-          _aplicarLista([]);
-          return;
+        if (idsSolicitacao.isNotEmpty) {
+          final solicitacoes = await _supabase
+              .from('solicitacoes')
+              .select('id_solicitacao, data_aceite, fk_servico_prof, fk_usuario')
+              .inFilter('id_solicitacao', idsSolicitacao);
+          for (final row in solicitacoes as List) {
+            final idSol = (row['id_solicitacao'] as num?)?.toInt();
+            final idCliSol = (row['fk_usuario'] as num?)?.toInt();
+            if (idSol != null && idCliSol != null && idCliSol != idUsuario) {
+              clientePorSolicitacao[idSol] = idCliSol;
+            }
+          }
+
+          final idsServico = {
+            ...solicitacoes
+                .where(
+                  (row) =>
+                      row['data_aceite'] != null &&
+                      row['fk_servico_prof'] != null,
+                )
+                .map((row) => (row['fk_servico_prof'] as num?)?.toInt())
+                .whereType<int>(),
+          }.toList();
+          if (idsServico.isNotEmpty) {
+            final servicos = await _supabase
+                .from('servicos_profissional')
+                .select('id_servico_prof, titulo')
+                .inFilter('id_servico_prof', idsServico);
+            final tituloPorServico = <int, String>{
+              for (final row in servicos)
+                if ((row['id_servico_prof'] as num?) != null &&
+                    row['titulo'] != null)
+                  (row['id_servico_prof'] as num).toInt():
+                      row['titulo'].toString(),
+            };
+            final solicitacaoPorId = <int, Map<String, dynamic>>{
+              for (final row in solicitacoes)
+                if ((row['id_solicitacao'] as num?) != null)
+                  (row['id_solicitacao'] as num).toInt():
+                      Map<String, dynamic>.from(row),
+            };
+            for (final conv in conversas) {
+              final idSol = (conv['fk_solicitacao'] as num?)?.toInt();
+              if (idSol == null) continue;
+              final solicitacao = solicitacaoPorId[idSol];
+              if (solicitacao == null || solicitacao['data_aceite'] == null) {
+                continue;
+              }
+              final idServ =
+                  (solicitacao['fk_servico_prof'] as num?)?.toInt();
+              final titulo = idServ == null ? null : tituloPorServico[idServ];
+              final idConv = (conv['id_conversa'] as num?)?.toInt();
+              if (idConv != null && titulo != null && titulo.isNotEmpty) {
+                servicoPorConversa[idConv] = titulo;
+              }
+            }
+          }
         }
-        final usuarios = await _buscarUsuarios(idsClientes);
-        contatoPorChave = {
-          for (final row in usuarios)
-            if ((row['id_usuario'] as num?) != null)
-              (row['id_usuario'] as num).toInt():
-                  Map<String, dynamic>.from(row),
-        };
+      } catch (_) {}
+
+      final Map<int, Map<String, dynamic>> contatoPorChave;
+      final Map<int, int> clientePorConversa = {}; // idConversa -> idUsuario do cliente
+
+      if (isProfissional) {
+        final idsClientes = <int>{};
+        for (final conv in conversas) {
+          final idConv = (conv['id_conversa'] as num?)?.toInt();
+          if (idConv == null) continue;
+          final fkUser = (conv['fk_usuario'] as num?)?.toInt();
+
+          int? idCliente;
+          if (fkUser != null && fkUser != idUsuario) {
+            idCliente = fkUser;
+          } else {
+            // Se fk_usuario foi preenchido com o próprio profissional logado,
+            // identifica o cliente real pelo remetente das mensagens que não seja eu
+            final outros = remetentesOutrosPorConversa[idConv];
+            if (outros != null && outros.isNotEmpty) {
+              idCliente = outros.first;
+            } else {
+              // Ou pela solicitação vinculada
+              final idSol = (conv['fk_solicitacao'] as num?)?.toInt();
+              if (idSol != null && clientePorSolicitacao.containsKey(idSol)) {
+                idCliente = clientePorSolicitacao[idSol];
+              }
+            }
+          }
+
+          if (idCliente != null) {
+            clientePorConversa[idConv] = idCliente;
+            idsClientes.add(idCliente);
+          }
+        }
+
+        if (idsClientes.isNotEmpty) {
+          final usuarios = await _buscarUsuarios(idsClientes.toList());
+          contatoPorChave = {
+            for (final row in usuarios)
+              if ((row['id_usuario'] as num?) != null)
+                (row['id_usuario'] as num).toInt():
+                    Map<String, dynamic>.from(row),
+          };
+        } else {
+          contatoPorChave = {};
+        }
       } else {
         final idsProfissional = {
           ...conversas
@@ -343,91 +487,6 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
                   usuarioPorId[(entrada.value['fk_usuario'] as num).toInt()]!,
         };
       }
-
-      final idsConversas = {
-        ...conversas
-            .map((row) => (row['id_conversa'] as num?)?.toInt())
-            .whereType<int>(),
-      }.toList();
-      final ultimaPorConversa = <int, Map<String, dynamic>>{};
-      final naoLidasPorConversa = <int, int>{};
-      try {
-        final mensagens = await _buscarMensagens(idsConversas);
-        for (final mensagem in mensagens) {
-          final id = (mensagem['fk_conversa'] as num?)?.toInt();
-          if (id == null) continue;
-          if (!ultimaPorConversa.containsKey(id)) {
-            ultimaPorConversa[id] = Map<String, dynamic>.from(mensagem);
-          }
-          if (!mensagem.containsKey('lida')) continue;
-          final remetente =
-              (mensagem['fk_remitente_usuario'] as num?)?.toInt();
-          if (remetente != null &&
-              remetente != idUsuario &&
-              mensagem['lida'] != true) {
-            naoLidasPorConversa[id] = (naoLidasPorConversa[id] ?? 0) + 1;
-          }
-        }
-      } catch (_) {}
-
-      final servicoPorConversa = <int, String>{};
-      try {
-        final idsSolicitacao = {
-          ...conversas
-              .map((row) => (row['fk_solicitacao'] as num?)?.toInt())
-              .whereType<int>(),
-        }.toList();
-        if (idsSolicitacao.isNotEmpty) {
-          final solicitacoes = await _supabase
-              .from('solicitacoes')
-              .select('id_solicitacao, data_aceite, fk_servico_prof')
-              .inFilter('id_solicitacao', idsSolicitacao);
-          final idsServico = {
-            ...solicitacoes
-                .where(
-                  (row) =>
-                      row['data_aceite'] != null &&
-                      row['fk_servico_prof'] != null,
-                )
-                .map((row) => (row['fk_servico_prof'] as num?)?.toInt())
-                .whereType<int>(),
-          }.toList();
-          if (idsServico.isNotEmpty) {
-            final servicos = await _supabase
-                .from('servicos_profissional')
-                .select('id_servico_prof, titulo')
-                .inFilter('id_servico_prof', idsServico);
-            final tituloPorServico = <int, String>{
-              for (final row in servicos)
-                if ((row['id_servico_prof'] as num?) != null &&
-                    row['titulo'] != null)
-                  (row['id_servico_prof'] as num).toInt():
-                      row['titulo'].toString(),
-            };
-            final solicitacaoPorId = <int, Map<String, dynamic>>{
-              for (final row in solicitacoes)
-                if ((row['id_solicitacao'] as num?) != null)
-                  (row['id_solicitacao'] as num).toInt():
-                      Map<String, dynamic>.from(row),
-            };
-            for (final conv in conversas) {
-              final idSol = (conv['fk_solicitacao'] as num?)?.toInt();
-              if (idSol == null) continue;
-              final solicitacao = solicitacaoPorId[idSol];
-              if (solicitacao == null || solicitacao['data_aceite'] == null) {
-                continue;
-              }
-              final idServ =
-                  (solicitacao['fk_servico_prof'] as num?)?.toInt();
-              final titulo = idServ == null ? null : tituloPorServico[idServ];
-              final idConv = (conv['id_conversa'] as num?)?.toInt();
-              if (idConv != null && titulo != null && titulo.isNotEmpty) {
-                servicoPorConversa[idConv] = titulo;
-              }
-            }
-          }
-        }
-      } catch (_) {}
 
       final nomePorGrupo = <int, String>{};
       final fotoPorGrupo = <int, String>{};
@@ -489,63 +548,58 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
       final resultado = <_ConversaResumo>[];
       for (final conv in conversas) {
         final idConv = (conv['id_conversa'] as num?)?.toInt();
+        if (idConv == null) continue;
         final idGrupoConv = (conv['fk_grupo_empresa'] as num?)?.toInt();
         final ehEmpresa = idGrupoConv != null;
-        final chaveContato = isProfissional
-            ? (conv['fk_usuario'] as num?)?.toInt()
-            : (conv['fk_profissional'] as num?)?.toInt();
-        if (idConv == null) continue;
 
-        // Chat da EMPRESA: contato é o grupo (nome/foto da loja).
-        if (ehEmpresa) {
-          if (isProfissional) {
-            // Profissional/empresa: o contato é o CLIENTE da conversa.
-            final contato =
-                chaveContato == null ? null : contatoPorChave[chaveContato];
-            if (contato == null) continue;
-            final ultima = ultimaPorConversa[idConv];
-            final remetenteUltima =
-                (ultima?['fk_remitente_usuario'] as num?)?.toInt();
-            final ultimaLida = ultima?['lida'] == true;
-            final ultimaEnviadaPorMim =
-                remetenteUltima != null && remetenteUltima == idUsuario;
-            final ultimaRecebida =
-                remetenteUltima != null && remetenteUltima != idUsuario;
-            resultado.add(
-              _ConversaResumo(
-                idConversa: idConv,
-                nomeContato:
-                    contato['nome']?.toString() ?? 'Nome não encontrado',
-                fotoUrl: contato['foto_perfil_url']?.toString() ?? '',
-                oficioContato: 'Cliente',
-                idProfissional: null,
-                idGrupoEmpresa: idGrupoConv,
-                ehChatEmpresa: true,
-                servicoAssociado: servicoPorConversa[idConv],
-                ultimaConexaoContato: DateTime.tryParse(
-                  contato['ultima_conexao']?.toString() ?? '',
-                ),
-                ultimaMensagem: _previaMensagem(ultima),
-                dataUltimaMensagem: DateTime.tryParse(
-                  ultima?['data_envio']?.toString() ?? '',
-                ),
-                mensagensNaoLidas: naoLidasPorConversa[idConv] ?? 0,
-                ultimaMensagemRecebida: ultimaRecebida,
-                ultimaMensagemLida: ultimaLida,
-                ultimaMensagemEnviadaPorMim: ultimaEnviadaPorMim,
+        final ultima = ultimaPorConversa[idConv];
+        final remetenteUltima =
+            (ultima?['fk_remitente_usuario'] as num?)?.toInt();
+        final ultimaLida = ultima?['lida'] == true;
+        final ultimaEnviadaPorMim =
+            remetenteUltima != null && remetenteUltima == idUsuario;
+        final ultimaRecebida =
+            remetenteUltima != null && remetenteUltima != idUsuario;
+
+        if (isProfissional) {
+          final idCliente = clientePorConversa[idConv];
+          final contato =
+              idCliente != null ? contatoPorChave[idCliente] : null;
+
+          final nomeContato =
+              contato?['nome']?.toString().trim().isNotEmpty == true
+                  ? contato!['nome'].toString().trim()
+                  : 'Cliente';
+          final fotoUrl =
+              contato?['foto_perfil_url']?.toString().trim() ?? '';
+
+          resultado.add(
+            _ConversaResumo(
+              idConversa: idConv,
+              nomeContato: nomeContato,
+              fotoUrl: fotoUrl,
+              oficioContato: 'Cliente',
+              idProfissional: null,
+              idGrupoEmpresa: ehEmpresa ? idGrupoConv : null,
+              ehChatEmpresa: ehEmpresa,
+              servicoAssociado: servicoPorConversa[idConv],
+              ultimaConexaoContato: DateTime.tryParse(
+                contato?['ultima_conexao']?.toString() ?? '',
               ),
-            );
-            continue;
-          }
-          // Cliente: contato é a EMPRESA.
-          final ultima = ultimaPorConversa[idConv];
-          final remetenteUltima =
-              (ultima?['fk_remitente_usuario'] as num?)?.toInt();
-          final ultimaLida = ultima?['lida'] == true;
-          final ultimaEnviadaPorMim =
-              remetenteUltima != null && remetenteUltima == idUsuario;
-          final ultimaRecebida =
-              remetenteUltima != null && remetenteUltima != idUsuario;
+              ultimaMensagem: _previaMensagem(ultima),
+              dataUltimaMensagem: DateTime.tryParse(
+                ultima?['data_envio']?.toString() ?? '',
+              ),
+              mensagensNaoLidas: naoLidasPorConversa[idConv] ?? 0,
+              ultimaMensagemRecebida: ultimaRecebida,
+              ultimaMensagemLida: ultimaLida,
+              ultimaMensagemEnviadaPorMim: ultimaEnviadaPorMim,
+            ),
+          );
+          continue;
+        }
+
+        if (ehEmpresa) {
           resultado.add(
             _ConversaResumo(
               idConversa: idConv,
@@ -570,28 +624,18 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
           continue;
         }
 
+        final chaveContato = (conv['fk_profissional'] as num?)?.toInt();
         final contato =
             chaveContato == null ? null : contatoPorChave[chaveContato];
         if (contato == null) continue;
-
-        final ultima = ultimaPorConversa[idConv];
-        final remetenteUltima =
-            (ultima?['fk_remitente_usuario'] as num?)?.toInt();
-        final ultimaLida = ultima?['lida'] == true;
-        final ultimaEnviadaPorMim =
-            remetenteUltima != null && remetenteUltima == idUsuario;
-        final ultimaRecebida =
-            remetenteUltima != null && remetenteUltima != idUsuario;
 
         resultado.add(
           _ConversaResumo(
             idConversa: idConv,
             nomeContato: contato['nome']?.toString() ?? 'Nome não encontrado',
             fotoUrl: contato['foto_perfil_url']?.toString() ?? '',
-            oficioContato: isProfissional
-                ? 'Cliente'
-                : (oficioPorProfissional[chaveContato] ?? ''),
-            idProfissional: isProfissional ? null : chaveContato,
+            oficioContato: oficioPorProfissional[chaveContato] ?? '',
+            idProfissional: chaveContato,
             idGrupoEmpresa: null,
             ehChatEmpresa: false,
             servicoAssociado: servicoPorConversa[idConv],
@@ -918,7 +962,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
   }
 
   Widget _buildBottomNavigationBar() {
-    if (widget.isProfissional) {
+    if (_isProfissional) {
       // Sem prop isContaEmpresa: a barra resolve sozinha pelo cache
       // interno — sem piscar Perfil/Empresa na abertura, igual às
       // demais telas. Mesma chave da Gestão: reutiliza o elemento ao
@@ -944,24 +988,24 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
     if (index == 0) {
       AppNavigationUtil.navegarAba(
         context,
-        widget.isProfissional
+        _isProfissional
             ? TelaHomeProfissional(isVisitante: widget.isVisitante)
             : TelaHome(isVisitante: widget.isVisitante),
         isHome: true,
       );
-    } else if (index == 1 && !widget.isProfissional) {
+    } else if (index == 1 && !_isProfissional) {
       AppNavigationUtil.navegarAba(
         context,
         SeguindoClientePage(isVisitante: widget.isVisitante),
         isHome: false,
       );
-    } else if (index == 3 && !widget.isProfissional) {
+    } else if (index == 3 && !_isProfissional) {
       AppNavigationUtil.navegarAba(
         context,
         MeusPedidosPage(isVisitante: widget.isVisitante),
         isHome: false,
       );
-    } else if (index == 3 && widget.isProfissional) {
+    } else if (index == 3 && _isProfissional) {
       // Aba Serviços do profissional: abre os serviços solicitados
       // (conta independente ou empresa), igual à home do profissional.
       Navigator.of(context).push(
@@ -976,7 +1020,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
       // setState assíncrono de _contaEmpresaAtiva.
       final ehEmpresa =
           BottomNavigationBarProfissional.leituraSincronaContaEmpresa();
-      if (widget.isProfissional && ehEmpresa) {
+      if (_isProfissional && ehEmpresa) {
         Navigator.of(context).push(
           AppNavigationUtil.rotaSemAnimacao(
             const GestaoEquipePage(),
@@ -987,7 +1031,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
       }
       AppNavigationUtil.navegarAba(
         context,
-        widget.isProfissional
+        _isProfissional
             ? TelaMeuPerfilProfissionalPage(isVisitante: widget.isVisitante)
             : TelaMeuPerfilClientePage(isVisitante: widget.isVisitante),
         isHome: false,
