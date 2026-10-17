@@ -379,12 +379,16 @@ class _MeusServicosSolicitadosPageState
     );
   }
 
-  void _abrirSolicitacaoEstado(SolicitacaoRecebida item) {
+  void _abrirSolicitacaoEstado(
+    SolicitacaoRecebida item, {
+    bool recemAceito = false,
+  }) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => SolicitacaoEstadoPage(
           idSolicitacao: item.idSolicitacao,
           solicitacao: item,
+          recemAceito: recemAceito,
         ),
       ),
     );
@@ -595,7 +599,7 @@ class _MeusServicosSolicitadosPageState
       await _garantirStatusAceito(item.idSolicitacao);
       await _carregar();
       if (mounted) {
-        _abrirSolicitacaoEstado(item);
+        _abrirSolicitacaoEstado(item, recemAceito: true);
       }
     } catch (e) {
       if (mounted) {
