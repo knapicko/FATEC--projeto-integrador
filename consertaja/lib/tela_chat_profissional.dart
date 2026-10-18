@@ -17,9 +17,14 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:ui' as ui;
 import 'widgets/skeleton_loading.dart';
 import 'package:url_launcher/url_launcher.dart' show LaunchMode, launchUrl;
 
+import 'alterar_tema_chat.dart';
+import 'chat_contato_info.dart';
+import 'perfil_loja.dart';
+import 'perfil_profissional.dart';
 import 'services/chat_anexos_service.dart';
 import 'services/verificacao_online.dart';
 import 'utils/iniciais.dart';
@@ -57,15 +62,38 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
   static const Color _primaryBlue = Color(0xFF0FB3FF);
   static const Color _chatBackground = Color(0xFFF6F8FA);
 
+  String _corBaloesHex = '0xFF0FB3FF';
+  String _planoFundo = 'assets/images/plano_fundo_chat/doodle_default.png';
+  double _desfoqueFundo = 0.0;
+  double _opacidadeFundo = 95.0;
+
+  Color get _corBaloes {
+    try {
+      final limpo = _corBaloesHex.replaceAll('#', '').trim();
+      if (limpo.startsWith('0x') || limpo.startsWith('0X')) {
+        return Color(int.parse(limpo));
+      }
+      if (limpo.length == 6) {
+        return Color(int.parse('0xFF$limpo'));
+      }
+      return Color(int.parse(limpo));
+    } catch (_) {
+      return _primaryBlue;
+    }
+  }
+
   final _supabase = Supabase.instance.client;
   final _mensagemController = TextEditingController();
   final _scrollController = ScrollController();
 
   int? _idConversa;
   int? _idUsuarioLogado;
+  int? _idProfissionalConversa;
   bool _souProfissionalNaConversa = false;
   bool _souEmpresaNaConversa = false;
   int? _idGrupoEmpresaConversa;
+  bool _modoPesquisa = false;
+  final _pesquisaController = TextEditingController();
   bool _carregando = true;
   bool _enviando = false;
   bool _temTexto = false;
@@ -80,6 +108,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
   Timer? _timerStatusContato;
   int? _idAudioTocando;
   bool _contatoDigitando = false;
+  bool _menuAberto = false;
   Timer? _timerDigitandoTimeout;
   Timer? _debounceDigitandoEnvio;
   _ResumoSolicitacao? _resumoSolicitacao;
@@ -104,6 +133,8 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
   @override
   void initState() {
     super.initState();
+    _idProfissionalConversa = widget.idProfissional;
+    _idGrupoEmpresaConversa = widget.idGrupoEmpresa;
     _mensagemController.addListener(_atualizarEstadoTexto);
     _configurarPlayer();
     _inicializarChat();
@@ -770,6 +801,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       _supabase.removeChannel(_canalMensagens!);
       _canalMensagens = null;
     }
+    _pesquisaController.dispose();
     _mensagemController.removeListener(_atualizarEstadoTexto);
     _mensagemController.dispose();
     _scrollController.dispose();
@@ -838,6 +870,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       await _carregarStatusContato();
       await _vincularSolicitacaoConversa();
       await _carregarResumoSolicitacao();
+      await _carregarTemaConversa();
       if (_oficioContato.trim().isEmpty ||
           _oficioContato.trim().toLowerCase() == 'conversa') {
         await _carregarOficioContato();
@@ -978,6 +1011,37 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     }
   }
 
+  Future<void> _carregarTemaConversa() async {
+    if (_idConversa == null) return;
+    try {
+      final conv = await _supabase
+          .from('conversas')
+          .select('cor_baloes, plano_fundo, desfoque_fundo, opacidade_fundo')
+          .eq('id_conversa', _idConversa!)
+          .maybeSingle();
+      if (conv != null && mounted) {
+        setState(() {
+          if (conv['cor_baloes'] != null) {
+            _corBaloesHex = conv['cor_baloes'].toString();
+          }
+          if (conv['plano_fundo'] != null) {
+            _planoFundo = conv['plano_fundo'].toString();
+          }
+          if (conv['desfoque_fundo'] != null) {
+            _desfoqueFundo =
+                (conv['desfoque_fundo'] as num).toDouble().clamp(0.0, 15.0);
+          }
+          if (conv['opacidade_fundo'] != null) {
+            _opacidadeFundo =
+                (conv['opacidade_fundo'] as num).toDouble().clamp(10.0, 100.0);
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Aviso ao carregar tema da conversa: $e');
+    }
+  }
+
   Future<void> _carregarPapelNaConversa() async {
     try {
       // Primeiro tenta descobrir se a coluna fk_grupo_empresa existe.
@@ -1007,6 +1071,8 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       final fkGrupo = temColunaGrupo
           ? (conversa['fk_grupo_empresa'] as num?)?.toInt()
           : null;
+      if (fkProfissional != null) _idProfissionalConversa = fkProfissional;
+      if (fkGrupo != null) _idGrupoEmpresaConversa = fkGrupo;
       if (fkGrupo != null) {
         _idGrupoEmpresaConversa = fkGrupo;
         _souEmpresaNaConversa = await _souMembroDoGrupo(fkGrupo);
@@ -1690,55 +1756,418 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     return Scaffold(
       backgroundColor: _chatBackground,
       appBar: _buildBarraContato(),
-      body: _carregando
-          ? const SkeletonPage(layout: SkeletonLayout.messages)
-          : _erroCarregamento != null && _mensagens.isEmpty
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+      body: NotificationListener<ScrollNotification>(
+        onNotification: (notification) {
+          if (_menuAberto && notification is ScrollUpdateNotification) {
+            Navigator.of(context).pop();
+            _menuAberto = false;
+          }
+          return false;
+        },
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onLongPress: _fecharMenuAberto,
+          child: _carregando
+              ? const _SkeletonChatMensagens()
+              : _erroCarregamento != null && _mensagens.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.chat_bubble_outline,
+                          size: 48,
+                          color: Colors.grey,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          _erroCarregamento!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.black54),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () {
+                            setState(() {
+                              _carregando = true;
+                              _erroCarregamento = null;
+                            });
+                            _inicializarChat();
+                          },
+                          child: const Text('Tentar de novo'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : Stack(
                   children: [
-                    const Icon(
-                      Icons.chat_bubble_outline,
-                      size: 48,
-                      color: Colors.grey,
+                    Positioned.fill(
+                      child: _buildBackgroundChat(),
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      _erroCarregamento!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.black54),
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          _carregando = true;
-                          _erroCarregamento = null;
-                        });
-                        _inicializarChat();
-                      },
-                      child: const Text('Tentar de novo'),
+                    Column(
+                      children: [
+                        Expanded(child: _buildListaMensagens()),
+                        _buildBarraInput(),
+                      ],
                     ),
                   ],
                 ),
-              ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBackgroundChat() {
+    Widget backgroundWidget;
+
+    if (_planoFundo.startsWith('galeria:')) {
+      final caminho = _planoFundo.replaceFirst('galeria:', '');
+      backgroundWidget = Image.file(
+        File(caminho),
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _buildDoodleChatWidget(),
+      );
+    } else if (_planoFundo.startsWith('http')) {
+      backgroundWidget = Image.network(
+        _planoFundo,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _buildDoodleChatWidget(),
+      );
+    } else if (_planoFundo == 'aurora_profundo') {
+      backgroundWidget = Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF0F172A), Color(0xFF1E3A8A)],
+          ),
+        ),
+      );
+    } else if (_planoFundo == 'azul_ceu') {
+      backgroundWidget = Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFBAE6FD), Color(0xFF38BDF8), Color(0xFF0284C7)],
+          ),
+        ),
+      );
+    } else if (_planoFundo == 'por_do_sol') {
+      backgroundWidget = Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFFFEDD5), Color(0xFFFDBA74), Color(0xFFF43F5E)],
+          ),
+        ),
+      );
+    } else if (_planoFundo == 'minimalista') {
+      backgroundWidget = Container(color: const Color(0xFFF8FAFC));
+    } else if (_planoFundo == 'menta_pastel') {
+      backgroundWidget = Container(color: const Color(0xFFE6F4EA));
+    } else if (_planoFundo == 'grafite_dark') {
+      backgroundWidget = Container(color: const Color(0xFF1E293B));
+    } else if (_planoFundo == 'geometrico') {
+      backgroundWidget = Container(color: const Color(0xFFF1F5F9));
+    } else {
+      backgroundWidget = _buildDoodleChatWidget();
+    }
+
+    Widget resultado = Opacity(
+      opacity: (_opacidadeFundo / 100.0).clamp(0.05, 1.0),
+      child: backgroundWidget,
+    );
+
+    if (_desfoqueFundo > 0.1) {
+      resultado = ImageFiltered(
+        imageFilter: ui.ImageFilter.blur(
+          sigmaX: _desfoqueFundo,
+          sigmaY: _desfoqueFundo,
+        ),
+        child: resultado,
+      );
+    }
+
+    return Container(
+      color: Colors.white,
+      child: resultado,
+    );
+  }
+
+  Widget _buildDoodleChatWidget() {
+    return Image.asset(
+      'assets/images/plano_fundo_chat/doodle_default.png',
+      fit: BoxFit.cover,
+      repeat: ImageRepeat.repeat,
+      errorBuilder: (_, __, ___) => Container(color: const Color(0xFFF8FAFC)),
+    );
+  }
+
+  Future<void> _abrirPerfilDestinatario({
+    required String nomeExibido,
+    required String oficioExibido,
+  }) async {
+    try {
+      int? idGrupo = _idGrupoEmpresaConversa ?? widget.idGrupoEmpresa;
+      int? idProf = _idProfissionalConversa ?? widget.idProfissional;
+
+      if (idGrupo == null && idProf == null && _idConversa != null) {
+        final conversa = await _supabase
+            .from('conversas')
+            .select('fk_profissional, fk_grupo_empresa')
+            .eq('id_conversa', _idConversa!)
+            .maybeSingle();
+        idProf = (conversa?['fk_profissional'] as num?)?.toInt();
+        idGrupo = (conversa?['fk_grupo_empresa'] as num?)?.toInt();
+      }
+
+      if (idGrupo != null && idProf == null) {
+        final grupo = await _supabase
+            .from('grupo_empresa')
+            .select(
+              'id_grupo_empresa, nome_empresa, foto_url_empresa, banner_url_empresa, tag_empresa, cor_tag_empresa',
             )
-          : Column(
-              children: [
-                Expanded(child: _buildListaMensagens()),
-                _buildBarraInput(),
-              ],
+            .eq('id_grupo_empresa', idGrupo)
+            .maybeSingle();
+
+        if (!mounted) return;
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PerfilLoja(
+              idGrupoEmpresa: idGrupo,
+              nomeEmpresa: grupo?['nome_empresa']?.toString() ?? nomeExibido,
+              fotoUrlEmpresa:
+                  grupo?['foto_url_empresa']?.toString() ??
+                  _fotoContato ??
+                  widget.fotoProfissional,
+              bannerUrlEmpresa: grupo?['banner_url_empresa']?.toString(),
+              tagEmpresa: grupo?['tag_empresa']?.toString(),
+              corTagEmpresa: grupo?['cor_tag_empresa']?.toString(),
             ),
+          ),
+        );
+        return;
+      }
+
+      if (idProf != null) {
+        final dadosProf = await _supabase
+            .from('dados_profissionais')
+            .select('id_profissional, fk_perfil, fk_grupo_empresa')
+            .eq('id_profissional', idProf)
+            .maybeSingle();
+
+        final fkPerfil = (dadosProf?['fk_perfil'] as num?)?.toInt();
+        final fkGrupo = (dadosProf?['fk_grupo_empresa'] as num?)?.toInt();
+        String? tipoPerfil;
+
+        if (fkPerfil != null) {
+          final perfil = await _supabase
+              .from('perfil')
+              .select('tipo_perfil')
+              .eq('id_perfil', fkPerfil)
+              .maybeSingle();
+          tipoPerfil = perfil?['tipo_perfil']?.toString().trim().toLowerCase();
+        }
+
+        if ((tipoPerfil == 'loja' || tipoPerfil == 'empresa') &&
+            (fkGrupo != null || idGrupo != null)) {
+          final targetGrupo = fkGrupo ?? idGrupo;
+          final grupo = await _supabase
+              .from('grupo_empresa')
+              .select(
+                'id_grupo_empresa, nome_empresa, foto_url_empresa, banner_url_empresa, tag_empresa, cor_tag_empresa',
+              )
+              .eq('id_grupo_empresa', targetGrupo!)
+              .maybeSingle();
+
+          if (!mounted) return;
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PerfilLoja(
+                idGrupoEmpresa: targetGrupo,
+                nomeEmpresa: grupo?['nome_empresa']?.toString() ?? nomeExibido,
+                fotoUrlEmpresa:
+                    grupo?['foto_url_empresa']?.toString() ??
+                    _fotoContato ??
+                    widget.fotoProfissional,
+                bannerUrlEmpresa: grupo?['banner_url_empresa']?.toString(),
+                tagEmpresa: grupo?['tag_empresa']?.toString(),
+                corTagEmpresa: grupo?['cor_tag_empresa']?.toString(),
+              ),
+            ),
+          );
+          return;
+        }
+
+        if (!mounted) return;
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PerfilProfissionalPage(
+              nomeInicial: nomeExibido,
+              imagemInicial: _fotoContato ?? widget.fotoProfissional,
+              profissao: oficioExibido.isNotEmpty
+                  ? oficioExibido
+                  : widget.oficioPrincipal,
+              idProfissional: idProf,
+              idGrupoEmpresa: fkGrupo ?? idGrupo,
+            ),
+          ),
+        );
+        return;
+      }
+
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PerfilProfissionalPage(
+            nomeInicial: nomeExibido,
+            imagemInicial: _fotoContato ?? widget.fotoProfissional,
+            profissao: oficioExibido.isNotEmpty
+                ? oficioExibido
+                : widget.oficioPrincipal,
+            idProfissional: idProf,
+            idGrupoEmpresa: idGrupo,
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint('Erro ao abrir perfil do destinatário: $e');
+    }
+  }
+
+  Future<void> _abrirMostrarContato({
+    required String nomeExibido,
+    required String oficioExibido,
+  }) async {
+    final resultado = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChatContatoInfo(
+          idConversa: _idConversa,
+          idProfissional: _idProfissionalConversa ?? widget.idProfissional,
+          idGrupoEmpresa: _idGrupoEmpresaConversa ?? widget.idGrupoEmpresa,
+          nomeContato: nomeExibido,
+          fotoContato: _fotoContato ?? widget.fotoProfissional,
+          oficioPrincipal: oficioExibido,
+          ultimaConexao: _ultimaConexaoContato,
+        ),
+      ),
+    );
+
+    if (resultado == 'pesquisar' && mounted) {
+      setState(() {
+        _modoPesquisa = true;
+      });
+    } else if (resultado is TemaChatConfig && mounted) {
+      setState(() {
+        _corBaloesHex = resultado.corBaloes;
+        _planoFundo = resultado.planoFundo;
+        _desfoqueFundo = resultado.desfoqueFundo;
+        _opacidadeFundo = resultado.opacidadeFundo;
+      });
+    }
+  }
+
+  Future<void> _abrirAlterarTema() async {
+    final nomeExibido = _nomeContato ?? widget.nomeProfissional;
+    final oficioExibido = _oficioContato.isNotEmpty
+        ? _oficioContato
+        : widget.oficioPrincipal;
+
+    final resultado = await Navigator.push<TemaChatConfig>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AlterarTemaChat(
+          idConversa: _idConversa,
+          nomeContato: nomeExibido,
+          fotoContato: _fotoContato ?? widget.fotoProfissional,
+          oficioPrincipal: oficioExibido,
+          corBaloesAtual: _corBaloesHex,
+          planoFundoAtual: _planoFundo,
+          desfoqueFundoAtual: _desfoqueFundo,
+          opacidadeFundoAtual: _opacidadeFundo,
+          idProfissional: _idProfissionalConversa ?? widget.idProfissional,
+          idGrupoEmpresa: _idGrupoEmpresaConversa ?? widget.idGrupoEmpresa,
+        ),
+      ),
+    );
+
+    if (resultado != null && mounted) {
+      setState(() {
+        _corBaloesHex = resultado.corBaloes;
+        _planoFundo = resultado.planoFundo;
+        _desfoqueFundo = resultado.desfoqueFundo;
+        _opacidadeFundo = resultado.opacidadeFundo;
+      });
+    }
+  }
+
+  PreferredSizeWidget _buildBarraPesquisa() {
+    return AppBar(
+      backgroundColor: Colors.white,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back, size: 24, color: Color(0xFF1F2937)),
+        onPressed: () {
+          setState(() {
+            _modoPesquisa = false;
+            _pesquisaController.clear();
+          });
+        },
+      ),
+      titleSpacing: 0,
+      title: TextField(
+        controller: _pesquisaController,
+        autofocus: true,
+        style: const TextStyle(color: Color(0xFF111827), fontSize: 16),
+        decoration: const InputDecoration(
+          hintText: 'Pesquisar...',
+          hintStyle: TextStyle(color: Color(0xFF9CA3AF), fontSize: 16),
+          border: InputBorder.none,
+        ),
+        onChanged: (_) {
+          setState(() {});
+        },
+      ),
+      actions: [
+        if (_pesquisaController.text.isNotEmpty)
+          IconButton(
+            icon: const Icon(Icons.close, color: Color(0xFF6B7280)),
+            onPressed: () {
+              setState(() {
+                _pesquisaController.clear();
+              });
+            },
+          ),
+      ],
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1),
+        child: Container(height: 1, color: const Color(0xFFE5E7EB)),
+      ),
     );
   }
 
   PreferredSizeWidget _buildBarraContato() {
+    if (_modoPesquisa) {
+      return _buildBarraPesquisa();
+    }
+
     final oficioExibido = _oficioContato.trim().isNotEmpty
         ? _oficioContato.trim()
         : widget.oficioPrincipal.trim();
     final mostrarOficio =
+        !_souProfissionalNaConversa &&
+        !_souEmpresaNaConversa &&
         oficioExibido.isNotEmpty &&
         oficioExibido.toLowerCase() != 'conversa' &&
         oficioExibido.toLowerCase() != 'cliente';
@@ -1753,7 +2182,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       elevation: 0,
       scrolledUnderElevation: 0,
       bottom: PreferredSize(
-        preferredSize: Size.fromHeight(_resumoSolicitacao == null ? 1 : 64),
+        preferredSize: Size.fromHeight(_resumoSolicitacao == null ? 1 : 52),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1768,135 +2197,279 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
         icon: const Icon(Icons.arrow_back, size: 24, color: Color(0xFF1F2937)),
       ),
       titleSpacing: 0,
-      title: Row(
-        children: [
-          SizedBox(
-            width: 42,
-            height: 42,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                _buildAvatarContato(),
-                if (_contatoOnline)
-                  Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF22C55E),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        nomeExibido,
-                        style: const TextStyle(
-                          color: Color(0xFF111827),
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    const Icon(Icons.verified, color: _primaryBlue, size: 17),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                Row(
-                  children: [
-                    if (mostrarOficio) ...[
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 1.5,
-                        ),
+      title: GestureDetector(
+        onTap: () => _abrirMostrarContato(
+          nomeExibido: nomeExibido,
+          oficioExibido: oficioExibido,
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 42,
+              height: 42,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  _buildAvatarContato(),
+                  if (_contatoOnline)
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 12,
+                        height: 12,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFE8F6FD),
-                          borderRadius: BorderRadius.circular(4),
+                          color: const Color(0xFF22C55E),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
                         ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
                         child: Text(
-                          oficioExibido.toUpperCase(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                          nomeExibido,
                           style: const TextStyle(
-                            color: Color(0xFF0284C7),
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.3,
+                            color: Color(0xFF111827),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.verified, color: _primaryBlue, size: 17),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      if (mostrarOficio) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 1.5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE8F6FD),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            oficioExibido.toUpperCase(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Color(0xFF0284C7),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.3,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                    if (_contatoOnline) ...[
-                      if (mostrarOficio) const SizedBox(width: 6),
-                      const Text(
-                        '• Online',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF22C55E),
-                          fontWeight: FontWeight.w500,
+                      ],
+                      if (_contatoOnline) ...[
+                        if (mostrarOficio) const SizedBox(width: 6),
+                        const Text(
+                          '• Online',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF22C55E),
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                      ),
+                      ],
                     ],
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
       actions: [
-        IconButton(
-          onPressed: () {},
+        PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert, color: Color(0xFF374151)),
+          onOpened: () => _menuAberto = true,
+          onCanceled: () => _menuAberto = false,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          color: Colors.white,
+          elevation: 4,
+          offset: const Offset(0, 48),
+          onSelected: (value) {
+            _menuAberto = false;
+            switch (value) {
+              case 'abrir_perfil':
+                _abrirPerfilDestinatario(
+                  nomeExibido: nomeExibido,
+                  oficioExibido: oficioExibido,
+                );
+                break;
+              case 'mostrar_contato':
+                _abrirMostrarContato(
+                  nomeExibido: nomeExibido,
+                  oficioExibido: oficioExibido,
+                );
+                break;
+              case 'pesquisar':
+                setState(() {
+                  _modoPesquisa = true;
+                });
+                break;
+              case 'midia':
+                // Ao clicar não faz nada por enquanto
+                break;
+              case 'alterar_tema':
+                _abrirAlterarTema();
+                break;
+              case 'bloquear_profissional':
+                _confirmarAcaoContato(
+                  titulo: 'Bloquear profissional?',
+                  mensagem: 'Você não receberá mais mensagens deste contato.',
+                  acao: 'bloqueado',
+                );
+                break;
+              case 'denunciar_profissional':
+                _confirmarAcaoContato(
+                  titulo: 'Denunciar profissional?',
+                  mensagem:
+                      'Deseja denunciar este contato para análise da equipe?',
+                  acao: 'denunciado',
+                );
+                break;
+            }
+          },
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'abrir_perfil',
+              child: Text(
+                'Abrir perfil',
+                style: TextStyle(fontSize: 14, color: Color(0xFF1F2937)),
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'mostrar_contato',
+              child: Text(
+                'Mostrar contato',
+                style: TextStyle(fontSize: 14, color: Color(0xFF1F2937)),
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'pesquisar',
+              child: Text(
+                'Pesquisar',
+                style: TextStyle(fontSize: 14, color: Color(0xFF1F2937)),
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'midia',
+              child: Text(
+                'Mídia na conversa',
+                style: TextStyle(fontSize: 14, color: Color(0xFF1F2937)),
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'alterar_tema',
+              child: Text(
+                'Alterar tema',
+                style: TextStyle(fontSize: 14, color: Color(0xFF1F2937)),
+              ),
+            ),
+            const PopupMenuDivider(),
+            const PopupMenuItem(
+              value: 'bloquear_profissional',
+              child: Text(
+                'Bloquear profissional',
+                style: TextStyle(fontSize: 14, color: Color(0xFFDC2626)),
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'denunciar_profissional',
+              child: Text(
+                'Denunciar profissional',
+                style: TextStyle(fontSize: 14, color: Color(0xFFDC2626)),
+              ),
+            ),
+          ],
         ),
       ],
     );
   }
 
+  void _fecharMenuAberto() {
+    if (!_menuAberto || !mounted) return;
+    Navigator.of(context).pop();
+    _menuAberto = false;
+  }
+
+  Future<void> _confirmarAcaoContato({
+    required String titulo,
+    required String mensagem,
+    required String acao,
+  }) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(titulo),
+        content: Text(mensagem),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Confirmar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmar == true && mounted) {
+      _mostrarAviso('Contato $acao com sucesso.');
+    }
+  }
+
   Widget _buildResumoSolicitacao(_ResumoSolicitacao resumo) {
     return Container(
-      height: 63,
+      height: 51,
       color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 34),
+      padding: const EdgeInsets.symmetric(horizontal: 22),
       child: Row(
         children: [
-          const Icon(Icons.build_outlined, color: Color(0xFF006DCC), size: 25),
-          const SizedBox(width: 14),
+          const Icon(Icons.build_outlined, color: Color(0xFF006DCC), size: 18),
+          const SizedBox(width: 10),
           Flexible(
             flex: 0,
             child: Text(
               resumo.codigo,
               style: const TextStyle(
                 color: Color(0xFF1F2937),
-                fontSize: 17,
+                fontSize: 15,
                 fontWeight: FontWeight.w600,
               ),
             ),
           ),
           const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 12),
+            padding: EdgeInsets.symmetric(horizontal: 9),
             child: Text(
               '•',
               style: TextStyle(
                 color: Color(0xFFC5D0DC),
-                fontSize: 22,
+                fontSize: 17,
                 height: 1,
               ),
             ),
@@ -1908,14 +2481,14 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: Color(0xFF64748B),
-                fontSize: 17,
+                fontSize: 15,
                 fontWeight: FontWeight.w500,
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color: const Color(0xFFEAF4FF),
               borderRadius: BorderRadius.circular(24),
@@ -1926,7 +2499,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: Color(0xFF006DCC),
-                fontSize: 16,
+                fontSize: 14,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -2036,13 +2609,33 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
   }
 
   List<_Mensagem> get _mensagensExibidas {
-    // Sem nada estático: se não há mensagens no Supabase, a lista é vazia.
+    if (_modoPesquisa && _pesquisaController.text.trim().isNotEmpty) {
+      final query = _pesquisaController.text.trim().toLowerCase();
+      return _mensagens
+          .where((m) => m.conteudo.toLowerCase().contains(query))
+          .toList();
+    }
     return _mensagens;
   }
 
   Widget _buildListaMensagens() {
     final exibidas = _mensagensExibidas;
     if (exibidas.isEmpty && !_carregando) {
+      if (_modoPesquisa && _pesquisaController.text.trim().isNotEmpty) {
+        return const Center(
+          child: Padding(
+            padding: EdgeInsets.all(32),
+            child: Text(
+              'Nenhuma mensagem encontrada com este termo.',
+              style: TextStyle(
+                fontSize: 15,
+                color: Color(0xFF6B7280),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        );
+      }
       if (_contatoDigitando) {
         return ListView(
           controller: _scrollController,
@@ -2155,12 +2748,12 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       alignment: Alignment.centerRight,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 3),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         constraints: BoxConstraints(
           maxWidth: MediaQuery.of(context).size.width * 0.75,
         ),
         decoration: BoxDecoration(
-          color: _primaryBlue.withValues(alpha: 0.75),
+          color: _corBaloes.withValues(alpha: 0.75),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Row(
@@ -2194,13 +2787,13 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       alignment: Alignment.centerRight,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 3),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         constraints: BoxConstraints(
           maxWidth: MediaQuery.of(context).size.width * 0.75,
         ),
         decoration: BoxDecoration(
-          color: _primaryBlue,
-          borderRadius: BorderRadius.circular(16),
+          color: _corBaloes,
+          borderRadius: BorderRadius.circular(14),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.end,
@@ -2295,7 +2888,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
           maxWidth: MediaQuery.of(context).size.width * 0.74,
         ),
         decoration: BoxDecoration(
-          color: mensagem.ehRemetente ? _primaryBlue : Colors.white,
+          color: mensagem.ehRemetente ? _corBaloes : Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -2577,7 +3170,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
           maxWidth: MediaQuery.of(context).size.width * 0.76,
         ),
         decoration: BoxDecoration(
-          color: mensagem.ehRemetente ? _primaryBlue : Colors.white,
+          color: mensagem.ehRemetente ? _corBaloes : Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -2601,7 +3194,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                     decoration: BoxDecoration(
                       color: mensagem.ehRemetente
                           ? Colors.white.withValues(alpha: 0.22)
-                          : _primaryBlue,
+                          : _corBaloes,
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
@@ -2626,7 +3219,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                           height: barras[index].toDouble(),
                           decoration: BoxDecoration(
                             color: ehParteTocada
-                                ? Colors.white
+                                ? _primaryBlue
                                 : (mensagem.ehRemetente
                                       ? Colors.white.withValues(alpha: 0.35)
                                       : const Color(0xFFD1D5DB)),
@@ -2775,8 +3368,8 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
               child: Container(
                 width: 48,
                 height: 48,
-                decoration: const BoxDecoration(
-                  color: _primaryBlue,
+                decoration: BoxDecoration(
+                  color: _corBaloes,
                   shape: BoxShape.circle,
                 ),
                 child: Center(
@@ -2874,8 +3467,8 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
               child: Container(
                 width: 48,
                 height: 48,
-                decoration: const BoxDecoration(
-                  color: _primaryBlue,
+                decoration: BoxDecoration(
+                  color: _corBaloes,
                   shape: BoxShape.circle,
                 ),
                 child: const Center(
@@ -2975,6 +3568,85 @@ class _ResumoSolicitacao {
   });
 }
 
+class _SkeletonChatMensagens extends StatelessWidget {
+  const _SkeletonChatMensagens();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          height: 76,
+          color: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: const Row(
+            children: [
+              SkeletonBox(width: 42, height: 42, borderRadius: 21),
+              SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SkeletonBox(width: 150, height: 15, borderRadius: 4),
+                    SizedBox(height: 8),
+                    SkeletonBox(width: 90, height: 11, borderRadius: 4),
+                  ],
+                ),
+              ),
+              SkeletonBox(width: 24, height: 24, borderRadius: 12),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(12, 20, 12, 20),
+            children: const [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: SkeletonBox(width: 190, height: 48, borderRadius: 16),
+              ),
+              SizedBox(height: 14),
+              Align(
+                alignment: Alignment.centerRight,
+                child: SkeletonBox(width: 230, height: 62, borderRadius: 16),
+              ),
+              SizedBox(height: 14),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: SkeletonBox(width: 250, height: 72, borderRadius: 16),
+              ),
+              SizedBox(height: 14),
+              Align(
+                alignment: Alignment.centerRight,
+                child: SkeletonBox(width: 175, height: 48, borderRadius: 16),
+              ),
+              SizedBox(height: 14),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: SkeletonBox(width: 210, height: 58, borderRadius: 16),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          height: 70,
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+          color: Colors.white,
+          child: const Row(
+            children: [
+              Expanded(child: SkeletonBox(height: 46, borderRadius: 23)),
+              SizedBox(width: 10),
+              SkeletonBox(width: 42, height: 42, borderRadius: 21),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// Bolinha vermelha pulsando indicando gravação em andamento.
 class _PulsoVermelho extends StatefulWidget {
   const _PulsoVermelho();
@@ -3052,7 +3724,7 @@ class _OndaGravacao extends StatelessWidget {
   }
 }
 
-/// Animação de 3 pontinhos brancos pulando indicando digitação do contato
+/// Animação de 3 pontinhos pretos pulando indicando digitação do contato
 class _IndicadorDigitando extends StatefulWidget {
   const _IndicadorDigitando();
 
@@ -3087,8 +3759,9 @@ class _IndicadorDigitandoState extends State<_IndicadorDigitando>
         margin: const EdgeInsets.symmetric(vertical: 4),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: const Color(0xFF0FB3FF),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.06),
@@ -3115,7 +3788,7 @@ class _IndicadorDigitandoState extends State<_IndicadorDigitando>
                     width: 7,
                     height: 7,
                     decoration: const BoxDecoration(
-                      color: Colors.white,
+                      color: Colors.black,
                       shape: BoxShape.circle,
                     ),
                   ),
