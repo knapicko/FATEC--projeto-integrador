@@ -23,6 +23,7 @@ import 'package:url_launcher/url_launcher.dart' show LaunchMode, launchUrl;
 
 import 'alterar_tema_chat.dart';
 import 'chat_contato_info.dart';
+import 'tela_midia_chat.dart';
 import 'perfil_loja.dart';
 import 'perfil_profissional.dart';
 import 'services/chat_anexos_service.dart';
@@ -1028,12 +1029,16 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
             _planoFundo = conv['plano_fundo'].toString();
           }
           if (conv['desfoque_fundo'] != null) {
-            _desfoqueFundo =
-                (conv['desfoque_fundo'] as num).toDouble().clamp(0.0, 15.0);
+            _desfoqueFundo = (conv['desfoque_fundo'] as num).toDouble().clamp(
+              0.0,
+              15.0,
+            );
           }
           if (conv['opacidade_fundo'] != null) {
-            _opacidadeFundo =
-                (conv['opacidade_fundo'] as num).toDouble().clamp(10.0, 100.0);
+            _opacidadeFundo = (conv['opacidade_fundo'] as num).toDouble().clamp(
+              10.0,
+              100.0,
+            );
           }
         });
       }
@@ -1804,9 +1809,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                 )
               : Stack(
                   children: [
-                    Positioned.fill(
-                      child: _buildBackgroundChat(),
-                    ),
+                    Positioned.fill(child: _buildBackgroundChat()),
                     Column(
                       children: [
                         Expanded(child: _buildListaMensagens()),
@@ -1893,10 +1896,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       );
     }
 
-    return Container(
-      color: Colors.white,
-      child: resultado,
-    );
+    return Container(color: Colors.white, child: resultado);
   }
 
   Widget _buildDoodleChatWidget() {
@@ -2059,6 +2059,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
           fotoContato: _fotoContato ?? widget.fotoProfissional,
           oficioPrincipal: oficioExibido,
           ultimaConexao: _ultimaConexaoContato,
+          souProfissionalLogado: _souProfissionalNaConversa,
         ),
       ),
     );
@@ -2075,6 +2076,21 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
         _opacidadeFundo = resultado.opacidadeFundo;
       });
     }
+  }
+
+  void _abrirMidiaChat() {
+    final nomeExibido =
+        (_nomeContato != null && _nomeContato!.trim().isNotEmpty)
+        ? _nomeContato!.trim()
+        : widget.nomeProfissional;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            TelaMidiaChat(idConversa: _idConversa, nomeContato: nomeExibido),
+      ),
+    );
   }
 
   Future<void> _abrirAlterarTema() async {
@@ -2328,7 +2344,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                 });
                 break;
               case 'midia':
-                // Ao clicar não faz nada por enquanto
+                _abrirMidiaChat();
                 break;
               case 'alterar_tema':
                 _abrirAlterarTema();
@@ -2351,13 +2367,14 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
             }
           },
           itemBuilder: (context) => [
-            const PopupMenuItem(
-              value: 'abrir_perfil',
-              child: Text(
-                'Abrir perfil',
-                style: TextStyle(fontSize: 14, color: Color(0xFF1F2937)),
+            if (!_souProfissionalNaConversa)
+              const PopupMenuItem(
+                value: 'abrir_perfil',
+                child: Text(
+                  'Abrir perfil',
+                  style: TextStyle(fontSize: 14, color: Color(0xFF1F2937)),
+                ),
               ),
-            ),
             const PopupMenuItem(
               value: 'mostrar_contato',
               child: Text(
