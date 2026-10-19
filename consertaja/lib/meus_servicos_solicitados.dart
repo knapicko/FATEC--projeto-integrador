@@ -166,7 +166,7 @@ class _MeusServicosSolicitadosPageState
           .select(
             'id_solicitacao, data_solicitacao, valor_final, detalhes, '
             'data_agendada, hora_agendada, tipo_execucao, fk_grupo_empresa, '
-            'fk_status, fk_profissional, fk_usuario, fk_endereco, fk_servico_prof, '
+            'fk_status, fk_profissional, fk_usuario, fk_endereco, fk_servico_prof, fk_servico_temp, '
             'status!solicitacoes_fk_status_fkey(status)',
           );
       if (_contaEmpresaAtiva) {
@@ -259,11 +259,37 @@ class _MeusServicosSolicitadosPageState
     String? corOficio;
     try {
       final idServ = (row['fk_servico_prof'] as num?)?.toInt();
+      final idServTemp = (row['fk_servico_temp'] as num?)?.toInt();
       if (idServ != null) {
         final s = await _supabase
             .from('servicos_profissional')
             .select('titulo, descricao, imagem_url, oficios(funcao, cor)')
             .eq('id_servico_prof', idServ)
+            .maybeSingle();
+        if (s != null) {
+          final t = s['titulo']?.toString().trim() ?? '';
+          if (t.isNotEmpty) titulo = t;
+          final d = s['descricao']?.toString().trim() ?? '';
+          if (d.isNotEmpty) descricao = d;
+          final img = s['imagem_url']?.toString().trim() ?? '';
+          if (img.isNotEmpty) imagemUrl = img;
+          final dynamic ofRaw = s['oficios'];
+          final Map<String, dynamic>? ofMap = ofRaw is Map<String, dynamic>
+              ? ofRaw
+              : (ofRaw is List && ofRaw.isNotEmpty
+                    ? Map<String, dynamic>.from(ofRaw.first as Map)
+                    : null);
+          if (ofMap != null) {
+            final info = OficioInfo.fromMap(ofMap);
+            if (info.funcao.isNotEmpty) funcao = info.funcao;
+            corOficio = info.cor;
+          }
+        }
+      } else if (idServTemp != null) {
+        final s = await _supabase
+            .from('servicos_chat_temporarios')
+            .select('titulo, descricao, imagem_url, oficios(funcao, cor)')
+            .eq('id_servico_temp', idServTemp)
             .maybeSingle();
         if (s != null) {
           final t = s['titulo']?.toString().trim() ?? '';

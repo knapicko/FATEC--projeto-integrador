@@ -439,7 +439,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
           .select(
             'id_solicitacao, data_solicitacao, valor_final, detalhes, '
             'data_agendada, hora_agendada, hora_agendada_fim, tipo_execucao, fk_grupo_empresa, '
-            'fk_status, fk_profissional, fk_usuario, fk_endereco, fk_servico_prof',
+            'fk_status, fk_profissional, fk_usuario, fk_endereco, fk_servico_prof, fk_servico_temp',
           )
           .eq('id_solicitacao', _idSolicitacao)
           .maybeSingle();
@@ -492,12 +492,50 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
 
       // 2. Serviço e Categoria
       final idServico = (row['fk_servico_prof'] as num?)?.toInt();
+      final idServicoTemp = (row['fk_servico_temp'] as num?)?.toInt();
       if (idServico != null) {
         try {
           final s = await _supabase
               .from('servicos_profissional')
               .select('titulo, descricao, imagem_url, oficios(funcao, cor)')
               .eq('id_servico_prof', idServico)
+              .maybeSingle();
+          if (s != null) {
+            final t = s['titulo']?.toString().trim() ?? '';
+            if (t.isNotEmpty) {
+              _tituloServico = t;
+              _modeloEquipamento = t;
+            }
+            if (_relatoCliente.isEmpty) {
+              final d = s['descricao']?.toString().trim() ?? '';
+              if (d.isNotEmpty) _relatoCliente = d;
+            }
+            final img = s['imagem_url']?.toString().trim() ?? '';
+            if (img.isNotEmpty && _imagemAnexoUrl == null) {
+              _imagemAnexoUrl = img;
+            }
+            final dynamic ofRaw = s['oficios'];
+            final Map<String, dynamic>? ofMap = ofRaw is Map<String, dynamic>
+                ? ofRaw
+                : (ofRaw is List && ofRaw.isNotEmpty
+                      ? Map<String, dynamic>.from(ofRaw.first as Map)
+                      : null);
+            if (ofMap != null) {
+              final func = ofMap['funcao']?.toString().trim() ?? '';
+              if (func.isNotEmpty) {
+                _categoriaTitulo = func;
+                _funcaoOficio = func;
+              }
+              _corOficio = ofMap['cor']?.toString().trim();
+            }
+          }
+        } catch (_) {}
+      } else if (idServicoTemp != null) {
+        try {
+          final s = await _supabase
+              .from('servicos_chat_temporarios')
+              .select('titulo, descricao, imagem_url, oficios(funcao, cor)')
+              .eq('id_servico_temp', idServicoTemp)
               .maybeSingle();
           if (s != null) {
             final t = s['titulo']?.toString().trim() ?? '';
