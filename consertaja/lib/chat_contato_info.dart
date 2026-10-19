@@ -9,6 +9,7 @@ import 'services/verificacao_online.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/iniciais.dart';
 import 'alterar_tema_chat.dart';
+import 'tela_midia_chat.dart';
 import 'widgets/skeleton_loading.dart';
 
 class ChatContatoInfo extends StatefulWidget {
@@ -19,6 +20,7 @@ class ChatContatoInfo extends StatefulWidget {
   final String? fotoContato;
   final String? oficioPrincipal;
   final DateTime? ultimaConexao;
+  final bool souProfissionalLogado;
 
   const ChatContatoInfo({
     super.key,
@@ -29,6 +31,7 @@ class ChatContatoInfo extends StatefulWidget {
     this.fotoContato,
     this.oficioPrincipal,
     this.ultimaConexao,
+    this.souProfissionalLogado = false,
   });
 
   @override
@@ -47,6 +50,7 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
   DateTime? _ultimaConexao;
   int? _idProfissional;
   int? _idGrupoEmpresa;
+  int? _idCliente;
   int? _fkPerfil;
   String? _tipoPerfil;
 
@@ -86,22 +90,39 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
   Future<void> _carregarDados() async {
     try {
       // 1. Se idProfissional ou idGrupo for nulo, tenta resolver pela conversa
-      if ((_idProfissional == null || _idGrupoEmpresa == null) &&
-          widget.idConversa != null) {
+      if (widget.idConversa != null) {
         final conversa = await _supabase
             .from('conversas')
-            .select('fk_profissional, fk_grupo_empresa')
+            .select('fk_usuario, fk_profissional, fk_grupo_empresa')
             .eq('id_conversa', widget.idConversa!)
             .maybeSingle();
 
         if (conversa != null) {
+          _idCliente = (conversa['fk_usuario'] as num?)?.toInt();
           _idProfissional ??= (conversa['fk_profissional'] as num?)?.toInt();
           _idGrupoEmpresa ??= (conversa['fk_grupo_empresa'] as num?)?.toInt();
         }
       }
 
-      // 2. Carrega dados do profissional
-      if (_idProfissional != null) {
+      if (widget.souProfissionalLogado && _idCliente != null) {
+        final usuario = await _supabase
+            .from('usuarios')
+            .select('nome, foto_perfil_url, ultima_conexao')
+            .eq('id_usuario', _idCliente!)
+            .maybeSingle();
+
+        if (usuario != null) {
+          final nome = usuario['nome']?.toString().trim();
+          if (nome != null && nome.isNotEmpty) _nome = nome;
+          final foto = usuario['foto_perfil_url']?.toString().trim();
+          if (foto != null && foto.isNotEmpty) _fotoUrl = foto;
+          final rawData = usuario['ultima_conexao']?.toString();
+          if (rawData != null) {
+            _ultimaConexao = DateTime.tryParse(rawData)?.toLocal();
+          }
+        }
+      } else if (_idProfissional != null) {
+        // 2. Carrega dados do profissional
         final dadosProf = await _supabase
             .from('dados_profissionais')
             .select('id_profissional, fk_usuario, fk_perfil, fk_grupo_empresa')
@@ -164,9 +185,9 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
       }
 
       // 4. Carrega empresa vinculada
-      if (_idGrupoEmpresa != null) {
+      if (!widget.souProfissionalLogado && _idGrupoEmpresa != null) {
         await _carregarEmpresaVinculada(_idGrupoEmpresa!);
-      } else {
+      } else if (!widget.souProfissionalLogado) {
         // Se ainda não tiver empresa vinculada mas o usuário for Caneta Azul ou loja,
         // tenta buscar se existe alguma empresa no sistema para exibir no mockup
         await _carregarEmpresaVinculadaFallback();
@@ -556,15 +577,18 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
             color: Colors.white,
             elevation: 4,
             onSelected: (value) {
-              if (value == 'perfil') _abrirPerfil();
+              if (value == 'perfil' && !widget.souProfissionalLogado) {
+                _abrirPerfil();
+              }
               if (value == 'bloquear') _confirmarBloqueio();
               if (value == 'denunciar') _confirmarDenuncia();
             },
             itemBuilder: (ctx) => [
-              const PopupMenuItem(
-                value: 'perfil',
-                child: Text('Ver perfil completo'),
-              ),
+              if (!widget.souProfissionalLogado)
+                const PopupMenuItem(
+                  value: 'perfil',
+                  child: Text('Ver perfil completo'),
+                ),
               const PopupMenuItem(
                 value: 'bloquear',
                 child: Text(
@@ -597,7 +621,7 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
                   _buildSecaoMidia(),
                   const SizedBox(height: 16),
                   _buildOpcoesConfiguracoes(),
-                  if (_temEmpresaVinculada) ...[
+                  if (!widget.souProfissionalLogado && _temEmpresaVinculada) ...[
                     const SizedBox(height: 16),
                     _buildCardEmpresaVinculada(),
                   ],
@@ -672,7 +696,8 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
         const SizedBox(height: 12),
 
         // Tags/Chips de Ofícios e Especialidades
-        _buildChipsOficiosEEspecialidades(),
+        if (!widget.souProfissionalLogado)
+          _buildChipsOficiosEEspecialidades(),
         const SizedBox(height: 12),
 
         // Indicador de Status Online
@@ -875,12 +900,20 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
     );
   }
 
+  void _abrirMidiaChat() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TelaMidiaChat(
+          idConversa: widget.idConversa,
+          nomeContato: _nome,
+        ),
+      ),
+    );
+  }
+
   // 3. Seção de Mídia na Conversa
   Widget _buildSecaoMidia() {
-    // 4 miniaturas exibidas
-    if (_anexosMidia.isEmpty) {
-      return const SizedBox.shrink();
-    }
     final anexosExibir = _anexosMidia.take(4).toList();
     final restantes = _totalArquivos - anexosExibir.length;
 
@@ -903,74 +936,86 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Cabeçalho da Seção de Mídia
-            Row(
-              children: [
-                const Icon(
-                  Icons.photo_library_outlined,
-                  size: 20,
-                  color: Color(0xFF334155),
-                ),
-                const SizedBox(width: 8),
-                const Text(
-                  'Mídia na conversa',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF1E293B),
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  '$_totalArquivos arquivos >',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF64748B),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-
-            // 4 Miniaturas Quadradas
-            Row(
-              children: List.generate(anexosExibir.length, (index) {
-                final anexo = anexosExibir[index];
-                final isLast =
-                    index == anexosExibir.length - 1 && restantes > 0;
-
-                return Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.only(right: isLast ? 0 : 8),
-                    child: AspectRatio(
-                      aspectRatio: 1,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            _buildMiniaturaAnexo(anexo),
-                            if (isLast)
-                              Container(
-                                color: const Color(0x990FB3FF),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  '+$restantes',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
+            InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: _abrirMidiaChat,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.photo_library_outlined,
+                      size: 20,
+                      color: Color(0xFF334155),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Mídia na conversa',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1E293B),
                       ),
                     ),
-                  ),
-                );
-              }),
+                    const Spacer(),
+                    Text(
+                      '$_totalArquivos arquivos >',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
+            if (anexosExibir.isNotEmpty) ...[
+              const SizedBox(height: 14),
+
+              // 4 Miniaturas Quadradas
+              GestureDetector(
+                onTap: _abrirMidiaChat,
+                child: Row(
+                  children: List.generate(anexosExibir.length, (index) {
+                    final anexo = anexosExibir[index];
+                    final isLast =
+                        index == anexosExibir.length - 1 && restantes > 0;
+
+                    return Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.only(right: isLast ? 0 : 8),
+                        child: AspectRatio(
+                          aspectRatio: 1,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                _buildMiniaturaAnexo(anexo),
+                                if (isLast)
+                                  Container(
+                                    color: const Color(0x990FB3FF),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      '+$restantes',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -1020,17 +1065,19 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
         ),
         child: Column(
           children: [
-            _buildItemOpcao(
-              icone: Icons.badge_outlined,
-              titulo: 'Abrir perfil profissional',
-              subtitulo: 'Avaliações, tabela de preços e portfólio',
-              trailing: const Icon(
-                Icons.chevron_right,
-                color: Color(0xFF94A3B8),
+            if (!widget.souProfissionalLogado) ...[
+              _buildItemOpcao(
+                icone: Icons.badge_outlined,
+                titulo: 'Abrir perfil profissional',
+                subtitulo: 'Avaliações, tabela de preços e portfólio',
+                trailing: const Icon(
+                  Icons.chevron_right,
+                  color: Color(0xFF94A3B8),
+                ),
+                onTap: _abrirPerfil,
               ),
-              onTap: _abrirPerfil,
-            ),
-            _buildDivisor(),
+              _buildDivisor(),
+            ],
             _buildItemOpcao(
               icone: Icons.notifications_none_outlined,
               titulo: 'Notificações',
