@@ -146,18 +146,21 @@ class MeusPedidosState extends State<MeusPedidosPage> {
     final linhas = await db
         .from('solicitacoes')
         .select(
-          'id_solicitacao, data_solicitacao, data_agendada, hora_agendada, valor_final, fk_profissional, fk_grupo_empresa, fk_servico_prof, fk_status',
+          'id_solicitacao, data_solicitacao, data_agendada, hora_agendada, valor_final, fk_profissional, fk_grupo_empresa, fk_servico_prof, fk_servico_temp, fk_status',
         )
         .eq('fk_usuario', idUsuario)
         .order('data_solicitacao', ascending: false);
     if (linhas.isEmpty) return [];
     final idsStatus = <int>{};
     final idsServ = <int>{};
+    final idsServTemp = <int>{};
     for (final r in linhas) {
       final a = (r['fk_status'] as num?)?.toInt();
       final b = (r['fk_servico_prof'] as num?)?.toInt();
+      final c = (r['fk_servico_temp'] as num?)?.toInt();
       if (a != null) idsStatus.add(a);
       if (b != null) idsServ.add(b);
+      if (c != null) idsServTemp.add(c);
     }
     final Map<int, String> statusMap = {};
     if (idsStatus.isNotEmpty) {
@@ -183,6 +186,18 @@ class MeusPedidosState extends State<MeusPedidosPage> {
         if (id != null) servMap[id] = Map<String, dynamic>.from(v);
       }
     }
+    if (idsServTemp.isNotEmpty) {
+      final tRows = await db
+          .from('servicos_chat_temporarios')
+          .select(
+            'id_servico_temp, titulo, valor, imagem_url, fk_profissional, fk_grupo_empresa, fk_oficios',
+          )
+          .inFilter('id_servico_temp', idsServTemp.toList());
+      for (final v in tRows) {
+        final id = (v['id_servico_temp'] as num?)?.toInt();
+        if (id != null) servMap[id] = Map<String, dynamic>.from(v);
+      }
+    }
     final aux = await carregarAuxiliar(servMap, linhas);
     return montarLista(linhas, statusMap, servMap, aux);
   }
@@ -195,7 +210,7 @@ class MeusPedidosState extends State<MeusPedidosPage> {
     final idsGrupo = <int>{};
     final idsProf = <int>{};
     for (final r in linhas) {
-      final idS = (r['fk_servico_prof'] as num?)?.toInt();
+      final idS = ((r['fk_servico_prof'] ?? r['fk_servico_temp']) as num?)?.toInt();
       final sv = idS == null ? null : servMap[idS];
       final idOf = (sv?['fk_oficios'] as num?)?.toInt();
       if (idOf != null) idsOf.add(idOf);
@@ -308,7 +323,7 @@ class MeusPedidosState extends State<MeusPedidosPage> {
       if (idSol == null) continue;
       final idSt = (r['fk_status'] as num?)?.toInt();
       final st = idSt == null ? '' : (statusMap[idSt] ?? '');
-      final idS = (r['fk_servico_prof'] as num?)?.toInt();
+      final idS = ((r['fk_servico_prof'] ?? r['fk_servico_temp']) as num?)?.toInt();
       final sv = idS == null ? null : servMap[idS];
       var titulo = (sv?['titulo'] ?? '').toString().trim();
       if (titulo.isEmpty) titulo = 'Serviço';

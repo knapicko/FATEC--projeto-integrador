@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'dart:convert';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart'
     show FilePicker, FileType, WindowsOptions;
@@ -12,7 +13,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
     show Clipboard, ClipboardData, MissingPluginException;
 import 'package:http/http.dart' as http;
-import 'package:image_picker/image_picker.dart' show ImagePicker, ImageSource;
+import 'package:image_picker/image_picker.dart'
+    show ImagePicker, ImageSource, XFile;
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
@@ -27,8 +29,11 @@ import 'tela_midia_chat.dart';
 import 'perfil_loja.dart';
 import 'perfil_profissional.dart';
 import 'services/chat_anexos_service.dart';
+import 'services/servicos_profissional_service.dart';
 import 'services/verificacao_online.dart';
+import 'solicitacao_estado.dart';
 import 'utils/iniciais.dart';
+import 'widgets/bottom_sheet_servico_personalizado.dart';
 
 class TelaChatProfissional extends StatefulWidget {
   final String nomeProfissional;
@@ -752,11 +757,1090 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     }
   }
 
-  void _abrirCriarPedido() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Criar novo pedido/orçamento em breve.'),
-        duration: Duration(seconds: 2),
+  Future<void> _abrirCriarPedido() async {
+    if (!_souProfissionalNaConversa) return;
+    if (_idConversa == null) {
+      _mostrarAviso('Aguarde a conversa carregar para enviar serviços.');
+      return;
+    }
+
+    try {
+      // 1. Identifica o cliente destinatário da conversa e os dados do profissional
+      final conversa = await _supabase
+          .from('conversas')
+          .select('fk_usuario, fk_profissional, fk_grupo_empresa')
+          .eq('id_conversa', _idConversa!)
+          .maybeSingle();
+
+      final idCliente = (conversa?['fk_usuario'] as num?)?.toInt();
+      final idProf = _idProfissionalConversa ??
+          widget.idProfissional ??
+          (conversa?['fk_profissional'] as num?)?.toInt();
+      final idGrupo = _idGrupoEmpresaConversa ??
+          widget.idGrupoEmpresa ??
+          (conversa?['fk_grupo_empresa'] as num?)?.toInt();
+
+      Map<String, dynamic>? solicitacaoAtiva;
+      String? nomeStatusAtivo;
+
+      if (idCliente != null) {
+        dynamic query = _supabase
+            .from('solicitacoes')
+            .select('id_solicitacao, fk_status, fk_servico_prof, fk_servico_temp')
+            .eq('fk_usuario', idCliente);
+
+        if (idGrupo != null) {
+          query = query.eq('fk_grupo_empresa', idGrupo);
+        } else if (idProf != null) {
+          query = query.eq('fk_profissional', idProf);
+        }
+
+        final solicitacoes = await query
+            .order('data_solicitacao', ascending: false)
+            .limit(5);
+
+        for (final sol in (solicitacoes as List<dynamic>)) {
+          final idSt = (sol['fk_status'] as num?)?.toInt();
+          if (idSt == null) continue;
+          final stRow = await _supabase
+              .from('status')
+              .select('status')
+              .eq('id_status', idSt)
+              .maybeSingle();
+          final stNome = stRow?['status']?.toString().trim() ?? '';
+          final stLower = stNome.toLowerCase();
+
+          // Ignora solicitações que já foram finalizadas ou encerradas
+          if (stLower.contains('cancel') ||
+              stLower.contains('recus') ||
+              stLower.contains('conclu') ||
+              stLower.contains('finaliz')) {
+            continue;
+          }
+
+          solicitacaoAtiva = Map<String, dynamic>.from(sol);
+          nomeStatusAtivo = stNome;
+          break;
+        }
+      }
+
+      if (!mounted) return;
+
+      // 2. Se houver solicitação ativa cujo status NÃO seja "Aberto",
+      // exibe o bottom sheet estilizado de bloqueio informando o ocorrido
+      if (solicitacaoAtiva != null &&
+          nomeStatusAtivo != null &&
+          nomeStatusAtivo.toLowerCase() != 'aberto') {
+        _mostrarBottomSheetBloqueioSolicitacao(
+          status: nomeStatusAtivo,
+          idSolicitacao: (solicitacaoAtiva['id_solicitacao'] as num).toInt(),
+        );
+        return;
+      }
+
+      // 3. Se houver solicitação com status "Aberto", já virá com o switch ligado
+      // e os dados do serviço dessa solicitação pré-carregados para edição
+      final bool temSolicitacaoAberta = solicitacaoAtiva != null &&
+          (nomeStatusAtivo?.toLowerCase() == 'aberto');
+      final int? idServicoProfOrigem = temSolicitacaoAberta
+          ? (solicitacaoAtiva['fk_servico_prof'] as num?)?.toInt()
+          : null;
+      final int? idSolicitacaoOrigem = temSolicitacaoAberta
+          ? (solicitacaoAtiva['id_solicitacao'] as num?)?.toInt()
+          : null;
+
+      BottomSheetServicoPersonalizado.abrir(
+        context: context,
+        nomeCliente: _nomeContato ?? 'Cliente',
+        fotoCliente: _fotoContato,
+        estaOnline: _contatoOnline,
+        ultimaConexao: _ultimaConexaoContato,
+        idProfissional: idProf,
+        idGrupoEmpresa: idGrupo,
+        baseadoEmServicoInicial: temSolicitacaoAberta,
+        idServicoProfInicial: idServicoProfOrigem,
+        idSolicitacaoOrigem: idSolicitacaoOrigem,
+        onEnviar: ({
+          required String titulo,
+          String? descricao,
+          required double valor,
+          int? fkOficio,
+          String? nomeOficio,
+          required String tipoExecucao,
+          XFile? imagemLocal,
+          String? imagemUrlExistente,
+          int? idSolicitacaoOrigem,
+        }) async {
+          await _enviarPropostaPersonalizada(
+            titulo: titulo,
+            descricao: descricao,
+            valor: valor,
+            fkOficio: fkOficio,
+            nomeOficio: nomeOficio,
+            tipoExecucao: tipoExecucao,
+            imagemLocal: imagemLocal,
+            imagemUrlExistente: imagemUrlExistente,
+            idSolicitacaoOrigem: idSolicitacaoOrigem,
+          );
+        },
+      );
+    } catch (e) {
+      debugPrint('Erro ao verificar solicitação do cliente: $e');
+      if (mounted) {
+        BottomSheetServicoPersonalizado.abrir(
+          context: context,
+          nomeCliente: _nomeContato ?? 'Cliente',
+          fotoCliente: _fotoContato,
+          estaOnline: _contatoOnline,
+          ultimaConexao: _ultimaConexaoContato,
+          idProfissional: _idProfissionalConversa ?? widget.idProfissional,
+          idGrupoEmpresa: _idGrupoEmpresaConversa ?? widget.idGrupoEmpresa,
+          onEnviar: ({
+            required String titulo,
+            String? descricao,
+            required double valor,
+            int? fkOficio,
+            String? nomeOficio,
+            required String tipoExecucao,
+            XFile? imagemLocal,
+            String? imagemUrlExistente,
+            int? idSolicitacaoOrigem,
+          }) async {
+            await _enviarPropostaPersonalizada(
+              titulo: titulo,
+              descricao: descricao,
+              valor: valor,
+              fkOficio: fkOficio,
+              nomeOficio: nomeOficio,
+              tipoExecucao: tipoExecucao,
+              imagemLocal: imagemLocal,
+              imagemUrlExistente: imagemUrlExistente,
+              idSolicitacaoOrigem: idSolicitacaoOrigem,
+            );
+          },
+        );
+      }
+    }
+  }
+
+  /// Bottom sheet estilizado avisando que não é possível enviar nova proposta
+  /// pois já existe um serviço aceito ou em andamento com este cliente.
+  void _mostrarBottomSheetBloqueioSolicitacao({
+    required String status,
+    required int idSolicitacao,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      builder: (ctx) {
+        return BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.15),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE2E8F0),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  width: 68,
+                  height: 68,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: const Color(0xFFBFDBFE),
+                      width: 2,
+                    ),
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.assignment_turned_in_rounded,
+                      color: Color(0xFF2563EB),
+                      size: 34,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const Text(
+                  'Proposta Indisponível',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                RichText(
+                  textAlign: TextAlign.center,
+                  text: TextSpan(
+                    style: const TextStyle(
+                      fontSize: 14.5,
+                      color: Color(0xFF64748B),
+                      height: 1.45,
+                    ),
+                    children: [
+                      const TextSpan(
+                        text: 'Não é possível enviar uma nova proposta porque já existe uma solicitação com status ',
+                      ),
+                      TextSpan(
+                        text: '"$status"',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                      const TextSpan(
+                        text: ' em andamento com este cliente.',
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 22),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDBEAFE),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.info_outline_rounded,
+                          color: Color(0xFF1D4ED8),
+                          size: 18,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'OS #${idSolicitacao.toString().padLeft(4, '0')}',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                            Text(
+                              'Status atual: $status',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF475569),
+                          side: const BorderSide(color: Color(0xFFCBD5E1)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: const Text(
+                          'Fechar',
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => SolicitacaoEstadoPage(
+                                idSolicitacao: idSolicitacao,
+                              ),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2563EB),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: const Text(
+                          'Ver Serviço',
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _enviarPropostaPersonalizada({
+    required String titulo,
+    String? descricao,
+    required double valor,
+    int? fkOficio,
+    String? nomeOficio,
+    required String tipoExecucao,
+    XFile? imagemLocal,
+    String? imagemUrlExistente,
+    int? idSolicitacaoOrigem,
+  }) async {
+    if (_idConversa == null || _idUsuarioLogado == null) {
+      throw Exception('Conversa não identificada.');
+    }
+
+    String? urlImagem = imagemUrlExistente;
+    if (imagemLocal != null) {
+      urlImagem =
+          await ServicosProfissionalService.uploadImagemServico(imagemLocal);
+    }
+
+    int? idProf = _idProfissionalConversa ?? widget.idProfissional;
+    if (idProf == null) {
+      idProf = await ServicosProfissionalService.buscarIdProfissional();
+    }
+    if (idProf == null) {
+      throw Exception('Perfil profissional não encontrado.');
+    }
+
+    // 1. Cria o serviço temporário na tabela servicos_chat_temporarios
+    final servicoTemp = await _supabase
+        .from('servicos_chat_temporarios')
+        .insert({
+          'titulo': titulo.trim(),
+          'descricao': descricao?.trim(),
+          'valor': valor,
+          'imagem_url': urlImagem,
+          'ativo': true,
+          'fk_profissional': idProf,
+          'fk_grupo_empresa': _idGrupoEmpresaConversa ?? widget.idGrupoEmpresa,
+          'fk_oficios': fkOficio,
+          'tipo_execucao': tipoExecucao,
+          'carga_servico': 'Médio',
+          'data_criacao': DateTime.now().toUtc().toIso8601String(),
+        })
+        .select('id_servico_temp')
+        .single();
+
+    final idServicoTemp = (servicoTemp['id_servico_temp'] as num).toInt();
+    final codigoProposta = '#C${idServicoTemp.toString().padLeft(4, '0')}';
+
+    // 2. Monta o payload estruturado em JSON para a mensagem no chat
+    final payload = jsonEncode({
+      'tipo': 'proposta_personalizada',
+      'id_servico_temp': idServicoTemp,
+      'id_solicitacao_origem': idSolicitacaoOrigem,
+      'titulo': titulo.trim(),
+      'descricao': descricao?.trim(),
+      'valor': valor,
+      'tipo_execucao': tipoExecucao,
+      'imagem_url': urlImagem,
+      'fk_oficios': fkOficio,
+      'nome_oficio': nomeOficio,
+      'codigo_proposta': codigoProposta,
+      'status_proposta': 'Aberto',
+      'id_solicitacao': idSolicitacaoOrigem,
+    });
+
+    // 3. Insere a mensagem no chat com tratamento resiliente de constraint
+    // Se a tabela mensagens aceitar 'proposta', insere 'proposta'.
+    // Caso a check constraint mensagens_tipo_mensagem_check só aceite
+    // ('Texto', 'Imagem', 'Documento', 'Audio'), faz fallback imediato para 'Texto'.
+    try {
+      await _supabase.from('mensagens').insert({
+        'fk_conversa': _idConversa!,
+        'tipo_mensagem': 'proposta',
+        'conteudo': payload,
+        'fk_remitente_usuario': _idUsuarioLogado!,
+        'lida': false,
+      });
+    } catch (e) {
+      debugPrint('Aviso: fallback para tipo_mensagem "Texto" devido a constraint: $e');
+      await _supabase.from('mensagens').insert({
+        'fk_conversa': _idConversa!,
+        'tipo_mensagem': 'Texto',
+        'conteudo': payload,
+        'fk_remitente_usuario': _idUsuarioLogado!,
+        'lida': false,
+      });
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Proposta enviada no chat! Aguardando cliente.'),
+          backgroundColor: Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+    _buscarMensagensSilencioso();
+  }
+
+  Future<void> _aceitarProposta(
+    _Mensagem mensagem,
+    Map<String, dynamic> dados,
+  ) async {
+    if (_idUsuarioLogado == null || _idConversa == null) return;
+
+    final idServicoTemp = (dados['id_servico_temp'] as num?)?.toInt();
+    if (idServicoTemp == null) {
+      _mostrarAviso('Serviço temporário não encontrado.');
+      return;
+    }
+
+    try {
+      // 1. Busca o status "Aceito" (tipo_status = 'Serviço')
+      final statusRow = await _supabase
+          .from('status')
+          .select('id_status')
+          .eq('tipo_status', 'Serviço')
+          .eq('status', 'Aceito')
+          .limit(1)
+          .maybeSingle();
+
+      var idStatusAceito = (statusRow?['id_status'] as num?)?.toInt();
+      if (idStatusAceito == null) {
+        final fallback = await _supabase
+            .from('status')
+            .select('id_status')
+            .eq('status', 'Aceito')
+            .limit(1)
+            .maybeSingle();
+        idStatusAceito = (fallback?['id_status'] as num?)?.toInt();
+      }
+      if (idStatusAceito == null) {
+        throw Exception('Status "Aceito" não encontrado no banco.');
+      }
+
+      // 2. Busca dados completos do serviço temporário
+      final temp = await _supabase
+          .from('servicos_chat_temporarios')
+          .select('*')
+          .eq('id_servico_temp', idServicoTemp)
+          .maybeSingle();
+
+      if (temp == null) {
+        throw Exception('O serviço temporário não está mais disponível.');
+      }
+
+      final idProf = (temp['fk_profissional'] as num?)?.toInt() ??
+          _idProfissionalConversa ??
+          widget.idProfissional ??
+          0;
+      final idGrupo = (temp['fk_grupo_empresa'] as num?)?.toInt() ??
+          _idGrupoEmpresaConversa ??
+          widget.idGrupoEmpresa;
+      final valorFinal =
+          double.tryParse(temp['valor']?.toString() ?? '0') ??
+          (dados['valor'] as num?)?.toDouble() ??
+          0.0;
+      final tipoExecucao = temp['tipo_execucao']?.toString() ??
+          dados['tipo_execucao']?.toString() ??
+          'Leva e Traz';
+      final detalhes =
+          temp['descricao']?.toString() ?? dados['descricao']?.toString();
+      final imagemUrl =
+          temp['imagem_url']?.toString() ?? dados['imagem_url']?.toString();
+
+      final idSolicitacaoOrigem =
+          (dados['id_solicitacao_origem'] as num?)?.toInt() ??
+          (dados['id_solicitacao'] as num?)?.toInt();
+
+      int idSolicitacao;
+
+      if (idSolicitacaoOrigem != null) {
+        // Se a proposta foi baseada em uma solicitação com status "Aberto",
+        // modifica a solicitação existente para ficar com os dados editados:
+        // deixando fk_servico_prof = NULL e fk_servico_temp = idServicoTemp.
+        await _supabase.from('solicitacoes').update({
+          'data_aceite': DateTime.now().toUtc().toIso8601String(),
+          'valor_final': valorFinal,
+          'fk_status': idStatusAceito,
+          'fk_servico_prof': null,
+          'fk_servico_temp': idServicoTemp,
+          'tipo_execucao': tipoExecucao,
+          'detalhes': detalhes,
+        }).eq('id_solicitacao', idSolicitacaoOrigem);
+
+        idSolicitacao = idSolicitacaoOrigem;
+      } else {
+        // 3. Caso não seja edição de solicitação prévia, cria uma nova solicitação com status "Aceito"
+        final novaSolicitacao = await _supabase
+            .from('solicitacoes')
+            .insert({
+              'data_solicitacao': DateTime.now().toUtc().toIso8601String(),
+              'data_aceite': DateTime.now().toUtc().toIso8601String(),
+              'valor_final': valorFinal,
+              'fk_usuario': _idUsuarioLogado!,
+              'fk_profissional': idProf,
+              'fk_grupo_empresa': idGrupo,
+              'fk_status': idStatusAceito,
+              'fk_servico_prof': null,
+              'fk_servico_temp': idServicoTemp,
+              'tipo_execucao': tipoExecucao,
+              'detalhes': detalhes,
+            })
+            .select('id_solicitacao')
+            .single();
+
+        idSolicitacao = (novaSolicitacao['id_solicitacao'] as num).toInt();
+      }
+
+      // 4. Se houver imagem, insere em solicitacoes_anexos se já não existir
+      if (imagemUrl != null && imagemUrl.isNotEmpty) {
+        try {
+          await _supabase.from('solicitacoes_anexos').insert({
+            'fk_solicitacao': idSolicitacao,
+            'anexo_url': imagemUrl,
+            'ordem': 1,
+            'data_criacao': DateTime.now().toUtc().toIso8601String(),
+          });
+        } catch (_) {}
+      }
+
+      // 5. Vincula a conversa com a solicitação
+      try {
+        await _supabase
+            .from('conversas')
+            .update({'fk_solicitacao': idSolicitacao})
+            .eq('id_conversa', _idConversa!);
+      } catch (_) {}
+
+      // 6. Atualiza o conteúdo da mensagem no banco para "Aceito"
+      final novosDados = Map<String, dynamic>.from(dados);
+      novosDados['status_proposta'] = 'Aceito';
+      novosDados['id_solicitacao'] = idSolicitacao;
+
+      await _supabase
+          .from('mensagens')
+          .update({'conteudo': jsonEncode(novosDados)})
+          .eq('id_mensagem', mensagem.id);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Proposta aceita com sucesso! Serviço iniciado.'),
+          backgroundColor: Color(0xFF10B981),
+        ),
+      );
+
+      _carregarResumoSolicitacao();
+      _buscarMensagensSilencioso();
+
+      // Abre a tela de acompanhamento da solicitação aceita
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SolicitacaoEstadoPage(
+            idSolicitacao: idSolicitacao,
+            recemAceito: true,
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint('Erro ao aceitar proposta: $e');
+      if (mounted) {
+        _mostrarAviso('Erro ao aceitar proposta: $e');
+      }
+    }
+  }
+
+  Future<void> _recusarProposta(
+    _Mensagem mensagem,
+    Map<String, dynamic> dados,
+  ) async {
+    final idServicoTemp = (dados['id_servico_temp'] as num?)?.toInt();
+    try {
+      // 1. Apaga o serviço temporário criado em servicos_chat_temporarios
+      if (idServicoTemp != null) {
+        try {
+          await _supabase
+              .from('servicos_chat_temporarios')
+              .delete()
+              .eq('id_servico_temp', idServicoTemp);
+        } catch (e) {
+          debugPrint('Aviso ao apagar serviço temporário: $e');
+        }
+      }
+
+      // 2. Atualiza a mensagem para status "Recusado"
+      final novosDados = Map<String, dynamic>.from(dados);
+      novosDados['status_proposta'] = 'Recusado';
+
+      await _supabase
+          .from('mensagens')
+          .update({'conteudo': jsonEncode(novosDados)})
+          .eq('id_mensagem', mensagem.id);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Proposta recusada.'),
+            backgroundColor: Color(0xFFEF4444),
+          ),
+        );
+      }
+      _buscarMensagensSilencioso();
+    } catch (e) {
+      debugPrint('Erro ao recusar proposta: $e');
+      if (mounted) {
+        _mostrarAviso('Erro ao recusar proposta: $e');
+      }
+    }
+  }
+
+  Widget _buildBalaoProposta(_Mensagem mensagem) {
+    Map<String, dynamic> dados = {};
+    try {
+      final decoded = jsonDecode(mensagem.conteudo);
+      if (decoded is Map<String, dynamic>) {
+        dados = decoded;
+      }
+    } catch (_) {
+      dados = {'titulo': mensagem.conteudo, 'status_proposta': 'Aberto'};
+    }
+
+    final idServicoTemp = (dados['id_servico_temp'] as num?)?.toInt();
+    final titulo = dados['titulo']?.toString() ?? 'Confecção de Chave Codificada Automotiva';
+    final descricao = dados['descricao']?.toString() ?? '';
+    final valor = (dados['valor'] as num?)?.toDouble() ?? 150.0;
+    final tipoExecucao = dados['tipo_execucao']?.toString() ?? 'Leva e Traz (Retirada e Entrega)';
+    final imagemUrl = dados['imagem_url']?.toString();
+    final status = dados['status_proposta']?.toString() ?? 'Aberto';
+    final idSolicitacao = (dados['id_solicitacao'] as num?)?.toInt();
+
+    final isAceito = status.toLowerCase() == 'aceito';
+    final isRecusado = status.toLowerCase() == 'recusado';
+    final isAberto = !isAceito && !isRecusado;
+
+    final nomeOficioTag = dados['nome_oficio']?.toString() ??
+        (_oficioContato.isNotEmpty ? _oficioContato : 'Chaveiro');
+    final codigoTag = dados['codigo_proposta']?.toString() ??
+        (idServicoTemp != null
+            ? '#C${idServicoTemp.toString().padLeft(4, '0')}'
+            : '#CAEDS');
+
+    final larguraCard = MediaQuery.of(context).size.width.clamp(280.0, 335.0);
+
+    return Align(
+      alignment: mensagem.ehRemetente
+          ? Alignment.centerRight
+          : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 8),
+        width: larguraCard,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isAceito
+                ? const Color(0xFF10B981).withValues(alpha: 0.5)
+                : const Color(0xFFE2E8F0),
+            width: isAceito ? 1.5 : 1.0,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 1. Cabeçalho da Proposta (Fundo azul clarinho + Ícone ferramentas + Horário)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: const BoxDecoration(
+                color: Color(0xFFF0F7FF),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(19)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.handyman_rounded,
+                    color: Color(0xFF0072C6),
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'PROPOSTA DE SERVIÇO',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0072C6),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    DateFormat('HH:mm').format(mensagem.dataEnvio),
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF94A3B8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // 2. Conteúdo Interno da Proposta
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Imagem em destaque com cantos arredondados
+                  if (imagemUrl != null && imagemUrl.isNotEmpty) ...[
+                    GestureDetector(
+                      onTap: () => _visualizarImagemEmTelaCheia(imagemUrl),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: 175,
+                          child: Image.network(
+                            imagemUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                const SizedBox.shrink(),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
+
+                  // Chips / Tags (Ofício + Código)
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDBEAFE),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          nomeOficioTag,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF1D4ED8),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          codigoTag,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF0284C7),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Título do Serviço
+                  Text(
+                    titulo,
+                    style: const TextStyle(
+                      fontSize: 17.5,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0F172A),
+                      height: 1.25,
+                    ),
+                  ),
+
+                  // Descrição do Serviço
+                  if (descricao.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      descricao,
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        color: Color(0xFF64748B),
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+
+                  // Caixa do Método de Atendimento (Entrega / Retirada)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 11,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.local_shipping_outlined,
+                          color: Color(0xFF00A3FF),
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            tipoExecucao,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF334155),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Rótulo e Valor Total
+                  const Text(
+                    'VALOR TOTAL',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF94A3B8),
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'R\$ ${valor.toStringAsFixed(2).replaceAll('.', ',')}',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Botão de Ação (Exatamente como o design anexado)
+                  if (isAberto) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        onPressed: () => _aceitarProposta(mensagem, dados),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00A3FF),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 20,
+                              height: 20,
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.check,
+                                  color: Color(0xFF00A3FF),
+                                  size: 13,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Aceitar serviço',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (!mensagem.ehRemetente) ...[
+                      const SizedBox(height: 6),
+                      Center(
+                        child: TextButton(
+                          onPressed: () => _recusarProposta(mensagem, dados),
+                          style: TextButton.styleFrom(
+                            foregroundColor: const Color(0xFFEF4444),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 4,
+                            ),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: const Text(
+                            'Recusar proposta',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ] else if (isAceito) ...[
+                    InkWell(
+                      onTap: idSolicitacao != null
+                          ? () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => SolicitacaoEstadoPage(
+                                    idSolicitacao: idSolicitacao,
+                                  ),
+                                ),
+                              );
+                            }
+                          : null,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        width: double.infinity,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.check_circle_rounded,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'Serviço aceito • Acompanhar',
+                              style: TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ] else if (isRecusado) ...[
+                    Container(
+                      width: double.infinity,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEE2E2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'Proposta recusada',
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFFDC2626),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -963,13 +2047,14 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
 
       final solicitacao = await _supabase
           .from('solicitacoes')
-          .select('id_solicitacao, fk_status, fk_servico_prof')
+          .select('id_solicitacao, fk_status, fk_servico_prof, fk_servico_temp')
           .eq('id_solicitacao', idSolicitacao)
           .maybeSingle();
       if (solicitacao == null) return;
 
       final idStatus = (solicitacao['fk_status'] as num?)?.toInt();
       final idServico = (solicitacao['fk_servico_prof'] as num?)?.toInt();
+      final idServicoTemp = (solicitacao['fk_servico_temp'] as num?)?.toInt();
       String? status;
       String? nomeServico;
 
@@ -986,6 +2071,13 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
             .from('servicos_profissional')
             .select('titulo')
             .eq('id_servico_prof', idServico)
+            .maybeSingle();
+        nomeServico = servico?['titulo']?.toString().trim();
+      } else if (idServicoTemp != null) {
+        final servico = await _supabase
+            .from('servicos_chat_temporarios')
+            .select('titulo')
+            .eq('id_servico_temp', idServicoTemp)
             .maybeSingle();
         nomeServico = servico?['titulo']?.toString().trim();
       }
@@ -1403,14 +2495,19 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     if (id == null) return null;
     final idRemetente = (msg['fk_remitente_usuario'] as num?)?.toInt();
     final dataRaw = msg['data_envio']?.toString();
+    final rawTipo = msg['tipo_mensagem']?.toString() ?? 'Texto';
+    final conteudo = msg['conteudo']?.toString() ?? '';
+    final ehProposta = rawTipo.toLowerCase() == 'proposta' ||
+        conteudo.contains('"tipo":"proposta_personalizada"');
+
     return _Mensagem(
       id: id,
-      conteudo: msg['conteudo']?.toString() ?? '',
+      conteudo: conteudo,
       dataEnvio: dataRaw == null
           ? DateTime.now()
           : DateTime.tryParse(dataRaw)?.toLocal() ?? DateTime.now(),
       ehRemetente: idRemetente == _idUsuarioLogado,
-      tipoMensagem: msg['tipo_mensagem']?.toString() ?? 'Texto',
+      tipoMensagem: ehProposta ? 'proposta' : rawTipo,
       lida: msg['lida'] == true,
       urlArquivo: msg['url_arquivo']?.toString(),
       legenda: msg['legenda']?.toString(),
@@ -2726,6 +3823,10 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     }
     if (tipo == 'audio') {
       return _buildBalaoAudio(mensagem);
+    }
+    if (tipo == 'proposta' ||
+        mensagem.conteudo.contains('"tipo":"proposta_personalizada"')) {
+      return _buildBalaoProposta(mensagem);
     }
     return mensagem.ehRemetente
         ? _buildBalaoTextoEnviado(mensagem)
