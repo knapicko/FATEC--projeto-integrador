@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'detalhes_pedido.dart';
 import 'widgets/skeleton_loading.dart';
 import 'seguindo_cliente.dart';
 import 'tela_chat_profissional.dart';
@@ -1031,7 +1032,16 @@ class MeusPedidosState extends State<MeusPedidosPage> {
               ),
               const SizedBox(width: 8),
               ElevatedButton(
-                onPressed: () {},
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => DetalhesPedidoPage(
+                        idSolicitacao: p.id,
+                        pedidoResumo: p,
+                      ),
+                    ),
+                  ).then((_) => carregar(loading: false));
+                },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: azul,
                   foregroundColor: Colors.white,
