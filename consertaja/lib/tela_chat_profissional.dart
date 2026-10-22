@@ -25,6 +25,7 @@ import 'package:url_launcher/url_launcher.dart' show LaunchMode, launchUrl;
 
 import 'alterar_tema_chat.dart';
 import 'chat_contato_info.dart';
+import 'detalhes_pedido.dart';
 import 'tela_midia_chat.dart';
 import 'perfil_loja.dart';
 import 'perfil_profissional.dart';
@@ -105,6 +106,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
   bool _temTexto = false;
   String? _erroCarregamento;
   List<_Mensagem> _mensagens = [];
+  final Map<int, String> _estadosPropostas = {};
   DateTime? _ultimaConexaoContato;
   String _oficioContato = '';
   String? _nomeContato;
@@ -773,10 +775,12 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
           .maybeSingle();
 
       final idCliente = (conversa?['fk_usuario'] as num?)?.toInt();
-      final idProf = _idProfissionalConversa ??
+      final idProf =
+          _idProfissionalConversa ??
           widget.idProfissional ??
           (conversa?['fk_profissional'] as num?)?.toInt();
-      final idGrupo = _idGrupoEmpresaConversa ??
+      final idGrupo =
+          _idGrupoEmpresaConversa ??
           widget.idGrupoEmpresa ??
           (conversa?['fk_grupo_empresa'] as num?)?.toInt();
 
@@ -786,7 +790,9 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       if (idCliente != null) {
         dynamic query = _supabase
             .from('solicitacoes')
-            .select('id_solicitacao, fk_status, fk_servico_prof, fk_servico_temp')
+            .select(
+              'id_solicitacao, fk_status, fk_servico_prof, fk_servico_temp',
+            )
             .eq('fk_usuario', idCliente);
 
         if (idGrupo != null) {
@@ -840,7 +846,8 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
 
       // 3. Se houver solicitação com status "Aberto", já virá com o switch ligado
       // e os dados do serviço dessa solicitação pré-carregados para edição
-      final bool temSolicitacaoAberta = solicitacaoAtiva != null &&
+      final bool temSolicitacaoAberta =
+          solicitacaoAtiva != null &&
           (nomeStatusAtivo?.toLowerCase() == 'aberto');
       final int? idServicoProfOrigem = temSolicitacaoAberta
           ? (solicitacaoAtiva['fk_servico_prof'] as num?)?.toInt()
@@ -860,29 +867,30 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
         baseadoEmServicoInicial: temSolicitacaoAberta,
         idServicoProfInicial: idServicoProfOrigem,
         idSolicitacaoOrigem: idSolicitacaoOrigem,
-        onEnviar: ({
-          required String titulo,
-          String? descricao,
-          required double valor,
-          int? fkOficio,
-          String? nomeOficio,
-          required String tipoExecucao,
-          XFile? imagemLocal,
-          String? imagemUrlExistente,
-          int? idSolicitacaoOrigem,
-        }) async {
-          await _enviarPropostaPersonalizada(
-            titulo: titulo,
-            descricao: descricao,
-            valor: valor,
-            fkOficio: fkOficio,
-            nomeOficio: nomeOficio,
-            tipoExecucao: tipoExecucao,
-            imagemLocal: imagemLocal,
-            imagemUrlExistente: imagemUrlExistente,
-            idSolicitacaoOrigem: idSolicitacaoOrigem,
-          );
-        },
+        onEnviar:
+            ({
+              required String titulo,
+              String? descricao,
+              required double valor,
+              int? fkOficio,
+              String? nomeOficio,
+              required String tipoExecucao,
+              XFile? imagemLocal,
+              String? imagemUrlExistente,
+              int? idSolicitacaoOrigem,
+            }) async {
+              await _enviarPropostaPersonalizada(
+                titulo: titulo,
+                descricao: descricao,
+                valor: valor,
+                fkOficio: fkOficio,
+                nomeOficio: nomeOficio,
+                tipoExecucao: tipoExecucao,
+                imagemLocal: imagemLocal,
+                imagemUrlExistente: imagemUrlExistente,
+                idSolicitacaoOrigem: idSolicitacaoOrigem,
+              );
+            },
       );
     } catch (e) {
       debugPrint('Erro ao verificar solicitação do cliente: $e');
@@ -895,29 +903,30 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
           ultimaConexao: _ultimaConexaoContato,
           idProfissional: _idProfissionalConversa ?? widget.idProfissional,
           idGrupoEmpresa: _idGrupoEmpresaConversa ?? widget.idGrupoEmpresa,
-          onEnviar: ({
-            required String titulo,
-            String? descricao,
-            required double valor,
-            int? fkOficio,
-            String? nomeOficio,
-            required String tipoExecucao,
-            XFile? imagemLocal,
-            String? imagemUrlExistente,
-            int? idSolicitacaoOrigem,
-          }) async {
-            await _enviarPropostaPersonalizada(
-              titulo: titulo,
-              descricao: descricao,
-              valor: valor,
-              fkOficio: fkOficio,
-              nomeOficio: nomeOficio,
-              tipoExecucao: tipoExecucao,
-              imagemLocal: imagemLocal,
-              imagemUrlExistente: imagemUrlExistente,
-              idSolicitacaoOrigem: idSolicitacaoOrigem,
-            );
-          },
+          onEnviar:
+              ({
+                required String titulo,
+                String? descricao,
+                required double valor,
+                int? fkOficio,
+                String? nomeOficio,
+                required String tipoExecucao,
+                XFile? imagemLocal,
+                String? imagemUrlExistente,
+                int? idSolicitacaoOrigem,
+              }) async {
+                await _enviarPropostaPersonalizada(
+                  titulo: titulo,
+                  descricao: descricao,
+                  valor: valor,
+                  fkOficio: fkOficio,
+                  nomeOficio: nomeOficio,
+                  tipoExecucao: tipoExecucao,
+                  imagemLocal: imagemLocal,
+                  imagemUrlExistente: imagemUrlExistente,
+                  idSolicitacaoOrigem: idSolicitacaoOrigem,
+                );
+              },
         );
       }
     }
@@ -1004,7 +1013,8 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                     ),
                     children: [
                       const TextSpan(
-                        text: 'Não é possível enviar uma nova proposta porque já existe uma solicitação com status ',
+                        text:
+                            'Não é possível enviar uma nova proposta porque já existe uma solicitação com status ',
                       ),
                       TextSpan(
                         text: '"$status"',
@@ -1013,9 +1023,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                           color: Color(0xFF1E293B),
                         ),
                       ),
-                      const TextSpan(
-                        text: ' em andamento com este cliente.',
-                      ),
+                      const TextSpan(text: ' em andamento com este cliente.'),
                     ],
                   ),
                 ),
@@ -1153,8 +1161,9 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
 
     String? urlImagem = imagemUrlExistente;
     if (imagemLocal != null) {
-      urlImagem =
-          await ServicosProfissionalService.uploadImagemServico(imagemLocal);
+      urlImagem = await ServicosProfissionalService.uploadImagemServico(
+        imagemLocal,
+      );
     }
 
     int? idProf = _idProfissionalConversa ?? widget.idProfissional;
@@ -1217,7 +1226,9 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
         'lida': false,
       });
     } catch (e) {
-      debugPrint('Aviso: fallback para tipo_mensagem "Texto" devido a constraint: $e');
+      debugPrint(
+        'Aviso: fallback para tipo_mensagem "Texto" devido a constraint: $e',
+      );
       await _supabase.from('mensagens').insert({
         'fk_conversa': _idConversa!,
         'tipo_mensagem': 'Texto',
@@ -1286,20 +1297,24 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
         throw Exception('O serviço temporário não está mais disponível.');
       }
 
-      final idProf = (temp['fk_profissional'] as num?)?.toInt() ??
+      final idProf =
+          (temp['fk_profissional'] as num?)?.toInt() ??
           _idProfissionalConversa ??
           widget.idProfissional ??
           0;
-      final idGrupo = (temp['fk_grupo_empresa'] as num?)?.toInt() ??
+      final idGrupo =
+          (temp['fk_grupo_empresa'] as num?)?.toInt() ??
           _idGrupoEmpresaConversa ??
           widget.idGrupoEmpresa;
       final valorFinal =
           double.tryParse(temp['valor']?.toString() ?? '0') ??
           (dados['valor'] as num?)?.toDouble() ??
           0.0;
-      final tipoExecucao = temp['tipo_execucao']?.toString() ??
-          dados['tipo_execucao']?.toString() ??
-          'Leva e Traz';
+      final tipoExecucao = _normalizarTipoExecucaoSolicitacao(
+        temp['tipo_execucao']?.toString() ??
+            dados['tipo_execucao']?.toString() ??
+            'Execução',
+      );
       final detalhes =
           temp['descricao']?.toString() ?? dados['descricao']?.toString();
       final imagemUrl =
@@ -1315,15 +1330,18 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
         // Se a proposta foi baseada em uma solicitação com status "Aberto",
         // modifica a solicitação existente para ficar com os dados editados:
         // deixando fk_servico_prof = NULL e fk_servico_temp = idServicoTemp.
-        await _supabase.from('solicitacoes').update({
-          'data_aceite': DateTime.now().toUtc().toIso8601String(),
-          'valor_final': valorFinal,
-          'fk_status': idStatusAceito,
-          'fk_servico_prof': null,
-          'fk_servico_temp': idServicoTemp,
-          'tipo_execucao': tipoExecucao,
-          'detalhes': detalhes,
-        }).eq('id_solicitacao', idSolicitacaoOrigem);
+        await _supabase
+            .from('solicitacoes')
+            .update({
+              'data_aceite': DateTime.now().toUtc().toIso8601String(),
+              'valor_final': valorFinal,
+              'fk_status': idStatusAceito,
+              'fk_servico_prof': null,
+              'fk_servico_temp': idServicoTemp,
+              'tipo_execucao': tipoExecucao,
+              'detalhes': detalhes,
+            })
+            .eq('id_solicitacao', idSolicitacaoOrigem);
 
         idSolicitacao = idSolicitacaoOrigem;
       } else {
@@ -1391,20 +1409,89 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       _carregarResumoSolicitacao();
       _buscarMensagensSilencioso();
 
-      // Abre a tela de acompanhamento da solicitação aceita
+      // Clientes acompanham o pedido pela tela de detalhes; profissionais
+      // continuam usando a tela operacional da solicitação.
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => SolicitacaoEstadoPage(
-            idSolicitacao: idSolicitacao,
-            recemAceito: true,
-          ),
+          builder: (_) => _souProfissionalNaConversa
+              ? SolicitacaoEstadoPage(
+                  idSolicitacao: idSolicitacao,
+                  recemAceito: true,
+                )
+              : DetalhesPedidoPage(idSolicitacao: idSolicitacao),
         ),
       );
     } catch (e) {
       debugPrint('Erro ao aceitar proposta: $e');
       if (mounted) {
         _mostrarAviso('Erro ao aceitar proposta: $e');
+      }
+    }
+  }
+
+  String _normalizarTipoExecucaoSolicitacao(String valor) {
+    const permitidos = [
+      'Leva e Traz',
+      'Retirado no Local',
+      'Receba em Casa',
+      'Atendimento em Domicílio',
+    ];
+    final normalizado = valor.trim();
+    if (normalizado == 'Entrega' || normalizado == 'Execução') {
+      return normalizado;
+    }
+    final encontrados = permitidos
+        .where((opcao) => normalizado.contains(opcao))
+        .toList();
+    if (encontrados.isNotEmpty) {
+      return encontrados.join(', ');
+    }
+    if (normalizado.toLowerCase().contains('retir')) {
+      return 'Retirado no Local';
+    }
+    if (normalizado.toLowerCase().contains('domic')) {
+      return 'Atendimento em Domicílio';
+    }
+    if (normalizado.toLowerCase().contains('entreg')) {
+      return 'Receba em Casa';
+    }
+    return 'Execução';
+  }
+
+  Future<void> _cancelarProposta(
+    _Mensagem mensagem,
+    Map<String, dynamic> dados,
+  ) async {
+    final idServicoTemp = (dados['id_servico_temp'] as num?)?.toInt();
+    try {
+      if (idServicoTemp != null) {
+        await _supabase
+            .from('servicos_chat_temporarios')
+            .delete()
+            .eq('id_servico_temp', idServicoTemp);
+      }
+
+      final novosDados = Map<String, dynamic>.from(dados)
+        ..['status_proposta'] = 'Cancelada';
+      await _supabase
+          .from('mensagens')
+          .update({'conteudo': jsonEncode(novosDados)})
+          .eq('id_mensagem', mensagem.id);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Proposta cancelada.'),
+            backgroundColor: Color(0xFFEF4444),
+          ),
+        );
+      }
+      _buscarMensagensSilencioso();
+    } catch (e) {
+      debugPrint('Erro ao cancelar proposta: $e');
+      if (mounted) {
+        _mostrarAviso('Erro ao cancelar proposta: $e');
       }
     }
   }
@@ -1465,21 +1552,31 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     }
 
     final idServicoTemp = (dados['id_servico_temp'] as num?)?.toInt();
-    final titulo = dados['titulo']?.toString() ?? 'Confecção de Chave Codificada Automotiva';
+    final titulo =
+        dados['titulo']?.toString() ??
+        'Confecção de Chave Codificada Automotiva';
     final descricao = dados['descricao']?.toString() ?? '';
     final valor = (dados['valor'] as num?)?.toDouble() ?? 150.0;
-    final tipoExecucao = dados['tipo_execucao']?.toString() ?? 'Leva e Traz (Retirada e Entrega)';
+    final tipoExecucao =
+        dados['tipo_execucao']?.toString() ??
+        'Leva e Traz (Retirada e Entrega)';
     final imagemUrl = dados['imagem_url']?.toString();
     final status = dados['status_proposta']?.toString() ?? 'Aberto';
     final idSolicitacao = (dados['id_solicitacao'] as num?)?.toInt();
 
-    final isAceito = status.toLowerCase() == 'aceito';
-    final isRecusado = status.toLowerCase() == 'recusado';
-    final isAberto = !isAceito && !isRecusado;
+    final estadoBanco = _estadosPropostas[mensagem.id];
+    final isAceito = status.toLowerCase() == 'aceito' && estadoBanco == null;
+    final isRecusado =
+        status.toLowerCase() == 'recusado' || estadoBanco == 'recusado';
+    final isCancelada =
+        status.toLowerCase() == 'cancelada' || estadoBanco == 'cancelada';
+    final isAberto = !isAceito && !isRecusado && !isCancelada;
 
-    final nomeOficioTag = dados['nome_oficio']?.toString() ??
+    final nomeOficioTag =
+        dados['nome_oficio']?.toString() ??
         (_oficioContato.isNotEmpty ? _oficioContato : 'Chaveiro');
-    final codigoTag = dados['codigo_proposta']?.toString() ??
+    final codigoTag =
+        dados['codigo_proposta']?.toString() ??
         (idServicoTemp != null
             ? '#C${idServicoTemp.toString().padLeft(4, '0')}'
             : '#CAEDS');
@@ -1499,8 +1596,10 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
           border: Border.all(
             color: isAceito
                 ? const Color(0xFF10B981).withValues(alpha: 0.5)
+                : isCancelada || isRecusado
+                ? const Color(0xFFEF4444).withValues(alpha: 0.5)
                 : const Color(0xFFE2E8F0),
-            width: isAceito ? 1.5 : 1.0,
+            width: isAceito || isCancelada || isRecusado ? 1.5 : 1.0,
           ),
           boxShadow: [
             BoxShadow(
@@ -1704,7 +1803,32 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                   const SizedBox(height: 16),
 
                   // Botão de Ação (Exatamente como o design anexado)
-                  if (isAberto) ...[
+                  if (isAberto &&
+                      _souProfissionalNaConversa &&
+                      mensagem.ehRemetente) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      height: 44,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _cancelarProposta(mensagem, dados),
+                        icon: const Icon(Icons.cancel_outlined, size: 18),
+                        label: const Text('Cancelar proposta'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFFDC2626),
+                          side: const BorderSide(color: Color(0xFFFCA5A5)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ] else if (isAberto &&
+                      !_souProfissionalNaConversa &&
+                      !mensagem.ehRemetente) ...[
                     SizedBox(
                       width: double.infinity,
                       height: 48,
@@ -1776,16 +1900,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                   ] else if (isAceito) ...[
                     InkWell(
                       onTap: idSolicitacao != null
-                          ? () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => SolicitacaoEstadoPage(
-                                    idSolicitacao: idSolicitacao,
-                                  ),
-                                ),
-                              );
-                            }
+                          ? () => _acompanharProposta(mensagem, dados)
                           : null,
                       borderRadius: BorderRadius.circular(12),
                       child: Container(
@@ -1826,7 +1941,26 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                       ),
                       child: const Center(
                         child: Text(
-                          'Proposta recusada',
+                          'Serviço Recusado',
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFFDC2626),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ] else if (isCancelada) ...[
+                    Container(
+                      width: double.infinity,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEE2E2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'Serviço cancelado',
                           style: TextStyle(
                             fontSize: 13.5,
                             fontWeight: FontWeight.w700,
@@ -2370,6 +2504,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
         final m = _mensagemDoMap(msg);
         if (m != null) lista.add(m);
       }
+      await _atualizarStatusPropostas(lista);
 
       if (!mounted) return;
       setState(() {
@@ -2497,7 +2632,8 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     final dataRaw = msg['data_envio']?.toString();
     final rawTipo = msg['tipo_mensagem']?.toString() ?? 'Texto';
     final conteudo = msg['conteudo']?.toString() ?? '';
-    final ehProposta = rawTipo.toLowerCase() == 'proposta' ||
+    final ehProposta =
+        rawTipo.toLowerCase() == 'proposta' ||
         conteudo.contains('"tipo":"proposta_personalizada"');
 
     return _Mensagem(
@@ -2550,6 +2686,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
         final m = _mensagemDoMap(msg);
         if (m != null) lista.add(m);
       }
+      await _atualizarStatusPropostas(lista);
       if (!mounted) return;
 
       final otimistas = _mensagens.where((m) => m.id < 0).toList();
@@ -2569,6 +2706,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                 ));
         if (!jaConfirmada) mesclada.add(o);
       }
+
       mesclada.sort((a, b) {
         if (a.id < 0 && b.id < 0) return a.dataEnvio.compareTo(b.dataEnvio);
         if (a.id < 0) return 1;
@@ -2587,13 +2725,110 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
         }
       }
 
-      if (mudou) {
+      if (mudou || _estadosPropostas.isNotEmpty) {
         setState(() => _mensagens = mesclada);
+      }
+      if (mudou) {
         _scrollToBottom();
       }
     } catch (e) {
       debugPrint('Polling mensagens: $e');
     }
+  }
+
+  Future<void> _atualizarStatusPropostas(List<_Mensagem> mensagens) async {
+    for (final mensagem in mensagens) {
+      if (mensagem.tipoMensagem != 'proposta') continue;
+      Map<String, dynamic> dados;
+      try {
+        final decoded = jsonDecode(mensagem.conteudo);
+        dados = decoded is Map<String, dynamic> ? decoded : <String, dynamic>{};
+      } catch (_) {
+        dados = <String, dynamic>{};
+      }
+      if (dados.isEmpty) continue;
+
+      try {
+        final estado = await _estadoProposta(dados);
+        if (estado != null) _estadosPropostas[mensagem.id] = estado;
+      } catch (e) {
+        debugPrint('Erro ao verificar disponibilidade da proposta: $e');
+      }
+    }
+  }
+
+  Future<bool> _propostaIndisponivel(Map<String, dynamic> dados) async {
+    return await _estadoProposta(dados) != null;
+  }
+
+  Future<String?> _estadoProposta(Map<String, dynamic> dados) async {
+    final statusMensagem = dados['status_proposta']
+        ?.toString()
+        .trim()
+        .toLowerCase();
+    if (statusMensagem == 'cancelada') return 'cancelada';
+    if (statusMensagem == 'recusado') return 'recusado';
+
+    final idSolicitacao = (dados['id_solicitacao'] as num?)?.toInt();
+    if (idSolicitacao != null) {
+      final solicitacao = await _supabase
+          .from('solicitacoes')
+          .select('fk_status')
+          .eq('id_solicitacao', idSolicitacao)
+          .maybeSingle();
+      if (solicitacao == null) return 'cancelada';
+
+      final idStatus = (solicitacao['fk_status'] as num?)?.toInt();
+      if (idStatus != null) {
+        final statusRow = await _supabase
+            .from('status')
+            .select('status')
+            .eq('id_status', idStatus)
+            .maybeSingle();
+        final statusBanco =
+            statusRow?['status']?.toString().trim().toLowerCase() ?? '';
+        if (statusBanco.contains('cancel')) return 'cancelada';
+        if (statusBanco.contains('recus')) return 'recusado';
+      }
+    }
+
+    if (statusMensagem == 'aceito' && idSolicitacao == null) {
+      return 'cancelada';
+    }
+
+    final idServicoTemp = (dados['id_servico_temp'] as num?)?.toInt();
+    if (idServicoTemp == null) return 'cancelada';
+    final servico = await _supabase
+        .from('servicos_chat_temporarios')
+        .select('ativo')
+        .eq('id_servico_temp', idServicoTemp)
+        .maybeSingle();
+    if (servico == null || servico['ativo'] == false) return 'cancelada';
+    return null;
+  }
+
+  Future<void> _acompanharProposta(
+    _Mensagem mensagem,
+    Map<String, dynamic> dados,
+  ) async {
+    if (await _propostaIndisponivel(dados)) {
+      if (mounted) {
+        final estado = await _estadoProposta(dados) ?? 'cancelada';
+        setState(() => _estadosPropostas[mensagem.id] = estado);
+      }
+      return;
+    }
+
+    final idSolicitacao = (dados['id_solicitacao'] as num?)?.toInt();
+    if (idSolicitacao == null || !mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _souProfissionalNaConversa
+            ? SolicitacaoEstadoPage(idSolicitacao: idSolicitacao)
+            : DetalhesPedidoPage(idSolicitacao: idSolicitacao),
+      ),
+    );
   }
 
   Future<void> _enviarMensagem() async {

@@ -32,7 +32,8 @@ class BottomSheetServicoPersonalizado extends StatefulWidget {
     XFile? imagemLocal,
     String? imagemUrlExistente,
     int? idSolicitacaoOrigem,
-  }) onEnviar;
+  })
+  onEnviar;
 
   const BottomSheetServicoPersonalizado({
     super.key,
@@ -70,7 +71,8 @@ class BottomSheetServicoPersonalizado extends StatefulWidget {
       XFile? imagemLocal,
       String? imagemUrlExistente,
       int? idSolicitacaoOrigem,
-    }) onEnviar,
+    })
+    onEnviar,
   }) {
     return showModalBottomSheet(
       context: context,
@@ -171,8 +173,7 @@ class _BottomSheetServicoPersonalizadoState
     _servicoBaseSelecionado = s;
     _nomeController.text = s.titulo;
     _descricaoController.text = s.descricao;
-    _valorController.text =
-        NumberFormat('#,##0.00', 'pt_BR').format(s.valor);
+    _valorController.text = NumberFormat('#,##0.00', 'pt_BR').format(s.valor);
     _oficioSelecionadoId = s.fkOficio;
     _imagemUrlExistente = s.imagemUrl;
     _imagemSelecionada = null;
@@ -214,7 +215,8 @@ class _BottomSheetServicoPersonalizadoState
           final raw = g?['metodo_entrega_empresa']?.toString() ?? '';
           metodos = _parseMetodos(raw);
         } else {
-          final idProf = widget.idProfissional ??
+          final idProf =
+              widget.idProfissional ??
               await ServicosProfissionalService.buscarIdProfissional();
           if (idProf != null) {
             final p = await _supabase
@@ -254,7 +256,8 @@ class _BottomSheetServicoPersonalizadoState
         if (widget.idGrupoEmpresa != null) {
           query = query.eq('fk_grupo_empresa', widget.idGrupoEmpresa!);
         } else {
-          final idProf = widget.idProfissional ??
+          final idProf =
+              widget.idProfissional ??
               await ServicosProfissionalService.buscarIdProfissional();
           if (idProf != null) {
             query = query.eq('fk_profissional', idProf);
@@ -272,7 +275,8 @@ class _BottomSheetServicoPersonalizadoState
 
       // Se solicitado iniciar baseado em serviço existente
       ServicoProfissional? servicoInicial;
-      if (widget.baseadoEmServicoInicial || widget.idServicoProfInicial != null) {
+      if (widget.baseadoEmServicoInicial ||
+          widget.idServicoProfInicial != null) {
         _baseadoEmServicoExistente = true;
         if (widget.idServicoProfInicial != null) {
           final match = listaServicos
@@ -383,146 +387,6 @@ class _BottomSheetServicoPersonalizadoState
     }
   }
 
-  /// Abre seletor com os serviços já cadastrados do profissional para pré-preenchimento
-  Future<void> _abrirSeletorSubservicoPrevio() async {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return FutureBuilder<List<ServicoProfissional>>(
-          future: ServicosProfissionalService.buscarServicos(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const SizedBox(
-                height: 250,
-                child: Center(child: CircularProgressIndicator(color: _primaryBlue)),
-              );
-            }
-            final servicos = snapshot.data ?? [];
-            if (servicos.isEmpty) {
-              return Container(
-                height: 220,
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.info_outline, size: 40, color: _textMuted),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Nenhum serviço prévio encontrado',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: _titleDark,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Cadastre serviços no seu perfil para selecioná-los rapidamente aqui.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 13, color: _textMuted),
-                    ),
-                  ],
-                ),
-              );
-            }
-
-            return Container(
-              padding: const EdgeInsets.fromLTRB(18, 16, 18, 20),
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * 0.6,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Selecionar Serviço Prévio',
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                          color: _titleDark,
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        icon: const Icon(Icons.close, color: _textMuted),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: ListView.separated(
-                      itemCount: servicos.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final s = servicos[index];
-                        return ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 4,
-                            vertical: 2,
-                          ),
-                          title: Text(
-                            s.titulo,
-                            style: const TextStyle(
-                              fontSize: 14.5,
-                              fontWeight: FontWeight.w600,
-                              color: _titleDark,
-                            ),
-                          ),
-                          subtitle: Text(
-                            s.descricao.isNotEmpty
-                                ? s.descricao
-                                : 'Sem descrição',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 12, color: _textMuted),
-                          ),
-                          trailing: Text(
-                            'R\$ ${s.valor.toStringAsFixed(2)}',
-                            style: const TextStyle(
-                              fontSize: 14.5,
-                              fontWeight: FontWeight.bold,
-                              color: _primaryBlue,
-                            ),
-                          ),
-                          onTap: () {
-                            Navigator.pop(ctx);
-                            setState(() {
-                              _nomeController.text = s.titulo;
-                              if (s.descricao.isNotEmpty) {
-                                _descricaoController.text = s.descricao;
-                              }
-                              _valorController.text =
-                                  NumberFormat('#,##0.00', 'pt_BR').format(s.valor);
-                              final encontrado =
-                                  _oficios.where((o) => o.id == s.fkOficio);
-                              if (encontrado.isNotEmpty) {
-                                _oficioSelecionadoId = encontrado.first.id;
-                              }
-                            });
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
   Future<void> _submeterProposta() async {
     final titulo = _nomeController.text.trim();
     if (titulo.isEmpty) {
@@ -561,8 +425,9 @@ class _BottomSheetServicoPersonalizadoState
         nomeOficio: nomeOficio,
         tipoExecucao: _tipoAtendimentoSelecionado,
         imagemLocal: _imagemSelecionada,
-        imagemUrlExistente:
-            _imagemSelecionada == null ? _imagemUrlExistente : null,
+        imagemUrlExistente: _imagemSelecionada == null
+            ? _imagemUrlExistente
+            : null,
         idSolicitacaoOrigem: _idSolicitacaoOrigem,
       );
       if (mounted) Navigator.pop(context);
@@ -733,7 +598,8 @@ class _BottomSheetServicoPersonalizadoState
                   width: 48,
                   height: 48,
                   color: const Color(0xFFE2E8F0),
-                  child: widget.fotoCliente != null &&
+                  child:
+                      widget.fotoCliente != null &&
                           widget.fotoCliente!.trim().isNotEmpty
                       ? Image.network(
                           widget.fotoCliente!,
@@ -893,10 +759,7 @@ class _BottomSheetServicoPersonalizadoState
                     SizedBox(height: 2),
                     Text(
                       'Puxar dados de um dos seus serviços',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: _textMuted,
-                      ),
+                      style: TextStyle(fontSize: 12, color: _textMuted),
                     ),
                   ],
                 ),
@@ -1037,8 +900,10 @@ class _BottomSheetServicoPersonalizadoState
               const Divider(height: 1, color: Color(0xFFF1F5F9)),
               Expanded(
                 child: ListView.separated(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   itemCount: _servicosDisponiveis.length,
                   separatorBuilder: (_, __) =>
                       const Divider(height: 1, color: Color(0xFFF1F5F9)),
@@ -1084,8 +949,9 @@ class _BottomSheetServicoPersonalizadoState
                         s.titulo,
                         style: TextStyle(
                           fontSize: 14.5,
-                          fontWeight:
-                              isSelected ? FontWeight.w800 : FontWeight.w600,
+                          fontWeight: isSelected
+                              ? FontWeight.w800
+                              : FontWeight.w600,
                           color: isSelected ? _primaryBlue : _titleDark,
                         ),
                       ),
@@ -1216,105 +1082,105 @@ class _BottomSheetServicoPersonalizadoState
                       ],
                     )
                   : (_imagemUrlExistente != null &&
-                          _imagemUrlExistente!.isNotEmpty)
-                      ? Row(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
-                              child: Image.network(
-                                _imagemUrlExistente!,
-                                width: 52,
-                                height: 52,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(
-                                  width: 52,
-                                  height: 52,
-                                  color: const Color(0xFFF1F5F9),
-                                  child: const Icon(
-                                    Icons.broken_image_rounded,
-                                    color: Color(0xFF94A3B8),
-                                  ),
+                        _imagemUrlExistente!.isNotEmpty)
+                  ? Row(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Image.network(
+                            _imagemUrlExistente!,
+                            width: 52,
+                            height: 52,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              width: 52,
+                              height: 52,
+                              color: const Color(0xFFF1F5F9),
+                              child: const Icon(
+                                Icons.broken_image_rounded,
+                                color: Color(0xFF94A3B8),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Foto do serviço selecionado',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: _titleDark,
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            const Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Foto do serviço selecionado',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: _titleDark,
-                                    ),
-                                  ),
-                                  SizedBox(height: 2),
-                                  Text(
-                                    'Toque para alterar a foto',
-                                    style: TextStyle(
-                                      fontSize: 11.5,
-                                      color: _primaryBlue,
-                                    ),
-                                  ),
-                                ],
+                              SizedBox(height: 2),
+                              Text(
+                                'Toque para alterar a foto',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: _primaryBlue,
+                                ),
                               ),
-                            ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.close_rounded,
-                                color: Color(0xFFEF4444),
-                                size: 20,
-                              ),
-                              onPressed: () =>
-                                  setState(() => _imagemUrlExistente = null),
-                            ),
-                          ],
-                        )
-                      : Row(
-                          children: [
-                            Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF0F9FF),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(
-                                Icons.add_a_photo_outlined,
-                                color: _primaryBlue,
-                                size: 24,
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: const [
-                                  Text(
-                                    'Adicionar foto do item ou serviço',
-                                    style: TextStyle(
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: _titleDark,
-                                    ),
-                                  ),
-                                  SizedBox(height: 3),
-                                  Text(
-                                    'Formatos JPG, PNG até 10MB',
-                                    style: TextStyle(
-                                      fontSize: 11.5,
-                                      color: _textMuted,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            color: Color(0xFFEF4444),
+                            size: 20,
+                          ),
+                          onPressed: () =>
+                              setState(() => _imagemUrlExistente = null),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0F9FF),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.add_a_photo_outlined,
+                            color: _primaryBlue,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: const [
+                              Text(
+                                'Adicionar foto do item ou serviço',
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: _titleDark,
+                                ),
+                              ),
+                              SizedBox(height: 3),
+                              Text(
+                                'Formatos JPG, PNG até 10MB',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: _textMuted,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
             ),
           ),
         ),
@@ -1398,43 +1264,27 @@ class _BottomSheetServicoPersonalizadoState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            RichText(
-              text: const TextSpan(
-                children: [
-                  TextSpan(
-                    text: 'Nome do Serviço',
-                    style: TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w700,
-                      color: _titleDark,
-                    ),
-                  ),
-                  TextSpan(
-                    text: ' *',
-                    style: TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFFEF4444),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            InkWell(
-              onTap: _abrirSeletorSubservicoPrevio,
-              child: const Text(
-                '+ Subserviço prévio',
+        RichText(
+          text: const TextSpan(
+            children: [
+              TextSpan(
+                text: 'Nome do Serviço',
                 style: TextStyle(
-                  fontSize: 12.5,
+                  fontSize: 13.5,
                   fontWeight: FontWeight.w700,
-                  color: _primaryBlue,
+                  color: _titleDark,
                 ),
               ),
-            ),
-          ],
+              TextSpan(
+                text: ' *',
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFFEF4444),
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 8),
         TextField(
@@ -1446,7 +1296,10 @@ class _BottomSheetServicoPersonalizadoState
           ),
           decoration: InputDecoration(
             hintText: 'Confecção de chave codificada automotiva',
-            hintStyle: const TextStyle(fontSize: 13.5, color: Color(0xFF94A3B8)),
+            hintStyle: const TextStyle(
+              fontSize: 13.5,
+              color: Color(0xFF94A3B8),
+            ),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 14,
               vertical: 12,
@@ -1507,8 +1360,9 @@ class _BottomSheetServicoPersonalizadoState
           controller: _descricaoController,
           maxLength: 300,
           maxLines: 3,
-          buildCounter: (_, {required currentLength, required isFocused, maxLength}) =>
-              null,
+          buildCounter:
+              (_, {required currentLength, required isFocused, maxLength}) =>
+                  null,
           style: const TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w400,
@@ -1583,7 +1437,10 @@ class _BottomSheetServicoPersonalizadoState
                 ),
               ),
             ),
-            prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+            prefixIconConstraints: const BoxConstraints(
+              minWidth: 0,
+              minHeight: 0,
+            ),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 14,
               vertical: 12,
@@ -1688,7 +1545,9 @@ class _BottomSheetServicoPersonalizadoState
                   border: Border.all(
                     color: !permitido
                         ? const Color(0xFFCBD5E1)
-                        : (selecionado ? _primaryBlue : const Color(0xFF94A3B8)),
+                        : (selecionado
+                              ? _primaryBlue
+                              : const Color(0xFF94A3B8)),
                     width: 1.8,
                   ),
                 ),
@@ -1776,7 +1635,11 @@ class _BottomSheetServicoPersonalizadoState
                         color: Colors.white,
                       ),
                     )
-                  : const Icon(Icons.send_rounded, size: 18, color: Colors.white),
+                  : const Icon(
+                      Icons.send_rounded,
+                      size: 18,
+                      color: Colors.white,
+                    ),
               label: Text(
                 _enviando ? 'Enviando Proposta...' : 'Enviar Serviço no chat',
                 style: const TextStyle(
