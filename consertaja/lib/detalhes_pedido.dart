@@ -116,8 +116,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
   void initState() {
     super.initState();
     _idSolicitacao = widget.idSolicitacao;
-    _codigoPedido =
-        '#PED-2026-${_idSolicitacao.toString().padLeft(4, '0')}';
+    _codigoPedido = '#PED-2026-${_idSolicitacao.toString().padLeft(4, '0')}';
     _sonarController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1600),
@@ -174,10 +173,12 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       _dataFinalizacao = sol['data_finalizacao'] != null
           ? DateTime.tryParse(sol['data_finalizacao'].toString())?.toLocal()
           : null;
-      _valorFinal = (sol['valor_final'] as num?)?.toDouble() ??
+      _valorFinal =
+          (sol['valor_final'] as num?)?.toDouble() ??
           widget.pedidoResumo?.valor ??
           0.0;
-      _tipoExecucao = sol['tipo_execucao']?.toString().trim() ??
+      _tipoExecucao =
+          sol['tipo_execucao']?.toString().trim() ??
           widget.pedidoResumo?.titulo ??
           'Leva e Traz';
       if (_tipoExecucao.isEmpty) _tipoExecucao = 'Leva e Traz';
@@ -187,8 +188,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       _horaAgendada = sol['hora_agendada']?.toString();
       _horaAgendadaFim = sol['hora_agendada_fim']?.toString();
 
-      _etapaSolicitacao =
-          (sol['etapa_solicitacao'] as num?)?.toInt() ?? 0;
+      _etapaSolicitacao = (sol['etapa_solicitacao'] as num?)?.toInt() ?? 0;
       _fkStatus = (sol['fk_status'] as num?)?.toInt() ?? 1;
 
       // Buscar texto do status na tabela 'status'
@@ -224,8 +224,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
               .eq('id_grupo_empresa', fkGrupo)
               .maybeSingle();
           if (gRow != null) {
-            _nomePrestador =
-                (gRow['nome_empresa'] ?? 'Empresa').toString();
+            _nomePrestador = (gRow['nome_empresa'] ?? 'Empresa').toString();
             _fotoPrestador = gRow['foto_url_empresa']?.toString();
             _tagPrestador = gRow['tag_empresa']?.toString();
             _corTagPrestador = gRow['cor_tag_empresa']?.toString();
@@ -251,8 +250,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                 .eq('id_usuario', idU)
                 .maybeSingle();
             if (uRow != null) {
-              _nomePrestador =
-                  (uRow['nome'] ?? 'Profissional').toString();
+              _nomePrestador = (uRow['nome'] ?? 'Profissional').toString();
               _fotoPrestador = uRow['foto_perfil_url']?.toString();
             }
           }
@@ -281,7 +279,9 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       if (_enderecoCliente.isEmpty) {
         final idUsuarioCliente = (sol['fk_usuario'] as num?)?.toInt();
         if (idUsuarioCliente != null) {
-          _enderecoCliente = await _buscarEnderecoPadraoCliente(idUsuarioCliente);
+          _enderecoCliente = await _buscarEnderecoPadraoCliente(
+            idUsuarioCliente,
+          );
         }
       }
       if (_enderecoCliente.isEmpty) {
@@ -312,7 +312,8 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                   .maybeSingle();
               if (ofRow != null) {
                 _oficioFuncao = ofRow['funcao']?.toString();
-                _categoriaPrestador ??= ofRow['categoria']?.toString() ??
+                _categoriaPrestador ??=
+                    ofRow['categoria']?.toString() ??
                     ofRow['funcao']?.toString();
               }
             }
@@ -473,7 +474,9 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
           }
         }
 
-        final linha1 = comp.isNotEmpty ? '$log, $numStr - $comp' : '$log, $numStr';
+        final linha1 = comp.isNotEmpty
+            ? '$log, $numStr - $comp'
+            : '$log, $numStr';
         final linha2 = bai.isNotEmpty
             ? '$bai - $cidNome - $estSigla'
             : '$cidNome - $estSigla';
@@ -491,16 +494,15 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
     final s = _statusTexto.trim().toLowerCase();
     final modalidade = _tipoExecucao.trim().toLowerCase();
 
-    final isDomicilioOuLeva = modalidade.contains('domic') ||
+    final isDomicilioOuLeva =
+        modalidade.contains('domic') ||
         (modalidade.contains('leva') && modalidade.contains('traz'));
-    final isRetiradaOuReceba = modalidade.contains('retirad') ||
+    final isRetiradaOuReceba =
+        modalidade.contains('retirad') ||
         (modalidade.contains('receba') && modalidade.contains('casa'));
 
     if (s.contains('cancel')) {
-      return (
-        titulo: 'Pedido cancelado',
-        subtitulo: 'O pedido foi cancelado',
-      );
+      return (titulo: 'Pedido cancelado', subtitulo: 'O pedido foi cancelado');
     }
     if (s.contains('recus')) {
       return (
@@ -544,10 +546,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       );
     }
     if (s == 'pago') {
-      return (
-        titulo: 'Pedido pago',
-        subtitulo: 'O seu pagamento foi validado',
-      );
+      return (titulo: 'Pedido pago', subtitulo: 'O seu pagamento foi validado');
     }
     if (s.contains('pagamento')) {
       return (
@@ -1278,11 +1277,9 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
   }
 
   void _abrirAjuda() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const PerguntasFrequentesPage(),
-      ),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const PerguntasFrequentesPage()));
   }
 
   Future<void> _cancelarSolicitacao() async {
@@ -1325,7 +1322,11 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                 color: Color(0xFFFEE2E2),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.cancel_outlined, color: Colors.red, size: 28),
+              child: const Icon(
+                Icons.cancel_outlined,
+                color: Colors.red,
+                size: 28,
+              ),
             ),
             const SizedBox(height: 16),
             const Text(
@@ -1373,7 +1374,10 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: const Text('Voltar', style: TextStyle(fontWeight: FontWeight.w600)),
+                child: const Text(
+                  'Voltar',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
               ),
             ),
           ],
@@ -1384,19 +1388,27 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
     if (confirmar != true || !mounted) return;
 
     try {
-      // 1. Apaga anexos associados
-      try {
-        await _db
-            .from('solicitacoes_anexos')
-            .delete()
-            .eq('fk_solicitacao', _idSolicitacao);
-      } catch (_) {}
+      // Remove apenas os anexos e a solicitação. A conversa permanece intacta.
+      await _db
+          .from('solicitacoes_anexos')
+          .delete()
+          .eq('fk_solicitacao', _idSolicitacao);
 
-      // 2. Apaga da tabela solicitacoes
       await _db
           .from('solicitacoes')
           .delete()
           .eq('id_solicitacao', _idSolicitacao);
+
+      final solicitacaoRestante = await _db
+          .from('solicitacoes')
+          .select('id_solicitacao')
+          .eq('id_solicitacao', _idSolicitacao)
+          .maybeSingle();
+      if (solicitacaoRestante != null) {
+        throw Exception(
+          'A solicitação não foi excluída. Verifique a política de exclusão no Supabase.',
+        );
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1420,7 +1432,9 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
   }
 
   void _compartilharPedido() {
-    Clipboard.setData(ClipboardData(text: 'Pedido $_codigoPedido no ConsertaJá'));
+    Clipboard.setData(
+      ClipboardData(text: 'Pedido $_codigoPedido no ConsertaJá'),
+    );
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Código do pedido copiado para a área de transferência!'),
@@ -1462,8 +1476,11 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
   }
 
   String _formatarJanelaHoraria() {
-    if (_horaAgendada == null || _horaAgendada!.isEmpty) return 'Horário comercial';
-    final h1 = _horaAgendada!.length >= 5 ? _horaAgendada!.substring(0, 5) : _horaAgendada!;
+    if (_horaAgendada == null || _horaAgendada!.isEmpty)
+      return 'Horário comercial';
+    final h1 = _horaAgendada!.length >= 5
+        ? _horaAgendada!.substring(0, 5)
+        : _horaAgendada!;
     final h2 = (_horaAgendadaFim != null && _horaAgendadaFim!.length >= 5)
         ? _horaAgendadaFim!.substring(0, 5)
         : '';
@@ -1499,8 +1516,8 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                 child: _carregando
                     ? const SkeletonPage(layout: SkeletonLayout.cards)
                     : _erro != null
-                        ? _buildErro()
-                        : _buildConteudo(),
+                    ? _buildErro()
+                    : _buildConteudo(),
               ),
               if (!_carregando && _erro == null) _buildBottomBar(),
             ],
@@ -1589,7 +1606,10 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
             ElevatedButton(
               onPressed: _carregarDadosCompletos,
               style: ElevatedButton.styleFrom(backgroundColor: azulPrincipal),
-              child: const Text('Tentar novamente', style: TextStyle(color: Colors.white)),
+              child: const Text(
+                'Tentar novamente',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ],
         ),
@@ -1717,7 +1737,11 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
               _buildBadgeStatus(),
               IconButton(
                 onPressed: _compartilharPedido,
-                icon: const Icon(Icons.share_outlined, color: textoEscuro, size: 20),
+                icon: const Icon(
+                  Icons.share_outlined,
+                  color: textoEscuro,
+                  size: 20,
+                ),
                 style: IconButton.styleFrom(
                   backgroundColor: const Color(0xFFF1F5F9),
                   padding: const EdgeInsets.all(8),
@@ -1920,10 +1944,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                   height: tamanho + (16 * t),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(
-                      color: etapa.corFundo,
-                      width: 2.5,
-                    ),
+                    border: Border.all(color: etapa.corFundo, width: 2.5),
                   ),
                 ),
               ),
@@ -2021,7 +2042,9 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                 child: SizedBox(
                   width: 58,
                   height: 58,
-                  child: (_fotoPrestador != null && _fotoPrestador!.trim().isNotEmpty)
+                  child:
+                      (_fotoPrestador != null &&
+                          _fotoPrestador!.trim().isNotEmpty)
                       ? Image.network(
                           _fotoPrestador!.trim(),
                           fit: BoxFit.cover,
@@ -2051,7 +2074,9 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                         if ((_tagPrestador ?? '').trim().isNotEmpty)
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 7, vertical: 2.5),
+                              horizontal: 7,
+                              vertical: 2.5,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFFE0F2FE),
                               borderRadius: BorderRadius.circular(6),
@@ -2068,7 +2093,9 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                         if ((_categoriaPrestador ?? '').trim().isNotEmpty)
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 7, vertical: 2.5),
+                              horizontal: 7,
+                              vertical: 2.5,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFFF1F5F9),
                               borderRadius: BorderRadius.circular(6),
@@ -2100,10 +2127,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                         SizedBox(width: 4),
                         Text(
                           '(3.248 avaliações)',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: textoMuted,
-                          ),
+                          style: TextStyle(fontSize: 12, color: textoMuted),
                         ),
                       ],
                     ),
@@ -2135,7 +2159,9 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _ehLoja ? 'Endereço - Oficina' : 'Endereço - Atendimento',
+                        _ehLoja
+                            ? 'Endereço - Oficina'
+                            : 'Endereço - Atendimento',
                         style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -2269,7 +2295,9 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                     left: 4,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 5, vertical: 2),
+                        horizontal: 5,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.black.withOpacity(0.65),
                         borderRadius: BorderRadius.circular(4),
@@ -2311,7 +2339,9 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                     if ((_tagPrestador ?? '').trim().isNotEmpty)
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFFE0F2FE),
                           borderRadius: BorderRadius.circular(6),
@@ -2328,7 +2358,9 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                     if ((_oficioFuncao ?? '').trim().isNotEmpty)
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF1F5F9),
                           borderRadius: BorderRadius.circular(6),
@@ -2394,7 +2426,8 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
 
     if (mod.contains('domic')) {
       tituloMod = 'Atendimento em Domicílio';
-      descMod = 'O profissional irá até o seu endereço para realizar o serviço.';
+      descMod =
+          'O profissional irá até o seu endereço para realizar o serviço.';
       iconeMod = Icons.home_repair_service_outlined;
       mostrarEnderecoCliente = true;
     } else if (mod.contains('receba') && mod.contains('casa')) {
@@ -2412,8 +2445,9 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       mostrarEnderecoCliente = false;
     }
 
-    final enderecoExibido =
-        mostrarEnderecoCliente ? _enderecoCliente : _enderecoPrestador;
+    final enderecoExibido = mostrarEnderecoCliente
+        ? _enderecoCliente
+        : _enderecoPrestador;
     final tituloEndereco = mostrarEnderecoCliente
         ? 'Meu endereço'
         : (_ehLoja ? 'Endereço da Loja' : 'Endereço do Profissional');
@@ -2535,7 +2569,9 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                               !_enderecoCliente.contains('não informado'))
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 2),
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFF1F5F9),
                                 borderRadius: BorderRadius.circular(4),
@@ -2782,9 +2818,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
               ),
               if (temAnexos)
                 Text(
-                  _anexos.length > 1
-                      ? '${_anexos.length} anexos'
-                      : '1 anexo',
+                  _anexos.length > 1 ? '${_anexos.length} anexos' : '1 anexo',
                   style: const TextStyle(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w600,
@@ -2890,10 +2924,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                 const SizedBox(height: 2),
                 const Text(
                   'Foto enviada para prévia da peça',
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: textoMuted,
-                  ),
+                  style: TextStyle(fontSize: 11.5, color: textoMuted),
                 ),
               ],
             ),
@@ -3068,7 +3099,11 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.support_agent_outlined, size: 18, color: Color(0xFF475569)),
+                Icon(
+                  Icons.support_agent_outlined,
+                  size: 18,
+                  color: Color(0xFF475569),
+                ),
                 SizedBox(width: 8),
                 Text(
                   'Ajuda com este pedido',
@@ -3092,7 +3127,11 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.cancel_outlined, size: 18, color: Color(0xFFDC2626)),
+                  Icon(
+                    Icons.cancel_outlined,
+                    size: 18,
+                    color: Color(0xFFDC2626),
+                  ),
                   SizedBox(width: 8),
                   Text(
                     'Cancelar Pedido',
