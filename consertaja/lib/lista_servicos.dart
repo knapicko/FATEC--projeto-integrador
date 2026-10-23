@@ -674,21 +674,35 @@ class _ListaServicosState extends State<ListaServicos> {
         throw Exception('Não foi possível identificar o usuário logado.');
       }
 
-      // Status "Aberto" do Tipo Status "Serviço".
-      final statusRow = await _supabase
+      final statusRows = await _supabase
           .from('status')
-          .select('id_status')
+          .select('id_status, status')
           .eq('tipo_status', 'Serviço')
-          .eq('status', 'Aberto')
-          .limit(1)
-          .maybeSingle();
-      final idStatus = (statusRow?['id_status'] as num?)?.toInt();
+          .inFilter('status', [
+            'Aberto',
+            'Aguardando Profissional',
+            'Pendente',
+            'Novo',
+          ]);
+      const statusInicialPreferido = [
+        'Aberto',
+        'Aguardando Profissional',
+        'Pendente',
+        'Novo',
+      ];
+      final statusRow = statusRows.cast<Map<String, dynamic>>().firstWhere(
+        (row) => statusInicialPreferido.contains(row['status']?.toString()),
+        orElse: () => <String, dynamic>{},
+      );
+      final idStatus = (statusRow['id_status'] as num?)?.toInt();
       if (idStatus == null) {
-        throw Exception('Status "Aberto" (Tipo "Serviço") não encontrado.');
+        throw Exception(
+          'Status inicial do serviço não encontrado. Cadastre Aberto, Aguardando Profissional ou Pendente na tabela status.',
+        );
       }
 
-      for (final item in _itens) {
-        final dadosSolicitacao = <String, dynamic>{
+      final solicitacoes = _itens.map((item) {
+        return <String, dynamic>{
           'data_solicitacao': DateTime.now().toUtc().toIso8601String(),
           'valor_final': item.valorFinal,
           'fk_usuario': idUsuario,
@@ -709,8 +723,8 @@ class _ListaServicosState extends State<ListaServicos> {
               ? item.horaAgendadaFim
               : null,
         };
-        await _supabase.from('solicitacoes').insert(dadosSolicitacao);
-      }
+      }).toList();
+      await _supabase.from('solicitacoes').insert(solicitacoes);
 
       if (_idLista != null) {
         await _supabase
