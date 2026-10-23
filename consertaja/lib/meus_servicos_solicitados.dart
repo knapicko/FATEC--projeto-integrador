@@ -85,13 +85,16 @@ enum FiltroSolicitacao {
       return FiltroSolicitacao.novos;
     }
     if (s.contains('aceito')) return FiltroSolicitacao.aceitos;
+    if (s == 'pago') return FiltroSolicitacao.aceitos;
     if (s.contains('recus') || s.contains('cancel')) {
       return FiltroSolicitacao.recusados;
     }
-    if (s.contains('andamento') || s.contains('exec')) {
+    if (s.contains('andamento') ||
+      s.contains('exec') ||
+      s.contains('aguardando cliente')) {
       return FiltroSolicitacao.emAndamento;
     }
-    if (s.contains('conclu') || s.contains('finaliz') || s.contains('pago')) {
+    if (s.contains('conclu') || s.contains('finaliz')) {
       return FiltroSolicitacao.concluidos;
     }
     return null;
@@ -117,6 +120,8 @@ class _MeusServicosSolicitadosPageState
   bool _carregando = true;
   bool _contaEmpresaAtiva = false;
   String? _erro;
+  final Set<int> _iniciandoSolicitacoes = {};
+  final Set<int> _concluindoSolicitacoes = {};
 
   List<SolicitacaoRecebida> _todas = [];
   FiltroSolicitacao _filtro = FiltroSolicitacao.novos;
@@ -124,15 +129,15 @@ class _MeusServicosSolicitadosPageState
   @override
   void initState() {
     super.initState();
-    _contaEmpresaAtiva =
-        BottomNavigationBarProfissional.leituraSincronaContaEmpresa();
-    BottomNavigationBarProfissional.precarregarContaEmpresa().then((ativa) {
-      if (mounted && ativa != _contaEmpresaAtiva) {
-        setState(() => _contaEmpresaAtiva = ativa);
-        _carregar();
-      }
-    });
-    _carregar();
+    _inicializar();
+  }
+
+  Future<void> _inicializar() async {
+    final contaEmpresaAtiva =
+        await BottomNavigationBarProfissional.precarregarContaEmpresa();
+    if (!mounted) return;
+    setState(() => _contaEmpresaAtiva = contaEmpresaAtiva);
+    await _carregar();
   }
 
   Future<void> _carregar() async {
@@ -150,14 +155,38 @@ class _MeusServicosSolicitadosPageState
           .maybeSingle();
       final idUsuario = (usuarioRow?['id_usuario'] as num?)?.toInt();
       if (idUsuario == null) throw Exception('Usuário não localizado.');
-      final dadosProf = await _supabase
+      final perfisProfissionais = await _supabase
           .from('dados_profissionais')
-          .select('id_profissional, fk_grupo_empresa')
-          .eq('fk_usuario', idUsuario)
-          .maybeSingle();
+          .select('id_profissional, fk_grupo_empresa, fk_perfil')
+          .eq('fk_usuario', idUsuario);
+      Map<String, dynamic>? dadosProf;
+      for (final perfil in perfisProfissionais) {
+        final linha = Map<String, dynamic>.from(perfil);
+        final temGrupo = linha['fk_grupo_empresa'] != null;
+        if (temGrupo == _contaEmpresaAtiva) {
+          dadosProf = linha;
+          break;
+        }
+      }
+      dadosProf ??= perfisProfissionais.isEmpty
+          ? null
+          : Map<String, dynamic>.from(perfisProfissionais.first);
+
       final idProf = (dadosProf?['id_profissional'] as num?)?.toInt();
       if (idProf == null) throw Exception('Perfil não localizado.');
-      final idGrupo = (dadosProf?['fk_grupo_empresa'] as num?)?.toInt();
+      final perfilProfissional = dadosProf!;
+      var idGrupo = (perfilProfissional['fk_grupo_empresa'] as num?)?.toInt();
+      if (_contaEmpresaAtiva && idGrupo == null) {
+        final idPerfil = (perfilProfissional['fk_perfil'] as num?)?.toInt();
+        if (idPerfil != null) {
+          final grupo = await _supabase
+              .from('grupo_empresa')
+              .select('id_grupo_empresa')
+              .eq('fk_perfil', idPerfil)
+              .maybeSingle();
+          idGrupo = (grupo?['id_grupo_empresa'] as num?)?.toInt();
+        }
+      }
       // Empresa: SÓ fk_grupo_empresa do grupo. Independente: SÓ do
       // profissional SEM fk_grupo_empresa.
       // Há 2 FKs solicitacoes->status; desambigua pela constraint.
@@ -348,10 +377,15 @@ class _MeusServicosSolicitadosPageState
   }
 
   List<SolicitacaoRecebida> get _filtradas {
-    final aceitos = _todas.where((item) => _ehAceita(item)).toList();
-    final abertos = _todas.where(_ehAberta).toList();
     if (_filtro == FiltroSolicitacao.novos) {
-      return [...aceitos, ...abertos.where((item) => !aceitos.contains(item))];
+      final ativos = _todas.where(_ehAtivo).toList();
+      final abertos = _todas
+          .where((item) => _ehAberta(item) && !_ehAtivo(item))
+          .toList();
+      return [
+        ...ativos,
+        ...abertos,
+      ];
     }
 
     return _todas
@@ -359,12 +393,16 @@ class _MeusServicosSolicitadosPageState
         .toList();
   }
 
-  int get _quantidadeAceitosTodos =>
-      _todas.where((item) => _ehAceita(item)).length;
+  int get _quantidadeAtivosTodos => _todas.where(_ehAtivo).length;
 
   bool _ehAceita(SolicitacaoRecebida item) =>
       FiltroSolicitacao.porStatus(item.statusTexto) ==
       FiltroSolicitacao.aceitos;
+
+    bool _ehAtivo(SolicitacaoRecebida item) =>
+      _ehAceita(item) ||
+      FiltroSolicitacao.porStatus(item.statusTexto) ==
+        FiltroSolicitacao.emAndamento;
 
   bool _ehAberta(SolicitacaoRecebida item) {
     final status = FiltroSolicitacao.porStatus(item.statusTexto);
@@ -373,7 +411,11 @@ class _MeusServicosSolicitadosPageState
 
   int _contar(FiltroSolicitacao filtro) {
     if (filtro == FiltroSolicitacao.novos) {
-      return _todas.where((item) => _ehAceita(item) || _ehAberta(item)).length;
+      return _todas
+          .where(
+            (item) => _ehAtivo(item) || _ehAberta(item),
+          )
+          .length;
     }
     return _todas
         .where((s) => FiltroSolicitacao.porStatus(s.statusTexto) == filtro)
@@ -641,6 +683,143 @@ class _MeusServicosSolicitadosPageState
     }
   }
 
+  Future<void> _iniciarServico(SolicitacaoRecebida item) async {
+    if (item.statusTexto?.trim().toLowerCase() != 'pago' ||
+        !_iniciandoSolicitacoes.add(item.idSolicitacao)) {
+      return;
+    }
+    setState(() {});
+    try {
+      await _supabase.rpc(
+        'iniciar_servico_pago',
+        params: {'p_id_solicitacao': item.idSolicitacao},
+      );
+      await _carregar();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Serviço iniciado.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      _iniciandoSolicitacoes.remove(item.idSolicitacao);
+      if (mounted) setState(() {});
+    }
+  }
+
+  Future<void> _concluirServico(SolicitacaoRecebida item) async {
+    if (item.statusTexto?.trim().toLowerCase() != 'em andamento' ||
+        !_concluindoSolicitacoes.add(item.idSolicitacao)) {
+      return;
+    }
+    try {
+      final confirmar = await showModalBottomSheet<bool>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        isScrollControlled: true,
+        builder: (sheetContext) => SafeArea(
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Icon(
+                  Icons.task_alt_outlined,
+                  color: Color(0xFF168A52),
+                  size: 42,
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Concluir Serviço?',
+                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'O pedido ficará aguardando a confirmação de entrega ou conclusão pelo cliente.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: _textoMuted, fontSize: 14),
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(sheetContext, true),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF168A52),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('Concluir Serviço'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(sheetContext, false),
+                    child: const Text('Voltar'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      if (confirmar != true || !mounted) return;
+      setState(() {});
+      await _supabase.rpc(
+        'concluir_servico_profissional',
+        params: {'p_id_solicitacao': item.idSolicitacao},
+      );
+      await _carregar();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Serviço concluído. Aguardando confirmação do cliente.',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      _concluindoSolicitacoes.remove(item.idSolicitacao);
+      if (mounted) setState(() {});
+    }
+  }
+
   Widget _buildConfirmacaoAceiteSheet(SolicitacaoRecebida item) {
     return SafeArea(
       child: Container(
@@ -788,21 +967,21 @@ class _MeusServicosSolicitadosPageState
                         padding: const EdgeInsets.fromLTRB(14, 4, 14, 16),
                         itemCount:
                             _filtro == FiltroSolicitacao.novos &&
-                                _quantidadeAceitosTodos > 0 &&
-                                _filtradas.length > _quantidadeAceitosTodos
+                                _quantidadeAtivosTodos > 0 &&
+                                _filtradas.length > _quantidadeAtivosTodos
                             ? _filtradas.length + 1
                             : _filtradas.length,
                         itemBuilder: (context, index) {
                           final temDivisoria =
                               _filtro == FiltroSolicitacao.novos &&
-                              _quantidadeAceitosTodos > 0 &&
-                              _filtradas.length > _quantidadeAceitosTodos;
+                              _quantidadeAtivosTodos > 0 &&
+                              _filtradas.length > _quantidadeAtivosTodos;
                           if (temDivisoria &&
-                              index == _quantidadeAceitosTodos) {
+                              index == _quantidadeAtivosTodos) {
                             return _buildDivisoriaNovos();
                           }
                           final indiceCard =
-                              temDivisoria && index > _quantidadeAceitosTodos
+                              temDivisoria && index > _quantidadeAtivosTodos
                               ? index - 1
                               : index;
                           return _buildCard(_filtradas[indiceCard]);
@@ -1030,7 +1209,8 @@ class _MeusServicosSolicitadosPageState
   }
 
   Widget _buildCard(SolicitacaoRecebida item) {
-    if (_filtro == FiltroSolicitacao.novos && _ehAceita(item)) {
+    final status = FiltroSolicitacao.porStatus(item.statusTexto);
+    if (_ehAceita(item) || status == FiltroSolicitacao.emAndamento) {
       return _buildCardAceito(item);
     }
     final corBase = CorOficio.parse(item.corOficio);
@@ -1200,6 +1380,10 @@ class _MeusServicosSolicitadosPageState
   }
 
   Widget _buildCardAceito(SolicitacaoRecebida item) {
+    final status = item.statusTexto?.trim().toLowerCase() ?? '';
+    final estaPago = status == 'pago';
+    final emAndamento = status == 'em andamento';
+    final aguardandoCliente = status == 'aguardando cliente';
     final descricao = item.detalhes?.isNotEmpty == true
         ? item.detalhes!
         : (item.descricaoServico ?? 'Detalhes não informados.');
@@ -1228,8 +1412,14 @@ class _MeusServicosSolicitadosPageState
               color: _azul.withValues(alpha: .14),
               borderRadius: BorderRadius.circular(18),
             ),
-            child: const Text(
-              '●  SERVIÇO ACEITO • EM ANDAMENTO',
+            child: Text(
+              estaPago
+                  ? '●  PAGAMENTO CONFIRMADO • PRONTO PARA INICIAR'
+                  : emAndamento
+                  ? '●  SERVIÇO EM ANDAMENTO'
+                  : aguardandoCliente
+                  ? '●  AGUARDANDO CONFIRMAÇÃO DO CLIENTE'
+                  : '●  SERVIÇO ACEITO',
               style: TextStyle(
                 color: _azul,
                 fontSize: 12,
@@ -1368,7 +1558,15 @@ class _MeusServicosSolicitadosPageState
           const SizedBox(height: 14),
           Row(
             children: [
-              if (_podeIniciarDeslocamento(item))
+              if (estaPago)
+                Expanded(
+                  child: _botaoIniciarServico(item, verticalPadding: 13),
+                )
+              else if (emAndamento)
+                Expanded(
+                  child: _botaoConcluirServico(item, verticalPadding: 13),
+                )
+              else if (!aguardandoCliente && _podeIniciarDeslocamento(item))
                 Expanded(
                   child: FilledButton.icon(
                     onPressed: () => _abrirSolicitacaoEstado(item),
@@ -1381,7 +1579,9 @@ class _MeusServicosSolicitadosPageState
                     ),
                   ),
                 ),
-              if (_podeIniciarDeslocamento(item)) const SizedBox(width: 8),
+              if (estaPago || emAndamento ||
+                  (!aguardandoCliente && _podeIniciarDeslocamento(item)))
+                const SizedBox(width: 8),
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () => _abrirChat(item),
@@ -1492,9 +1692,12 @@ class _MeusServicosSolicitadosPageState
 
   Widget _buildBotoesAceito(SolicitacaoRecebida item) {
     final podeDeslocar = _podeIniciarDeslocamento(item);
+    final estaPago = item.statusTexto?.trim().toLowerCase() == 'pago';
     return Row(
       children: [
-        if (podeDeslocar)
+        if (estaPago)
+          Expanded(child: _botaoIniciarServico(item, verticalPadding: 12))
+        else if (podeDeslocar)
           Expanded(
             child: ElevatedButton.icon(
               onPressed: () => _abrirSolicitacaoEstado(item),
@@ -1508,7 +1711,7 @@ class _MeusServicosSolicitadosPageState
               ),
             ),
           ),
-        if (podeDeslocar) const SizedBox(width: 8),
+        if (estaPago || podeDeslocar) const SizedBox(width: 8),
         Expanded(
           child: OutlinedButton.icon(
             onPressed: () => _abrirChat(item),
@@ -1521,6 +1724,58 @@ class _MeusServicosSolicitadosPageState
           ),
         ),
       ],
+    );
+  }
+
+  Widget _botaoIniciarServico(
+    SolicitacaoRecebida item, {
+    required double verticalPadding,
+  }) {
+    final iniciando = _iniciandoSolicitacoes.contains(item.idSolicitacao);
+    return FilledButton.icon(
+      onPressed: iniciando ? null : () => _iniciarServico(item),
+      icon: iniciando
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            )
+          : const Icon(Icons.handyman_outlined, size: 18),
+      label: Text(iniciando ? 'Iniciando...' : 'Iniciar serviço'),
+      style: FilledButton.styleFrom(
+        backgroundColor: _azul,
+        foregroundColor: Colors.white,
+        padding: EdgeInsets.symmetric(vertical: verticalPadding),
+      ),
+    );
+  }
+
+  Widget _botaoConcluirServico(
+    SolicitacaoRecebida item, {
+    required double verticalPadding,
+  }) {
+    final concluindo = _concluindoSolicitacoes.contains(item.idSolicitacao);
+    return FilledButton.icon(
+      onPressed: concluindo ? null : () => _concluirServico(item),
+      icon: concluindo
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            )
+          : const Icon(Icons.task_alt_outlined, size: 18),
+      label: Text(concluindo ? 'Concluindo...' : 'Concluir Serviço'),
+      style: FilledButton.styleFrom(
+        backgroundColor: const Color(0xFF168A52),
+        foregroundColor: Colors.white,
+        padding: EdgeInsets.symmetric(vertical: verticalPadding),
+      ),
     );
   }
 
