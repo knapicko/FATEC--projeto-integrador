@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'services/chat_anexos_service.dart';
+import 'services/chat_theme_storage.dart';
 import 'utils/iniciais.dart';
 
 /// Configurações do tema do chat retornadas ao sair da tela.
@@ -76,6 +76,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
   static const String _doodleDefaultAsset =
       'assets/images/plano_fundo_chat/doodle_default.png';
 
+  final _themeStorage = ChatThemeStorage();
   final _supabase = Supabase.instance.client;
 
   // Estado atual das opções
@@ -87,7 +88,6 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
   String _abaFiltroAtiva = 'Todos';
 
   XFile? _imagemGaleriaSelecionada;
-  int? _idUsuarioLogado;
   bool _carregandoInicial = true;
   bool _salvando = false;
 
@@ -144,11 +144,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
       subtitulo: 'Gradiente Suave',
       categorias: ['Todos', 'Gradientes'],
       tipo: _TipoFundo.gradiente,
-      coresGradiente: [
-        Color(0xFFBAE6FD),
-        Color(0xFF38BDF8),
-        Color(0xFF0284C7),
-      ],
+      coresGradiente: [Color(0xFFBAE6FD), Color(0xFF38BDF8), Color(0xFF0284C7)],
     ),
     const _OpcaoFundo(
       id: 'geometrico',
@@ -171,11 +167,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
       subtitulo: 'Tons Quentes',
       categorias: ['Todos', 'Gradientes'],
       tipo: _TipoFundo.gradiente,
-      coresGradiente: [
-        Color(0xFFFFEDD5),
-        Color(0xFFFDBA74),
-        Color(0xFFF43F5E),
-      ],
+      coresGradiente: [Color(0xFFFFEDD5), Color(0xFFFDBA74), Color(0xFFF43F5E)],
     ),
     const _OpcaoFundo(
       id: 'grafite_dark',
@@ -185,6 +177,28 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
       tipo: _TipoFundo.solido,
       corSolida: Color(0xFF1E293B),
     ),
+    ...[
+      ('alien_bg.png', 'Alien', 'Imagem'),
+      ('topography_bg.png', 'Topografia', 'Imagem'),
+      ('cloud_bg.png', 'Nuvens', 'Imagem'),
+      ('cloud_blue_bg.png', 'Nuvens Azuis', 'Imagem'),
+      ('circuito_bg.png', 'Circuito', 'Imagem'),
+      ('degrade_bg.png', 'Degradê', 'Imagem'),
+      ('degrade_icon_bg.png', 'Degradê com Ícones', 'Imagem'),
+      ('tools_pastel_bg.png', 'Ferramentas Pastel', 'Imagem'),
+      ('tools_bg.png', 'Ferramentas', 'Imagem'),
+      ('waves_blue_bg.png', 'Ondas Azuis', 'Imagem'),
+      ('waves_bg.png', 'Ondas', 'Imagem'),
+    ].map(
+      (item) => _OpcaoFundo(
+        id: 'assets/images/plano_fundo_chat/${item.$1}',
+        titulo: item.$2,
+        subtitulo: item.$3,
+        categorias: const ['Todos', 'Doodles'],
+        tipo: _TipoFundo.asset,
+        assetPath: 'assets/images/plano_fundo_chat/${item.$1}',
+      ),
+    ),
   ];
 
   @override
@@ -193,9 +207,9 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
     _corBaloesHex = widget.corBaloesAtual ?? '0xFF0FB3FF';
     _planoFundoId = widget.planoFundoAtual ?? _doodleDefaultAsset;
     _desfoqueFundo = widget.desfoqueFundoAtual ?? 0.0;
-    _opacidadeFundo = widget.opacidadeFundoAtual ?? 95.0;
+    _opacidadeFundo = widget.opacidadeFundoAtual ?? 35.0;
 
-    _carregarDadosSupabase();
+    _carregarDadosLocalmente();
   }
 
   Color _corDeHex(String hex) {
@@ -217,43 +231,19 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
     return '0x${cor.toARGB32().toRadixString(16).padLeft(8, '0').toUpperCase()}';
   }
 
-  Future<void> _carregarDadosSupabase() async {
+  Future<void> _carregarDadosLocalmente() async {
     try {
-      final authUser = _supabase.auth.currentUser;
-      if (authUser != null) {
-        final usuario = await _supabase
-            .from('usuarios')
-            .select('id_usuario')
-            .eq('auth_id', authUser.id)
-            .maybeSingle();
-        _idUsuarioLogado = (usuario?['id_usuario'] as num?)?.toInt();
-      }
-
-      if (widget.idConversa != null) {
-        final conv = await _supabase
-            .from('conversas')
-            .select('cor_baloes, plano_fundo, desfoque_fundo, opacidade_fundo')
-            .eq('id_conversa', widget.idConversa!)
-            .maybeSingle();
-
-        if (conv != null && mounted) {
-          setState(() {
-            if (conv['cor_baloes'] != null) {
-              _corBaloesHex = conv['cor_baloes'].toString();
-            }
-            if (conv['plano_fundo'] != null) {
-              _planoFundoId = conv['plano_fundo'].toString();
-            }
-            if (conv['desfoque_fundo'] != null) {
-              _desfoqueFundo =
-                  (conv['desfoque_fundo'] as num).toDouble().clamp(0.0, 15.0);
-            }
-            if (conv['opacidade_fundo'] != null) {
-              _opacidadeFundo =
-                  (conv['opacidade_fundo'] as num).toDouble().clamp(10.0, 100.0);
-            }
-          });
-        }
+      final tema = await _themeStorage.load(
+        userId: _supabase.auth.currentUser?.id,
+        conversationId: widget.idConversa,
+      );
+      if (mounted) {
+        setState(() {
+          _corBaloesHex = tema.corBaloes;
+          _planoFundoId = tema.planoFundo;
+          _desfoqueFundo = tema.desfoqueFundo.clamp(0.0, 15.0);
+          _opacidadeFundo = tema.opacidadeFundo.clamp(10.0, 100.0);
+        });
       }
     } catch (e) {
       debugPrint('Aviso ao carregar tema da conversa: $e');
@@ -266,35 +256,24 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
     }
   }
 
-  Future<void> _salvarTemaNoSupabase() async {
+  Future<void> _salvarTemaLocalmente() async {
     if (_salvando) return;
     _salvando = true;
 
     try {
-      final Map<String, dynamic> dados = {
-        'cor_baloes': _corBaloesHex,
-        'plano_fundo': _planoFundoId,
-        'desfoque_fundo': _desfoqueFundo.round(),
-        'opacidade_fundo': _opacidadeFundo.round(),
-      };
-
-      if (_aplicarATodas && _idUsuarioLogado != null) {
-        // Atualiza todas as conversas do usuário logado
-        await _supabase
-            .from('conversas')
-            .update(dados)
-            .eq('fk_usuario', _idUsuarioLogado!);
-      }
-
-      // Atualiza a conversa específica se tiver id
-      if (widget.idConversa != null) {
-        await _supabase
-            .from('conversas')
-            .update(dados)
-            .eq('id_conversa', widget.idConversa!);
-      }
+      await _themeStorage.save(
+        userId: _supabase.auth.currentUser?.id,
+        conversationId: widget.idConversa,
+        applyToAll: _aplicarATodas,
+        theme: ChatThemeData(
+          corBaloes: _corBaloesHex,
+          planoFundo: _planoFundoId,
+          desfoqueFundo: _desfoqueFundo,
+          opacidadeFundo: _opacidadeFundo,
+        ),
+      );
     } catch (e) {
-      debugPrint('Aviso ao salvar tema da conversa no Supabase: $e');
+      debugPrint('Aviso ao salvar tema local da conversa: $e');
     } finally {
       _salvando = false;
     }
@@ -305,11 +284,11 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
       _corBaloesHex = '0xFF0FB3FF';
       _planoFundoId = _doodleDefaultAsset;
       _desfoqueFundo = 0.0;
-      _opacidadeFundo = 95.0;
+      _opacidadeFundo = 35.0;
       _imagemGaleriaSelecionada = null;
     });
 
-    _salvarTemaNoSupabase();
+    _salvarTemaLocalmente();
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -333,12 +312,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
           _planoFundoId = 'galeria:${foto.path}';
         });
 
-        // Opcional: tenta enviar pro storage caso tenha idConversa
-        if (widget.idConversa != null) {
-          _fazerUploadFotoFundo(foto);
-        } else {
-          _salvarTemaNoSupabase();
-        }
+        await _copiarImagemDaGaleria(foto);
       }
     } catch (e) {
       debugPrint('Erro ao selecionar foto da galeria: $e');
@@ -350,35 +324,21 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
     }
   }
 
-  Future<void> _fazerUploadFotoFundo(XFile foto) async {
+  Future<void> _copiarImagemDaGaleria(XFile foto) async {
     try {
-      final bytes = await foto.readAsBytes();
-      final ext = foto.name.split('.').last.toLowerCase();
-      final caminho =
-          'fundo_conversa_${widget.idConversa}_${DateTime.now().millisecondsSinceEpoch}.$ext';
-
-      await _supabase.storage.from(ChatAnexosService.bucketAnexos).uploadBinary(
-            caminho,
-            bytes,
-            fileOptions: FileOptions(
-              contentType: ext == 'png' ? 'image/png' : 'image/jpeg',
-              upsert: true,
-            ),
-          );
-
-      final url = _supabase.storage
-          .from(ChatAnexosService.bucketAnexos)
-          .getPublicUrl(caminho);
-
+      final caminho = await _themeStorage.copyGalleryImage(
+        userId: _supabase.auth.currentUser?.id,
+        conversationId: widget.idConversa,
+        sourcePath: foto.path,
+      );
       if (mounted) {
         setState(() {
-          _planoFundoId = url;
+          _planoFundoId = 'galeria:$caminho';
         });
-        _salvarTemaNoSupabase();
+        await _salvarTemaLocalmente();
       }
     } catch (e) {
-      debugPrint('Aviso upload foto fundo: $e, usando caminho local.');
-      _salvarTemaNoSupabase();
+      debugPrint('Aviso ao copiar foto do tema: $e');
     }
   }
 
@@ -399,7 +359,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
     return PopScope(
       canPop: true,
       onPopInvokedWithResult: (didPop, result) {
-        _salvarTemaNoSupabase();
+        _salvarTemaLocalmente();
       },
       child: Scaffold(
         backgroundColor: Colors.white,
@@ -414,7 +374,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
               size: 24,
             ),
             onPressed: () {
-              _salvarTemaNoSupabase();
+              _salvarTemaLocalmente();
               Navigator.pop(context, _gerarResultadoConfig());
             },
           ),
@@ -436,7 +396,10 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
                 child: CircularProgressIndicator(color: _corAzulPadrao),
               )
             : SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -510,11 +473,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
             padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
             child: Row(
               children: [
-                Icon(
-                  Icons.restart_alt,
-                  color: _corAzulPadrao,
-                  size: 18,
-                ),
+                Icon(Icons.restart_alt, color: _corAzulPadrao, size: 18),
                 SizedBox(width: 4),
                 Text(
                   'Restaurar padrão',
@@ -866,14 +825,18 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
                                       '14:35',
                                       style: TextStyle(
                                         fontSize: 10.5,
-                                        color: Colors.white.withValues(alpha: 0.85),
+                                        color: Colors.white.withValues(
+                                          alpha: 0.85,
+                                        ),
                                       ),
                                     ),
                                     const SizedBox(width: 4),
                                     Icon(
                                       Icons.done_all,
                                       size: 14,
-                                      color: Colors.white.withValues(alpha: 0.95),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.95,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -893,9 +856,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
                     ),
                     decoration: const BoxDecoration(
                       color: Colors.white,
-                      border: Border(
-                        top: BorderSide(color: Color(0xFFF1F5F9)),
-                      ),
+                      border: Border(top: BorderSide(color: Color(0xFFF1F5F9))),
                     ),
                     child: Row(
                       children: [
@@ -978,10 +939,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
         const SizedBox(height: 3),
         const Text(
           'Escolha o tom predominante para suas mensagens e botões na conversa.',
-          style: TextStyle(
-            fontSize: 13,
-            color: Color(0xFF64748B),
-          ),
+          style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
         ),
         const SizedBox(height: 14),
 
@@ -1006,7 +964,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
                       setState(() {
                         _corBaloesHex = hexCor;
                       });
-                      _salvarTemaNoSupabase();
+                      _salvarTemaLocalmente();
                     },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 180),
@@ -1114,8 +1072,9 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
     Color corTemp = _corDeHex(_corBaloesHex);
     double hueAtual = HSLColor.fromColor(corTemp).hue;
     double lightnessAtual = HSLColor.fromColor(corTemp).lightness;
-    double saturationAtual =
-        HSLColor.fromColor(corTemp).saturation.clamp(0.3, 1.0);
+    double saturationAtual = HSLColor.fromColor(
+      corTemp,
+    ).saturation.clamp(0.3, 1.0);
 
     final hexController = TextEditingController(
       text:
@@ -1406,12 +1365,24 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
                         borderRadius: BorderRadius.circular(10),
                         gradient: LinearGradient(
                           colors: [
-                            HSLColor.fromAHSL(1.0, hueAtual, saturationAtual, 0.15)
-                                .toColor(),
-                            HSLColor.fromAHSL(1.0, hueAtual, saturationAtual, 0.5)
-                                .toColor(),
-                            HSLColor.fromAHSL(1.0, hueAtual, saturationAtual, 0.85)
-                                .toColor(),
+                            HSLColor.fromAHSL(
+                              1.0,
+                              hueAtual,
+                              saturationAtual,
+                              0.15,
+                            ).toColor(),
+                            HSLColor.fromAHSL(
+                              1.0,
+                              hueAtual,
+                              saturationAtual,
+                              0.5,
+                            ).toColor(),
+                            HSLColor.fromAHSL(
+                              1.0,
+                              hueAtual,
+                              saturationAtual,
+                              0.85,
+                            ).toColor(),
                           ],
                         ),
                       ),
@@ -1499,7 +1470,10 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
                       decoration: InputDecoration(
                         labelText: 'Digitar Código HEX',
                         hintText: '#0FB3FF',
-                        prefixIcon: const Icon(Icons.tag, color: _corAzulPadrao),
+                        prefixIcon: const Icon(
+                          Icons.tag,
+                          color: _corAzulPadrao,
+                        ),
                         filled: true,
                         fillColor: const Color(0xFFF1F5F9),
                         border: OutlineInputBorder(
@@ -1546,7 +1520,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
                           setState(() {
                             _corBaloesHex = hexFinal;
                           });
-                          _salvarTemaNoSupabase();
+                          _salvarTemaLocalmente();
                           Navigator.pop(ctx);
                         },
                         child: const Text(
@@ -1601,18 +1575,10 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                SizedBox(
-                  height: 180,
-                  width: 145,
-                  child: cardSuperior,
-                ),
+                SizedBox(height: 180, width: 145, child: cardSuperior),
                 const SizedBox(height: 10),
                 if (cardInferior != null)
-                  SizedBox(
-                    height: 180,
-                    width: 145,
-                    child: cardInferior,
-                  )
+                  SizedBox(height: 180, width: 145, child: cardInferior)
                 else
                   const SizedBox(height: 180, width: 145),
               ],
@@ -1636,10 +1602,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
         const SizedBox(height: 3),
         const Text(
           'Selecione papéis de parede elegantes ou texturas de oficina.',
-          style: TextStyle(
-            fontSize: 13,
-            color: Color(0xFF64748B),
-          ),
+          style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
         ),
         const SizedBox(height: 12),
 
@@ -1698,7 +1661,8 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
 
   /// Card tracejado "Da Galeria"
   Widget _buildCardGaleria() {
-    final selecionado = _planoFundoId.startsWith('galeria:') ||
+    final selecionado =
+        _planoFundoId.startsWith('galeria:') ||
         _planoFundoId.startsWith('http');
 
     return GestureDetector(
@@ -1744,10 +1708,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
               const SizedBox(height: 2),
               const Text(
                 'Carregar foto',
-                style: TextStyle(
-                  fontSize: 10.5,
-                  color: Color(0xFF64748B),
-                ),
+                style: TextStyle(fontSize: 10.5, color: Color(0xFF64748B)),
               ),
             ],
           ),
@@ -1766,7 +1727,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
           _planoFundoId = opcao.id;
           _imagemGaleriaSelecionada = null;
         });
-        _salvarTemaNoSupabase();
+        _salvarTemaLocalmente();
       },
       child: Container(
         width: double.infinity,
@@ -1789,9 +1750,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
         child: Stack(
           children: [
             // Renderização do thumbnail do fundo
-            Positioned.fill(
-              child: _buildThumbnailFundo(opcao),
-            ),
+            Positioned.fill(child: _buildThumbnailFundo(opcao)),
 
             // Badge "Padrão" no topo esquerdo
             if (opcao.isPadrao)
@@ -1830,11 +1789,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
                     color: _corAzulPadrao,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    Icons.check,
-                    color: Colors.white,
-                    size: 14,
-                  ),
+                  child: const Icon(Icons.check, color: Colors.white, size: 14),
                 ),
               ),
 
@@ -1844,10 +1799,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
               right: 0,
               bottom: 0,
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 6,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 decoration: BoxDecoration(
                   color: const Color(0xFF1E293B).withValues(alpha: 0.72),
                 ),
@@ -1944,7 +1896,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
                   _desfoqueFundo = val;
                 });
               },
-              onChangeEnd: (_) => _salvarTemaNoSupabase(),
+              onChangeEnd: (_) => _salvarTemaLocalmente(),
             ),
           ),
           const SizedBox(height: 12),
@@ -1996,7 +1948,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
                   _opacidadeFundo = val;
                 });
               },
-              onChangeEnd: (_) => _salvarTemaNoSupabase(),
+              onChangeEnd: (_) => _salvarTemaLocalmente(),
             ),
           ),
         ],
@@ -2053,10 +2005,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
                 SizedBox(height: 2),
                 Text(
                   'Padronizar tema com todos os profissionais',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF64748B),
-                  ),
+                  style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
                 ),
               ],
             ),
@@ -2071,7 +2020,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
               setState(() {
                 _aplicarATodas = val;
               });
-              _salvarTemaNoSupabase();
+              _salvarTemaLocalmente();
             },
           ),
         ],
@@ -2124,6 +2073,13 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
         case _TipoFundo.doodle:
           backgroundWidget = _buildDoodleWidget();
           break;
+        case _TipoFundo.asset:
+          backgroundWidget = Image.asset(
+            op.assetPath!,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => _buildDoodleWidget(),
+          );
+          break;
         case _TipoFundo.solido:
           backgroundWidget = Container(color: op.corSolida);
           break;
@@ -2155,18 +2111,12 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
 
     if (desfoque > 0.1) {
       resultado = ImageFiltered(
-        imageFilter: ui.ImageFilter.blur(
-          sigmaX: desfoque,
-          sigmaY: desfoque,
-        ),
+        imageFilter: ui.ImageFilter.blur(sigmaX: desfoque, sigmaY: desfoque),
         child: resultado,
       );
     }
 
-    return Container(
-      color: Colors.white,
-      child: resultado,
-    );
+    return Container(color: Colors.white, child: resultado);
   }
 
   Widget _buildDoodleWidget() {
@@ -2188,6 +2138,12 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
     switch (opcao.tipo) {
       case _TipoFundo.doodle:
         return _buildDoodleWidget();
+      case _TipoFundo.asset:
+        return Image.asset(
+          opcao.assetPath!,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => _buildDoodleWidget(),
+        );
       case _TipoFundo.solido:
         return Container(color: opcao.corSolida);
       case _TipoFundo.gradiente:
@@ -2212,7 +2168,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
 // -----------------------------------------------------------------------------
 // MODELOS AUXILIARES
 // -----------------------------------------------------------------------------
-enum _TipoFundo { doodle, solido, gradiente, geometrico }
+enum _TipoFundo { doodle, asset, solido, gradiente, geometrico }
 
 class _OpcaoFundo {
   final String id;
