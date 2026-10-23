@@ -117,10 +117,13 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
   final SupabaseClient _supabase = Supabase.instance.client;
 
   bool _carregando = true;
+  bool _iniciandoServico = false;
   String? _erro;
 
   // Dados carregados do Supabase
   late int _idSolicitacao;
+  int? _idStatusSolicitacao;
+  String _statusTexto = '';
   String _codigoPedido = '';
   String _categoriaTitulo = 'Conserto e Reparo';
   String _nomeCliente = 'Cliente';
@@ -456,6 +459,15 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
       _modalidade = ModalidadeExecucao.fromString(_tipoExecucaoOriginal);
       _fkGrupoEmpresa = (row['fk_grupo_empresa'] as num?)?.toInt();
       _fkProfissional = (row['fk_profissional'] as num?)?.toInt() ?? 0;
+      _idStatusSolicitacao = (row['fk_status'] as num?)?.toInt();
+      if (_idStatusSolicitacao != null) {
+        final statusRow = await _supabase
+            .from('status')
+            .select('status')
+            .eq('id_status', _idStatusSolicitacao!)
+            .maybeSingle();
+        _statusTexto = statusRow?['status']?.toString() ?? '';
+      }
 
       final valorFinal =
           double.tryParse(row['valor_final']?.toString() ?? '0') ?? 0.0;
@@ -705,6 +717,171 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
           backgroundColor: _azul,
         ),
       );
+    }
+  }
+
+  Future<void> _iniciarServico() async {
+    if (_iniciandoServico || _statusTexto.trim().toLowerCase() != 'pago') {
+      return;
+    }
+    setState(() => _iniciandoServico = true);
+    try {
+      final statusAndamento = await _supabase
+          .from('status')
+          .select('id_status')
+          .eq('tipo_status', 'Serviço')
+          .ilike('status', 'Em Andamento')
+          .limit(1)
+          .maybeSingle();
+      final idStatusAndamento = (statusAndamento?['id_status'] as num?)
+          ?.toInt();
+      if (idStatusAndamento == null || _idStatusSolicitacao == null) {
+        throw Exception('Status Em Andamento não cadastrado no banco.');
+      }
+
+      await _supabase.rpc(
+        'iniciar_servico_pago',
+        params: {'p_id_solicitacao': _idSolicitacao},
+      );
+
+      if (mounted) {
+        setState(() {
+          _idStatusSolicitacao = idStatusAndamento;
+          _statusTexto = 'Em Andamento';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Serviço iniciado.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _iniciandoServico = false);
+    }
+  }
+
+  Future<void> _concluirServico() async {
+    if (_iniciandoServico ||
+        _statusTexto.trim().toLowerCase() != 'em andamento') {
+      return;
+    }
+    setState(() => _iniciandoServico = true);
+    try {
+      final confirmar = await showModalBottomSheet<bool>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        isScrollControlled: true,
+        builder: (sheetContext) => SafeArea(
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Icon(
+                  Icons.task_alt_outlined,
+                  color: Color(0xFF168A52),
+                  size: 42,
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Concluir Serviço?',
+                  style: TextStyle(
+                    color: _textoEscuro,
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'O pedido ficará aguardando a confirmação de entrega ou conclusão pelo cliente.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: _textoMuted, fontSize: 14),
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(sheetContext, true),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF168A52),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('Concluir Serviço'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(sheetContext, false),
+                    child: const Text('Voltar'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      if (confirmar != true || !mounted) return;
+
+      final statusAguardando = await _supabase
+          .from('status')
+          .select('id_status')
+          .eq('tipo_status', 'Serviço')
+          .ilike('status', 'Aguardando Cliente')
+          .limit(1)
+          .maybeSingle();
+      final idStatusAguardando = (statusAguardando?['id_status'] as num?)
+          ?.toInt();
+      if (idStatusAguardando == null) {
+        throw Exception('Status Aguardando Cliente não cadastrado no banco.');
+      }
+
+      await _supabase.rpc(
+        'concluir_servico_profissional',
+        params: {'p_id_solicitacao': _idSolicitacao},
+      );
+
+      if (mounted) {
+        setState(() {
+          _idStatusSolicitacao = idStatusAguardando;
+          _statusTexto = 'Aguardando Cliente';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Serviço concluído. Aguardando confirmação do cliente.'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _iniciandoServico = false);
     }
   }
 
@@ -1182,6 +1359,17 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         break;
     }
 
+      final status = _statusTexto.trim().toLowerCase();
+      final etapaAtual = status.contains('conclu')
+        ? etapas.length
+        : status.contains('aguardando cliente')
+        ? etapas.length - 1
+        : status.contains('andamento')
+        ? (etapas.length > 2 ? 2 : etapas.length - 1)
+        : status == 'pago' || status.contains('aceito')
+        ? (etapas.length > 1 ? 1 : 0)
+        : 0;
+
     return Material(
       color: Colors.white,
       elevation: 2,
@@ -1192,8 +1380,8 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
           children: List.generate(etapas.length, (index) {
             final isFirst = index == 0;
             final isLast = index == etapas.length - 1;
-            final isDone = index == 0;
-            final isCurrent = index == 1;
+            final isDone = index < etapaAtual;
+            final isCurrent = index == etapaAtual && etapaAtual < etapas.length;
             return Expanded(
               child: Column(
                 children: [
@@ -1209,7 +1397,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                                   ? const SizedBox()
                                   : Container(
                                       height: 3,
-                                      color: index == 1
+                                      color: index <= etapaAtual
                                           ? _azul
                                           : const Color(0xFFCBD5E1),
                                     ),
@@ -1220,7 +1408,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                                   ? const SizedBox()
                                   : Container(
                                       height: 3,
-                                      color: index == 0
+                                      color: index < etapaAtual
                                           ? _azul
                                           : const Color(0xFFCBD5E1),
                                     ),
@@ -1235,12 +1423,12 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                             height: 30,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: isCurrent
-                                  ? Colors.white
+                                color: isCurrent
+                                    ? _azul
                                   : const Color(0xFFF1F5F9),
                               border: Border.all(
                                 color: isCurrent
-                                    ? const Color(0xFF64748B)
+                                      ? _azul
                                     : const Color(0xFFCBD5E1),
                                 width: isCurrent ? 2 : 1.5,
                               ),
@@ -1248,7 +1436,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                             child: Icon(
                               icones[index],
                               size: 16,
-                              color: isCurrent ? _textoEscuro : _textoMuted,
+                              color: isCurrent ? Colors.white : _textoMuted,
                             ),
                           ),
                       ],
@@ -1262,8 +1450,10 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 10.5,
-                      fontWeight: isDone ? FontWeight.w800 : FontWeight.w600,
-                      color: isDone ? _azul : _textoMuted,
+                      fontWeight: isDone || isCurrent
+                          ? FontWeight.w800
+                          : FontWeight.w600,
+                      color: isDone || isCurrent ? _azul : _textoMuted,
                     ),
                   ),
                 ],
@@ -2594,6 +2784,47 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
   // 11. BOTÕES DE AÇÃO INFERIORES
   // ==========================================
   Widget _buildBotoesAcao() {
+    final status = _statusTexto.trim().toLowerCase();
+    if (status == 'pago' || status == 'em andamento') {
+      final iniciando = status == 'pago';
+      return SizedBox(
+        width: double.infinity,
+        height: 52,
+        child: FilledButton.icon(
+          onPressed: _iniciandoServico
+              ? null
+              : iniciando
+              ? _iniciarServico
+              : _concluirServico,
+          icon: _iniciandoServico
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Icon(Icons.handyman_outlined, size: 20),
+          label: Text(
+            _iniciandoServico
+                ? (iniciando ? 'Iniciando...' : 'Concluindo...')
+                : iniciando
+                ? 'Iniciar serviço'
+                : 'Concluir Serviço',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+          ),
+          style: FilledButton.styleFrom(
+            backgroundColor: _azul,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(26),
+            ),
+          ),
+        ),
+      );
+    }
+
     late final Widget botaoPrincipal;
 
     switch (_modalidade) {
