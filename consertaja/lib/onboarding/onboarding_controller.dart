@@ -82,6 +82,11 @@ class OnboardingController extends ChangeNotifier {
   bool get isCnpj => somenteDigitos(documento.text).length > 11;
   bool get isCpf => somenteDigitos(documento.text).length == 11;
 
+  void mostrarErro(String mensagem) {
+    erroCampo = mensagem;
+    notifyListeners();
+  }
+
   bool get senhaTemOito => senhaTemOitoCaracteres(senha.text);
   bool get senhaMaiuscula => senhaTemMaiuscula(senha.text);
   bool get senhaMinuscula => senhaTemMinuscula(senha.text);
@@ -127,6 +132,23 @@ class OnboardingController extends ChangeNotifier {
     erroFala = null;
     _applyVisuals();
     notifyListeners();
+  }
+
+  void iniciarFluxoCadastroGoogle(User user) {
+    _started = true;
+    _hydrated = true;
+    _historico.clear();
+    googleAuthId = user.id;
+    googleEmail = user.email ?? '';
+    googleNome = GoogleAuthService.extrairNome(user);
+    googleFotoUrl = GoogleAuthService.ultimaFotoUrl;
+    tipoConta = TipoContaOnboarding.nenhum;
+    step = OnboardingStep.chooseAccountPrompt;
+    erroCampo = null;
+    erroFala = null;
+    _applyVisuals();
+    notifyListeners();
+    unawaited(persist());
   }
 
   bool _persistBound = false;
@@ -714,7 +736,8 @@ class OnboardingController extends ChangeNotifier {
         );
       }
     } catch (e) {
-      erroCampo = 'Erro ao entrar com Google: $e';
+      erroCampo =
+          'Erro ao entrar com Google:\n${GoogleAuthService.mensagemErro(e)}';
     } finally {
       carregando = false;
       notifyListeners();
@@ -1138,6 +1161,10 @@ class OnboardingController extends ChangeNotifier {
     tipoConta = tipo;
     notifyListeners();
     await persist();
+    if (googleAuthId != null) {
+      await _transicionar(OnboardingStep.googleSuccess);
+      return;
+    }
     if (tipo == TipoContaOnboarding.profissional) {
       if (isCnpj) {
         // PJ profissional: reutiliza dados já buscados via BrasilAPI

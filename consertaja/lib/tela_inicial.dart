@@ -90,12 +90,30 @@ class _TelaInicialState extends State<TelaInicial> {
     try {
       final usuario = await GoogleAuthService.signInWithGoogle();
       if (usuario == null || !mounted) return;
-      await navegarPosAutenticacaoGoogle(context);
+      final perfil = await GoogleAuthService.buscarPerfil(usuario.id);
+      if (!mounted) return;
+
+      if (perfil == null) {
+        OnboardingController.instance.iniciarFluxoCadastroGoogle(usuario);
+        Navigator.of(context).pushAndRemoveUntil(
+          _rotaComFade(
+            () => ConversationalOnboardingScreen(
+              onVoltarInicio: _voltarParaInicio,
+            ),
+          ),
+          (route) => false,
+        );
+      } else {
+        await navegarPosAutenticacaoGoogle(context);
+      }
     } catch (erro) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Não foi possível entrar com Google: $erro'),
+            content: Text(
+              'Não foi possível entrar com Google.\n'
+              '${GoogleAuthService.mensagemErro(erro)}',
+            ),
             backgroundColor: const Color(0xFFB42318),
           ),
         );
@@ -135,130 +153,131 @@ class _TelaInicialState extends State<TelaInicial> {
       isAuth: true,
       child: Scaffold(
         backgroundColor: _blue,
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(5, 20, 5, 24),
-              child: Column(
-                children: [
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Hero(
-                          tag: 'caixa-transicao-inicial',
-                          child: SizedBox(
-                            width: caixaSize,
-                            height: caixaSize,
-                            child: Image.asset(
-                              'assets/images/caixa/caixa_normal.png',
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(5, 20, 5, 24),
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Hero(
+                            tag: 'caixa-transicao-inicial',
+                            child: SizedBox(
                               width: caixaSize,
                               height: caixaSize,
-                              fit: BoxFit.contain,
+                              child: Image.asset(
+                                'assets/images/caixa/caixa_normal.png',
+                                width: caixaSize,
+                                height: caixaSize,
+                                fit: BoxFit.contain,
+                              ),
                             ),
                           ),
-                        ),
-                        AnimatedOpacity(
+                          AnimatedOpacity(
+                            opacity: _transicionando || _autenticandoGoogle
+                                ? 0
+                                : 1,
+                            duration: const Duration(milliseconds: 280),
+                            child: const Padding(
+                              padding: EdgeInsets.only(top: 16),
+                              child: Text.rich(
+                                TextSpan(
+                                  text: 'Conserta',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 30,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                  children: [
+                                    TextSpan(
+                                      text: 'Já',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 360),
+                        child: AnimatedOpacity(
                           opacity: _transicionando || _autenticandoGoogle
                               ? 0
                               : 1,
                           duration: const Duration(milliseconds: 280),
-                          child: const Padding(
-                            padding: EdgeInsets.only(top: 16),
-                            child: Text.rich(
-                              TextSpan(
-                                text: 'Conserta',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 30,
-                                  fontWeight: FontWeight.w400,
+                          child: IgnorePointer(
+                            ignoring: _transicionando || _autenticandoGoogle,
+                            child: Column(
+                              children: [
+                                _BotaoInicial(
+                                  label: 'INICIAR CADASTRO',
+                                  background: Colors.white,
+                                  foreground: _blue,
+                                  onPressed: () => _abrirFluxo(login: false),
                                 ),
-                                children: [
-                                  TextSpan(
-                                    text: 'Já',
+                                const SizedBox(height: 10),
+                                _BotaoInicial(
+                                  label: 'JÁ POSSUO UMA CONTA',
+                                  background: Colors.transparent,
+                                  foreground: Colors.white,
+                                  border: Colors.white,
+                                  onPressed: () => _abrirFluxo(login: true),
+                                ),
+                                const SizedBox(height: 10),
+                                _BotaoGoogle(
+                                  carregando: _autenticandoGoogle,
+                                  onPressed: _entrarComGoogle,
+                                ),
+                                const SizedBox(height: 12),
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.of(context).pushAndRemoveUntil(
+                                      _rotaComFade(
+                                        () => const TelaHome(isVisitante: true),
+                                      ),
+                                      (route) => false,
+                                    );
+                                  },
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 20,
+                                      vertical: 4,
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'Quero visitar ›',
                                     style: TextStyle(
-                                      fontWeight: FontWeight.w800,
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
                                     ),
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 360),
-                      child: AnimatedOpacity(
-                        opacity: _transicionando || _autenticandoGoogle
-                          ? 0
-                          : 1,
-                        duration: const Duration(milliseconds: 280),
-                        child: IgnorePointer(
-                          ignoring: _transicionando || _autenticandoGoogle,
-                          child: Column(
-                            children: [
-                              _BotaoInicial(
-                                label: 'INICIAR CADASTRO',
-                                background: Colors.white,
-                                foreground: _blue,
-                                onPressed: () => _abrirFluxo(login: false),
-                              ),
-                              const SizedBox(height: 10),
-                              _BotaoInicial(
-                                label: 'JÁ POSSUO UMA CONTA',
-                                background: Colors.transparent,
-                                foreground: Colors.white,
-                                border: Colors.white,
-                                onPressed: () => _abrirFluxo(login: true),
-                              ),
-                              const SizedBox(height: 10),
-                              _BotaoGoogle(
-                                carregando: _autenticandoGoogle,
-                                onPressed: _entrarComGoogle,
-                              ),
-                              const SizedBox(height: 12),
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.of(context).pushAndRemoveUntil(
-                                    _rotaComFade(
-                                      () => const TelaHome(isVisitante: true),
-                                    ),
-                                    (route) => false,
-                                  );
-                                },
-                                style: TextButton.styleFrom(
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                    vertical: 4,
-                                  ),
-                                ),
-                                child: const Text(
-                                  'Quero visitar ›',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ],
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            );
-          },
+                  ],
+                ),
+              );
+            },
+          ),
         ),
       ),
-    ),);
+    );
   }
 }
 

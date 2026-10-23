@@ -34,7 +34,9 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _fazerLogin() async {
     if (_emailController.text.isEmpty || _senhaController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Preencha o identificador e a senha para entrar.')),
+        const SnackBar(
+          content: Text('Preencha o identificador e a senha para entrar.'),
+        ),
       );
       return;
     }
@@ -143,7 +145,12 @@ class _LoginPageState extends State<LoginPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao entrar com Google: $e')),
+          SnackBar(
+            content: Text(
+              'Erro ao entrar com Google.\n'
+              '${GoogleAuthService.mensagemErro(e)}',
+            ),
+          ),
         );
       }
     } finally {
@@ -157,225 +164,230 @@ class _LoginPageState extends State<LoginPage> {
       isAuth: true,
       child: Scaffold(
         backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leadingWidth: 100,
-        leading: TextButton.icon(
-          onPressed: () => Navigator.pop(context),
-          icon: Image.asset('assets/images/google_logo.png', height: 22),
-          label: const Text(
-            'Voltar',
-            style: TextStyle(color: Color(0xFF00A2FF), fontSize: 16),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leadingWidth: 100,
+          leading: TextButton.icon(
+            onPressed: () => Navigator.pop(context),
+            icon: Image.asset('assets/images/google_logo.png', height: 22),
+            label: const Text(
+              'Voltar',
+              style: TextStyle(color: Color(0xFF00A2FF), fontSize: 16),
+            ),
           ),
         ),
-      ),
-      body: TweenAnimationBuilder<double>(
-        tween: Tween<double>(begin: 0.0, end: 1.0),
-        duration: const Duration(milliseconds: 550),
-        curve: Curves.easeOutCubic,
-        builder: (context, value, child) {
-          return Opacity(
-            opacity: value,
-            child: Transform.translate(
-              offset: Offset(0, 30 * (1.0 - value)),
-              child: child,
-            ),
-          );
-        },
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const SizedBox(height: 15),
-              const Text(
-                'Acesso à conta',
-                style: TextStyle(
-                  color: Color(0xFF00A2FF),
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+        body: TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 550),
+          curve: Curves.easeOutCubic,
+          builder: (context, value, child) {
+            return Opacity(
+              opacity: value,
+              child: Transform.translate(
+                offset: Offset(0, 30 * (1.0 - value)),
+                child: child,
+              ),
+            );
+          },
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const SizedBox(height: 15),
+                const Text(
+                  'Acesso à conta',
+                  style: TextStyle(
+                    color: Color(0xFF00A2FF),
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 30),
+                const SizedBox(height: 30),
 
-              Image.asset(
-                'assets/images/login_img.png',
-                height: 150,
-                fit: BoxFit.contain,
-              ),
-              const SizedBox(height: 40),
+                Image.asset(
+                  'assets/images/login_img.png',
+                  height: 150,
+                  fit: BoxFit.contain,
+                ),
+                const SizedBox(height: 40),
 
-              ValueListenableBuilder<TextEditingValue>(
-                valueListenable: _emailController,
-                builder: (context, value, _) {
-                  final tipo = identificarTipoLogin(value.text);
-                  return _InputFieldWithAnimation(
-                    label: tipo.endsWith(':') ? tipo : 'Email, CPF, CNPJ ou telefone',
-                    hint: 'Digite seu identificador',
-                    keyboardType: TextInputType.text,
-                    inputFormatters: [LoginIdentifierInputFormatter()],
-                    controller: _emailController,
-                  );
-                },
-              ),
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _emailController,
+                  builder: (context, value, _) {
+                    final tipo = identificarTipoLogin(value.text);
+                    return _InputFieldWithAnimation(
+                      label: tipo.endsWith(':')
+                          ? tipo
+                          : 'Email, CPF, CNPJ ou telefone',
+                      hint: 'Digite seu identificador',
+                      keyboardType: TextInputType.text,
+                      inputFormatters: [LoginIdentifierInputFormatter()],
+                      controller: _emailController,
+                    );
+                  },
+                ),
 
-              _InputFieldWithAnimation(
-                label: 'Senha',
-                hint: 'Digite sua senha',
-                keyboardType: TextInputType.visiblePassword,
-                obscureText: true,
-                suffixIcon: Icons.visibility_outlined,
-                controller: _senhaController,
-              ),
+                _InputFieldWithAnimation(
+                  label: 'Senha',
+                  hint: 'Digite sua senha',
+                  keyboardType: TextInputType.visiblePassword,
+                  obscureText: true,
+                  suffixIcon: Icons.visibility_outlined,
+                  controller: _senhaController,
+                ),
 
-              Align(
-                alignment: Alignment.centerRight,
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 8.0, bottom: 16.0),
-                  child: TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const EsqueciSenhaPage(),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 8.0, bottom: 16.0),
+                    child: TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const EsqueciSenhaPage(),
+                          ),
+                        );
+                      },
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFF00A2FF),
+                        minimumSize: Size.zero,
+                        padding: EdgeInsets.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text(
+                        'Esqueceu a senha?',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
                         ),
-                      );
-                    },
-                    style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFF00A2FF),
-                      minimumSize: Size.zero,
-                      padding: EdgeInsets.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: const Text(
-                      'Esqueceu a senha?',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),
                 ),
-              ),
 
-              const SizedBox(height: 15),
+                const SizedBox(height: 15),
 
-              // BOTÃO ENTRAR ORIGINAL
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton(
-                  onPressed: _carregando ? null : _fazerLogin,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00A2FF),
-                    disabledBackgroundColor: const Color(
-                      0xFF00A2FF,
-                    ).withValues(alpha: 0.5),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
+                // BOTÃO ENTRAR ORIGINAL
+                SizedBox(
+                  width: double.infinity,
+                  height: 55,
+                  child: ElevatedButton(
+                    onPressed: _carregando ? null : _fazerLogin,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00A2FF),
+                      disabledBackgroundColor: const Color(
+                        0xFF00A2FF,
+                      ).withValues(alpha: 0.5),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      elevation: 0,
                     ),
-                    elevation: 0,
-                  ),
-                  child: _carregando
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text(
-                          'Entrar',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                    child: _carregando
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text(
+                            'Entrar',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // SEPARADOR VISUAL "ou"
-              Row(
-                children: [
-                  Expanded(
-                    child: Divider(color: Colors.grey.shade300, thickness: 1),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(
-                      'ou',
-                      style: TextStyle(color: Colors.grey.shade400),
-                    ),
-                  ),
-                  Expanded(
-                    child: Divider(color: Colors.grey.shade300, thickness: 1),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 20),
-
-              // BOTÃO DO GOOGLE PERSONALIZADO ADICIONADO
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: OutlinedButton.icon(
-                  onPressed: _carregando ? null : _fazerLoginComGoogle,
-                  icon: Image.asset(
-                    'assets/images/icone/google-logo.png',
-                    height: 22,
-                  ),
-                  label: const Text(
-                    'Entrar com o Google',
-                    style: TextStyle(
-                      color: Colors.black87,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: Colors.grey.shade300, width: 1.5),
-                    elevation: 0,
-                    backgroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
                   ),
                 ),
-              ),
 
-              const SizedBox(height: 25),
+                const SizedBox(height: 20),
 
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    'Não tem uma conta? ',
-                    style: TextStyle(color: Colors.black, fontSize: 13),
-                  ),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.pushAndRemoveUntil(
-                        context,
-                        MaterialPageRoute(builder: (_) => const TelaInicial()),
-                        (route) => false,
-                      );
-                    },
-                    child: const Text(
-                      'Cadastre-se.',
+                // SEPARADOR VISUAL "ou"
+                Row(
+                  children: [
+                    Expanded(
+                      child: Divider(color: Colors.grey.shade300, thickness: 1),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        'ou',
+                        style: TextStyle(color: Colors.grey.shade400),
+                      ),
+                    ),
+                    Expanded(
+                      child: Divider(color: Colors.grey.shade300, thickness: 1),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+
+                // BOTÃO DO GOOGLE PERSONALIZADO ADICIONADO
+                SizedBox(
+                  width: double.infinity,
+                  height: 55,
+                  child: OutlinedButton.icon(
+                    onPressed: _carregando ? null : _fazerLoginComGoogle,
+                    icon: Image.asset(
+                      'assets/images/icone/google-logo.png',
+                      height: 22,
+                    ),
+                    label: const Text(
+                      'Entrar com o Google',
                       style: TextStyle(
-                        color: Color(0xFF00A2FF),
-                        fontSize: 13,
+                        color: Colors.black87,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: Colors.grey.shade300, width: 1.5),
+                      elevation: 0,
+                      backgroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 30),
-            ],
+                ),
+
+                const SizedBox(height: 25),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      'Não tem uma conta? ',
+                      style: TextStyle(color: Colors.black, fontSize: 13),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const TelaInicial(),
+                          ),
+                          (route) => false,
+                        );
+                      },
+                      child: const Text(
+                        'Cadastre-se.',
+                        style: TextStyle(
+                          color: Color(0xFF00A2FF),
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 30),
+              ],
+            ),
           ),
         ),
       ),
-    ),);
+    );
   }
 }
 
