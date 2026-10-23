@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'meus_pedidos.dart';
+import 'pagamento_pedido.dart';
 import 'perfil_loja.dart';
 import 'perfil_profissional.dart';
 import 'perguntas_frequentes.dart';
@@ -58,6 +59,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
 
   bool _carregando = true;
   bool _carregandoCliente = true;
+  bool _confirmandoConclusao = false;
   String? _erro;
 
   // Dados da Solicitação
@@ -207,6 +209,11 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
         if (widget.pedidoResumo?.status != null) {
           _statusTexto = widget.pedidoResumo!.status;
         }
+      }
+
+      if (_statusTexto.trim().toLowerCase() == 'em andamento' &&
+          _etapaSolicitacao < 3) {
+        _etapaSolicitacao = 3;
       }
 
       final fkProf = (sol['fk_profissional'] as num?)?.toInt();
@@ -542,7 +549,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
     if (s.contains('aguardando cliente')) {
       return (
         titulo: 'Aguardando cliente',
-        subtitulo: 'O profissional está aguardando você iniciar o trajeto',
+        subtitulo: 'Confirme a entrega ou a conclusão do serviço',
       );
     }
     if (s == 'pago') {
@@ -1280,6 +1287,127 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
     Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => const PerguntasFrequentesPage()));
+  }
+
+  Future<void> _abrirPagamento() async {
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => PagamentoPedidoPage(
+          idSolicitacao: _idSolicitacao,
+          tituloServico: _tituloServico,
+          profissional: _nomePrestador,
+          valor: _valorFinal,
+          dataAgendada: _dataAgendada,
+          horaAgendada: _horaAgendada,
+        ),
+      ),
+    );
+    if (mounted) await _carregarDadosCompletos();
+  }
+
+  Future<void> _confirmarConclusao() async {
+    if (_confirmandoConclusao ||
+        _statusTexto.trim().toLowerCase() != 'aguardando cliente') {
+      return;
+    }
+    final confirmar = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFCBD5E1),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Icon(
+                Icons.check_circle_outline,
+                color: Color(0xFF168A52),
+                size: 42,
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Confirmar conclusão?',
+                style: TextStyle(
+                  color: textoEscuro,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Confirme que recebeu o serviço e que ele foi finalizado.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: textoMuted, fontSize: 14),
+              ),
+              const SizedBox(height: 22),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(sheetContext, true),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF168A52),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text('Confirmar entrega/final'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(sheetContext, false),
+                  child: const Text('Voltar'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (confirmar != true || !mounted) return;
+
+    setState(() => _confirmandoConclusao = true);
+    try {
+      await _db.rpc(
+        'confirmar_conclusao_solicitacao',
+        params: {'p_id_solicitacao': _idSolicitacao},
+      );
+      await _carregarDadosCompletos();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Serviço confirmado como concluído.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _confirmandoConclusao = false);
+    }
   }
 
   Future<void> _cancelarSolicitacao() async {
@@ -3154,6 +3282,9 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
   // 11. Barra Inferior Fixa (Total + Botão Enviar Mensagem)
   // ===========================================================================
   Widget _buildBottomBar() {
+    final status = _statusTexto.trim().toLowerCase();
+    final aguardandoCliente = status == 'aguardando cliente';
+    final aceito = status == 'aceito';
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
       decoration: BoxDecoration(
@@ -3197,9 +3328,37 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
             child: SizedBox(
               height: 48,
               child: ElevatedButton.icon(
-                onPressed: _abrirChat,
-                icon: const Icon(Icons.chat_bubble_outline, size: 18),
-                label: const Text('Enviar Mensagem'),
+                onPressed: aguardandoCliente
+                    ? (_confirmandoConclusao ? null : _confirmarConclusao)
+                    : aceito
+                    ? _abrirPagamento
+                    : _abrirChat,
+                icon: _confirmandoConclusao
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Icon(
+                        aguardandoCliente
+                            ? Icons.check_circle_outline
+                            : aceito
+                            ? Icons.payments_outlined
+                            : Icons.chat_bubble_outline,
+                        size: 18,
+                      ),
+                label: Text(
+                  _confirmandoConclusao
+                      ? 'Confirmando...'
+                      : aguardandoCliente
+                      ? 'Confirmar entrega/final'
+                      : aceito
+                      ? 'Realizar pagamento'
+                      : 'Enviar Mensagem',
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: azulPrincipal,
                   foregroundColor: Colors.white,
