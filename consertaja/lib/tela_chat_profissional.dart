@@ -30,6 +30,7 @@ import 'tela_midia_chat.dart';
 import 'perfil_loja.dart';
 import 'perfil_profissional.dart';
 import 'services/chat_anexos_service.dart';
+import 'services/chat_theme_storage.dart';
 import 'services/servicos_profissional_service.dart';
 import 'services/verificacao_online.dart';
 import 'solicitacao_estado.dart';
@@ -72,7 +73,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
   String _corBaloesHex = '0xFF0FB3FF';
   String _planoFundo = 'assets/images/plano_fundo_chat/doodle_default.png';
   double _desfoqueFundo = 0.0;
-  double _opacidadeFundo = 95.0;
+  double _opacidadeFundo = 35.0;
 
   Color get _corBaloes {
     try {
@@ -90,6 +91,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
   }
 
   final _supabase = Supabase.instance.client;
+  final _themeStorage = ChatThemeStorage();
   final _mensagemController = TextEditingController();
   final _scrollController = ScrollController();
 
@@ -2241,31 +2243,16 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
   Future<void> _carregarTemaConversa() async {
     if (_idConversa == null) return;
     try {
-      final conv = await _supabase
-          .from('conversas')
-          .select('cor_baloes, plano_fundo, desfoque_fundo, opacidade_fundo')
-          .eq('id_conversa', _idConversa!)
-          .maybeSingle();
-      if (conv != null && mounted) {
+      final tema = await _themeStorage.load(
+        userId: _supabase.auth.currentUser?.id,
+        conversationId: _idConversa,
+      );
+      if (mounted) {
         setState(() {
-          if (conv['cor_baloes'] != null) {
-            _corBaloesHex = conv['cor_baloes'].toString();
-          }
-          if (conv['plano_fundo'] != null) {
-            _planoFundo = conv['plano_fundo'].toString();
-          }
-          if (conv['desfoque_fundo'] != null) {
-            _desfoqueFundo = (conv['desfoque_fundo'] as num).toDouble().clamp(
-              0.0,
-              15.0,
-            );
-          }
-          if (conv['opacidade_fundo'] != null) {
-            _opacidadeFundo = (conv['opacidade_fundo'] as num).toDouble().clamp(
-              10.0,
-              100.0,
-            );
-          }
+          _corBaloesHex = tema.corBaloes;
+          _planoFundo = tema.planoFundo;
+          _desfoqueFundo = tema.desfoqueFundo.clamp(0.0, 15.0);
+          _opacidadeFundo = tema.opacidadeFundo.clamp(10.0, 100.0);
         });
       }
     } catch (e) {
@@ -3167,6 +3154,12 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       );
     } else if (_planoFundo.startsWith('http')) {
       backgroundWidget = Image.network(
+        _planoFundo,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _buildDoodleChatWidget(),
+      );
+    } else if (_planoFundo.startsWith('assets/images/plano_fundo_chat/')) {
+      backgroundWidget = Image.asset(
         _planoFundo,
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => _buildDoodleChatWidget(),
