@@ -125,7 +125,12 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao entrar com Google: $e')),
+          SnackBar(
+            content: Text(
+              'Erro ao entrar com Google.\n'
+              '${GoogleAuthService.mensagemErro(e)}',
+            ),
+          ),
         );
       }
     } finally {
@@ -1558,7 +1563,7 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
     } on AuthException catch (e) {
       String mensagemAmigavel = 'Ocorreu um erro ao registrar.';
 
-        if (e.toString().contains('AuthWeakPasswordException') ||
+      if (e.toString().contains('AuthWeakPasswordException') ||
           e.message.toLowerCase().contains('password should be at least') ||
           e.message.toLowerCase().contains('weak password')) {
         // Lê do servidor quantos caracteres ele exige de verdade (o Supabase pode

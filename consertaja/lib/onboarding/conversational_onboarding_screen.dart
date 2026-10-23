@@ -6,6 +6,7 @@ import 'onboarding_theme.dart';
 import 'onboarding_widgets.dart';
 import '../cadastro_profissional.dart';
 import '../esqueci_senha.dart';
+import '../services/google_auth_service.dart';
 import '../utils/app_navigation_util.dart';
 
 class ConversationalOnboardingScreen extends StatefulWidget {
@@ -56,6 +57,33 @@ class _ConversationalOnboardingScreenState
 
   void _atualizarRequisitosSenha() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _voltarParaInicioOuEtapaAnterior(BuildContext context) async {
+    final deveVoltarInicio =
+        widget.onVoltarInicio != null &&
+        (_controller.googleAuthId != null ||
+            _controller.step == OnboardingStep.loginForm ||
+            _controller.step == OnboardingStep.welcome);
+
+    if (deveVoltarInicio) {
+      if (_controller.googleAuthId != null) {
+        try {
+          await GoogleAuthService.cancelarCadastroGoogle();
+        } catch (e) {
+          _controller.mostrarErro(
+            'Não foi possível cancelar o cadastro Google: '
+            '${GoogleAuthService.mensagemErro(e)}',
+          );
+          return;
+        }
+        await _controller.limparRascunho();
+      }
+      if (context.mounted) widget.onVoltarInicio!(context);
+      return;
+    }
+
+    await _controller.voltar();
   }
 
   Future<void> _selecionarData(
@@ -190,181 +218,195 @@ class _ConversationalOnboardingScreenState
   Widget build(BuildContext context) {
     return AppBackHandler(
       isAuth: true,
-      onCustomBack: () {
-        if ((_controller.step == OnboardingStep.loginForm ||
-                _controller.step == OnboardingStep.welcome) &&
-            widget.onVoltarInicio != null) {
-          widget.onVoltarInicio!(context);
-        } else {
-          _controller.voltar();
-        }
-      },
+      onCustomBack: () => _voltarParaInicioOuEtapaAnterior(context),
       child: AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        final step = _controller.step;
-        final mostraProgresso = stepMostraProgresso(step);
-        final podeAvancarPorToque = stepPermiteToqueAvancar(step);
-        final isSplash = step == OnboardingStep.splash;
-        final isBubble = _isBubbleStep(step);
+        animation: _controller,
+        builder: (context, _) {
+          final step = _controller.step;
+          final mostraProgresso = stepMostraProgresso(step);
+          final podeAvancarPorToque = stepPermiteToqueAvancar(step);
+          final isSplash = step == OnboardingStep.splash;
+          final isBubble = _isBubbleStep(step);
 
-        return Scaffold(
-          backgroundColor: OnboardingColors.blue,
-          resizeToAvoidBottomInset: false,
-          body: SafeArea(
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: () {
-                FocusScope.of(context).unfocus();
-                if (podeAvancarPorToque) {
-                  _controller.avancarPorToque(context);
-                }
-              },
-              child: Stack(
-                children: [
-                  Column(
-                    children: [
-                      // Top bar com transição suave de tamanho e fade (Morphing)
-                      AnimatedSize(
-                        duration: const Duration(milliseconds: 500),
-                        curve: Curves.easeInOutCubic,
-                        child: _buildTopBar(mostraProgresso),
-                      ),
+          return Scaffold(
+            backgroundColor: OnboardingColors.blue,
+            resizeToAvoidBottomInset: false,
+            body: SafeArea(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: () {
+                  FocusScope.of(context).unfocus();
+                  if (podeAvancarPorToque) {
+                    _controller.avancarPorToque(context);
+                  }
+                },
+                child: Stack(
+                  children: [
+                    Column(
+                      children: [
+                        // Top bar com transição suave de tamanho e fade (Morphing)
+                        AnimatedSize(
+                          duration: const Duration(milliseconds: 500),
+                          curve: Curves.easeInOutCubic,
+                          child: _buildTopBar(mostraProgresso),
+                        ),
 
-                      // Título opcional de seção ("Email e telefone", "Dados da empresa") com Morphing
-                      AnimatedSize(
-                        duration: const Duration(milliseconds: 500),
-                        curve: Curves.easeInOutCubic,
-                        child: _buildHeaderTitle(step),
-                      ),
+                        // Título opcional de seção ("Email e telefone", "Dados da empresa") com Morphing
+                        AnimatedSize(
+                          duration: const Duration(milliseconds: 500),
+                          curve: Curves.easeInOutCubic,
+                          child: _buildHeaderTitle(step),
+                        ),
 
-                      // Balões usam uma área de altura estável para que o histórico
-                      // possa subir sem deslocar a caixa de ferramentas.
-                      Expanded(
-                        child: Center(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 360),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  SizedBox(
-                                    height: _upperAreaHeight(step),
-                                    child: Align(
-                                      alignment: Alignment.bottomCenter,
-                                      child: AnimatedSize(
-                                        duration: const Duration(
-                                          milliseconds: 520,
-                                        ),
-                                        curve: Curves.easeInOutCubic,
+                        // Balões usam uma área de altura estável para que o histórico
+                        // possa subir sem deslocar a caixa de ferramentas.
+                        Expanded(
+                          child: Center(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                              ),
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 360,
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SizedBox(
+                                      height: _upperAreaHeight(step),
+                                      child: Align(
                                         alignment: Alignment.bottomCenter,
-                                        child: AnimatedSwitcher(
+                                        child: AnimatedSize(
                                           duration: const Duration(
-                                            milliseconds: 600,
+                                            milliseconds: 520,
                                           ),
-                                          reverseDuration: const Duration(
-                                            milliseconds: 300,
-                                          ),
-                                          layoutBuilder:
-                                              (currentChild, previousChildren) {
-                                                return Stack(
-                                                  alignment:
-                                                      Alignment.bottomCenter,
-                                                  clipBehavior: Clip.none,
-                                                  children: [
-                                                    ...previousChildren,
-                                                    ?currentChild,
-                                                  ],
-                                                );
-                                              },
-                                          transitionBuilder: (child, animation) =>
-                                              ConversationContentTransition(
-                                                animation: animation,
-                                                child: child,
-                                              ),
-                                          child: isSplash
-                                              ? const SizedBox.shrink()
-                                              : isBubble
-                                              ? KeyedSubtree(
-                                                  key: ValueKey(
-                                                    'bubble-${step.name}-${_controller.falaAtual}',
-                                                  ),
-                                                  child: _buildUpperContent(step),
-                                                )
-                                              : LayoutBuilder(
-                                                  key: ValueKey(
-                                                    'form-${step.name}-${_controller.erroFala}',
-                                                  ),
-                                                  builder: (context, constraints) {
-                                                    return ConstrainedBox(
-                                                      constraints: BoxConstraints(
-                                                        maxWidth: constraints.maxWidth,
-                                                        maxHeight: _upperAreaHeight(step),
-                                                      ),
-                                                      child: FittedBox(
-                                                        fit: BoxFit.scaleDown,
-                                                        alignment: Alignment.bottomCenter,
-                                                        child: SizedBox(
-                                                          width: constraints.maxWidth,
-                                                          child: _buildUpperContent(step),
+                                          curve: Curves.easeInOutCubic,
+                                          alignment: Alignment.bottomCenter,
+                                          child: AnimatedSwitcher(
+                                            duration: const Duration(
+                                              milliseconds: 600,
+                                            ),
+                                            reverseDuration: const Duration(
+                                              milliseconds: 300,
+                                            ),
+                                            layoutBuilder:
+                                                (
+                                                  currentChild,
+                                                  previousChildren,
+                                                ) {
+                                                  return Stack(
+                                                    alignment:
+                                                        Alignment.bottomCenter,
+                                                    clipBehavior: Clip.none,
+                                                    children: [
+                                                      ...previousChildren,
+                                                      ?currentChild,
+                                                    ],
+                                                  );
+                                                },
+                                            transitionBuilder:
+                                                (child, animation) =>
+                                                    ConversationContentTransition(
+                                                      animation: animation,
+                                                      child: child,
+                                                    ),
+                                            child: isSplash
+                                                ? const SizedBox.shrink()
+                                                : isBubble
+                                                ? KeyedSubtree(
+                                                    key: ValueKey(
+                                                      'bubble-${step.name}-${_controller.falaAtual}',
+                                                    ),
+                                                    child: _buildUpperContent(
+                                                      step,
+                                                    ),
+                                                  )
+                                                : LayoutBuilder(
+                                                    key: ValueKey(
+                                                      'form-${step.name}-${_controller.erroFala}',
+                                                    ),
+                                                    builder: (context, constraints) {
+                                                      return ConstrainedBox(
+                                                        constraints:
+                                                            BoxConstraints(
+                                                              maxWidth:
+                                                                  constraints
+                                                                      .maxWidth,
+                                                              maxHeight:
+                                                                  _upperAreaHeight(
+                                                                    step,
+                                                                  ),
+                                                            ),
+                                                        child: FittedBox(
+                                                          fit: BoxFit.scaleDown,
+                                                          alignment: Alignment
+                                                              .bottomCenter,
+                                                          child: SizedBox(
+                                                            width: constraints
+                                                                .maxWidth,
+                                                            child:
+                                                                _buildUpperContent(
+                                                                  step,
+                                                                ),
+                                                          ),
                                                         ),
-                                                      ),
-                                                    );
-                                                  },
-                                                ),
+                                                      );
+                                                    },
+                                                  ),
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Hero(
-                                    tag: 'caixa-transicao-inicial',
-                                    child: CaixaCharacter(
-                                      asset: _controller.pose.asset,
-                                      size: _caixaSizeForStep(step, context),
+                                    const SizedBox(height: 4),
+                                    Hero(
+                                      tag: 'caixa-transicao-inicial',
+                                      child: CaixaCharacter(
+                                        asset: _controller.pose.asset,
+                                        size: _caixaSizeForStep(step, context),
+                                      ),
                                     ),
-                                  ),
-                                  if (isSplash) ...[
-                                    const SizedBox(height: 22),
-                                    _buildSplashLogo(),
+                                    if (isSplash) ...[
+                                      const SizedBox(height: 22),
+                                      _buildSplashLogo(),
+                                    ],
                                   ],
-                                ],
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
 
-                      // Rodapé com botões contextuais: morpha de altura ao aparecer/sumir
-                      AnimatedSize(
-                        duration: const Duration(milliseconds: 500),
-                        curve: Curves.easeInOutCubic,
-                        child: Center(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 360),
-                            child: _buildFooterActions(step),
+                        // Rodapé com botões contextuais: morpha de altura ao aparecer/sumir
+                        AnimatedSize(
+                          duration: const Duration(milliseconds: 500),
+                          curve: Curves.easeInOutCubic,
+                          child: Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 360),
+                              child: _buildFooterActions(step),
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-
-                  // Indicador de carregamento
-                  if (_controller.carregando)
-                    Container(
-                      color: Colors.black26,
-                      child: const Center(
-                        child: CircularProgressIndicator(color: Colors.white),
-                      ),
+                      ],
                     ),
-                ],
+
+                    // Indicador de carregamento
+                    if (_controller.carregando)
+                      Container(
+                        color: Colors.black26,
+                        child: const Center(
+                          child: CircularProgressIndicator(color: Colors.white),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
-          ),
-        );
-      },
-    ),);
+          );
+        },
+      ),
+    );
   }
 
   Widget _buildTopBar(bool mostraProgresso) {
@@ -379,17 +421,7 @@ class _ConversationalOnboardingScreenState
       child: Row(
         children: [
           IconButton(
-            onPressed: () {
-              if (_controller.step == OnboardingStep.loginForm &&
-                  widget.onVoltarInicio != null) {
-                widget.onVoltarInicio!(context);
-              } else if (_controller.step == OnboardingStep.welcome &&
-                  widget.onVoltarInicio != null) {
-                widget.onVoltarInicio!(context);
-              } else {
-                _controller.voltar();
-              }
-            },
+            onPressed: () => _voltarParaInicioOuEtapaAnterior(context),
             icon: const Icon(
               Icons.arrow_back_rounded,
               color: Colors.white,
@@ -1202,6 +1234,20 @@ class _ConversationalOnboardingScreenState
 
   Widget _buildFooterActions(OnboardingStep step) {
     switch (step) {
+      case OnboardingStep.googleSuccess:
+      case OnboardingStep.googleMissingPrompt:
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+          child: PillButton(
+            label: step == OnboardingStep.googleSuccess
+                ? 'Continuar'
+                : 'Completar cadastro',
+            outlined: true,
+            loading: _controller.carregando,
+            onTap: () => _controller.avancarPorToque(context),
+          ),
+        );
+
       // 4° Imagem: Continuar
       case OnboardingStep.documentInput:
         return Padding(

@@ -4,6 +4,24 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 enum TipoContaCadastro { cliente, profissional }
 
+class GoogleAuthException implements Exception {
+  final String codigo;
+  final String descricao;
+  final Object? detalhes;
+
+  const GoogleAuthException({
+    required this.codigo,
+    required this.descricao,
+    this.detalhes,
+  });
+
+  @override
+  String toString() {
+    final complemento = detalhes == null ? '' : ' | detalhes: $detalhes';
+    return 'Google [$codigo]: $descricao$complemento';
+  }
+}
+
 class GoogleAuthService {
   static const webClientId =
       '558968043989-4od8kobfna5a0art52usjpo7sjk8joao.apps.googleusercontent.com';
@@ -31,36 +49,87 @@ class GoogleAuthService {
     await _initializeGoogleSignIn();
 
     try {
-      GoogleSignInAccount? googleUser;
-
-      if (!kIsWeb) {
-        // Limpa credenciais antigas que podem causar falhas de reautenticação.
-        try {
-          await GoogleSignIn.instance.disconnect();
-        } catch (_) {}
-        try {
-          await GoogleSignIn.instance.signOut();
-        } catch (_) {}
-      }
-
       if (kIsWeb) {
-        googleUser = await GoogleSignIn.instance.attemptLightweightAuthentication();
-        googleUser ??= await GoogleSignIn.instance.authenticate();
-      } else {
-        googleUser = await GoogleSignIn.instance.authenticate();
+        final googleUser =
+            await GoogleSignIn.instance.attemptLightweightAuthentication() ??
+            await GoogleSignIn.instance.authenticate();
+        return await _processGoogleUser(googleUser, supabase);
       }
 
-      if (googleUser == null) return null;
-
+      final googleUser = await _authenticateOnAndroid();
       return await _processGoogleUser(googleUser, supabase);
+    } on GoogleSignInException catch (e) {
+      throw GoogleAuthException(
+        codigo: e.code.name,
+        descricao: e.description ?? 'O Google não informou a causa.',
+        detalhes: e.details,
+      );
     } catch (e) {
-      throw Exception('Erro ao fazer login com Google: $e');
+      throw GoogleAuthException(
+        codigo: 'erro_aplicacao',
+        descricao: 'Falha ao concluir a autenticação com o Google.',
+        detalhes: e,
+      );
     }
   }
-  
+
+  static Future<GoogleSignInAccount> _authenticateOnAndroid() async {
+    try {
+      return await GoogleSignIn.instance.authenticate();
+    } on GoogleSignInException catch (e) {
+      final descricao = e.description?.toLowerCase() ?? '';
+      final falhaDeReautenticacao =
+          e.code == GoogleSignInExceptionCode.canceled &&
+          descricao.contains('reauth');
+
+      if (!falhaDeReautenticacao) rethrow;
+
+      // O Credential Manager pode manter uma credencial inválida após uma
+      // troca de conta. Limpa somente esse estado e permite uma nova tentativa.
+      await GoogleSignIn.instance.signOut();
+      return GoogleSignIn.instance.authenticate();
+    }
+  }
+
+  static String mensagemErro(Object erro) {
+    if (erro is GoogleAuthException) {
+      final orientacao = erro.codigo == 'canceled'
+          ? ' No Android, confirme no Google Cloud Console o cliente OAuth '
+                'Android com pacote com.example.consertaja e o SHA-1 do APK.'
+          : erro.codigo == 'clientConfigurationError' ||
+                erro.codigo == 'providerConfigurationError'
+          ? ' Confira a configuração do OAuth e do serverClientId.'
+          : '';
+      return '${erro.toString()}$orientacao';
+    }
+    return 'Google [erro_desconhecido]: $erro';
+  }
+
+  static Future<void> cancelarCadastroGoogle() async {
+    final erros = <Object>[];
+    try {
+      await Supabase.instance.client.auth.signOut();
+    } catch (e) {
+      erros.add(e);
+    }
+    try {
+      await GoogleSignIn.instance.signOut();
+    } catch (e) {
+      erros.add(e);
+    }
+    ultimaFotoUrl = null;
+    if (erros.isNotEmpty) {
+      throw GoogleAuthException(
+        codigo: 'cancelamento_incompleto',
+        descricao: 'Não foi possível encerrar completamente a sessão Google.',
+        detalhes: erros,
+      );
+    }
+  }
+
   // Nota: fluxo web está tratado em `signInWithGoogle`, este método não é mais
   // necessário com a API 7.x.
-  
+
   static Future<User?> _processGoogleUser(
     GoogleSignInAccount googleUser,
     SupabaseClient supabase,
@@ -78,8 +147,9 @@ class GoogleAuthService {
     // Tenta obter um accessToken para autorização (pode ser nulo)
     String? accessToken;
     try {
-      final authz = await googleUser.authorizationClient
-          .authorizationForScopes(['email', 'profile']);
+      final authz = await googleUser.authorizationClient.authorizationForScopes(
+        ['email', 'profile'],
+      );
       accessToken = authz?.accessToken;
     } catch (_) {
       accessToken = null;

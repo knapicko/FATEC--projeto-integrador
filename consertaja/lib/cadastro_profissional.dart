@@ -142,7 +142,12 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao entrar com Google: $e')),
+          SnackBar(
+            content: Text(
+              'Erro ao entrar com Google.\n'
+              '${GoogleAuthService.mensagemErro(e)}',
+            ),
+          ),
         );
       }
     } finally {

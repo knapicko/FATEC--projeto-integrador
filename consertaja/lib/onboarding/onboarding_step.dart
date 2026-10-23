@@ -61,6 +61,8 @@ bool stepPermiteToqueAvancar(OnboardingStep step) {
     case OnboardingStep.documentResult:
     case OnboardingStep.perfect:
     case OnboardingStep.chooseAccountPrompt:
+    case OnboardingStep.googleSuccess:
+    case OnboardingStep.googleMissingPrompt:
     case OnboardingStep.clientPfPrompt:
     case OnboardingStep.contactPrompt:
     case OnboardingStep.passwordPrompt:
@@ -135,4 +137,3 @@ double progressoDoPasso(OnboardingStep step) {
       return 0.95;
   }
 }
-
