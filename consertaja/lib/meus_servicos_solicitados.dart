@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'gestao_equipe.dart';
@@ -13,6 +14,7 @@ import 'utils/app_navigation_util.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/iniciais.dart';
+import 'widgets/avaliacao_bottom_sheet.dart';
 import 'widgets/imagem_servico.dart';
 import 'widgets/skeleton_loading.dart';
 
@@ -31,6 +33,7 @@ class SolicitacaoRecebida {
   final int? fkUsuario;
   final int? fkEndereco;
   final String? statusTexto;
+  final bool avaliouCliente;
 
   final String nomeCliente;
   final String? fotoCliente;
@@ -55,6 +58,7 @@ class SolicitacaoRecebida {
     this.fkUsuario,
     this.fkEndereco,
     this.statusTexto,
+    this.avaliouCliente = false,
     required this.nomeCliente,
     this.fotoCliente,
     this.imagemAnexoUrl,
@@ -122,6 +126,7 @@ class _MeusServicosSolicitadosPageState
   String? _erro;
   final Set<int> _iniciandoSolicitacoes = {};
   final Set<int> _concluindoSolicitacoes = {};
+  final Set<int> _avaliandoClientes = {};
 
   List<SolicitacaoRecebida> _todas = [];
   FiltroSolicitacao _filtro = FiltroSolicitacao.novos;
@@ -215,15 +220,78 @@ class _MeusServicosSolicitadosPageState
             .isFilter('fk_grupo_empresa', null);
       }
       final rows = await query.order('data_solicitacao', ascending: false);
+      final idsAvaliadosCliente = <int>{};
+      try {
+        final idsSolicitacoes = rows
+            .map((row) => (row['id_solicitacao'] as num?)?.toInt())
+            .whereType<int>()
+            .toList();
+        if (idsSolicitacoes.isNotEmpty) {
+          final avaliacoes = await _supabase
+              .from('avaliacoes_solicitacao')
+              .select('fk_solicitacao')
+              .eq('fk_avaliador', idUsuario)
+              .eq('tipo_avaliacao', 'cliente')
+              .inFilter('fk_solicitacao', idsSolicitacoes);
+          idsAvaliadosCliente.addAll(
+            avaliacoes
+                .map((row) => (row['fk_solicitacao'] as num?)?.toInt())
+                .whereType<int>(),
+          );
+        }
+      } catch (_) {}
       final lista = <SolicitacaoRecebida>[];
       for (final row in rows) {
-        lista.add(await _montarSolicitacao(Map<String, dynamic>.from(row)));
+        final solicitacao = await _montarSolicitacao(
+          Map<String, dynamic>.from(row),
+        );
+        lista.add(
+          SolicitacaoRecebida(
+            idSolicitacao: solicitacao.idSolicitacao,
+            dataSolicitacao: solicitacao.dataSolicitacao,
+            valorFinal: solicitacao.valorFinal,
+            detalhes: solicitacao.detalhes,
+            dataAgendada: solicitacao.dataAgendada,
+            horaAgendada: solicitacao.horaAgendada,
+            tipoExecucao: solicitacao.tipoExecucao,
+            fkGrupoEmpresa: solicitacao.fkGrupoEmpresa,
+            fkProfissional: solicitacao.fkProfissional,
+            fkUsuario: solicitacao.fkUsuario,
+            fkEndereco: solicitacao.fkEndereco,
+            statusTexto: solicitacao.statusTexto,
+            avaliouCliente: idsAvaliadosCliente.contains(
+              solicitacao.idSolicitacao,
+            ),
+            nomeCliente: solicitacao.nomeCliente,
+            fotoCliente: solicitacao.fotoCliente,
+            imagemAnexoUrl: solicitacao.imagemAnexoUrl,
+            tituloServico: solicitacao.tituloServico,
+            descricaoServico: solicitacao.descricaoServico,
+            imagemServicoUrl: solicitacao.imagemServicoUrl,
+            funcao: solicitacao.funcao,
+            corOficio: solicitacao.corOficio,
+          ),
+        );
       }
       if (mounted) {
         setState(() {
           _todas = lista;
           _carregando = false;
         });
+        SolicitacaoRecebida? pedidoParaAvaliar;
+        for (final item in lista) {
+          if (FiltroSolicitacao.porStatus(item.statusTexto) ==
+                  FiltroSolicitacao.concluidos &&
+              !item.avaliouCliente) {
+            pedidoParaAvaliar = item;
+            break;
+          }
+        }
+        if (pedidoParaAvaliar != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _verificarPromptAvaliacaoCliente(pedidoParaAvaliar!);
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -820,6 +888,61 @@ class _MeusServicosSolicitadosPageState
     }
   }
 
+  Future<void> _avaliarCliente(SolicitacaoRecebida item) async {
+    if (FiltroSolicitacao.porStatus(item.statusTexto) !=
+            FiltroSolicitacao.concluidos ||
+        item.avaliouCliente ||
+        !_avaliandoClientes.add(item.idSolicitacao)) {
+      return;
+    }
+    try {
+      final resposta = await mostrarAvaliacaoBottomSheet(
+        context,
+        avaliandoCliente: false,
+      );
+      if (resposta == null || !mounted) return;
+      await _supabase.rpc(
+        'registrar_avaliacao_profissional',
+        params: {
+          'p_id_solicitacao': item.idSolicitacao,
+          'p_nota_cliente': resposta.notaCliente,
+          'p_comentario': resposta.comentarioCliente,
+        },
+      );
+      await _carregar();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Avaliação do cliente enviada.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      _avaliandoClientes.remove(item.idSolicitacao);
+      if (mounted) setState(() {});
+    }
+  }
+
+  Future<void> _verificarPromptAvaliacaoCliente(
+    SolicitacaoRecebida item,
+  ) async {
+    if (item.avaliouCliente || !mounted) return;
+    final authId = _supabase.auth.currentUser?.id ?? 'anon';
+    final preferencias = await SharedPreferences.getInstance();
+    final chave =
+        'avaliacao_prompt_cliente_${authId}_${item.idSolicitacao}';
+    if (preferencias.getBool(chave) == true || !mounted) return;
+    await preferencias.setBool(chave, true);
+    if (mounted) await _avaliarCliente(item);
+  }
+
   Widget _buildConfirmacaoAceiteSheet(SolicitacaoRecebida item) {
     return SafeArea(
       child: Container(
@@ -1368,7 +1491,10 @@ class _MeusServicosSolicitadosPageState
             if (_filtro == FiltroSolicitacao.novos)
               _buildBotoes(item)
             else if (_filtro == FiltroSolicitacao.aceitos)
-              _buildBotoesAceito(item),
+              _buildBotoesAceito(item)
+            else if (status == FiltroSolicitacao.concluidos &&
+                !item.avaliouCliente)
+              _botaoAvaliarCliente(item),
           ],
         ),
       ),
@@ -1775,6 +1901,33 @@ class _MeusServicosSolicitadosPageState
         backgroundColor: const Color(0xFF168A52),
         foregroundColor: Colors.white,
         padding: EdgeInsets.symmetric(vertical: verticalPadding),
+      ),
+    );
+  }
+
+  Widget _botaoAvaliarCliente(SolicitacaoRecebida item) {
+    final avaliando = _avaliandoClientes.contains(item.idSolicitacao);
+    return SizedBox(
+      width: double.infinity,
+      height: 44,
+      child: FilledButton.icon(
+        onPressed: avaliando ? null : () => _avaliarCliente(item),
+        icon: avaliando
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : const Icon(Icons.star_outline_rounded, size: 18),
+        label: Text(avaliando ? 'Enviando...' : 'Avaliar cliente'),
+        style: FilledButton.styleFrom(
+          backgroundColor: const Color(0xFF168A52),
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
       ),
     );
   }
