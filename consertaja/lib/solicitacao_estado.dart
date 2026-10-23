@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -14,6 +15,7 @@ import 'utils/bottom_navigation_bar_profissional.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/icone_oficio.dart';
 import 'utils/iniciais.dart';
+import 'widgets/avaliacao_bottom_sheet.dart';
 import 'widgets/skeleton_loading.dart';
 
 /// Modalidades suportadas de acordo com o design
@@ -118,6 +120,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
 
   bool _carregando = true;
   bool _iniciandoServico = false;
+  bool _avaliandoCliente = false;
+  bool _avaliouCliente = false;
+  bool _promptAvaliacaoExibido = false;
   String? _erro;
 
   // Dados carregados do Supabase
@@ -468,6 +473,28 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
             .maybeSingle();
         _statusTexto = statusRow?['status']?.toString() ?? '';
       }
+      _avaliouCliente = false;
+      try {
+        final authUser = _supabase.auth.currentUser;
+        if (authUser != null) {
+          final usuario = await _supabase
+              .from('usuarios')
+              .select('id_usuario')
+              .eq('auth_id', authUser.id)
+              .maybeSingle();
+          final idUsuario = (usuario?['id_usuario'] as num?)?.toInt();
+          if (idUsuario != null) {
+            final avaliacao = await _supabase
+                .from('avaliacoes_solicitacao')
+                .select('id_avaliacao')
+                .eq('fk_solicitacao', _idSolicitacao)
+                .eq('fk_avaliador', idUsuario)
+                .eq('tipo_avaliacao', 'cliente')
+                .maybeSingle();
+            _avaliouCliente = avaliacao != null;
+          }
+        }
+      } catch (_) {}
 
       final valorFinal =
           double.tryParse(row['valor_final']?.toString() ?? '0') ?? 0.0;
@@ -669,6 +696,14 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
 
       if (mounted) {
         setState(() => _carregando = false);
+        if (_statusTexto.trim().toLowerCase().contains('conclu') &&
+            !_avaliouCliente &&
+            !_promptAvaliacaoExibido) {
+          _promptAvaliacaoExibido = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _verificarPromptAvaliacaoCliente();
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -883,6 +918,57 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
     } finally {
       if (mounted) setState(() => _iniciandoServico = false);
     }
+  }
+
+  Future<void> _avaliarCliente() async {
+    if (_avaliandoCliente ||
+        _avaliouCliente ||
+        !_statusTexto.trim().toLowerCase().contains('conclu')) {
+      return;
+    }
+    final resposta = await mostrarAvaliacaoBottomSheet(
+      context,
+      avaliandoCliente: false,
+    );
+    if (resposta == null || !mounted) return;
+    setState(() => _avaliandoCliente = true);
+    try {
+      await _supabase.rpc(
+        'registrar_avaliacao_profissional',
+        params: {
+          'p_id_solicitacao': _idSolicitacao,
+          'p_nota_cliente': resposta.notaCliente,
+          'p_comentario': resposta.comentarioCliente,
+        },
+      );
+      if (mounted) {
+        setState(() => _avaliouCliente = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Avaliação do cliente enviada.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _avaliandoCliente = false);
+    }
+  }
+
+  Future<void> _verificarPromptAvaliacaoCliente() async {
+    if (_avaliouCliente || !mounted) return;
+    final authId = _supabase.auth.currentUser?.id ?? 'anon';
+    final preferencias = await SharedPreferences.getInstance();
+    final chave = 'avaliacao_prompt_cliente_${authId}_$_idSolicitacao';
+    if (preferencias.getBool(chave) == true || !mounted) return;
+    await preferencias.setBool(chave, true);
+    if (mounted) await _avaliarCliente();
   }
 
   void _salvarNaAgenda() {
@@ -2785,6 +2871,46 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
   // ==========================================
   Widget _buildBotoesAcao() {
     final status = _statusTexto.trim().toLowerCase();
+    if (status.contains('conclu')) {
+      return SizedBox(
+        width: double.infinity,
+        height: 52,
+        child: _avaliouCliente
+            ? OutlinedButton.icon(
+                onPressed: null,
+                icon: const Icon(Icons.check_circle_outline),
+                label: const Text('Cliente avaliado'),
+              )
+            : FilledButton.icon(
+                onPressed: _avaliandoCliente ? null : _avaliarCliente,
+                icon: _avaliandoCliente
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.star_outline_rounded, size: 20),
+                label: Text(
+                  _avaliandoCliente ? 'Enviando...' : 'Avaliar cliente',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF168A52),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(26),
+                  ),
+                ),
+              ),
+      );
+    }
+
     if (status == 'pago' || status == 'em andamento') {
       final iniciando = status == 'pago';
       return SizedBox(
