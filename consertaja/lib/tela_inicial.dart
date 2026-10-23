@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'onboarding/conversational_onboarding_screen.dart';
 import 'onboarding/onboarding_controller.dart';
 import 'onboarding/onboarding_theme.dart';
+import 'services/auth_navigation.dart';
+import 'services/google_auth_service.dart';
 import 'tela_home.dart';
 import 'utils/app_navigation_util.dart';
 
@@ -20,6 +22,7 @@ class _TelaInicialState extends State<TelaInicial> {
   static const _blue = Color(0xFF12AEEC);
 
   bool _transicionando = false;
+  bool _autenticandoGoogle = false;
   bool _aquecido = false;
 
   @override
@@ -50,7 +53,7 @@ class _TelaInicialState extends State<TelaInicial> {
   }
 
   Future<void> _abrirFluxo({required bool login}) async {
-    if (_transicionando) return;
+    if (_transicionando || _autenticandoGoogle) return;
     setState(() => _transicionando = true);
     if (!mounted) return;
     // Na primeira transição, o build da tela de onboarding (+ shaders) é
@@ -79,6 +82,27 @@ class _TelaInicialState extends State<TelaInicial> {
       ),
       (route) => false,
     );
+  }
+
+  Future<void> _entrarComGoogle() async {
+    if (_transicionando || _autenticandoGoogle) return;
+    setState(() => _autenticandoGoogle = true);
+    try {
+      final usuario = await GoogleAuthService.signInWithGoogle();
+      if (usuario == null || !mounted) return;
+      await navegarPosAutenticacaoGoogle(context);
+    } catch (erro) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Não foi possível entrar com Google: $erro'),
+            backgroundColor: const Color(0xFFB42318),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _autenticandoGoogle = false);
+    }
   }
 
   void _voltarParaInicio(BuildContext context) {
@@ -136,7 +160,9 @@ class _TelaInicialState extends State<TelaInicial> {
                           ),
                         ),
                         AnimatedOpacity(
-                          opacity: _transicionando ? 0 : 1,
+                          opacity: _transicionando || _autenticandoGoogle
+                              ? 0
+                              : 1,
                           duration: const Duration(milliseconds: 280),
                           child: const Padding(
                             padding: EdgeInsets.only(top: 16),
@@ -167,10 +193,12 @@ class _TelaInicialState extends State<TelaInicial> {
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 360),
                       child: AnimatedOpacity(
-                        opacity: _transicionando ? 0 : 1,
+                        opacity: _transicionando || _autenticandoGoogle
+                          ? 0
+                          : 1,
                         duration: const Duration(milliseconds: 280),
                         child: IgnorePointer(
-                          ignoring: _transicionando,
+                          ignoring: _transicionando || _autenticandoGoogle,
                           child: Column(
                             children: [
                               _BotaoInicial(
@@ -186,6 +214,11 @@ class _TelaInicialState extends State<TelaInicial> {
                                 foreground: Colors.white,
                                 border: Colors.white,
                                 onPressed: () => _abrirFluxo(login: true),
+                              ),
+                              const SizedBox(height: 10),
+                              _BotaoGoogle(
+                                carregando: _autenticandoGoogle,
+                                onPressed: _entrarComGoogle,
                               ),
                               const SizedBox(height: 12),
                               TextButton(
@@ -270,6 +303,59 @@ class _BotaoInicial extends StatelessWidget {
             fontSize: 16,
             fontWeight: FontWeight.w800,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BotaoGoogle extends StatelessWidget {
+  final bool carregando;
+  final VoidCallback onPressed;
+
+  const _BotaoGoogle({required this.carregando, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 54,
+      child: ElevatedButton(
+        onPressed: carregando ? null : onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white,
+          foregroundColor: const Color(0xFF202124),
+          elevation: 1,
+          shadowColor: Colors.black38,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(13),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (carregando)
+              const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Color(0xFF0FB3FF),
+                ),
+              )
+            else
+              Image.asset(
+                'assets/images/icone/google-logo.png',
+                width: 22,
+                height: 22,
+              ),
+            const SizedBox(width: 12),
+            Text(
+              carregando ? 'CONECTANDO...' : 'CRIAR/ENTRAR COM GOOGLE',
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+            ),
+          ],
         ),
       ),
     );
