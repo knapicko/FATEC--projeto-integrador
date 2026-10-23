@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'utils/iniciais.dart';
 
 class PagamentoPedidoPage extends StatefulWidget {
   final int idSolicitacao;
@@ -36,6 +39,8 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage> {
   String? _erro;
   String? _comprovante;
   DateTime? _dataPagamento;
+  String? _fotoConta;
+  String _nomeConta = '';
 
   bool get _confirmado => _comprovante != null;
 
@@ -46,6 +51,29 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage> {
     final hora = widget.horaAgendada?.trim() ?? '';
     if (hora.length >= 5) return hora.substring(0, 5);
     return hora;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _carregarConta();
+  }
+
+  Future<void> _carregarConta() async {
+    try {
+      final usuarioAuth = _db.auth.currentUser;
+      if (usuarioAuth == null) return;
+      final usuario = await _db
+          .from('usuarios')
+          .select('nome, foto_perfil_url')
+          .eq('auth_id', usuarioAuth.id)
+          .maybeSingle();
+      if (!mounted) return;
+      setState(() {
+        _nomeConta = usuario?['nome']?.toString().trim() ?? '';
+        _fotoConta = usuario?['foto_perfil_url']?.toString().trim();
+      });
+    } catch (_) {}
   }
 
   Future<void> _confirmarPagamento() async {
@@ -89,16 +117,46 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage> {
     }
   }
 
+  Future<void> _abrirConfirmacaoMetodo() async {
+    if (_salvando || _confirmado) return;
+    final confirmar = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) => _buildBottomSheetConfirmacao(sheetContext),
+    );
+    if (confirmar == true && mounted) await _confirmarPagamento();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _fundo,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: _texto,
+        backgroundColor: _azul,
+        foregroundColor: Colors.white,
         elevation: 0,
-        title: Text(_confirmado ? 'Pagamento confirmado' : 'Pagamento'),
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          onPressed: () => Navigator.of(context).maybePop(),
+          icon: const Icon(Icons.arrow_back, color: Colors.white, size: 24),
+        ),
+        title: Text(
+          _confirmado ? 'Pagamento confirmado' : 'Pagamento',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.2,
+          ),
+        ),
         centerTitle: true,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: Center(child: _buildAvatarConta()),
+          ),
+        ],
       ),
       body: SafeArea(
         child: _confirmado ? _buildConfirmacao() : _buildFormulario(),
@@ -291,7 +349,7 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage> {
         width: double.infinity,
         height: 50,
         child: FilledButton.icon(
-          onPressed: _salvando ? null : _confirmarPagamento,
+          onPressed: _salvando ? null : _abrirConfirmacaoMetodo,
           icon: _salvando
               ? const SizedBox(
                   width: 18,
@@ -304,6 +362,172 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage> {
             backgroundColor: _azul,
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomSheetConfirmacao(BuildContext sheetContext) {
+    final tituloMetodo = _metodo == 'Cartão de Crédito' ? 'Cartão' : _metodo;
+    return SafeArea(
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFFCBD5E1),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Icon(
+              _metodo == 'Pix'
+                  ? Icons.pix
+                  : _metodo == 'Boleto'
+                  ? Icons.receipt_long_outlined
+                  : Icons.credit_card_outlined,
+              color: _azul,
+              size: 34,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Confirmar pagamento por $tituloMetodo?',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: _texto,
+                fontSize: 19,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _formatarValor(widget.valor),
+              style: const TextStyle(
+                color: Color(0xFF087CA8),
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            if (_metodo == 'Pix') ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: _azul, width: 1.5),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: QrImageView(
+                  data: 'SIMULACAO-PAGAMENTO-CJ-${widget.idSolicitacao}',
+                  version: QrVersions.auto,
+                  size: 176,
+                  backgroundColor: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'QR code fictício para visualização. Não realiza pagamento.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: _muted, fontSize: 12),
+              ),
+            ] else if (_metodo == 'Boleto') ...[
+              const SizedBox(height: 12),
+              const Text(
+                'Este boleto é apenas uma simulação. Nenhuma cobrança real será emitida.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: _muted, fontSize: 13),
+              ),
+            ] else ...[
+              const SizedBox(height: 12),
+              Text(
+                '$_parcelas x ${_formatarValor(widget.valor / _parcelas)}',
+                style: const TextStyle(
+                  color: _texto,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Nenhum dado do cartão será solicitado ou salvo. Esta é uma confirmação de teste.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: _muted, fontSize: 13),
+              ),
+            ],
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: FilledButton(
+                onPressed: () => Navigator.pop(sheetContext, true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: _azul,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text('Confirmar pagamento'),
+              ),
+            ),
+            const SizedBox(height: 6),
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: TextButton(
+                onPressed: () => Navigator.pop(sheetContext, false),
+                child: const Text('Voltar'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvatarConta() {
+    final foto = (_fotoConta ?? '').trim();
+    final iniciais = obterIniciais(_nomeConta.isEmpty ? 'Conta' : _nomeConta);
+    return Container(
+      width: 34,
+      height: 34,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: _azul, width: 2),
+        color: Colors.white,
+      ),
+      padding: const EdgeInsets.all(1.5),
+      child: ClipOval(
+        child: foto.startsWith('http')
+            ? Image.network(
+                foto,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => _avatarFallback(iniciais),
+              )
+            : _avatarFallback(iniciais),
+      ),
+    );
+  }
+
+  Widget _avatarFallback(String iniciais) {
+    return ColoredBox(
+      color: const Color(0xFFDCE5EE),
+      child: Center(
+        child: Text(
+          iniciais,
+          style: const TextStyle(
+            color: Color(0xFF5E6F7E),
+            fontWeight: FontWeight.w700,
+            fontSize: 11,
           ),
         ),
       ),
