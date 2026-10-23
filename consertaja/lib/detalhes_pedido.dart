@@ -9,6 +9,7 @@ import 'perfil_profissional.dart';
 import 'perguntas_frequentes.dart';
 import 'tela_chat_profissional.dart';
 import 'utils/iniciais.dart';
+import 'widgets/avaliacao_bottom_sheet.dart';
 import 'widgets/skeleton_loading.dart';
 
 class DetalhesPedidoPage extends StatefulWidget {
@@ -60,6 +61,8 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
   bool _carregando = true;
   bool _carregandoCliente = true;
   bool _confirmandoConclusao = false;
+  bool _avaliadoCliente = false;
+  List<Map<String, dynamic>> _avaliacoesCliente = [];
   String? _erro;
 
   // Dados da Solicitação
@@ -80,6 +83,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
   // Usuário Cliente Logado
   String? _fotoClienteLogado;
   String _nomeClienteLogado = '';
+  int? _idUsuarioClienteLogado;
 
   // Prestador (Loja ou Profissional Independente)
   bool _ehLoja = false;
@@ -153,6 +157,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
           if (uRow != null) {
             _nomeClienteLogado = uRow['nome']?.toString() ?? '';
             _fotoClienteLogado = uRow['foto_perfil_url']?.toString();
+            _idUsuarioClienteLogado = (uRow['id_usuario'] as num?)?.toInt();
           }
         } catch (_) {}
       }
@@ -214,6 +219,25 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       if (_statusTexto.trim().toLowerCase() == 'em andamento' &&
           _etapaSolicitacao < 3) {
         _etapaSolicitacao = 3;
+      }
+
+      _avaliadoCliente = false;
+        _avaliacoesCliente = [];
+      if (_idUsuarioClienteLogado != null) {
+        try {
+          final avaliacoes = await _db
+              .from('avaliacoes_solicitacao')
+            .select('tipo_avaliacao, nota, comentario')
+              .eq('fk_solicitacao', _idSolicitacao)
+              .eq('fk_avaliador', _idUsuarioClienteLogado!)
+              .inFilter('tipo_avaliacao', ['servico', 'profissional']);
+          _avaliacoesCliente = List<Map<String, dynamic>>.from(avaliacoes);
+          final tipos = _avaliacoesCliente
+              .map((row) => row['tipo_avaliacao']?.toString())
+              .toSet();
+          _avaliadoCliente =
+              tipos.contains('servico') && tipos.contains('profissional');
+        } catch (_) {}
       }
 
       final fkProf = (sol['fk_profissional'] as num?)?.toInt();
@@ -1391,11 +1415,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
         params: {'p_id_solicitacao': _idSolicitacao},
       );
       await _carregarDadosCompletos();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Serviço confirmado como concluído.')),
-        );
-      }
+      if (mounted) await _avaliarPedidoCliente();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1407,6 +1427,59 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       }
     } finally {
       if (mounted) setState(() => _confirmandoConclusao = false);
+    }
+  }
+
+  Future<void> _avaliarPedidoCliente() async {
+    if (_avaliadoCliente ||
+        !_statusTexto.trim().toLowerCase().contains('conclu')) {
+      return;
+    }
+    final resposta = await mostrarAvaliacaoBottomSheet(
+      context,
+      avaliandoCliente: true,
+    );
+    if (resposta == null || !mounted) return;
+    try {
+      await _db.rpc(
+        'registrar_avaliacoes_cliente',
+        params: {
+          'p_id_solicitacao': _idSolicitacao,
+          'p_nota_servico': resposta.notaServico,
+          'p_comentario_servico': resposta.comentarioServico,
+          'p_nota_profissional': resposta.notaProfissional,
+          'p_comentario_profissional': resposta.comentarioProfissional,
+        },
+      );
+      if (mounted) {
+        setState(() {
+          _avaliadoCliente = true;
+          _avaliacoesCliente = [
+            {
+              'tipo_avaliacao': 'servico',
+              'nota': resposta.notaServico,
+              'comentario': resposta.comentarioServico,
+            },
+            {
+              'tipo_avaliacao': 'profissional',
+              'nota': resposta.notaProfissional,
+              'comentario': resposta.comentarioProfissional,
+            },
+          ];
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Avaliações enviadas. Obrigado!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -1770,6 +1843,10 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
           _buildCardObservacoesCliente(),
           const SizedBox(height: 14),
           _buildCardResumoValores(),
+          if (_avaliacoesCliente.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            _buildCardAvaliacoesCliente(),
+          ],
           const SizedBox(height: 20),
           _buildAcoesRodape(),
           const SizedBox(height: 14),
@@ -3212,6 +3289,84 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
     );
   }
 
+  Widget _buildCardAvaliacoesCliente() {
+    const titulos = {
+      'servico': 'Avaliação do serviço',
+      'profissional': 'Avaliação do profissional',
+    };
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'SUAS AVALIAÇÕES',
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+              color: textoMuted,
+            ),
+          ),
+          const SizedBox(height: 12),
+          for (var index = 0; index < _avaliacoesCliente.length; index++) ...[
+            if (index > 0) const Divider(height: 20),
+            _buildLinhaAvaliacaoCliente(_avaliacoesCliente[index], titulos),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLinhaAvaliacaoCliente(
+    Map<String, dynamic> avaliacao,
+    Map<String, String> titulos,
+  ) {
+    final tipo = avaliacao['tipo_avaliacao']?.toString() ?? '';
+    final nota = (avaliacao['nota'] as num?)?.toInt() ?? 0;
+    final comentario = avaliacao['comentario']?.toString().trim() ?? '';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          titulos[tipo] ?? 'Avaliação',
+          style: const TextStyle(
+            color: textoEscuro,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            for (var estrela = 1; estrela <= 5; estrela++)
+              Icon(
+                estrela <= nota ? Icons.star_rounded : Icons.star_outline_rounded,
+                color: const Color(0xFFF5A623),
+                size: 19,
+              ),
+            const SizedBox(width: 6),
+            Text('$nota/5', style: const TextStyle(color: textoMuted)),
+          ],
+        ),
+        if (comentario.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(comentario, style: const TextStyle(color: Color(0xFF475569))),
+        ],
+      ],
+    );
+  }
+
   // ===========================================================================
   // 10. Links de Rodapé: Um embaixo do outro + Cancelar dinâmico
   // ===========================================================================
@@ -3285,6 +3440,8 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
     final status = _statusTexto.trim().toLowerCase();
     final aguardandoCliente = status == 'aguardando cliente';
     final aceito = status == 'aceito';
+    final precisaAvaliarCliente =
+        status.contains('conclu') && !_avaliadoCliente;
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
       decoration: BoxDecoration(
@@ -3332,6 +3489,8 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                     ? (_confirmandoConclusao ? null : _confirmarConclusao)
                     : aceito
                     ? _abrirPagamento
+                  : precisaAvaliarCliente
+                  ? _avaliarPedidoCliente
                     : _abrirChat,
                 icon: _confirmandoConclusao
                     ? const SizedBox(
@@ -3347,6 +3506,8 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                             ? Icons.check_circle_outline
                             : aceito
                             ? Icons.payments_outlined
+                          : precisaAvaliarCliente
+                          ? Icons.star_outline_rounded
                             : Icons.chat_bubble_outline,
                         size: 18,
                       ),
@@ -3357,6 +3518,8 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                       ? 'Confirmar entrega/final'
                       : aceito
                       ? 'Realizar pagamento'
+                      : precisaAvaliarCliente
+                      ? 'Avaliar'
                       : 'Enviar Mensagem',
                 ),
                 style: ElevatedButton.styleFrom(
