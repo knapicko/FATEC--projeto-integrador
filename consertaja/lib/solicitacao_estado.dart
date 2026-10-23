@@ -122,6 +122,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
   bool _iniciandoServico = false;
   bool _avaliandoCliente = false;
   bool _avaliouCliente = false;
+  Map<String, dynamic>? _avaliacaoCliente;
   bool _promptAvaliacaoExibido = false;
   String? _erro;
 
@@ -474,6 +475,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         _statusTexto = statusRow?['status']?.toString() ?? '';
       }
       _avaliouCliente = false;
+      _avaliacaoCliente = null;
       try {
         final authUser = _supabase.auth.currentUser;
         if (authUser != null) {
@@ -486,12 +488,15 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
           if (idUsuario != null) {
             final avaliacao = await _supabase
                 .from('avaliacoes_solicitacao')
-                .select('id_avaliacao')
+                .select('id_avaliacao, nota, comentario')
                 .eq('fk_solicitacao', _idSolicitacao)
                 .eq('fk_avaliador', idUsuario)
                 .eq('tipo_avaliacao', 'cliente')
                 .maybeSingle();
             _avaliouCliente = avaliacao != null;
+            if (avaliacao != null) {
+              _avaliacaoCliente = Map<String, dynamic>.from(avaliacao);
+            }
           }
         }
       } catch (_) {}
@@ -942,7 +947,13 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         },
       );
       if (mounted) {
-        setState(() => _avaliouCliente = true);
+        setState(() {
+          _avaliouCliente = true;
+          _avaliacaoCliente = {
+            'nota': resposta.notaCliente,
+            'comentario': resposta.comentarioCliente,
+          };
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Avaliação do cliente enviada.')),
         );
@@ -1186,6 +1197,10 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                               ],
                               _buildCardPerfilCliente(),
                               const SizedBox(height: 14),
+                              if (_avaliacaoCliente != null) ...[
+                                _buildCardAvaliacaoCliente(),
+                                const SizedBox(height: 14),
+                              ],
                               _buildCardServicoSelecionado(),
                               const SizedBox(height: 14),
                               _buildCardModalidadeAtendimento(),
@@ -1815,6 +1830,59 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
   // ==========================================
   // 4. CARD DE PERFIL DO CLIENTE
   // ==========================================
+  Widget _buildCardAvaliacaoCliente() {
+    final avaliacao = _avaliacaoCliente!;
+    final nota = (avaliacao['nota'] as num?)?.toInt() ?? 0;
+    final comentario = avaliacao['comentario']?.toString().trim() ?? '';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'SUA AVALIAÇÃO DO CLIENTE',
+            style: TextStyle(
+              color: _textoMuted,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              for (var estrela = 1; estrela <= 5; estrela++)
+                Icon(
+                  estrela <= nota
+                      ? Icons.star_rounded
+                      : Icons.star_outline_rounded,
+                  color: const Color(0xFFF5A623),
+                  size: 20,
+                ),
+              const SizedBox(width: 6),
+              Text('$nota/5', style: const TextStyle(color: _textoMuted)),
+            ],
+          ),
+          if (comentario.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(comentario, style: const TextStyle(color: _textoEscuro)),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildCardPerfilCliente() {
     return Container(
       width: double.infinity,
