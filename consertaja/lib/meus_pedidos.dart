@@ -12,6 +12,7 @@ import 'utils/app_navigation_util.dart';
 import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/iniciais.dart';
+import 'widgets/avaliacao_bottom_sheet.dart';
 
 class PedidoCliente {
   final int id;
@@ -30,6 +31,7 @@ class PedidoCliente {
   final String? corTag;
   final int? idProf;
   final int? idGrupo;
+  final bool avaliadoCliente;
   const PedidoCliente({
     required this.id,
     required this.status,
@@ -47,6 +49,7 @@ class PedidoCliente {
     this.corTag,
     this.idProf,
     this.idGrupo,
+    this.avaliadoCliente = false,
   });
 }
 
@@ -201,8 +204,42 @@ class MeusPedidosState extends State<MeusPedidosPage> {
         if (id != null) servMap[id] = Map<String, dynamic>.from(v);
       }
     }
+    final idsAvaliadosCliente = <int>{};
+    try {
+      final idsSolicitacoes = linhas
+          .map((linha) => (linha['id_solicitacao'] as num?)?.toInt())
+          .whereType<int>()
+          .toList();
+      if (idsSolicitacoes.isNotEmpty) {
+        final avaliacoes = await db
+            .from('avaliacoes_solicitacao')
+            .select('fk_solicitacao, tipo_avaliacao')
+            .eq('fk_avaliador', idUsuario)
+            .inFilter('fk_solicitacao', idsSolicitacoes);
+        final tiposPorSolicitacao = <int, Set<String>>{};
+        for (final avaliacao in avaliacoes) {
+          final id = (avaliacao['fk_solicitacao'] as num?)?.toInt();
+          if (id == null) continue;
+          tiposPorSolicitacao
+              .putIfAbsent(id, () => <String>{})
+              .add((avaliacao['tipo_avaliacao'] ?? '').toString());
+        }
+        for (final entry in tiposPorSolicitacao.entries) {
+          if (entry.value.contains('servico') &&
+              entry.value.contains('profissional')) {
+            idsAvaliadosCliente.add(entry.key);
+          }
+        }
+      }
+    } catch (_) {}
     final aux = await carregarAuxiliar(servMap, linhas);
-    return montarLista(linhas, statusMap, servMap, aux);
+    return montarLista(
+      linhas,
+      statusMap,
+      servMap,
+      aux,
+      idsAvaliadosCliente,
+    );
   }
 
   Future<Map<String, dynamic>> carregarAuxiliar(
@@ -311,6 +348,7 @@ class MeusPedidosState extends State<MeusPedidosPage> {
     Map<int, String> statusMap,
     Map<int, Map<String, dynamic>> servMap,
     Map<String, dynamic> aux,
+    Set<int> idsAvaliadosCliente,
   ) {
     final funcMap = Map<int, String>.from(aux['func'] as Map);
     final corMap = Map<int, String>.from(aux['cor'] as Map);
@@ -393,6 +431,7 @@ class MeusPedidosState extends State<MeusPedidosPage> {
           corTag: corTag,
           idProf: idP,
           idGrupo: idG,
+          avaliadoCliente: idsAvaliadosCliente.contains(idSol),
         ),
       );
     }
@@ -544,6 +583,41 @@ class MeusPedidosState extends State<MeusPedidosPage> {
     if (mounted) await carregar(loading: false);
   }
 
+  Future<void> _avaliarPedidoCliente(int idSolicitacao) async {
+    final resposta = await mostrarAvaliacaoBottomSheet(
+      context,
+      avaliandoCliente: true,
+    );
+    if (resposta == null || !mounted) return;
+    try {
+      await db.rpc(
+        'registrar_avaliacoes_cliente',
+        params: {
+          'p_id_solicitacao': idSolicitacao,
+          'p_nota_servico': resposta.notaServico,
+          'p_comentario_servico': resposta.comentarioServico,
+          'p_nota_profissional': resposta.notaProfissional,
+          'p_comentario_profissional': resposta.comentarioProfissional,
+        },
+      );
+      await carregar(loading: false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Avaliações enviadas. Obrigado!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> confirmarConclusao(PedidoCliente pedido) async {
     if (pedido.status.trim().toLowerCase() != 'aguardando cliente' ||
         !confirmandoConclusao.add(pedido.id)) {
@@ -626,11 +700,7 @@ class MeusPedidosState extends State<MeusPedidosPage> {
         params: {'p_id_solicitacao': pedido.id},
       );
       await carregar(loading: false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Serviço confirmado como concluído.')),
-        );
-      }
+      if (mounted) await _avaliarPedidoCliente(pedido.id);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1234,6 +1304,32 @@ class MeusPedidosState extends State<MeusPedidosPage> {
                       ? 'Confirmando...'
                       : 'Confirmar entrega/final',
                 ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF168A52),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ],
+          if ((p.status.toLowerCase().contains('conclu') ||
+                  p.status.toLowerCase().contains('finaliz')) &&
+              !p.avaliadoCliente) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              height: 42,
+              child: FilledButton.icon(
+                onPressed: () => _avaliarPedidoCliente(p.id),
+                icon: const Icon(Icons.star_outline_rounded, size: 18),
+                label: const Text('Avaliar'),
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFF168A52),
                   foregroundColor: Colors.white,
