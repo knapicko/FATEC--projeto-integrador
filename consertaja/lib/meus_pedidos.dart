@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'detalhes_pedido.dart';
+import 'pagamento_pedido.dart';
 import 'widgets/skeleton_loading.dart';
 import 'seguindo_cliente.dart';
 import 'tela_chat_profissional.dart';
@@ -86,6 +87,7 @@ class MeusPedidosState extends State<MeusPedidosPage> {
   String? fotoCli;
   List<PedidoCliente> todos = [];
   FiltroPedido filtro = FiltroPedido.todos;
+  final Set<int> confirmandoConclusao = {};
 
   @override
   void initState() {
@@ -404,6 +406,8 @@ class MeusPedidosState extends State<MeusPedidosPage> {
     if (v.contains('recus')) return false;
     if (v.contains('conclu')) return false;
     if (v.contains('finaliz')) return false;
+    if (v == 'pago') return false;
+    if (v.contains('aguardando cliente')) return false;
     if (v.contains('andamento')) return false;
     if (v.contains('execu')) return false;
     return true;
@@ -417,6 +421,8 @@ class MeusPedidosState extends State<MeusPedidosPage> {
     if (v.contains('finaliz')) return false;
     return v.contains('andamento') ||
         v.contains('execu') ||
+      v == 'pago' ||
+        v.contains('aguardando cliente') ||
         v.contains('aceito') ||
         v.contains('aprovado');
   }
@@ -520,6 +526,124 @@ class MeusPedidosState extends State<MeusPedidosPage> {
         ),
       ),
     );
+  }
+
+  Future<void> abrirPagamento(PedidoCliente p) async {
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => PagamentoPedidoPage(
+          idSolicitacao: p.id,
+          tituloServico: p.titulo,
+          profissional: p.prestador,
+          valor: p.valor,
+          dataAgendada: p.dataAg,
+          horaAgendada: p.horaAg,
+        ),
+      ),
+    );
+    if (mounted) await carregar(loading: false);
+  }
+
+  Future<void> confirmarConclusao(PedidoCliente pedido) async {
+    if (pedido.status.trim().toLowerCase() != 'aguardando cliente' ||
+        !confirmandoConclusao.add(pedido.id)) {
+      return;
+    }
+    setState(() {});
+    try {
+      final confirmar = await showModalBottomSheet<bool>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        isScrollControlled: true,
+        builder: (sheetContext) => SafeArea(
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Icon(
+                  Icons.check_circle_outline,
+                  color: Color(0xFF168A52),
+                  size: 42,
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Confirmar conclusão?',
+                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Confirme que recebeu o serviço e que ele foi finalizado.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: muted, fontSize: 14),
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(sheetContext, true),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF168A52),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('Confirmar entrega/final'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(sheetContext, false),
+                    child: const Text('Voltar'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      if (confirmar != true || !mounted) return;
+
+      await db.rpc(
+        'confirmar_conclusao_solicitacao',
+        params: {'p_id_solicitacao': pedido.id},
+      );
+      await carregar(loading: false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Serviço confirmado como concluído.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      confirmandoConclusao.remove(pedido.id);
+      if (mounted) setState(() {});
+    }
   }
 
   String fmtValor(double v) {
@@ -1062,6 +1186,69 @@ class MeusPedidosState extends State<MeusPedidosPage> {
               ),
             ],
           ),
+          if (p.status.trim().toLowerCase() == 'aceito') ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              height: 42,
+              child: FilledButton.icon(
+                onPressed: () => abrirPagamento(p),
+                icon: const Icon(Icons.payments_outlined, size: 17),
+                label: const Text('Realizar pagamento'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: azul,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ],
+          if (p.status.trim().toLowerCase() == 'aguardando cliente') ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              height: 42,
+              child: FilledButton.icon(
+                onPressed: confirmandoConclusao.contains(p.id)
+                    ? null
+                    : () => confirmarConclusao(p),
+                icon: confirmandoConclusao.contains(p.id)
+                    ? const SizedBox(
+                        width: 17,
+                        height: 17,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.check_circle_outline, size: 17),
+                label: Text(
+                  confirmandoConclusao.contains(p.id)
+                      ? 'Confirmando...'
+                      : 'Confirmar entrega/final',
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF168A52),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1175,6 +1362,15 @@ class MeusPedidosState extends State<MeusPedidosPage> {
         texto: Color(0xFFB91C1C),
         borda: Color(0xFFFECACA),
         icone: Icons.cancel_outlined,
+      );
+    }
+    if (s.contains('aguardando cliente')) {
+      return const StatusEstilo(
+        rotulo: 'Aguardando Cliente',
+        fundo: Color(0xFFFFF7E8),
+        texto: Color(0xFF76521B),
+        borda: Color(0xFFF4D7A1),
+        icone: Icons.mark_email_unread_outlined,
       );
     }
     if (s.contains('conclu') || s.contains('finaliz')) {
