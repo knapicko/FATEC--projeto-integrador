@@ -187,10 +187,6 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
       // 4. Carrega empresa vinculada
       if (!widget.souProfissionalLogado && _idGrupoEmpresa != null) {
         await _carregarEmpresaVinculada(_idGrupoEmpresa!);
-      } else if (!widget.souProfissionalLogado) {
-        // Se ainda não tiver empresa vinculada mas o usuário for Caneta Azul ou loja,
-        // tenta buscar se existe alguma empresa no sistema para exibir no mockup
-        await _carregarEmpresaVinculadaFallback();
       }
     } catch (e) {
       debugPrint('Erro ao carregar dados do contato: $e');
@@ -296,8 +292,7 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
 
       if (grupo != null) {
         _idEmpresa = idGrupo;
-        _nomeEmpresa =
-            grupo['nome_empresa']?.toString().trim() ?? 'Empresa Parceira';
+        _nomeEmpresa = grupo['nome_empresa']?.toString().trim() ?? 'Empresa';
         _tagEmpresa = grupo['tag_empresa']?.toString().trim() ?? 'EMPRESA';
         if (!_tagEmpresa.startsWith('#')) _tagEmpresa = '#$_tagEmpresa';
         _fotoEmpresa = grupo['foto_url_empresa']?.toString().trim();
@@ -310,35 +305,6 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
     } catch (e) {
       debugPrint('Erro ao carregar empresa vinculada: $e');
     }
-  }
-
-  Future<void> _carregarEmpresaVinculadaFallback() async {
-    try {
-      final lista = await _supabase
-          .from('grupo_empresa')
-          .select(
-            'id_grupo_empresa, nome_empresa, tag_empresa, foto_url_empresa, banner_url_empresa',
-          )
-          .limit(1);
-
-      if (lista.isNotEmpty) {
-        final grupo = lista.first;
-        final idGrupo = (grupo['id_grupo_empresa'] as num?)?.toInt();
-        if (idGrupo != null) {
-          _idEmpresa = idGrupo;
-          _nomeEmpresa =
-              grupo['nome_empresa']?.toString().trim() ??
-              'Caedss - Estrada das Lágrimas';
-          _tagEmpresa = grupo['tag_empresa']?.toString().trim() ?? '#CAEDS';
-          if (!_tagEmpresa.startsWith('#')) _tagEmpresa = '#$_tagEmpresa';
-          _fotoEmpresa = grupo['foto_url_empresa']?.toString().trim();
-          _bannerEmpresa = grupo['banner_url_empresa']?.toString().trim();
-          _temEmpresaVinculada = true;
-
-          await _carregarEnderecoEmpresa(idGrupo);
-        }
-      }
-    } catch (_) {}
   }
 
   Future<void> _carregarEnderecoEmpresa(int idGrupo) async {
@@ -621,7 +587,8 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
                   _buildSecaoMidia(),
                   const SizedBox(height: 16),
                   _buildOpcoesConfiguracoes(),
-                  if (!widget.souProfissionalLogado && _temEmpresaVinculada) ...[
+                  if (!widget.souProfissionalLogado &&
+                      _temEmpresaVinculada) ...[
                     const SizedBox(height: 16),
                     _buildCardEmpresaVinculada(),
                   ],
@@ -696,8 +663,7 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
         const SizedBox(height: 12),
 
         // Tags/Chips de Ofícios e Especialidades
-        if (!widget.souProfissionalLogado)
-          _buildChipsOficiosEEspecialidades(),
+        if (!widget.souProfissionalLogado) _buildChipsOficiosEEspecialidades(),
         const SizedBox(height: 12),
 
         // Indicador de Status Online
@@ -904,10 +870,8 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => TelaMidiaChat(
-          idConversa: widget.idConversa,
-          nomeContato: _nome,
-        ),
+        builder: (_) =>
+            TelaMidiaChat(idConversa: widget.idConversa, nomeContato: _nome),
       ),
     );
   }
@@ -1136,7 +1100,9 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
                   MaterialPageRoute(
                     builder: (_) => AlterarTemaChat(
                       idConversa: widget.idConversa,
-                      nomeContato: _nome.isNotEmpty ? _nome : widget.nomeContato,
+                      nomeContato: _nome.isNotEmpty
+                          ? _nome
+                          : widget.nomeContato,
                       fotoContato: _fotoUrl ?? widget.fotoContato,
                       oficioPrincipal: widget.oficioPrincipal,
                       idProfissional: _idProfissional,
