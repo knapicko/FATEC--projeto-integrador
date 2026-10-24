@@ -45,10 +45,6 @@ class _TelaMeuPerfilProfissionalPageState
   String _email = '';
   String? _fotoPerfilUrl;
 
-  final double _avaliacao = 4.9;
-  final int _totalAvaliacoes = 423;
-  final bool _perfilVerificado = true;
-
   final List<String> _avisosAtivos = [];
 
   @override
@@ -183,25 +179,6 @@ class _TelaMeuPerfilProfissionalPageState
           ),
           child: Center(child: avatar),
         ),
-        if (!widget.isVisitante && _perfilVerificado)
-          Positioned(
-            right: 0,
-            bottom: -2,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Container(
-                  width: 9,
-                  height: 9,
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const Icon(Icons.verified, color: _blueBorder, size: 20),
-              ],
-            ),
-          ),
       ],
     );
   }
@@ -312,72 +289,6 @@ class _TelaMeuPerfilProfissionalPageState
             child: const Padding(
               padding: EdgeInsets.all(2),
               child: Icon(Icons.close, color: Color(0xFF7E7E7E), size: 18),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRatingPill() {
-    return Container(
-      height: 30,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE0E0E0)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.star_rounded, color: _blue, size: 18),
-          const SizedBox(width: 4),
-          Text(
-            _avaliacao.toStringAsFixed(1),
-            style: const TextStyle(
-              color: Color(0xFF1F1F1F),
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(width: 2),
-          Text(
-            '($_totalAvaliacoes)',
-            style: TextStyle(
-              color: Colors.grey.shade500,
-              fontSize: 12,
-              fontWeight: FontWeight.w400,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildVerifiedPill() {
-    return Container(
-      height: 30,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _blueBorder, width: 1),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: const [
-          Icon(Icons.verified, color: _blueBorder, size: 18),
-          SizedBox(width: 4),
-          Flexible(
-            child: Text(
-              'Perfil Verificado',
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: _blueBorder,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-              ),
             ),
           ),
         ],
@@ -507,16 +418,6 @@ class _TelaMeuPerfilProfissionalPageState
                 height: 1.0,
                 fontWeight: FontWeight.w400,
               ),
-            ),
-          ],
-          if (!widget.isVisitante) ...[
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(child: _buildRatingPill()),
-                const SizedBox(width: 8),
-                Expanded(child: _buildVerifiedPill()),
-              ],
             ),
           ],
         ],
