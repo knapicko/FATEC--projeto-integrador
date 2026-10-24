@@ -33,6 +33,7 @@ class ServicoProfissional {
   final String? imagemUrl;
   final bool ativo;
   final int fkProfissional;
+
   /// Grupo proprietário do serviço; nulo quando o serviço é individual.
   final int? fkGrupoEmpresa;
   final String tipoExecucao;
@@ -96,6 +97,8 @@ class ServicoBuscaPublico {
     required this.titulo,
     required this.preco,
     required this.categoria,
+    required this.servico,
+    required this.tipoExecucao,
     this.tagEmpresa,
     this.imagemUrl,
     required this.localizacao,
@@ -105,6 +108,8 @@ class ServicoBuscaPublico {
   final String titulo;
   final double preco;
   final String categoria;
+  final ServicoProfissional servico;
+  final String tipoExecucao;
   final String? tagEmpresa;
   final String? imagemUrl;
   final String localizacao;
