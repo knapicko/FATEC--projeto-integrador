@@ -263,7 +263,10 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     try {
       final infos = await _carregarInformacoesContas();
       _cacheInfosContas = infos;
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      debugPrint('Erro ao carregar dados para troca de conta: $e\n$stackTrace');
+      _cacheInfosContas = null;
+    }
   }
 
   Future<List<PostagemResumo>> _carregarPostagens() async {
@@ -1901,15 +1904,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     final supabase = Supabase.instance.client;
     final user = supabase.auth.currentUser;
     if (user == null) {
-      return {
-        'nome_profissional': 'Profissional CNPJ',
-        'foto_profissional': null,
-        'seguidores_profissional': 0,
-        'nome_empresa': 'Minha Empresa',
-        'foto_empresa': null,
-        'seguidores_empresa': 0,
-        'tem_empresa': false,
-      };
+      throw StateError('Usuário não autenticado.');
     }
 
     // 1. Dados do Usuário (Profissional CNPJ)
@@ -1919,7 +1914,10 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
         .eq('auth_id', user.id)
         .maybeSingle();
 
-    final nomeProf = usuario?['nome']?.toString() ?? 'Profissional CNPJ';
+    final nomeProf = usuario?['nome']?.toString().trim() ?? '';
+    if (nomeProf.isEmpty) {
+      throw StateError('Nome do profissional não encontrado no banco.');
+    }
     final fotoProf = usuario?['foto_perfil_url']?.toString();
     final usuarioId = (usuario?['id_usuario'] as num?)?.toInt();
 
@@ -1994,9 +1992,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
       'nome_profissional': nomeProf,
       'foto_profissional': fotoProf,
       'seguidores_profissional': segProf,
-      'nome_empresa': (nomeEmpresa != null && nomeEmpresa.isNotEmpty)
-          ? nomeEmpresa
-          : 'Minha Empresa',
+      'nome_empresa': nomeEmpresa ?? '',
       'foto_empresa': (fotoEmpresa != null && fotoEmpresa.isNotEmpty)
           ? fotoEmpresa
           : null,
@@ -2005,31 +2001,21 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     };
   }
 
-  // Placeholder usado só se o cache ainda não carregou (1º acesso bem
-  // no início). Como o cache é pré-carregado no initState, na prática o
-  // sheet sempre abre direto no conteúdo, sem spinner.
-  static const Map<String, dynamic> _infosContasPlaceholder = {
-    'nome_profissional': 'Profissional CNPJ',
-    'foto_profissional': null,
-    'seguidores_profissional': 0,
-    'nome_empresa': 'Minha Empresa',
-    'foto_empresa': null,
-    'seguidores_empresa': 0,
-    'tem_empresa': false,
-  };
-
   Future<void> _mostrarBottomSheetTrocaConta() async {
-    // Abre na hora com o cache; atualiza em 2º plano sem spinner.
-    final iniciais = _cacheInfosContas ?? _infosContasPlaceholder;
     if (_cacheInfosContas == null) {
-      _precarregarInfosContas().then((_) {
-        if (mounted && _cacheInfosContas != null) {
-          setState(() {});
-        }
-      });
+      await _precarregarInfosContas();
+      if (!mounted) return;
     } else {
-      // Atualiza silenciosamente para a próxima abertura.
       _precarregarInfosContas();
+    }
+    final infos = _cacheInfosContas;
+    if (infos == null || infos['tem_empresa'] != true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Nenhuma conta de empresa foi encontrada.'),
+        ),
+      );
+      return;
     }
 
     await showModalBottomSheet<void>(
@@ -2064,19 +2050,9 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                     ),
                     child: SafeArea(
                       top: false,
-                      // StatefulBuilder permite trocar o conteúdo quando o
-                      // cache terminar de carregar, sem fechar/reabrir.
                       child: StatefulBuilder(
-                        builder: (context, setSheetState) {
-                          if (_cacheInfosContas == null) {
-                            _precarregarInfosContas().then((_) {
-                              if (mounted) {
-                                setSheetState(() {});
-                              }
-                            });
-                          }
-                          final dados = _cacheInfosContas ?? iniciais;
-                          return _buildConteudoTrocaConta(sheetContext, dados);
+                        builder: (context, _) {
+                          return _buildConteudoTrocaConta(sheetContext, infos);
                         },
                       ),
                     ),
@@ -2180,7 +2156,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           ),
         ),
 
-        // Containers de Métricas (Seguidores na esquerda, Pedidos ativos na direita)
+        // Seguidores da conta ativa.
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
           child: Row(
@@ -2203,32 +2179,6 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                     '${_formatarSeguidores(segAtivo)} seguidores',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1E293B),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 12,
-                    horizontal: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: const Color(0xFFE2E8F0),
-                      width: 1.2,
-                    ),
-                  ),
-                  child: const Text(
-                    '0 pedidos ativos',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF1E293B),
