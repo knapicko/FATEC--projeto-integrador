@@ -11,13 +11,15 @@ class ServicosProfissionalService {
   static SupabaseClient get _supabase => Supabase.instance.client;
   static const String _bucketServicos = 'Imagens Servicos';
 
-  static Future<({
-    int idProfissional,
-    int? idGrupoEmpresa,
-    bool ehLoja,
-    bool ehMembroEmpresa,
-    bool ehDonoEmpresa,
-  })?>
+  static Future<
+    ({
+      int idProfissional,
+      int? idGrupoEmpresa,
+      bool ehLoja,
+      bool ehMembroEmpresa,
+      bool ehDonoEmpresa,
+    })?
+  >
   buscarContextoAssociacao() async {
     try {
       final user = _supabase.auth.currentUser;
@@ -54,13 +56,15 @@ class ServicosProfissionalService {
             .maybeSingle();
         idPerfilDono = (grupo?['fk_perfil'] as num?)?.toInt();
       }
-      final ehDonoEmpresa = idGrupoEmpresa != null &&
+      final ehDonoEmpresa =
+          idGrupoEmpresa != null &&
           idPerfil != null &&
           idPerfilDono == idPerfil;
       return (
         idProfissional: idProfissional,
         idGrupoEmpresa: idGrupoEmpresa,
-        ehLoja: perfil?['tipo_perfil']?.toString().trim().toLowerCase() == 'loja',
+        ehLoja:
+            perfil?['tipo_perfil']?.toString().trim().toLowerCase() == 'loja',
         ehMembroEmpresa: idGrupoEmpresa != null && !ehDonoEmpresa,
         ehDonoEmpresa: ehDonoEmpresa,
       );
@@ -394,7 +398,9 @@ class ServicosProfissionalService {
     }
   }
 
-  static Future<DetalheServicoPublico?> buscarDetalhePublico(int idServico) async {
+  static Future<DetalheServicoPublico?> buscarDetalhePublico(
+    int idServico,
+  ) async {
     try {
       final row = await _supabase
           .from('servicos_profissional')
@@ -435,7 +441,8 @@ class ServicosProfissionalService {
             .select('tipo_perfil')
             .eq('id_perfil', idPerfilProf)
             .maybeSingle();
-        tipoPerfil = perfil?['tipo_perfil']?.toString().trim().toLowerCase() ?? '';
+        tipoPerfil =
+            perfil?['tipo_perfil']?.toString().trim().toLowerCase() ?? '';
       }
 
       final ehLoja = tipoPerfil == 'loja' || idGrupo != null && grupo != null;
@@ -446,18 +453,21 @@ class ServicosProfissionalService {
       int? idUsuarioEndereco = idUsuarioProf;
 
       if (ehLoja && grupo != null) {
-        nomePrestador = grupo['nome_empresa']?.toString().trim().isNotEmpty == true
+        nomePrestador =
+            grupo['nome_empresa']?.toString().trim().isNotEmpty == true
             ? grupo['nome_empresa'].toString().trim()
             : 'Loja';
         fotoPrestador = grupo['foto_url_empresa']?.toString();
-        idPerfilPrestador = (grupo['fk_perfil'] as num?)?.toInt() ?? idPerfilProf;
+        idPerfilPrestador =
+            (grupo['fk_perfil'] as num?)?.toInt() ?? idPerfilProf;
         if (idPerfilPrestador != null) {
           final dono = await _supabase
               .from('dados_profissionais')
               .select('fk_usuario')
               .eq('fk_perfil', idPerfilPrestador)
               .maybeSingle();
-          idUsuarioEndereco = (dono?['fk_usuario'] as num?)?.toInt() ?? idUsuarioProf;
+          idUsuarioEndereco =
+              (dono?['fk_usuario'] as num?)?.toInt() ?? idUsuarioProf;
         }
       } else if (idUsuarioProf != null) {
         final usuario = await _supabase
@@ -486,7 +496,9 @@ class ServicosProfissionalService {
       );
 
       String? tagEmpresa = grupo?['tag_empresa']?.toString().trim();
-      if (tagEmpresa != null && tagEmpresa.isNotEmpty && !tagEmpresa.startsWith('#')) {
+      if (tagEmpresa != null &&
+          tagEmpresa.isNotEmpty &&
+          !tagEmpresa.startsWith('#')) {
         tagEmpresa = '#$tagEmpresa';
       }
 
@@ -495,7 +507,9 @@ class ServicosProfissionalService {
         nomePrestador: nomePrestador,
         fotoPrestador: fotoPrestador,
         ehLoja: ehLoja,
-        tagEmpresa: (tagEmpresa == null || tagEmpresa.isEmpty) ? null : tagEmpresa,
+        tagEmpresa: (tagEmpresa == null || tagEmpresa.isEmpty)
+            ? null
+            : tagEmpresa,
         corTagEmpresa: grupo?['cor_tag_empresa']?.toString(),
         idGrupoEmpresa: idGrupo,
         idProfissional: servico.fkProfissional,
@@ -513,7 +527,9 @@ class ServicosProfissionalService {
     }
   }
 
-  static Future<List<ServicoBuscaPublico>> buscarServicosPublicos(String termo) async {
+  static Future<List<ServicoBuscaPublico>> buscarServicosPublicos(
+    String termo,
+  ) async {
     try {
       final rows = await _supabase
           .from('servicos_profissional')
@@ -548,7 +564,8 @@ class ServicosProfissionalService {
         if (idGrupo != null) idsGrupo.add(idGrupo);
       }
       for (final servico in servicos) {
-        if (servico.fkGrupoEmpresa != null) idsGrupo.add(servico.fkGrupoEmpresa!);
+        if (servico.fkGrupoEmpresa != null)
+          idsGrupo.add(servico.fkGrupoEmpresa!);
       }
 
       final tipoPorPerfil = <int, String>{};
@@ -570,9 +587,7 @@ class ServicosProfissionalService {
       if (idsGrupo.isNotEmpty) {
         final grupos = await _supabase
             .from('grupo_empresa')
-            .select(
-              'id_grupo_empresa, nome_empresa, tag_empresa, fk_perfil',
-            )
+            .select('id_grupo_empresa, nome_empresa, tag_empresa, fk_perfil')
             .inFilter('id_grupo_empresa', idsGrupo.toList());
         for (final grupo in grupos) {
           final id = (grupo['id_grupo_empresa'] as num?)?.toInt();
@@ -648,7 +663,8 @@ class ServicosProfissionalService {
         final idGrupoProf = (dados?['fk_grupo_empresa'] as num?)?.toInt();
         final tipo = idPerfil == null ? '' : (tipoPorPerfil[idPerfil] ?? '');
         final ehLoja = tipo == 'loja' || servico.fkGrupoEmpresa != null;
-        final ehIndependente = tipo.contains('independente') || (!ehLoja && tipo.isEmpty);
+        final ehIndependente =
+            tipo.contains('independente') || (!ehLoja && tipo.isEmpty);
 
         // Se o profissional faz parte de alguma empresa/loja, seus serviços não devem aparecer individualmente
         if (!ehLoja && idGrupoProf != null) {
@@ -662,7 +678,9 @@ class ServicosProfissionalService {
 
         final idGrupoServico =
             servico.fkGrupoEmpresa ?? (ehLoja ? idGrupoProf : null);
-        final grupo = idGrupoServico != null ? gruposPorId[idGrupoServico] : null;
+        final grupo = idGrupoServico != null
+            ? gruposPorId[idGrupoServico]
+            : null;
         var tag = grupo?['tag_empresa']?.toString().trim();
         if (tag != null && tag.isNotEmpty && !tag.startsWith('#')) {
           tag = '#$tag';
@@ -693,6 +711,8 @@ class ServicosProfissionalService {
             titulo: servico.titulo,
             preco: servico.valor,
             categoria: categoria,
+            servico: servico,
+            tipoExecucao: servico.tipoExecucao,
             tagEmpresa: (tag == null || tag.isEmpty) ? null : tag,
             imagemUrl: servico.imagemUrl,
             localizacao: idUsuarioEndereco == null
@@ -705,7 +725,7 @@ class ServicosProfissionalService {
       return resultado;
     } catch (e) {
       debugPrint('❌ [ServicosSvc] buscarServicosPublicos ERROR: $e');
-      return [];
+      rethrow;
     }
   }
 
@@ -846,7 +866,11 @@ class ServicosProfissionalService {
         texto: partes.join(', '),
         resumo: bairro.isNotEmpty
             ? bairro
-            : (cidade.isNotEmpty ? cidade : (logradouro.isNotEmpty ? logradouro : 'Localização não informada')),
+            : (cidade.isNotEmpty
+                  ? cidade
+                  : (logradouro.isNotEmpty
+                        ? logradouro
+                        : 'Localização não informada')),
         lat: lat ?? -23.5505,
         lng: lng ?? -46.6333,
         temCoords: lat != null && lng != null,
@@ -864,7 +888,9 @@ class ServicosProfissionalService {
     try {
       final assList = await _supabase
           .from('ass_usuario_endereco')
-          .select('fk_endereco, apelido_endereco, tipo_endereco, endereco_ativo')
+          .select(
+            'fk_endereco, apelido_endereco, tipo_endereco, endereco_ativo',
+          )
           .eq('fk_usuario', idUsuario)
           .eq('endereco_ativo', true)
           .limit(1);
@@ -925,7 +951,11 @@ class ServicosProfissionalService {
         texto: partes.join(', '),
         resumo: bairro.isNotEmpty
             ? bairro
-            : (cidade.isNotEmpty ? cidade : (logradouro.isNotEmpty ? logradouro : 'Localização não informada')),
+            : (cidade.isNotEmpty
+                  ? cidade
+                  : (logradouro.isNotEmpty
+                        ? logradouro
+                        : 'Localização não informada')),
         lat: lat ?? -23.5505,
         lng: lng ?? -46.6333,
         temCoords: lat != null && lng != null,
@@ -979,47 +1009,50 @@ class ServicosProfissionalService {
       if (idProfissional == null) return [];
 
       final vinculos = await _supabase
-        .from('ass_oficio_profissional')
-        .select('fk_oficio')
-        .eq('fk_profissional', idProfissional);
+          .from('ass_oficio_profissional')
+          .select('fk_oficio')
+          .eq('fk_profissional', idProfissional);
       final ids = vinculos
-        .map((row) => (row['fk_oficio'] as num?)?.toInt())
-        .whereType<int>()
-        .toSet()
-        .toList();
+          .map((row) => (row['fk_oficio'] as num?)?.toInt())
+          .whereType<int>()
+          .toSet()
+          .toList();
       if (ids.isEmpty) return [];
 
-        // O profissional pode estar associado a um ofício específico, mas o
-        // seletor deve mostrar todas as funções da mesma categoria desse ofício.
-        final oficiosAssociados = await _supabase
+      // O profissional pode estar associado a um ofício específico, mas o
+      // seletor deve mostrar todas as funções da mesma categoria desse ofício.
+      final oficiosAssociados = await _supabase
           .from('oficios')
           .select('id_oficio, funcao, categoria, cod_cor')
           .inFilter('id_oficio', ids);
-        final categorias = oficiosAssociados
+      final categorias = oficiosAssociados
           .map((row) => row['categoria']?.toString().trim().toLowerCase())
           .whereType<String>()
           .where((categoria) => categoria.isNotEmpty)
           .toSet();
-        if (categorias.isEmpty) return [];
+      if (categorias.isEmpty) return [];
 
-        final todosOficios = await _supabase
+      final todosOficios = await _supabase
           .from('oficios')
           .select('id_oficio, funcao, categoria, cod_cor')
           .order('funcao', ascending: true);
 
-        return todosOficios.where((row) {
-        final categoria = row['categoria']?.toString().trim().toLowerCase();
-        return categoria != null && categorias.contains(categoria);
-        }).map((row) {
-        final id = (row['id_oficio'] as num?)?.toInt() ?? 0;
-        final categoria = row['categoria']?.toString().trim();
-        final funcao = row['funcao']?.toString().trim() ?? 'GERAL';
-        final cor = row['cod_cor']?.toString().trim() ?? '#1D2430';
-        debugPrint(
-          '✅ [ServicosSvc] Ofício associado: fk_oficio=$id, categoria=$categoria, funcao=$funcao',
-        );
-        return (id: id, funcao: funcao, cor: cor);
-      }).toList();
+      return todosOficios
+          .where((row) {
+            final categoria = row['categoria']?.toString().trim().toLowerCase();
+            return categoria != null && categorias.contains(categoria);
+          })
+          .map((row) {
+            final id = (row['id_oficio'] as num?)?.toInt() ?? 0;
+            final categoria = row['categoria']?.toString().trim();
+            final funcao = row['funcao']?.toString().trim() ?? 'GERAL';
+            final cor = row['cod_cor']?.toString().trim() ?? '#1D2430';
+            debugPrint(
+              '✅ [ServicosSvc] Ofício associado: fk_oficio=$id, categoria=$categoria, funcao=$funcao',
+            );
+            return (id: id, funcao: funcao, cor: cor);
+          })
+          .toList();
     } catch (e) {
       debugPrint('❌ [ServicosSvc] buscarFuncoesDoProfissional ERROR: $e');
       return [];
@@ -1078,19 +1111,23 @@ class ServicosProfissionalService {
           .select('id_oficio, funcao, categoria, cod_cor')
           .order('funcao', ascending: true);
 
-      return todosOficios.where((row) {
-        final categoria = row['categoria']?.toString().trim().toLowerCase();
-        return categoria != null && categorias.contains(categoria);
-      }).map((row) {
-        final id = (row['id_oficio'] as num?)?.toInt() ?? 0;
-        final categoria = row['categoria']?.toString().trim();
-        final funcao = row['funcao']?.toString().trim() ?? '';
-        final cor = row['cod_cor']?.toString().trim() ?? '#1D2430';
-        debugPrint(
-          '✅ [ServicosSvc] Ofício empresa: fk_oficio=$id, categoria=$categoria, funcao=$funcao',
-        );
-        return (id: id, funcao: funcao, cor: cor);
-      }).where((item) => item.funcao.isNotEmpty).toList();
+      return todosOficios
+          .where((row) {
+            final categoria = row['categoria']?.toString().trim().toLowerCase();
+            return categoria != null && categorias.contains(categoria);
+          })
+          .map((row) {
+            final id = (row['id_oficio'] as num?)?.toInt() ?? 0;
+            final categoria = row['categoria']?.toString().trim();
+            final funcao = row['funcao']?.toString().trim() ?? '';
+            final cor = row['cod_cor']?.toString().trim() ?? '#1D2430';
+            debugPrint(
+              '✅ [ServicosSvc] Ofício empresa: fk_oficio=$id, categoria=$categoria, funcao=$funcao',
+            );
+            return (id: id, funcao: funcao, cor: cor);
+          })
+          .where((item) => item.funcao.isNotEmpty)
+          .toList();
     } catch (e) {
       debugPrint('❌ [ServicosSvc] buscarFuncoesDaEmpresa ERROR: $e');
       return [];
