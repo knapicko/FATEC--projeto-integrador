@@ -26,7 +26,7 @@ class ServicoPopular {
   final String categoria;
   final String? funcao;
   final String? corOficio;
-  final double avaliacao;
+  final double? avaliacao;
   final int totalAvaliacoes;
   final double precoMedio;
   final String caminhoImagem;
@@ -71,7 +71,7 @@ class ServicoProximo {
 class LojaPopular {
   final int? idGrupoEmpresa;
   final String titulo;
-  final double avaliacao;
+  final double? avaliacao;
   final int totalAvaliacoes;
   final String distancia;
   final String tag1;
@@ -106,20 +106,20 @@ class LojaPopular {
     this.corTagEmpresaHex,
     this.oficios = const [],
     this.isVerified = false,
-    this.descricao = 'Especialistas em reparos e serviços',
+    this.descricao = '',
   });
 }
 
 class PerfilPopular {
   final String nome;
-  final double avaliacao;
+  final double? avaliacao;
   final int totalAvaliacoes;
   final String tag;
   final Color tagBgColor;
   final Color tagTextColor;
   final String caminhoImagem;
   final String profissao;
-  final String metrica;
+  final String? metrica;
   final bool isVerified;
   final List<OficioInfo> oficios;
   final String? tagEmpresa;
@@ -135,8 +135,8 @@ class PerfilPopular {
     required this.tagTextColor,
     required this.caminhoImagem,
     this.profissao = 'Eletricista Residencial',
-    this.metrica = '120+ serviços concluídos',
-    this.isVerified = true,
+    this.metrica,
+    this.isVerified = false,
     this.oficios = const [],
     this.tagEmpresa,
     this.tagEmpresaBgColor,
@@ -176,56 +176,18 @@ class _TelaHomeState extends State<TelaHome> {
 
   late Future<List<EnderecoHomeResumo>> _enderecosFuture;
   late Future<Map<String, dynamic>?> _dadosUsuarioFuture;
+  late Future<List<PerfilPopular>> _perfisDestaqueFuture;
 
   List<ServicoPopular> _servicosPopulares = [];
   bool _carregandoServicosPopulares = true;
 
   final List<ServicoProximo> listaServicosProximos = [];
 
-  final List<PerfilPopular> listaPerfis = [
-    PerfilPopular(
-      nome: 'Carlos Mendes',
-      avaliacao: 4.9,
-      totalAvaliacoes: 423,
-      tag: 'Eletricista',
-      tagBgColor: const Color(0xFFE1F5FE),
-      tagTextColor: _primaryBlue,
-      caminhoImagem: '',
-    ),
-    PerfilPopular(
-      nome: 'Carlos Mendes',
-      avaliacao: 4.9,
-      totalAvaliacoes: 423,
-      tag: 'Eletricista',
-      tagBgColor: const Color(0xFFE1F5FE),
-      tagTextColor: _primaryBlue,
-      caminhoImagem: '',
-    ),
-    PerfilPopular(
-      nome: 'Carlos Mendes',
-      avaliacao: 4.9,
-      totalAvaliacoes: 423,
-      tag: 'Eletricista',
-      tagBgColor: const Color(0xFFE1F5FE),
-      tagTextColor: _primaryBlue,
-      caminhoImagem: '',
-    ),
-    PerfilPopular(
-      nome: 'Nome não encontrado',
-      avaliacao: 4.9,
-      totalAvaliacoes: 423,
-      tag: 'Chaveiro',
-      tagBgColor: const Color(0xFFE1F5FE),
-      tagTextColor: _primaryBlue,
-      caminhoImagem: '',
-      profissao: 'Chaveiro',
-    ),
-  ];
-
   @override
   void initState() {
     super.initState();
     _enderecosFuture = _carregarEnderecosCliente();
+    _perfisDestaqueFuture = _buscarProfissionaisDestaque();
     _carregarServicosPopulares();
     if (!widget.isVisitante) {
       _dadosUsuarioFuture = _buscarDadosUsuario();
@@ -247,6 +209,11 @@ class _TelaHomeState extends State<TelaHome> {
   double _paraDouble(dynamic valor, [double padrao = 0]) {
     if (valor is num) return valor.toDouble();
     return double.tryParse(valor?.toString() ?? '') ?? padrao;
+  }
+
+  double? _mediaNotas(List<int>? notas) {
+    if (notas == null || notas.isEmpty) return null;
+    return notas.reduce((total, nota) => total + nota) / notas.length;
   }
 
   /// Carrega TODOS os servicos ativos de `servicos_profissional`.
@@ -272,11 +239,48 @@ class _TelaHomeState extends State<TelaHome> {
 
       final idsGrupo = <int>{};
       final idsProf = <int>{};
+      final idsServicos = <int>{};
       for (final r in rows) {
         final g = (r['fk_grupo_empresa'] as num?)?.toInt();
         final p = (r['fk_profissional'] as num?)?.toInt();
+        final s = (r['id_servico_prof'] as num?)?.toInt();
         if (g != null) idsGrupo.add(g);
         if (p != null) idsProf.add(p);
+        if (s != null) idsServicos.add(s);
+      }
+      final avaliacoesPorServico = <int, List<int>>{};
+      if (idsServicos.isNotEmpty) {
+        final solicitacoes = await supabase
+            .from('solicitacoes')
+            .select('id_solicitacao, fk_servico_prof')
+            .inFilter('fk_servico_prof', idsServicos.toList());
+        final servicoPorSolicitacao = <int, int>{};
+        for (final solicitacao in solicitacoes) {
+          final idSolicitacao = (solicitacao['id_solicitacao'] as num?)
+              ?.toInt();
+          final idServico = (solicitacao['fk_servico_prof'] as num?)?.toInt();
+          if (idSolicitacao != null && idServico != null) {
+            servicoPorSolicitacao[idSolicitacao] = idServico;
+          }
+        }
+        if (servicoPorSolicitacao.isNotEmpty) {
+          final avaliacoes = await supabase
+              .from('avaliacoes_solicitacao')
+              .select('fk_solicitacao, nota')
+              .eq('tipo_avaliacao', 'servico')
+              .inFilter('fk_solicitacao', servicoPorSolicitacao.keys.toList());
+          for (final avaliacao in avaliacoes) {
+            final idSolicitacao = (avaliacao['fk_solicitacao'] as num?)
+                ?.toInt();
+            final nota = (avaliacao['nota'] as num?)?.toInt();
+            final idServico = idSolicitacao == null
+                ? null
+                : servicoPorSolicitacao[idSolicitacao];
+            if (idServico != null && nota != null) {
+              avaliacoesPorServico.putIfAbsent(idServico, () => []).add(nota);
+            }
+          }
+        }
       }
 
       final Map<int, Map<String, dynamic>> grupos = {};
@@ -451,8 +455,8 @@ class _TelaHomeState extends State<TelaHome> {
             categoria: categoriaExibicao,
             funcao: funcao.isNotEmpty ? funcao : null,
             corOficio: corOficio?.isNotEmpty == true ? corOficio : null,
-            avaliacao: 0.0,
-            totalAvaliacoes: 0,
+            avaliacao: _mediaNotas(avaliacoesPorServico[id]),
+            totalAvaliacoes: avaliacoesPorServico[id]?.length ?? 0,
             precoMedio: _paraDouble(r['valor'], 0),
             caminhoImagem: 'assets/images/panela.png',
             imagemUrl: imagemUrl != null && imagemUrl.isNotEmpty
@@ -798,13 +802,59 @@ class _TelaHomeState extends State<TelaHome> {
       // 1. Busca todos os profissionais cadastrados (com dados do usuário)
       final dadosProfissionais = await supabase
           .from('dados_profissionais')
-          .select('id_profissional, fk_usuario, fk_grupo_empresa, fk_perfil');
+          .select(
+            'id_profissional, fk_usuario, fk_grupo_empresa, fk_perfil, verificar_autenticacao',
+          );
 
       final perfis = <PerfilPopular>[];
+      final idsProfissionais = dadosProfissionais
+          .map((dados) => (dados['id_profissional'] as num?)?.toInt())
+          .whereType<int>()
+          .toList();
+      final avaliacoesPorProfissional = <int, List<int>>{};
+      if (idsProfissionais.isNotEmpty) {
+        final solicitacoes = await supabase
+            .from('solicitacoes')
+            .select('id_solicitacao, fk_profissional')
+            .inFilter('fk_profissional', idsProfissionais);
+        final profissionalPorSolicitacao = <int, int>{};
+        for (final solicitacao in solicitacoes) {
+          final idSolicitacao = (solicitacao['id_solicitacao'] as num?)
+              ?.toInt();
+          final idProfissional = (solicitacao['fk_profissional'] as num?)
+              ?.toInt();
+          if (idSolicitacao != null && idProfissional != null) {
+            profissionalPorSolicitacao[idSolicitacao] = idProfissional;
+          }
+        }
+        if (profissionalPorSolicitacao.isNotEmpty) {
+          final avaliacoes = await supabase
+              .from('avaliacoes_solicitacao')
+              .select('fk_solicitacao, nota')
+              .eq('tipo_avaliacao', 'profissional')
+              .inFilter(
+                'fk_solicitacao',
+                profissionalPorSolicitacao.keys.toList(),
+              );
+          for (final avaliacao in avaliacoes) {
+            final idSolicitacao = (avaliacao['fk_solicitacao'] as num?)
+                ?.toInt();
+            final nota = (avaliacao['nota'] as num?)?.toInt();
+            final idProfissional = idSolicitacao == null
+                ? null
+                : profissionalPorSolicitacao[idSolicitacao];
+            if (idProfissional != null && nota != null) {
+              avaliacoesPorProfissional
+                  .putIfAbsent(idProfissional, () => [])
+                  .add(nota);
+            }
+          }
+        }
+      }
 
       for (final dados in dadosProfissionais) {
-        final idProfissional = dados['id_profissional'];
-        final fkUsuario = dados['fk_usuario'];
+        final idProfissional = (dados['id_profissional'] as num?)?.toInt();
+        final fkUsuario = (dados['fk_usuario'] as num?)?.toInt();
 
         if (idProfissional == null || fkUsuario == null) continue;
 
@@ -817,8 +867,8 @@ class _TelaHomeState extends State<TelaHome> {
 
         if (usuarioResponse == null) continue;
 
-        final nome =
-            usuarioResponse['nome']?.toString() ?? 'Nome não encontrado';
+        final nome = usuarioResponse['nome']?.toString().trim() ?? '';
+        if (nome.isEmpty) continue;
         final fotoUrl = usuarioResponse['foto_perfil_url']?.toString() ?? '';
 
         final idGrupoEmpresa = (dados['fk_grupo_empresa'] as num?)?.toInt();
@@ -859,8 +909,9 @@ class _TelaHomeState extends State<TelaHome> {
         perfis.add(
           PerfilPopular(
             nome: nome,
-            avaliacao: 4.9,
-            totalAvaliacoes: 120,
+            avaliacao: _mediaNotas(avaliacoesPorProfissional[idProfissional]),
+            totalAvaliacoes:
+                avaliacoesPorProfissional[idProfissional]?.length ?? 0,
             tag: oficios.isNotEmpty ? oficios.first.funcao : 'Profissional',
             tagBgColor: const Color(0xFFE1F5FE),
             tagTextColor: _primaryBlue,
@@ -869,6 +920,11 @@ class _TelaHomeState extends State<TelaHome> {
                 ? oficios.first.funcao
                 : 'Profissional',
             oficios: oficios,
+            isVerified: dados['verificar_autenticacao'] == true,
+            metrica:
+                avaliacoesPorProfissional[idProfissional]?.isNotEmpty == true
+                ? '${avaliacoesPorProfissional[idProfissional]!.length} avaliações'
+                : null,
             tagEmpresa: tagEmpresaRaw.isEmpty
                 ? null
                 : (tagEmpresaRaw.startsWith('#')
@@ -884,6 +940,7 @@ class _TelaHomeState extends State<TelaHome> {
 
       return perfis;
     } catch (e) {
+      debugPrint('Erro ao buscar profissionais em destaque: $e');
       return [];
     }
   }
@@ -896,7 +953,7 @@ class _TelaHomeState extends State<TelaHome> {
       final empresasData = await supabase
           .from('grupo_empresa')
           .select(
-            'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, descricao_empresa',
+            'id_grupo_empresa, fk_perfil, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, descricao_empresa',
           );
 
       final List<LojaPopular> lista = [];
@@ -913,6 +970,7 @@ class _TelaHomeState extends State<TelaHome> {
             empresa['banner_url_empresa']?.toString().trim() ?? '';
         final descricaoDb =
             empresa['descricao_empresa']?.toString().trim() ?? '';
+        if (nome == null || nome.isEmpty) continue;
 
         // Ofícios DA LOJA (empresa/grupo_empresa) via ass_oficio_grupo_empresa
         // — não herda os ofícios do profissional dono do CNPJ.
@@ -952,24 +1010,66 @@ class _TelaHomeState extends State<TelaHome> {
         final corBase = CorOficio.parse(corHex);
         final tagEmpresaFormatada = (tag != null && tag.isNotEmpty)
             ? (tag.startsWith('#') ? tag : '#$tag')
-            : '#EMPRESA';
+            : null;
 
         final descricaoFinal = descricaoDb.isNotEmpty
             ? descricaoDb
-            : (oficiosLoja.take(3).map((o) => o.funcao).join(' • ').isNotEmpty
-                  ? oficiosLoja.take(3).map((o) => o.funcao).join(' • ')
-                  : 'Especialistas em reparos e serviços');
+            : oficiosLoja.take(3).map((o) => o.funcao).join(' • ');
+
+        final profissionaisLoja = await supabase
+            .from('dados_profissionais')
+            .select('id_profissional')
+            .eq('fk_grupo_empresa', idGrupo);
+        final idsProfissionaisLoja = profissionaisLoja
+            .map((row) => (row['id_profissional'] as num?)?.toInt())
+            .whereType<int>()
+            .toSet();
+        final idPerfilEmpresa = (empresa['fk_perfil'] as num?)?.toInt();
+        final donoEmpresa = idPerfilEmpresa == null
+            ? null
+            : await supabase
+                  .from('dados_profissionais')
+                  .select('id_profissional, verificar_autenticacao')
+                  .eq('fk_perfil', idPerfilEmpresa)
+                  .maybeSingle();
+        final idProfissionalDono = (donoEmpresa?['id_profissional'] as num?)
+            ?.toInt();
+        if (idProfissionalDono != null) {
+          idsProfissionaisLoja.add(idProfissionalDono);
+        }
+
+        final avaliacoesLoja = <int>[];
+        if (idsProfissionaisLoja.isNotEmpty) {
+          final solicitacoesLoja = await supabase
+              .from('solicitacoes')
+              .select('id_solicitacao')
+              .inFilter('fk_profissional', idsProfissionaisLoja.toList());
+          final idsSolicitacoes = solicitacoesLoja
+              .map((row) => (row['id_solicitacao'] as num?)?.toInt())
+              .whereType<int>()
+              .toList();
+          if (idsSolicitacoes.isNotEmpty) {
+            final avaliacoes = await supabase
+                .from('avaliacoes_solicitacao')
+                .select('nota')
+                .eq('tipo_avaliacao', 'profissional')
+                .inFilter('fk_solicitacao', idsSolicitacoes);
+            avaliacoesLoja.addAll(
+              avaliacoes
+                  .map((row) => (row['nota'] as num?)?.toInt())
+                  .whereType<int>(),
+            );
+          }
+        }
 
         lista.add(
           LojaPopular(
             idGrupoEmpresa: idGrupo,
-            titulo: (nome != null && nome.isNotEmpty)
-                ? nome
-                : 'Empresa Parceira',
-            avaliacao: 4.9,
-            totalAvaliacoes: 923,
-            distancia: '1.2 km',
-            tag1: tagEmpresaFormatada,
+            titulo: nome,
+            avaliacao: _mediaNotas(avaliacoesLoja),
+            totalAvaliacoes: avaliacoesLoja.length,
+            distancia: '',
+            tag1: tagEmpresaFormatada ?? '',
             tag2: oficiosLoja.isNotEmpty
                 ? oficiosLoja.first.funcao
                 : 'Serviços',
@@ -982,7 +1082,7 @@ class _TelaHomeState extends State<TelaHome> {
             tagEmpresa: tagEmpresaFormatada,
             corTagEmpresaHex: corHex,
             oficios: oficiosLoja,
-            isVerified: true,
+            isVerified: donoEmpresa?['verificar_autenticacao'] == true,
             descricao: descricaoFinal,
           ),
         );
@@ -1076,7 +1176,8 @@ class _TelaHomeState extends State<TelaHome> {
     );
   }
 
-  Widget _buildRatingBadge(double avaliacao) {
+  Widget _buildRatingBadge(double? avaliacao) {
+    if (avaliacao == null) return const SizedBox.shrink();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
@@ -1088,7 +1189,7 @@ class _TelaHomeState extends State<TelaHome> {
         children: [
           const Icon(Icons.star, color: _ratingText, size: 12),
           Text(
-            ' $avaliacao',
+            ' ${avaliacao.toStringAsFixed(1)}',
             style: const TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.bold,
@@ -1658,27 +1759,39 @@ class _TelaHomeState extends State<TelaHome> {
 
               SizedBox(height: alturaDaTela * 0.03),
 
-              // Profissionais Perto de Você
-              _buildSectionHeader(
-                titulo: 'Profissionais Perto de Você',
-                tituloColor: _primaryBlue,
-                mostrarRadar: true,
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 110,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  itemCount: listaPerfis.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 12),
-                  itemBuilder: (context, index) {
-                    return _buildCardProfissional(
-                      listaPerfis[index],
-                      largura: larguraDaTela * 0.78,
-                    );
-                  },
-                ),
+              FutureBuilder<List<PerfilPopular>>(
+                future: _perfisDestaqueFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const SkeletonProfileCard();
+                  }
+                  final perfis = snapshot.data ?? <PerfilPopular>[];
+                  if (perfis.isEmpty) return const SizedBox.shrink();
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionHeader(
+                        titulo: 'Profissionais cadastrados',
+                        tituloColor: _primaryBlue,
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 110,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          physics: const BouncingScrollPhysics(),
+                          itemCount: perfis.length,
+                          separatorBuilder: (_, _) => const SizedBox(width: 12),
+                          itemBuilder: (context, index) =>
+                              _buildCardProfissional(
+                                perfis[index],
+                                largura: larguraDaTela * 0.78,
+                              ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
 
               SizedBox(height: alturaDaTela * 0.03),
@@ -2048,14 +2161,15 @@ class _TelaHomeState extends State<TelaHome> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 6),
-                Text(
-                  perfil.metrica,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: _primaryBlue,
+                if (perfil.metrica != null)
+                  Text(
+                    perfil.metrica!,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _primaryBlue,
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -2182,14 +2296,15 @@ class _TelaHomeState extends State<TelaHome> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 const SizedBox(height: 6),
-                Text(
-                  perfil.metrica,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: _primaryBlue,
+                if (perfil.metrica != null)
+                  Text(
+                    perfil.metrica!,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _primaryBlue,
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -2460,11 +2575,12 @@ class _TelaHomeState extends State<TelaHome> {
                 cor: servico.corOficio,
                 height: 100,
               ),
-              Positioned(
-                top: 6,
-                right: 6,
-                child: _buildRatingBadge(servico.avaliacao),
-              ),
+              if (servico.avaliacao != null)
+                Positioned(
+                  top: 6,
+                  right: 6,
+                  child: _buildRatingBadge(servico.avaliacao),
+                ),
             ],
           ),
           Padding(
