@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'widgets/skeleton_loading.dart';
 import 'meus_pedidos.dart';
 import 'perfil_profissional.dart';
@@ -20,8 +21,9 @@ enum _AbaResultado { todos, servicos, profissionais }
 
 class _ServicoBusca {
   final int? id;
+  final ServicoProfissional servicoOriginal;
   final String titulo;
-  final String codigoTag;
+  final String? codigoTag;
   final String categoriaTag;
   final String logistica;
   final double preco;
@@ -31,6 +33,7 @@ class _ServicoBusca {
 
   const _ServicoBusca({
     this.id,
+    required this.servicoOriginal,
     required this.titulo,
     required this.codigoTag,
     required this.categoriaTag,
@@ -44,7 +47,7 @@ class _ServicoBusca {
 
 class _ProfissionalBusca {
   final String nome;
-  final double avaliacao;
+  final double? avaliacao;
   final String tag1;
   final String? tag2;
   final List<OficioInfo> oficios;
@@ -55,6 +58,9 @@ class _ProfissionalBusca {
   final bool verificado;
   final bool isLoja;
   final int? idGrupoEmpresa;
+  final int? idProfissional;
+  final int totalAvaliacoes;
+  final int seguidores;
   final String? tagEmpresa;
   final Color? tagEmpresaBgColor;
   final Color? tagEmpresaTextColor;
@@ -70,30 +76,15 @@ class _ProfissionalBusca {
     required this.localizacao,
     required this.distancia,
     this.caminhoImagem,
-    this.verificado = true,
+    this.verificado = false,
     this.isLoja = false,
     this.idGrupoEmpresa,
+    this.idProfissional,
+    this.totalAvaliacoes = 0,
+    this.seguidores = 0,
     this.tagEmpresa,
     this.tagEmpresaBgColor,
     this.tagEmpresaTextColor,
-    required this.termosBusca,
-  });
-}
-
-class _PerfilVerificado {
-  final String nome;
-  final String codigoTag;
-  final String categoriaTag;
-  final int seguidores;
-  final String caminhoImagem;
-  final List<String> termosBusca;
-
-  const _PerfilVerificado({
-    required this.nome,
-    required this.codigoTag,
-    required this.categoriaTag,
-    required this.seguidores,
-    required this.caminhoImagem,
     required this.termosBusca,
   });
 }
@@ -126,197 +117,14 @@ class _TelaBuscaState extends State<TelaBusca> {
   List<_ProfissionalBusca> _empresasSupabase = [];
   List<_ServicoBusca> _servicosSupabase = [];
   bool _carregandoProfissionais = false;
-  bool _erroNaBusca = false;
-
-  static const List<String> _categoriasIniciais = [
-    'Costura',
-    'Chaveiro',
-    'Tapeçaria',
-    'Soldagem',
-    'Panelas',
-    'Vidraçaria',
-    'Serralheria',
-    'Sapataria',
-  ];
-
-  static const List<String> _categoriasExtras = [
-    'Eletricista',
-    'Encanador',
-    'Pintura',
-    'Limpeza',
-    'Marcenaria',
-    'Informática',
-    'Jardinagem',
-    'Refrigeração',
-  ];
-
-  static const List<_ServicoBusca> _todosServicos = [
-    _ServicoBusca(
-      titulo: 'Conserto de cabo de panela',
-      codigoTag: '#CAEDS',
-      categoriaTag: 'Panelas',
-      logistica: 'Entregue em até 5 dias - Retirada',
-      preco: 18.99,
-      localizacao: 'Estrada das Lágrima',
-      caminhoImagem: '',
-      termosBusca: [
-        'conserto',
-        'cabo',
-        'panela',
-        'panelas',
-        'caeds',
-        'elétrica',
-        'eletrica',
-      ],
-    ),
-    _ServicoBusca(
-      titulo: 'Solda em panela de pressão',
-      codigoTag: '#SOLDAMAX',
-      categoriaTag: 'Pressão',
-      logistica: 'Entregue em até 3 dias - Leva e Traz',
-      preco: 45.00,
-      localizacao: 'Vila Mariana',
-      caminhoImagem: '',
-      termosBusca: [
-        'solda',
-        'panela',
-        'pressão',
-        'pressao',
-        'soldamax',
-        'panelas',
-      ],
-    ),
-    _ServicoBusca(
-      titulo: 'Polimento e troca de cabo',
-      codigoTag: '#POLMAX',
-      categoriaTag: 'Panelas',
-      logistica: 'Pronto em 24h - Leva e Traz',
-      preco: 25.50,
-      localizacao: 'Ipiranga',
-      caminhoImagem: '',
-      termosBusca: [
-        'polimento',
-        'cabo',
-        'troca',
-        'panela',
-        'panelas',
-        'utensílios',
-        'utensilios',
-      ],
-    ),
-  ];
-
-  static const List<_ProfissionalBusca> _todosProfissionais = [
-    _ProfissionalBusca(
-      nome: 'João Silva',
-      avaliacao: 4.9,
-      tag1: 'Eletricista',
-      tag2: 'Panelas',
-      descricao:
-          'Especialista em conserto de panelas elétricas e cabos em geral. Atendimento rápido e garantia.',
-      localizacao: 'Vila Mariana',
-      distancia: '2.5km',
-      caminhoImagem: '',
-      termosBusca: [
-        'joão',
-        'joao',
-        'silva',
-        'eletricista',
-        'panela',
-        'panelas',
-        'cabo',
-        'conserto',
-      ],
-    ),
-    _ProfissionalBusca(
-      nome: 'Maria Oliveira',
-      avaliacao: 4.7,
-      tag1: 'Utensílios',
-      descricao:
-          'Profissional experiente em restauração e conserto de utensílios domésticos e panelas.',
-      localizacao: 'Moema',
-      distancia: '4.1km',
-      caminhoImagem: '',
-      termosBusca: [
-        'maria',
-        'oliveira',
-        'utensílios',
-        'utensilios',
-        'panela',
-        'panelas',
-        'cabo',
-        'conserto',
-      ],
-    ),
-    _ProfissionalBusca(
-      nome: 'Conserta Tudo Express',
-      avaliacao: 4.5,
-      tag1: 'Assistência Técnica',
-      descricao:
-          'Assistência técnica completa para eletrodomésticos e utensílios. Retirada e entrega.',
-      localizacao: 'Sacomã',
-      distancia: '5.0km',
-      isLoja: true,
-      termosBusca: [
-        'conserta',
-        'assistência',
-        'assistencia',
-        'técnica',
-        'tecnica',
-        'panela',
-        'panelas',
-        'cabo',
-        'conserto',
-      ],
-    ),
-  ];
-
-  static const List<_PerfilVerificado> _perfisVerificados = [
-    _PerfilVerificado(
-      nome: 'Mundo das Louças',
-      codigoTag: '#MUNLO',
-      categoriaTag: 'Panelas',
-      seguidores: 324,
-      caminhoImagem: 'assets/images/loja_mundo_loucas.png',
-      termosBusca: [
-        'mundo',
-        'louças',
-        'loucas',
-        'panela',
-        'panelas',
-        'cabo',
-        'conserto',
-      ],
-    ),
-    _PerfilVerificado(
-      nome: 'Caedss - Estrada das Lágrimas',
-      codigoTag: '#CAEDS',
-      categoriaTag: 'Panelas',
-      seguidores: 923,
-      caminhoImagem: 'assets/images/loja_caedss.png',
-      termosBusca: [
-        'caedss',
-        'panela',
-        'panelas',
-        'cabo',
-        'conserto',
-        'lágrimas',
-        'lagrimas',
-      ],
-    ),
-    _PerfilVerificado(
-      nome: 'Chaveiro - Ipiranga',
-      codigoTag: '#CHAVE',
-      categoriaTag: 'Chaveiro',
-      seguidores: 252,
-      caminhoImagem: 'assets/images/loja_chaveiro.png',
-      termosBusca: ['chaveiro', 'ipiranga', 'chave'],
-    ),
-  ];
+  String? _erroNaBusca;
+  List<String> _categorias = [];
+  bool _carregandoCategorias = true;
 
   @override
   void initState() {
     super.initState();
+    _carregarCategorias();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusBusca.requestFocus();
     });
@@ -329,9 +137,33 @@ class _TelaBuscaState extends State<TelaBusca> {
     super.dispose();
   }
 
-  List<String> get _categoriasVisiveis => _mostrarMaisCategorias
-      ? [..._categoriasIniciais, ..._categoriasExtras]
-      : _categoriasIniciais;
+  List<String> get _categoriasVisiveis =>
+      _mostrarMaisCategorias ? _categorias : _categorias.take(8).toList();
+
+  Future<void> _carregarCategorias() async {
+    try {
+      final rows = await Supabase.instance.client
+          .from('oficios')
+          .select('categoria')
+          .order('categoria');
+      final categorias =
+          rows
+              .map((row) => row['categoria']?.toString().trim() ?? '')
+              .where((categoria) => categoria.isNotEmpty)
+              .toSet()
+              .toList()
+            ..sort();
+      if (!mounted) return;
+      setState(() {
+        _categorias = categorias;
+        _carregandoCategorias = false;
+      });
+    } catch (e, stackTrace) {
+      debugPrint('Erro ao carregar categorias da busca: $e\n$stackTrace');
+      if (!mounted) return;
+      setState(() => _carregandoCategorias = false);
+    }
+  }
 
   bool _correspondeBusca(List<String> termos, String termo) {
     if (termo.trim().isEmpty) return true;
@@ -383,7 +215,7 @@ class _TelaBuscaState extends State<TelaBusca> {
   Future<void> _buscarProfissionaisNoSupabase(String termo) async {
     setState(() {
       _carregandoProfissionais = true;
-      _erroNaBusca = false;
+      _erroNaBusca = null;
     });
 
     try {
@@ -392,7 +224,7 @@ class _TelaBuscaState extends State<TelaBusca> {
       final empresasData = await supabase
           .from('grupo_empresa')
           .select(
-            'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, fk_perfil',
+            'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, fk_perfil, seguidores_empresa, descricao_empresa',
           );
       final empresasPorId = <int, Map<String, dynamic>>{};
       final empresasPorPerfil = <int, Map<String, dynamic>>{};
@@ -416,10 +248,16 @@ class _TelaBuscaState extends State<TelaBusca> {
           .ilike('nome', '%$termo%');
 
       // 2) Busca ofícios (profissão) equivalentes ao termo
-      final oficiosEncontrados = await supabase
+      final todosOficios = await supabase
           .from('oficios')
-          .select('id_oficio, funcao, cor')
-          .ilike('funcao', '%$termo%');
+          .select('id_oficio, funcao, categoria, cor')
+          .order('funcao');
+      final oficiosEncontrados = todosOficios.where((oficio) {
+        return _correspondeBusca([
+          oficio['funcao']?.toString() ?? '',
+          oficio['categoria']?.toString() ?? '',
+        ], termo);
+      }).toList();
 
       // Mapa de id_oficio -> funcao
       final oficiosPorId = <int, String>{
@@ -447,6 +285,15 @@ class _TelaBuscaState extends State<TelaBusca> {
             oficiosPorProfissional.putIfAbsent(idProf, () => []).add(idOf);
           }
         }
+
+        final associacoesEmpresas = await supabase
+            .from('ass_oficio_grupo_empresa')
+            .select('fk_grupo_empresa')
+            .inFilter('fk_oficio', idsOficios);
+        for (final associacao in associacoesEmpresas) {
+          final idGrupo = (associacao['fk_grupo_empresa'] as num?)?.toInt();
+          if (idGrupo != null) gruposPorOficio.add(idGrupo);
+        }
       }
 
       // 4) Busca ids_profissional por fk_usuario (para todos os usuários encontrados)
@@ -464,7 +311,9 @@ class _TelaBuscaState extends State<TelaBusca> {
       if (oficiosPorProfissional.isNotEmpty) {
         final dadosProfPorOficio = await supabase
             .from('dados_profissionais')
-            .select('id_profissional, fk_usuario, fk_grupo_empresa, fk_perfil')
+            .select(
+              'id_profissional, fk_usuario, fk_grupo_empresa, fk_perfil, verificar_autenticacao',
+            )
             .inFilter('id_profissional', oficiosPorProfissional.keys.toList());
 
         for (final dp in dadosProfPorOficio) {
@@ -488,7 +337,9 @@ class _TelaBuscaState extends State<TelaBusca> {
       if (idsUsuariosRelevantes.isNotEmpty) {
         final dadosProfissionais = await supabase
             .from('dados_profissionais')
-            .select('id_profissional, fk_usuario, fk_grupo_empresa, fk_perfil')
+            .select(
+              'id_profissional, fk_usuario, fk_grupo_empresa, fk_perfil, verificar_autenticacao',
+            )
             .inFilter('fk_usuario', idsUsuariosRelevantes.toList());
 
         for (final dp in dadosProfissionais) {
@@ -523,76 +374,88 @@ class _TelaBuscaState extends State<TelaBusca> {
 
         final List<OficioInfo> oficiosEmpresa = [];
         if (idGrupo != null) {
-          try {
-            final Set<int> idsProfissional = <int>{};
-            if (fkPerfil != null) {
-              final dono = await supabase
-                  .from('dados_profissionais')
-                  .select('id_profissional')
-                  .eq('fk_perfil', fkPerfil)
-                  .maybeSingle();
-              final idProfDono = (dono?['id_profissional'] as num?)?.toInt();
-              if (idProfDono != null) idsProfissional.add(idProfDono);
-            }
-
-            final membros = await supabase
+          final Set<int> idsProfissional = <int>{};
+          if (fkPerfil != null) {
+            final dono = await supabase
                 .from('dados_profissionais')
                 .select('id_profissional')
-                .eq('fk_grupo_empresa', idGrupo);
+                .eq('fk_perfil', fkPerfil)
+                .maybeSingle();
+            final idProfDono = (dono?['id_profissional'] as num?)?.toInt();
+            if (idProfDono != null) idsProfissional.add(idProfDono);
+          }
 
-            for (final m in membros) {
-              final idProf = (m['id_profissional'] as num?)?.toInt();
-              if (idProf != null) idsProfissional.add(idProf);
-            }
+          final membros = await supabase
+              .from('dados_profissionais')
+              .select('id_profissional')
+              .eq('fk_grupo_empresa', idGrupo);
+          for (final membro in membros) {
+            final idProf = (membro['id_profissional'] as num?)?.toInt();
+            if (idProf != null) idsProfissional.add(idProf);
+          }
 
-            if (idsProfissional.isNotEmpty) {
-              final ass = await supabase
-                  .from('ass_oficio_profissional')
-                  .select('fk_oficio')
-                  .inFilter('fk_profissional', idsProfissional.toList());
+          final idsOficiosEmpresa = <int>{};
+          if (idsProfissional.isNotEmpty) {
+            final associacoesProfissionais = await supabase
+                .from('ass_oficio_profissional')
+                .select('fk_oficio')
+                .inFilter('fk_profissional', idsProfissional.toList());
+            idsOficiosEmpresa.addAll(
+              associacoesProfissionais
+                  .map((row) => (row['fk_oficio'] as num?)?.toInt())
+                  .whereType<int>(),
+            );
+          }
+          final associacoesEmpresa = await supabase
+              .from('ass_oficio_grupo_empresa')
+              .select('fk_oficio')
+              .eq('fk_grupo_empresa', idGrupo);
+          idsOficiosEmpresa.addAll(
+            associacoesEmpresa
+                .map((row) => (row['fk_oficio'] as num?)?.toInt())
+                .whereType<int>(),
+          );
 
-              final idsOficios = ass
-                  .map((e) => e['fk_oficio'])
-                  .whereType<num>()
-                  .map((e) => e.toInt())
-                  .toSet()
-                  .toList();
-
-              if (idsOficios.isNotEmpty) {
-                final oficiosData = await supabase
-                    .from('oficios')
-                    .select('funcao, cor')
-                    .inFilter('id_oficio', idsOficios);
-
-                final funcoesVistas = <String>{};
-                for (final row in oficiosData) {
-                  final info = OficioInfo.fromMap(row);
-                  final chave = info.funcao.trim().toLowerCase();
-                  if (info.funcao.trim().isNotEmpty &&
-                      !funcoesVistas.contains(chave)) {
-                    funcoesVistas.add(chave);
-                    oficiosEmpresa.add(info);
-                  }
-                }
+          if (idsOficiosEmpresa.isNotEmpty) {
+            final oficiosData = await supabase
+                .from('oficios')
+                .select('funcao, cor')
+                .inFilter('id_oficio', idsOficiosEmpresa.toList());
+            final funcoesVistas = <String>{};
+            for (final row in oficiosData) {
+              final info = OficioInfo.fromMap(row);
+              if (info.funcao.trim().isNotEmpty &&
+                  funcoesVistas.add(info.funcao.trim().toLowerCase())) {
+                oficiosEmpresa.add(info);
               }
             }
-          } catch (_) {}
+          }
         }
 
+        final descricaoBanco =
+            empresa['descricao_empresa']?.toString().trim() ?? '';
+        final profissionalDono = fkPerfil == null
+            ? null
+            : await supabase
+                  .from('dados_profissionais')
+                  .select('verificar_autenticacao')
+                  .eq('fk_perfil', fkPerfil)
+                  .maybeSingle();
         empresasEncontradas.add(
           _ProfissionalBusca(
-            nome: nome.isEmpty ? 'Empresa Parceira' : nome,
-            avaliacao: 4.9,
+            nome: nome,
+            avaliacao: null,
             tag1: 'Empresa',
-            descricao: oficiosEmpresa.isNotEmpty
-                ? 'Especialistas em ${oficiosEmpresa.map((o) => o.funcao).join(', ')}'
-                : 'Empresa parceira na plataforma ConsertaJa.',
-            localizacao: 'Localizacao nao informada',
+            descricao: descricaoBanco.isNotEmpty
+                ? descricaoBanco
+                : oficiosEmpresa.map((o) => o.funcao).join(', '),
+            localizacao: 'Localização não informada',
             distancia: '',
             caminhoImagem: empresa['foto_url_empresa']?.toString().trim() ?? '',
-            verificado: true,
+            verificado: profissionalDono?['verificar_autenticacao'] == true,
             isLoja: true,
             idGrupoEmpresa: idGrupo,
+            seguidores: (empresa['seguidores_empresa'] as num?)?.toInt() ?? 0,
             oficios: oficiosEmpresa,
             tagEmpresa: tag.isEmpty
                 ? null
@@ -630,119 +493,89 @@ class _TelaBuscaState extends State<TelaBusca> {
         }
       }
 
-      // 5) Busca endereços ativos para todos os usuários encontrados
-      final Map<int, String> localizacaoPorUsuario = {};
-
-      if (usuariosEncontrados.isNotEmpty) {
-        final idsUsuarios = usuariosEncontrados.keys.toList();
-
-        // Busca associações de endereço ativas
-        final assEnderecos = await supabase
-            .from('ass_usuario_endereco')
-            .select('fk_usuario, fk_endereco')
-            .inFilter('fk_usuario', idsUsuarios)
+      // 5) Busca a localização pública vinculada ao perfil profissional.
+      final localizacaoPorProfissional = <int, String>{};
+      final idsProfissionais = usuarioParaProfissional.values.toSet().toList();
+      if (idsProfissionais.isNotEmpty) {
+        final vinculos = await supabase
+            .from('ass_profissional_endereco')
+            .select('fk_profissional, fk_endereco')
+            .inFilter('fk_profissional', idsProfissionais)
             .eq('endereco_ativo', true);
+        final enderecoPorProfissional = <int, int>{};
+        for (final vinculo in vinculos) {
+          final idProfissional = (vinculo['fk_profissional'] as num?)?.toInt();
+          final idEndereco = (vinculo['fk_endereco'] as num?)?.toInt();
+          if (idProfissional != null && idEndereco != null) {
+            enderecoPorProfissional.putIfAbsent(
+              idProfissional,
+              () => idEndereco,
+            );
+          }
+        }
 
-        if (assEnderecos.isNotEmpty) {
-          // Mapa de fk_usuario -> fk_endereco
-          final Map<int, int> enderecoPorUsuario = {};
-          final idEnderecos = <int>[];
-
-          for (final ass in assEnderecos) {
-            final fkUsuario = ass['fk_usuario'];
-            final fkEndereco = ass['fk_endereco'];
-            final idUsuario = fkUsuario is int
-                ? fkUsuario
-                : int.tryParse(fkUsuario?.toString() ?? '');
-            final idEndereco = fkEndereco is int
-                ? fkEndereco
-                : int.tryParse(fkEndereco?.toString() ?? '');
-            if (idUsuario != null && idEndereco != null) {
-              enderecoPorUsuario[idUsuario] = idEndereco;
-              idEnderecos.add(idEndereco);
+        if (enderecoPorProfissional.isNotEmpty) {
+          final enderecos = await supabase
+              .from('enderecos')
+              .select('id_endereco, fk_cidade')
+              .inFilter(
+                'id_endereco',
+                enderecoPorProfissional.values.toSet().toList(),
+              );
+          final cidadePorEndereco = <int, int>{};
+          for (final endereco in enderecos) {
+            final idEndereco = (endereco['id_endereco'] as num?)?.toInt();
+            final idCidade = (endereco['fk_cidade'] as num?)?.toInt();
+            if (idEndereco != null && idCidade != null) {
+              cidadePorEndereco[idEndereco] = idCidade;
             }
           }
 
-          if (idEnderecos.isNotEmpty) {
-            // Busca endereços
-            final enderecosResp = await supabase
-                .from('enderecos')
-                .select(
-                  'id_endereco, logradouro, numero, complemento, fk_cidade',
-                )
-                .inFilter('id_endereco', idEnderecos);
-
-            // Busca cidades
-            final cidadesResp = await supabase
-                .from('cidades')
-                .select('id_cidade, nome_cidade, fk_estado');
-
-            // Busca estados
-            final estadosResp = await supabase
-                .from('estados')
-                .select('id_estado, sigla_estado');
-
-            // Mapas auxiliares
-            final Map<int, Map<String, dynamic>> cidadesMap = {};
-            for (final c in cidadesResp) {
-              final fk = c['id_cidade'];
-              final id = fk is int ? fk : int.tryParse(fk?.toString() ?? '');
-              if (id != null) cidadesMap[id] = Map<String, dynamic>.from(c);
+          final cidades = await supabase
+              .from('cidades')
+              .select('id_cidade, nome_cidade, fk_estado')
+              .inFilter('id_cidade', cidadePorEndereco.values.toSet().toList());
+          final estadoPorCidade = <int, String>{};
+          final cidadesPorId = <int, Map<String, dynamic>>{};
+          for (final cidade in cidades) {
+            final idCidade = (cidade['id_cidade'] as num?)?.toInt();
+            final idEstado = (cidade['fk_estado'] as num?)?.toInt();
+            if (idCidade != null) {
+              cidadesPorId[idCidade] = Map<String, dynamic>.from(cidade);
+              if (idEstado != null) estadoPorCidade[idCidade] = '$idEstado';
             }
+          }
+          final idsEstados = estadoPorCidade.values
+              .map(int.tryParse)
+              .whereType<int>()
+              .toSet()
+              .toList();
+          final estados = idsEstados.isEmpty
+              ? <Map<String, dynamic>>[]
+              : await supabase
+                    .from('estados')
+                    .select('id_estado, sigla_estado')
+                    .inFilter('id_estado', idsEstados);
+          final siglaPorEstado = <int, String>{
+            for (final estado in estados)
+              if ((estado['id_estado'] as num?)?.toInt() case final int id)
+                id: estado['sigla_estado']?.toString() ?? '',
+          };
 
-            final Map<int, String> estadosMap = {};
-            for (final e in estadosResp) {
-              final fk = e['id_estado'];
-              final id = fk is int ? fk : int.tryParse(fk?.toString() ?? '');
-              if (id != null)
-                estadosMap[id] = e['sigla_estado']?.toString() ?? '';
-            }
-
-            // Mapa de id_endereco -> dados do endereço
-            final Map<int, Map<String, dynamic>> enderecosMap = {};
-            for (final e in enderecosResp) {
-              final fk = e['id_endereco'];
-              final id = fk is int ? fk : int.tryParse(fk?.toString() ?? '');
-              if (id != null) enderecosMap[id] = Map<String, dynamic>.from(e);
-            }
-
-            // Construye localização para cada usuário
-            for (final entry in enderecoPorUsuario.entries) {
-              final idUsuario = entry.key;
-              final idEndereco = entry.value;
-              final endereco = enderecosMap[idEndereco];
-              if (endereco == null) continue;
-
-              final logradouro = endereco['logradouro']?.toString() ?? '';
-              final numero = endereco['numero']?.toString() ?? '';
-              final complemento = endereco['complemento']?.toString() ?? '';
-              final fkCidade = endereco['fk_cidade'];
-              final idCidade = fkCidade is int
-                  ? fkCidade
-                  : int.tryParse(fkCidade?.toString() ?? '');
-
-              final cidadeInfo = idCidade != null ? cidadesMap[idCidade] : null;
-              final cidade = cidadeInfo?['nome_cidade']?.toString() ?? '';
-
-              final fkEstado = cidadeInfo?['fk_estado'];
-              final idEstado = fkEstado is int
-                  ? fkEstado
-                  : int.tryParse(fkEstado?.toString() ?? '');
-              final estado = idEstado != null ? estadosMap[idEstado] ?? '' : '';
-
-              final partes = <String>[];
-              if (logradouro.isNotEmpty) {
-                partes.add(
-                  numero.isNotEmpty ? '$logradouro, $numero' : logradouro,
-                );
-              }
-              if (complemento.isNotEmpty) {
-                partes.add(complemento);
-              }
-              if (cidade.isNotEmpty) {
-                partes.add(estado.isNotEmpty ? '$cidade - $estado' : cidade);
-              }
-              localizacaoPorUsuario[idUsuario] = partes.join(', ');
+          for (final entry in enderecoPorProfissional.entries) {
+            final idCidade = cidadePorEndereco[entry.value];
+            final cidade = idCidade == null ? null : cidadesPorId[idCidade];
+            final nomeCidade = cidade?['nome_cidade']?.toString() ?? '';
+            final idEstado = idCidade == null
+                ? null
+                : int.tryParse(estadoPorCidade[idCidade] ?? '');
+            final siglaEstado = idEstado == null
+                ? ''
+                : siglaPorEstado[idEstado] ?? '';
+            if (nomeCidade.isNotEmpty) {
+              localizacaoPorProfissional[entry.key] = siglaEstado.isEmpty
+                  ? nomeCidade
+                  : '$nomeCidade - $siglaEstado';
             }
           }
         }
@@ -750,6 +583,50 @@ class _TelaBuscaState extends State<TelaBusca> {
 
       // 6) Para cada usuário encontrado, busca ofícios
       final resultados = <_ProfissionalBusca>[];
+      final idsProfissionaisEncontrados = usuarioParaProfissional.values
+          .toSet()
+          .toList();
+      final avaliacoesPorProfissional = <int, List<int>>{};
+      if (idsProfissionaisEncontrados.isNotEmpty) {
+        final solicitacoes = await supabase
+            .from('solicitacoes')
+            .select('id_solicitacao, fk_profissional')
+            .inFilter('fk_profissional', idsProfissionaisEncontrados);
+        final profissionalPorSolicitacao = <int, int>{};
+        for (final solicitacao in solicitacoes) {
+          final idSolicitacao = (solicitacao['id_solicitacao'] as num?)
+              ?.toInt();
+          final idProfissional = (solicitacao['fk_profissional'] as num?)
+              ?.toInt();
+          if (idSolicitacao != null && idProfissional != null) {
+            profissionalPorSolicitacao[idSolicitacao] = idProfissional;
+          }
+        }
+
+        if (profissionalPorSolicitacao.isNotEmpty) {
+          final avaliacoes = await supabase
+              .from('avaliacoes_solicitacao')
+              .select('fk_solicitacao, nota')
+              .eq('tipo_avaliacao', 'profissional')
+              .inFilter(
+                'fk_solicitacao',
+                profissionalPorSolicitacao.keys.toList(),
+              );
+          for (final avaliacao in avaliacoes) {
+            final idSolicitacao = (avaliacao['fk_solicitacao'] as num?)
+                ?.toInt();
+            final nota = (avaliacao['nota'] as num?)?.toInt();
+            final idProfissional = idSolicitacao == null
+                ? null
+                : profissionalPorSolicitacao[idSolicitacao];
+            if (idProfissional != null && nota != null) {
+              avaliacoesPorProfissional
+                  .putIfAbsent(idProfissional, () => [])
+                  .add(nota);
+            }
+          }
+        }
+      }
 
       for (final entry in usuariosEncontrados.entries) {
         final usuarioId = entry.key;
@@ -757,11 +634,13 @@ class _TelaBuscaState extends State<TelaBusca> {
         final nome = usuario['nome']?.toString() ?? '';
         if (nome.trim().isEmpty) continue;
 
-        final String localizacao =
-            localizacaoPorUsuario[usuarioId] ?? 'Localização não informada';
+        final idProfissional = usuarioParaProfissional[usuarioId];
+        final String localizacao = idProfissional == null
+            ? 'Localização não informada'
+            : localizacaoPorProfissional[idProfissional] ??
+                  'Localização não informada';
 
         // Ofícios do profissional (via dados_profissionais + ass_oficio_profissional + oficios)
-        final idProfissional = usuarioParaProfissional[usuarioId];
         final dadosProfissional = idProfissional == null
             ? null
             : dadosPorProfissional[idProfissional];
@@ -820,7 +699,12 @@ class _TelaBuscaState extends State<TelaBusca> {
         resultados.add(
           _ProfissionalBusca(
             nome: nome,
-            avaliacao: 4.9,
+            idProfissional: idProfissional,
+            avaliacao: idProfissional == null
+                ? null
+                : _mediaAvaliacoes(avaliacoesPorProfissional[idProfissional]),
+            totalAvaliacoes:
+                avaliacoesPorProfissional[idProfissional]?.length ?? 0,
             tag1: oficiosDoUsuario.isNotEmpty
                 ? oficiosDoUsuario.first.funcao
                 : 'Profissional',
@@ -830,11 +714,11 @@ class _TelaBuscaState extends State<TelaBusca> {
             oficios: oficiosDoUsuario,
             descricao: oficiosDoUsuario.isNotEmpty
                 ? 'Profissional especializado em ${oficiosDoUsuario.map((o) => o.funcao).join(', ')} na plataforma ConsertaJá.'
-                : 'Profissional verificado na plataforma ConsertaJá.',
+                : 'Profissional cadastrado na plataforma ConsertaJá.',
             localizacao: localizacao,
             distancia: '',
             caminhoImagem: caminhoImagem,
-            verificado: true,
+            verificado: dadosProfissional?['verificar_autenticacao'] == true,
             isLoja: false,
             tagEmpresa: tagEmpresaRaw.isEmpty
                 ? null
@@ -855,10 +739,11 @@ class _TelaBuscaState extends State<TelaBusca> {
       final servicosEncontrados = servicosDb.map((s) {
         return _ServicoBusca(
           id: s.id,
+          servicoOriginal: s.servico,
           titulo: s.titulo,
-          codigoTag: s.tagEmpresa ?? '#SRV${s.id}',
+          codigoTag: s.tagEmpresa,
           categoriaTag: s.categoria,
-          logistica: 'Entregue em até 5 dias - Retirada ou Leva e Traz',
+          logistica: s.tipoExecucao,
           preco: s.preco,
           localizacao: s.localizacao,
           caminhoImagem: s.imagemUrl ?? '',
@@ -873,41 +758,29 @@ class _TelaBuscaState extends State<TelaBusca> {
         _servicosSupabase = servicosEncontrados;
         _carregandoProfissionais = false;
       });
-    } catch (_) {
+    } catch (e, stackTrace) {
+      debugPrint('Erro ao buscar resultados por "$termo": $e\n$stackTrace');
       if (!mounted) return;
       setState(() {
         _carregandoProfissionais = false;
-        _erroNaBusca = true;
+        _erroNaBusca =
+            'Não foi possível consultar os dados agora. Tente novamente.';
       });
     }
   }
 
-  List<_ServicoBusca> get _servicosFiltrados {
-    if (_servicosSupabase.isNotEmpty) return _servicosSupabase;
-    if (_erroNaBusca) {
-      return _todosServicos
-          .where((s) => _correspondeBusca(s.termosBusca, _termoBusca))
-          .toList();
-    }
-    return _servicosSupabase;
-  }
+  List<_ServicoBusca> get _servicosFiltrados => _servicosSupabase;
 
   List<_ProfissionalBusca> get _profissionaisFiltrados {
-    if (_profissionaisSupabase.isNotEmpty) {
-      return [..._profissionaisSupabase, ..._empresasSupabase];
-    }
-    return [
-      ..._todosProfissionais.where(
-        (p) => _correspondeBusca(p.termosBusca, _termoBusca),
-      ),
-      ..._empresasSupabase,
-    ];
+    return [..._profissionaisSupabase, ..._empresasSupabase];
   }
 
-  List<_PerfilVerificado> get _perfisVerificadosFiltrados {
-    return _perfisVerificados
-        .where((p) => _correspondeBusca(p.termosBusca, _termoBusca))
-        .toList();
+  List<_ProfissionalBusca> get _perfisVerificadosFiltrados =>
+      _empresasSupabase.where((empresa) => empresa.verificado).toList();
+
+  double? _mediaAvaliacoes(List<int>? notas) {
+    if (notas == null || notas.isEmpty) return null;
+    return notas.reduce((total, nota) => total + nota) / notas.length;
   }
 
   Future<void> _executarBusca([String? termo]) async {
@@ -921,6 +794,7 @@ class _TelaBuscaState extends State<TelaBusca> {
       _profissionaisSupabase = [];
       _empresasSupabase = [];
       _servicosSupabase = [];
+      _erroNaBusca = null;
     });
     _focusBusca.unfocus();
     await _buscarProfissionaisNoSupabase(texto);
@@ -996,7 +870,7 @@ class _TelaBuscaState extends State<TelaBusca> {
         children: [
           const Icon(Icons.star, color: _ratingText, size: 12),
           Text(
-            ' $avaliacao',
+            ' ${avaliacao.toStringAsFixed(1)}',
             style: const TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.bold,
@@ -1143,7 +1017,7 @@ class _TelaBuscaState extends State<TelaBusca> {
           child: Row(
             children: [
               const Text(
-                'Perfis Verificados Perto de Você',
+                'Empresas verificadas',
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
@@ -1171,7 +1045,7 @@ class _TelaBuscaState extends State<TelaBusca> {
     );
   }
 
-  Widget _buildCardPerfilVerificado(_PerfilVerificado perfil) {
+  Widget _buildCardPerfilVerificado(_ProfissionalBusca perfil) {
     return Container(
       width: 220,
       padding: const EdgeInsets.all(12),
@@ -1180,18 +1054,25 @@ class _TelaBuscaState extends State<TelaBusca> {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(24),
-            child: Image.asset(
-              perfil.caminhoImagem,
-              width: 48,
-              height: 48,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                width: 48,
-                height: 48,
-                color: _primaryBlue,
-                child: const Icon(Icons.store, color: Colors.white),
-              ),
-            ),
+            child: _imagemEhUrl(perfil.caminhoImagem)
+                ? Image.network(
+                    perfil.caminhoImagem!,
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 48,
+                      height: 48,
+                      color: _primaryBlue,
+                      child: const Icon(Icons.store, color: Colors.white),
+                    ),
+                  )
+                : Container(
+                    width: 48,
+                    height: 48,
+                    color: _primaryBlue,
+                    child: const Icon(Icons.store, color: Colors.white),
+                  ),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -1212,17 +1093,20 @@ class _TelaBuscaState extends State<TelaBusca> {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    _buildTag(
-                      perfil.codigoTag,
-                      const Color(0xFFE1F5FE),
-                      _primaryBlue,
-                    ),
-                    const SizedBox(width: 4),
-                    _buildTag(
-                      perfil.categoriaTag,
-                      const Color(0xFFEEEEEE),
-                      const Color(0xFF616161),
-                    ),
+                    if (perfil.tagEmpresa != null)
+                      _buildTag(
+                        perfil.tagEmpresa!,
+                        const Color(0xFFE1F5FE),
+                        _primaryBlue,
+                      ),
+                    if (perfil.oficios.isNotEmpty) ...[
+                      const SizedBox(width: 4),
+                      _buildTag(
+                        perfil.oficios.first.funcao,
+                        const Color(0xFFEEEEEE),
+                        const Color(0xFF616161),
+                      ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -1311,19 +1195,7 @@ class _TelaBuscaState extends State<TelaBusca> {
           MaterialPageRoute(
             builder: (context) => TelaServico(
               idServico: servico.id,
-              servicoInicial: ServicoProfissional(
-                id: servico.id ?? 1,
-                fkProfissional: 1,
-                titulo: servico.titulo,
-                descricao:
-                    'Serviço especializado com garantia de qualidade e suporte dedicado.',
-                valor: servico.preco,
-                fkOficio: 1,
-                funcao: servico.categoriaTag,
-                imagemUrl: servico.caminhoImagem,
-                ativo: true,
-                dataCriacao: DateTime.now(),
-              ),
+              servicoInicial: servico.servicoOriginal,
             ),
           ),
         );
@@ -1371,12 +1243,14 @@ class _TelaBuscaState extends State<TelaBusca> {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      _buildTag(
-                        servico.codigoTag,
-                        const Color(0xFFE1F5FE),
-                        _primaryBlue,
-                      ),
-                      const SizedBox(width: 6),
+                      if (servico.codigoTag != null) ...[
+                        _buildTag(
+                          servico.codigoTag!,
+                          const Color(0xFFE1F5FE),
+                          _primaryBlue,
+                        ),
+                        const SizedBox(width: 6),
+                      ],
                       Builder(
                         builder: (context) {
                           final corBase = CorOficio.parse(servico.categoriaTag);
@@ -1608,7 +1482,8 @@ class _TelaBuscaState extends State<TelaBusca> {
                   ],
                 ),
               ),
-              _buildRatingBadge(profissional.avaliacao),
+              if (profissional.avaliacao != null)
+                _buildRatingBadge(profissional.avaliacao!),
             ],
           ),
           const SizedBox(height: 10),
@@ -1669,8 +1544,9 @@ class _TelaBuscaState extends State<TelaBusca> {
                         imagemInicial: profissional.caminhoImagem ?? '',
                         profissao: profissional.tag1,
                         avaliacao: profissional.avaliacao,
-                        totalAvaliacoes: 120,
+                        totalAvaliacoes: profissional.totalAvaliacoes,
                         idGrupoEmpresa: profissional.idGrupoEmpresa,
+                        idProfissional: profissional.idProfissional,
                       ),
                     ),
                   );
@@ -1704,10 +1580,8 @@ class _TelaBuscaState extends State<TelaBusca> {
       return const SkeletonPage(layout: SkeletonLayout.grid);
     }
 
-    if (_erroNaBusca && profissionais.isEmpty) {
-      return _buildSemResultados(
-        'Não foi possível buscar profissionais agora. Tente novamente.',
-      );
+    if (_erroNaBusca != null) {
+      return _buildSemResultados(_erroNaBusca!);
     }
 
     switch (_abaAtiva) {
@@ -1860,38 +1734,48 @@ class _TelaBuscaState extends State<TelaBusca> {
                   spacing: 10,
                   runSpacing: 10,
                   alignment: WrapAlignment.center,
-                  children: _categoriasVisiveis.map(_buildChip).toList(),
-                ),
-              ),
-              TextButton(
-                onPressed: () {
-                  setState(
-                    () => _mostrarMaisCategorias = !_mostrarMaisCategorias,
-                  );
-                },
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.grey.shade700,
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      _mostrarMaisCategorias ? 'Ver menos' : 'Ver mais',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    Icon(
-                      _mostrarMaisCategorias
-                          ? Icons.keyboard_arrow_up
-                          : Icons.keyboard_arrow_down,
-                      size: 20,
-                    ),
+                    if (_carregandoCategorias)
+                      const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    else
+                      ..._categoriasVisiveis.map(_buildChip),
                   ],
                 ),
               ),
+              if (_categorias.length > 8)
+                TextButton(
+                  onPressed: () {
+                    setState(
+                      () => _mostrarMaisCategorias = !_mostrarMaisCategorias,
+                    );
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.grey.shade700,
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _mostrarMaisCategorias ? 'Ver menos' : 'Ver mais',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Icon(
+                        _mostrarMaisCategorias
+                            ? Icons.keyboard_arrow_up
+                            : Icons.keyboard_arrow_down,
+                        size: 20,
+                      ),
+                    ],
+                  ),
+                ),
               const SizedBox(height: 8),
             ],
           ),
