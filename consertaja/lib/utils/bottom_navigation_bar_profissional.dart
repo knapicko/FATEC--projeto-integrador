@@ -66,6 +66,14 @@ class BottomNavigationBarProfissional extends StatefulWidget {
     _ultimoValorConhecido = isEmpresa;
   }
 
+  static Future<void> salvarContaEmpresaAtiva(bool isEmpresa) async {
+    notificarTrocaConta(isEmpresa);
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('${prefContaAtivaKey}_${user.id}', isEmpresa);
+  }
+
   /// Leitura síncrona para o primeiro frame (sem piscar).
   static bool leituraSincronaContaEmpresa() {
     try {
@@ -123,7 +131,10 @@ class _BottomNavigationBarProfissionalState
   }
 
   List<BottomNavigationBarItem> get _items => [
-    const BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: 'Home'),
+    const BottomNavigationBarItem(
+      icon: Icon(Icons.home_outlined),
+      label: 'Home',
+    ),
     const BottomNavigationBarItem(icon: Icon(Icons.sensors), label: 'Radar'),
     const BottomNavigationBarItem(
       icon: Icon(Icons.chat_bubble_outline),
@@ -143,7 +154,7 @@ class _BottomNavigationBarProfissionalState
       const BottomNavigationBarItem(
         key: ValueKey('abaPerfil'),
         icon: Icon(Icons.person_outline),
-        label: 'Perfil',  
+        label: 'Perfil',
       ),
   ];
 

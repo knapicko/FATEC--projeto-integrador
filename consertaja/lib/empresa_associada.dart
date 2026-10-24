@@ -124,6 +124,8 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
             foto: usuarioMap['foto_perfil_url']?.toString(),
             cargo: oficios.isEmpty ? 'Profissional' : oficios.first.funcao,
             oficios: oficios,
+            isResponsavel:
+                (mapa['fk_perfil'] as num?)?.toInt() == fkPerfilGrupo,
           ),
         );
         todosOficios.addAll(oficios);
@@ -133,7 +135,7 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
         final dono = await client
             .from('dados_profissionais')
             .select(
-              'id_profissional, fk_usuario, usuarios(nome, foto_perfil_url)',
+              'id_profissional, fk_usuario, fk_perfil, usuarios(nome, foto_perfil_url)',
             )
             .eq('fk_perfil', fkPerfilGrupo)
             .maybeSingle();
@@ -143,7 +145,7 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
         final rows = await client
             .from('dados_profissionais')
             .select(
-              'id_profissional, fk_usuario, usuarios(nome, foto_perfil_url)',
+              'id_profissional, fk_usuario, fk_perfil, usuarios(nome, foto_perfil_url)',
             )
             .eq('fk_grupo_empresa', idGrupo);
         for (final row in rows) {
@@ -510,6 +512,9 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
             decoration: BoxDecoration(
               color: const Color(0xFFE9E2EC),
               borderRadius: BorderRadius.circular(11),
+              border: membro.isResponsavel
+                  ? Border.all(color: _blue, width: 2)
+                  : null,
             ),
             child: Column(
               children: [
@@ -547,6 +552,10 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
                     color: Color(0xFF454047),
                   ),
                 ),
+                if (membro.isResponsavel) ...[
+                  const SizedBox(height: 5),
+                  _pill('Responsável', _blue, Colors.white),
+                ],
               ],
             ),
           );
@@ -708,9 +717,11 @@ class _MembroEmpresa {
     required this.foto,
     required this.cargo,
     required this.oficios,
+    this.isResponsavel = false,
   });
   final String nome;
   final String? foto;
   final String cargo;
   final List<OficioInfo> oficios;
+  final bool isResponsavel;
 }

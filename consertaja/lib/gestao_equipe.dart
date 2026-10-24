@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'configuracoes_empresa.dart';
 import 'adicionar_servico_profissional.dart';
@@ -42,8 +43,9 @@ class _DocumentoOuEmailInputFormatter extends TextInputFormatter {
     }
     final digitos = texto.replaceAll(RegExp(r'\D'), '');
     if (digitos.length > 14) return oldValue;
-    final mascara =
-        digitos.length <= 11 ? '###.###.###-##' : '##.###.###/####-##';
+    final mascara = digitos.length <= 11
+        ? '###.###.###-##'
+        : '##.###.###/####-##';
     var formatado = '';
     var indiceDigito = 0;
     for (var i = 0; i < mascara.length; i++) {
@@ -100,7 +102,8 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
   static const Color _cardBorder = Color(0xFFE2E8F0);
 
   final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _descricaoEmpresaController = TextEditingController();
+  final TextEditingController _descricaoEmpresaController =
+      TextEditingController();
   int _caracteresDescricao = 0;
   Timer? _debounceDescricao;
   bool _dadosSobreCarregados = false;
@@ -234,6 +237,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
         _idProfissional = (dadosProf?['id_profissional'] as num?)?.toInt();
         _idPerfil = (dadosProf?['fk_perfil'] as num?)?.toInt();
         _idGrupoEmpresa = (dadosProf?['fk_grupo_empresa'] as num?)?.toInt();
+        await _sincronizarContaIndependenteSeNecessario(user.id, supabase);
 
         // 1. Tenta buscar pelo fk_grupo_empresa vinculado diretamente
         if (_idGrupoEmpresa != null) {
@@ -268,7 +272,8 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
               setState(() {
                 if (nomeGrupo != null && nomeGrupo.isNotEmpty) {
                   _nomeEmpresa = nomeGrupo;
-                } else if (nomeFantasiaPj != null && nomeFantasiaPj.isNotEmpty) {
+                } else if (nomeFantasiaPj != null &&
+                    nomeFantasiaPj.isNotEmpty) {
                   _nomeEmpresa = nomeFantasiaPj;
                   if (_idGrupoEmpresa != null) {
                     supabase
@@ -339,7 +344,8 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
               setState(() {
                 if (nomeGrupo != null && nomeGrupo.isNotEmpty) {
                   _nomeEmpresa = nomeGrupo;
-                } else if (nomeFantasiaPj != null && nomeFantasiaPj.isNotEmpty) {
+                } else if (nomeFantasiaPj != null &&
+                    nomeFantasiaPj.isNotEmpty) {
                   _nomeEmpresa = nomeFantasiaPj;
                   if (_idGrupoEmpresa != null) {
                     supabase
@@ -385,6 +391,27 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
     } catch (e) {
       debugPrint('Erro ao carregar dados da empresa: $e');
       if (mounted) setState(() => _carregandoEmpresa = false);
+    }
+  }
+
+  Future<void> _sincronizarContaIndependenteSeNecessario(
+    String authId,
+    SupabaseClient supabase,
+  ) async {
+    if (_idPerfil == null) return;
+    final perfil = await supabase
+        .from('perfil')
+        .select('tipo_perfil')
+        .eq('id_perfil', _idPerfil!)
+        .maybeSingle();
+    if (perfil?['tipo_perfil']?.toString().trim() != 'Independente') return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final chave =
+        '${BottomNavigationBarProfissional.prefContaAtivaKey}_$authId';
+    if (prefs.getBool(chave) == true) {
+      await prefs.setBool(chave, false);
+      BottomNavigationBarProfissional.notificarTrocaConta(false);
     }
   }
 
@@ -571,16 +598,16 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
       final servicosEmpresa = _idGrupoEmpresa == null
           ? <ServicoProfissional>[]
           : (await ServicosProfissionalService.buscarServicosEmpresa(
-              _idGrupoEmpresa!,
-            ))
-              // Gestão da empresa: mostra SÓ serviços da empresa
-              // (fk_grupo_empresa == grupo). Nunca os individuais (CNPJ).
-              .where(
-                (s) =>
-                    s.fkGrupoEmpresa != null &&
-                    s.fkGrupoEmpresa == _idGrupoEmpresa,
-              )
-              .toList();
+                  _idGrupoEmpresa!,
+                ))
+                // Gestão da empresa: mostra SÓ serviços da empresa
+                // (fk_grupo_empresa == grupo). Nunca os individuais (CNPJ).
+                .where(
+                  (s) =>
+                      s.fkGrupoEmpresa != null &&
+                      s.fkGrupoEmpresa == _idGrupoEmpresa,
+                )
+                .toList();
 
       if (mounted) {
         setState(() {
@@ -1374,11 +1401,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
       children: [
         const Row(
           children: [
-            Icon(
-              Icons.apartment_rounded,
-              color: _primaryBlue,
-              size: 24,
-            ),
+            Icon(Icons.apartment_rounded, color: _primaryBlue, size: 24),
             SizedBox(width: 8),
             Text(
               'Sobre a Empresa',
@@ -1439,7 +1462,10 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 child: TextField(
                   controller: _descricaoEmpresaController,
                   maxLength: 500,
@@ -1480,21 +1506,13 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
               const SizedBox(height: 18),
 
               // Divisor
-              const Divider(
-                color: Color(0xFFF1F5F9),
-                height: 1,
-                thickness: 1,
-              ),
+              const Divider(color: Color(0xFFF1F5F9), height: 1, thickness: 1),
               const SizedBox(height: 18),
 
               // 3. Cabeçalho Anos de Experiência no Mercado
               const Row(
                 children: [
-                  Icon(
-                    Icons.verified_outlined,
-                    color: _titleDark,
-                    size: 20,
-                  ),
+                  Icon(Icons.verified_outlined, color: _titleDark, size: 20),
                   SizedBox(width: 8),
                   Text(
                     'Anos de Experiência no Mercado',
@@ -1510,7 +1528,10 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
 
               // Stepper card cinza
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF1F4F9),
                   borderRadius: BorderRadius.circular(16),
@@ -1550,10 +1571,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                           const SizedBox(height: 2),
                           const Text(
                             'Atuação comprovada',
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              color: _textMuted,
-                            ),
+                            style: TextStyle(fontSize: 11.5, color: _textMuted),
                           ),
                         ],
                       ),
@@ -1653,67 +1671,66 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: [
-                  {'label': 'Menos de 1 ano', 'valor': '<1 ano'},
-                  {'label': '2 a 5 anos', 'valor': '2 a 5 anos'},
-                  {'label': '6 a 10 anos', 'valor': '6 a 10 anos'},
-                  {'label': '11 a 15 anos', 'valor': '11 a 15 anos'},
-                  {'label': '15+ anos', 'valor': '15+ anos'},
-                ].map((pill) {
-                  final isSelected =
-                      _pillAnosMercadoSelecionada == pill['valor'];
-                  return Material(
-                    color: isSelected ? const Color(0xFF00B0FF) : Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(20),
-                      onTap: () {
-                        setState(() {
-                          if (isSelected) {
-                            _pillAnosMercadoSelecionada = null;
-                            _salvarAnosMercado('$_anosMercadoNumero');
-                          } else {
-                            _pillAnosMercadoSelecionada = pill['valor'];
-                            _salvarAnosMercado(pill['valor']!);
-                          }
-                        });
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
+                children:
+                    [
+                      {'label': 'Menos de 1 ano', 'valor': '<1 ano'},
+                      {'label': '2 a 5 anos', 'valor': '2 a 5 anos'},
+                      {'label': '6 a 10 anos', 'valor': '6 a 10 anos'},
+                      {'label': '11 a 15 anos', 'valor': '11 a 15 anos'},
+                      {'label': '15+ anos', 'valor': '15+ anos'},
+                    ].map((pill) {
+                      final isSelected =
+                          _pillAnosMercadoSelecionada == pill['valor'];
+                      return Material(
+                        color: isSelected
+                            ? const Color(0xFF00B0FF)
+                            : Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        child: InkWell(
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: isSelected
-                                ? const Color(0xFF00B0FF)
-                                : const Color(0xFFE2E8F0),
+                          onTap: () {
+                            setState(() {
+                              if (isSelected) {
+                                _pillAnosMercadoSelecionada = null;
+                                _salvarAnosMercado('$_anosMercadoNumero');
+                              } else {
+                                _pillAnosMercadoSelecionada = pill['valor'];
+                                _salvarAnosMercado(pill['valor']!);
+                              }
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: isSelected
+                                    ? const Color(0xFF00B0FF)
+                                    : const Color(0xFFE2E8F0),
+                              ),
+                            ),
+                            child: Text(
+                              pill['label']!,
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: isSelected
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
+                                color: isSelected
+                                    ? Colors.white
+                                    : const Color(0xFF475569),
+                              ),
+                            ),
                           ),
                         ),
-                        child: Text(
-                          pill['label']!,
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: isSelected
-                                ? FontWeight.w600
-                                : FontWeight.normal,
-                            color: isSelected
-                                ? Colors.white
-                                : const Color(0xFF475569),
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
+                      );
+                    }).toList(),
               ),
               const SizedBox(height: 18),
-              const Divider(
-                color: Color(0xFFF1F5F9),
-                height: 1,
-                thickness: 1,
-              ),
+              const Divider(color: Color(0xFFF1F5F9), height: 1, thickness: 1),
             ],
           ),
         ),
@@ -1800,8 +1817,9 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
         if (documentoDigits.length == 11 || documentoDigits.length == 14) {
           bool documentoValido = false;
           try {
-            final validacao = await ConsultaCadastroService()
-                .validarDocumento(documentoDigits);
+            final validacao = await ConsultaCadastroService().validarDocumento(
+              documentoDigits,
+            );
             documentoValido = validacao.valido;
           } catch (_) {
             // Fallback offline: valida apenas os dígitos verificadores.
@@ -2574,10 +2592,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
           if (index == 2) {
             AppNavigationUtil.navegarAba(
               context,
-              const TelaMensagensPage(
-                isVisitante: false,
-                isProfissional: true,
-              ),
+              const TelaMensagensPage(isVisitante: false, isProfissional: true),
               isHome: false,
             );
             return;
@@ -2906,7 +2921,9 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          excluiu ? 'Serviço excluído da empresa.' : 'Não foi possível excluir o serviço.',
+          excluiu
+              ? 'Serviço excluído da empresa.'
+              : 'Não foi possível excluir o serviço.',
         ),
         backgroundColor: excluiu ? const Color(0xFF10B981) : Colors.redAccent,
       ),
