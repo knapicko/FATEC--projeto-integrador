@@ -321,10 +321,6 @@ class _SeguindoClientePageState extends State<SeguindoClientePage> {
                           ),
                         ),
                       ),
-                      const Text(
-                        '★ 4.9',
-                        style: TextStyle(color: _blue, fontSize: 12),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 7),
