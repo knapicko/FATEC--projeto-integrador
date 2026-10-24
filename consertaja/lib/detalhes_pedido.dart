@@ -222,12 +222,12 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       }
 
       _avaliadoCliente = false;
-        _avaliacoesCliente = [];
+      _avaliacoesCliente = [];
       if (_idUsuarioClienteLogado != null) {
         try {
           final avaliacoes = await _db
               .from('avaliacoes_solicitacao')
-            .select('tipo_avaliacao, nota, comentario')
+              .select('tipo_avaliacao, nota, comentario')
               .eq('fk_solicitacao', _idSolicitacao)
               .eq('fk_avaliador', _idUsuarioClienteLogado!)
               .inFilter('tipo_avaliacao', ['servico', 'profissional']);
@@ -2317,25 +2317,6 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                       ],
                     ),
                     const SizedBox(height: 4),
-                    const Row(
-                      children: [
-                        Icon(Icons.star, color: Color(0xFFF59E0B), size: 14),
-                        SizedBox(width: 3),
-                        Text(
-                          '4.7',
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w800,
-                            color: textoEscuro,
-                          ),
-                        ),
-                        SizedBox(width: 4),
-                        Text(
-                          '(3.248 avaliações)',
-                          style: TextStyle(fontSize: 12, color: textoMuted),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),
@@ -3351,7 +3332,9 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
           children: [
             for (var estrela = 1; estrela <= 5; estrela++)
               Icon(
-                estrela <= nota ? Icons.star_rounded : Icons.star_outline_rounded,
+                estrela <= nota
+                    ? Icons.star_rounded
+                    : Icons.star_outline_rounded,
                 color: const Color(0xFFF5A623),
                 size: 19,
               ),
@@ -3489,8 +3472,8 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                     ? (_confirmandoConclusao ? null : _confirmarConclusao)
                     : aceito
                     ? _abrirPagamento
-                  : precisaAvaliarCliente
-                  ? _avaliarPedidoCliente
+                    : precisaAvaliarCliente
+                    ? _avaliarPedidoCliente
                     : _abrirChat,
                 icon: _confirmandoConclusao
                     ? const SizedBox(
@@ -3506,8 +3489,8 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                             ? Icons.check_circle_outline
                             : aceito
                             ? Icons.payments_outlined
-                          : precisaAvaliarCliente
-                          ? Icons.star_outline_rounded
+                            : precisaAvaliarCliente
+                            ? Icons.star_outline_rounded
                             : Icons.chat_bubble_outline,
                         size: 18,
                       ),
