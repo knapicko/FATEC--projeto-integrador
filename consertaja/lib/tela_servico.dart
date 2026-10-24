@@ -150,7 +150,7 @@ class _TelaServicoState extends State<TelaServico> {
     final servico = detalhe?.servico;
     final titulo = servico?.titulo.trim().isNotEmpty == true
         ? servico!.titulo.trim()
-        : 'Conserto de Cabo de Panela';
+        : 'Serviço';
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
@@ -182,17 +182,7 @@ class _TelaServicoState extends State<TelaServico> {
                               _buildOferecidoPor(detalhe),
                               const SizedBox(height: 22),
                               _buildDetalhes(servico),
-                              const SizedBox(height: 12),
-                              _buildChecklistEstatico(),
-                              const SizedBox(height: 22),
                               _buildEnderecoProfissional(detalhe),
-                              const SizedBox(height: 12),
-                              _buildDisponivelEnderecoEstatico(),
-                              const SizedBox(height: 24),
-                              _buildAvaliacoesEstaticas(),
-                              const SizedBox(height: 24),
-                              _buildServicosParecidosEstaticos(),
-                              const SizedBox(height: 24),
                             ],
                           ),
                         ),
@@ -298,47 +288,6 @@ class _TelaServicoState extends State<TelaServico> {
             right: 14,
             child: Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 4,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
-                  ),
-                  child: const Row(
-                    children: [
-                      Text(
-                        '4.7',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
-                          color: _texto,
-                        ),
-                      ),
-                      SizedBox(width: 3),
-                      Icon(Icons.star, color: _starYellow, size: 14),
-                      SizedBox(width: 4),
-                      Text(
-                        '(3.248)',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: _muted,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
