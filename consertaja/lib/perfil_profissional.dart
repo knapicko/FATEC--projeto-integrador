@@ -130,8 +130,8 @@ class PerfilProfissionalPage extends StatefulWidget {
   final String nomeInicial;
   final String imagemInicial;
   final String profissao;
-  final double avaliacao;
-  final int totalAvaliacoes;
+  final double? avaliacao;
+  final int? totalAvaliacoes;
   final Color? corBannerInicial;
   final String? corBannerHexInicial;
   final int? idGrupoEmpresa;
@@ -142,8 +142,8 @@ class PerfilProfissionalPage extends StatefulWidget {
     required this.nomeInicial,
     required this.imagemInicial,
     this.profissao = 'Profissional independente',
-    this.avaliacao = 4.9,
-    this.totalAvaliacoes = 120,
+    this.avaliacao,
+    this.totalAvaliacoes,
     this.corBannerInicial,
     this.corBannerHexInicial,
     this.idGrupoEmpresa,
@@ -203,10 +203,12 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   String _filtroComentario = 'Principais';
   String _categoriaServico = 'Todos';
   bool _descricaoExpandida = false;
-  String _anosExperiencia = '0-1 ano';
+  String _anosExperiencia = '';
   String _descricaoPerfil = '';
   String _tipoPerfil = 'Profissional independente';
   bool _temAgendaCadastrada = false;
+  bool _verificado = false;
+  bool _planoPremium = false;
   String _faixaHorarioDisponibilidade = '--:-- - --:--';
 
   // Mapa de horários por dia da semana para o bottom sheet e status de disponibilidade
@@ -247,31 +249,11 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   static const Color _blockedBg = Color(0xFFFEF2F2);
   static const Color _blockedBorder = Color(0xFFF87171);
 
-  int _likesComentario1 = 0;
+  final List<Map<String, dynamic>> _avaliacoes = [];
   bool _likedComentario1 = false;
-  int _likesComentario2 = 1;
-  bool _likedComentario2 = true;
-
-  final List<Map<String, dynamic>> _avaliacoes = [
-    {
-      'nome': 'Luiz Fernando',
-      'iniciais': 'LF',
-      'corAvatar': Color(0xFF0284C7),
-      'nota': 5.0,
-      'tempo': 'há 8 dias',
-      'texto':
-          'Muito bom! Chegou no horário previsto e abriu a porta em minutos sem danificar a fechadura.',
-    },
-    {
-      'nome': 'Gabriel Santos',
-      'iniciais': 'GS',
-      'corAvatar': Color(0xFF4F46E5),
-      'nota': 5.0,
-      'tempo': 'há 8 dias',
-      'texto':
-          'Excelente trabalho e muito rápido no atendimento. Moro em Diadema e recomendo a todos!',
-    },
-  ];
+  bool _likedComentario2 = false;
+  int _likesComentario1 = 0;
+  int _likesComentario2 = 0;
 
   List<ServicoProfissional> _servicos = [];
   bool _carregandoServicos = true;
@@ -753,7 +735,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
           final dadosProf = await supabase
               .from('dados_profissionais')
               .select(
-                'id_profissional, fk_perfil, fk_grupo_empresa, anos_experiencia, metodo_entrega',
+                'id_profissional, fk_perfil, fk_grupo_empresa, anos_experiencia, metodo_entrega, verificar_autenticacao, plano_premium',
               )
               .eq('fk_usuario', fkUsuario)
               .maybeSingle();
@@ -766,6 +748,8 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
               idGrupoEmpresa;
           anosExperiencia = dadosProf?['anos_experiencia']?.toString();
           metodoEntregaRaw = dadosProf?['metodo_entrega']?.toString();
+          _verificado = dadosProf?['verificar_autenticacao'] == true;
+          _planoPremium = dadosProf?['plano_premium'] == true;
           debugPrint(
             '🔎 [PerfilProfissional] id_profissional: $idProfissional; fk_perfil: $fkPerfil; fk_grupo_empresa: $idGrupoEmpresa',
           );
@@ -1463,7 +1447,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
     if (valor == '1-3 anos') return '1-3';
     if (valor == '0-1 ano') return '0-1';
     if (valor.startsWith('+')) return valor;
-    return valor.isNotEmpty ? valor : '0-1';
+    return valor.isNotEmpty ? valor : '—';
   }
 
   String _formatarHoraAgenda(Object? raw) {
@@ -2733,17 +2717,19 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                 _buildMetricaItem(
                   icone: Icons.star,
                   corIcone: _starGold,
-                  valor: widget.avaliacao.toStringAsFixed(1),
-                  subtitulo: '${widget.totalAvaliacoes} avaliações',
+                  valor: widget.avaliacao?.toStringAsFixed(1) ?? '—',
+                  subtitulo: widget.totalAvaliacoes == null
+                      ? 'Sem avaliações'
+                      : '${widget.totalAvaliacoes} avaliações',
                 ),
                 _buildDivisorVertical(),
-                // Selo de Verificação (estático)
+                // Plano e status de verificação carregados do perfil.
                 _buildMetricaItem(
                   icone: Icons.verified_outlined,
                   corIcone: _primaryBlue,
-                  valor: 'Pro',
+                  valor: _planoPremium ? 'Premium' : 'Padrão',
                   corValor: _primaryBlue,
-                  subtitulo: 'Verificado',
+                  subtitulo: _verificado ? 'Verificado' : 'Não verificado',
                 ),
                 _buildDivisorVertical(),
                 // Anos de Experiência (do Supabase ou default 0-1 ano)
@@ -3705,8 +3691,14 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
     );
   }
 
-  // 5. Conteúdo das Abas: Seção de Avaliações (mantida estática)
+  // 5. Conteúdo das Abas: Seção de Avaliações
   Widget _buildSecaoAvaliacoes() {
+    if (_avaliacoes.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(16),
+        child: Text('Este profissional ainda não possui avaliações.'),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
       child: Column(
@@ -4734,7 +4726,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                     Row(
                       children: [
                         Text(
-                          widget.avaliacao.toStringAsFixed(1),
+                          widget.avaliacao?.toStringAsFixed(1) ?? '—',
                           style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
