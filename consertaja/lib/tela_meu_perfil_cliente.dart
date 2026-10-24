@@ -40,11 +40,6 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
   String _nomeCompleto = 'Nome não encontrado';
   String? _fotoPerfilUrl;
 
-  final double _avaliacao = 4.9;
-  final int _totalAvaliacoes = 423;
-  final int _seguindo = 0;
-  final bool _perfilVerificado = true;
-
   final List<String> _avisosAtivos = [];
 
   @override
@@ -297,84 +292,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
   }
 
   Widget _buildChipsTopo() {
-    if (widget.isVisitante) return const SizedBox.shrink();
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: Row(
-        children: [
-          Expanded(child: _buildRatingButton()),
-          const SizedBox(width: 8),
-          Expanded(child: _buildVerifiedButton()),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRatingButton() {
-    return Container(
-      height: 30,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE0E0E0)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.star_rounded, color: _blue, size: 18),
-          const SizedBox(width: 4),
-          const Text(
-            '4.9',
-            style: TextStyle(
-              color: Color(0xFF1F1F1F),
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(width: 2),
-          Text(
-            '(423)',
-            style: TextStyle(
-              color: Colors.grey.shade500,
-              fontSize: 12,
-              fontWeight: FontWeight.w400,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildVerifiedButton() {
-    return Container(
-      height: 30,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _blueBorder, width: 1),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: const [
-          Icon(Icons.verified, color: _blueBorder, size: 18),
-          SizedBox(width: 4),
-          Flexible(
-            child: Text(
-              'Perfil Verificado',
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: _blueBorder,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    return const SizedBox.shrink();
   }
 
   Widget _buildSectionTitle(String title) {
@@ -516,7 +434,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                   InkWell(
                     onTap: () {},
                     child: Text(
-                      'Seguindo : $_seguindo',
+                      'Seguindo',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 14,
