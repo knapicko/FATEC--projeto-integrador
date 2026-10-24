@@ -60,7 +60,9 @@ class ServicosProfissionalService {
     try {
       final user = _supabase.auth.currentUser;
       if (user == null) {
-        debugPrint('❌ [ServicosSvc] Upload cancelado: usuário não autenticado.');
+        debugPrint(
+          '❌ [ServicosSvc] Upload cancelado: usuário não autenticado.',
+        );
         return null;
       }
 
@@ -102,7 +104,9 @@ class ServicosProfissionalService {
       return url;
     } catch (e) {
       debugPrint('❌ [ServicosSvc] uploadImagemServico ERROR: $e');
-      debugPrint('❌ [ServicosSvc] uploadImagemServico STACK: ${StackTrace.current}');
+      debugPrint(
+        '❌ [ServicosSvc] uploadImagemServico STACK: ${StackTrace.current}',
+      );
       return null;
     }
   }
@@ -124,18 +128,20 @@ class ServicosProfissionalService {
         debugPrint('❌ [ServicosSvc] Busca cancelada: id_profissional nulo.');
         return [];
       }
-      debugPrint('🔎 [ServicosSvc] Consultando servicos_profissional com fk_profissional=$idProf');
+      debugPrint(
+        '🔎 [ServicosSvc] Consultando servicos_profissional com fk_profissional=$idProf',
+      );
 
       final rows = List<Map<String, dynamic>>.from(
         await _supabase
-          .from('servicos_profissional')
-          .select(
-            'id_servico_prof, titulo, descricao, valor, imagem_url, ativo, '
-            'fk_profissional, fk_oficios, data_criacao',
-          )
-          .eq('fk_profissional', idProf)
-          .eq('ativo', true)
-          .order('data_criacao', ascending: false),
+            .from('servicos_profissional')
+            .select(
+              'id_servico_prof, titulo, descricao, valor, imagem_url, ativo, '
+              'fk_profissional, fk_oficios, data_criacao',
+            )
+            .eq('fk_profissional', idProf)
+            .eq('ativo', true)
+            .order('data_criacao', ascending: false),
       );
 
       debugPrint(
@@ -168,7 +174,9 @@ class ServicosProfissionalService {
             if (oficio != null) row['oficios'] = oficio;
           }
         } catch (e) {
-          debugPrint('⚠️ [ServicosSvc] Não foi possível carregar categorias: $e');
+          debugPrint(
+            '⚠️ [ServicosSvc] Não foi possível carregar categorias: $e',
+          );
         }
       }
 
@@ -318,7 +326,8 @@ class ServicosProfissionalService {
   // ── Ofícios (categorias) ──────────────────────────────────────────────────
 
   /// Busca todos os ofícios (categorias/funções) disponíveis, incluindo id_oficio.
-  static Future<List<({int id, String nome, String cor})>> buscarOficios() async {
+  static Future<List<({int id, String nome, String cor})>>
+  buscarOficios() async {
     try {
       final rows = await _supabase
           .from('oficios')
@@ -332,12 +341,7 @@ class ServicosProfissionalService {
       }).toList();
     } catch (e) {
       debugPrint('❌ [ServicosSvc] buscarOficios ERROR: $e');
-      // Fallback para uma lista básica
-      return [
-        (id: 1, nome: 'GERAL', cor: '#1D2430'),
-        (id: 2, nome: 'ELÉTRICA', cor: '#F59E0B'),
-        (id: 3, nome: 'HIDRÁULICA', cor: '#1F8BFF'),
-      ];
+      rethrow;
     }
   }
 
