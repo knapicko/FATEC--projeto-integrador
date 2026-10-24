@@ -14,6 +14,7 @@ import 'empresa_associada.dart';
 import 'gestao_equipe.dart';
 import 'configuracoes_empresa.dart';
 import 'meus_enderecos.dart';
+import 'meus_dados_financeiros_profissional.dart';
 import 'modificar_conta_profissional.dart';
 import 'metodo_entrega_profissional.dart';
 import 'meus_servicos_profissional.dart';
@@ -209,15 +210,8 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   }
 
   Future<void> _salvarPreferenciaContaAtiva(bool isEmpresa) async {
-    // Atualiza o cache da bottom bar na hora (evita "piscar" o Perfil).
-    BottomNavigationBarProfissional.notificarTrocaConta(isEmpresa);
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final supabase = Supabase.instance.client;
-      final user = supabase.auth.currentUser;
-      if (user == null) return;
-      final key = '${_prefContaAtivaKey}_${user.id}';
-      await prefs.setBool(key, isEmpresa);
+      await BottomNavigationBarProfissional.salvarContaEmpresaAtiva(isEmpresa);
     } catch (_) {}
   }
 
@@ -678,6 +672,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           .eq('fk_usuario', usuarioId)
           .maybeSingle();
 
+      final idProfissional = (dadosProf?['id_profissional'] as num?)?.toInt();
       final idGrupo = (dadosProf?['fk_grupo_empresa'] as num?)?.toInt();
       final idPerfil = (dadosProf?['fk_perfil'] as num?)?.toInt();
 
@@ -695,6 +690,38 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
             .select('*')
             .eq('fk_perfil', idPerfil)
             .maybeSingle();
+
+        if (grupo == null) {
+          final perfil = await supabase
+              .from('perfil')
+              .select('tipo_perfil')
+              .eq('id_perfil', idPerfil)
+              .maybeSingle();
+          if (perfil?['tipo_perfil']?.toString() == 'Loja') {
+            final nomeFallback = usuario?['nome']?.toString().trim();
+            final novoGrupo = await supabase
+                .from('grupo_empresa')
+                .insert({
+                  'fk_perfil': idPerfil,
+                  'nome_empresa':
+                      (nomeFallback != null && nomeFallback.isNotEmpty)
+                      ? nomeFallback
+                      : 'Minha Loja',
+                  'tag_empresa': 'LOJA',
+                })
+                .select('*')
+                .maybeSingle();
+            if (novoGrupo != null) {
+              grupo = novoGrupo;
+              if (idProfissional != null) {
+                await supabase
+                    .from('dados_profissionais')
+                    .update({'fk_grupo_empresa': novoGrupo['id_grupo_empresa']})
+                    .eq('id_profissional', idProfissional);
+              }
+            }
+          }
+        }
       }
 
       return grupo;
@@ -1625,133 +1652,151 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                           ),
 
                           // Cabeçalho: Foto + Selo, Nome, Endereço e Setas de troca
-                          // Toda a área (foto/nome/endereço) abre a troca de conta.
-                          Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(12),
-                              onTap: () async {
-                                Navigator.of(bottomSheetContext).pop();
-                                await _mostrarBottomSheetTrocaConta();
-                              },
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Stack(
-                                      clipBehavior: Clip.none,
-                                      children: [
-                                        Container(
-                                          width: 58,
-                                          height: 58,
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
-                                              color: _primaryBlue,
-                                              width: 2,
-                                            ),
-                                          ),
-                                          child: ClipOval(
-                                            child:
-                                                fotoUrl != null &&
-                                                    fotoUrl.isNotEmpty
-                                                ? Image.network(
-                                                    fotoUrl,
-                                                    fit: BoxFit.cover,
-                                                    errorBuilder: (_, _, _) =>
-                                                        _buildAvatarIniciais(
-                                                          nome,
-                                                        ),
-                                                  )
-                                                : _buildAvatarIniciais(nome),
-                                          ),
-                                        ),
-                                        Positioned(
-                                          bottom: 0,
-                                          right: 0,
-                                          child: Container(
-                                            width: 18,
-                                            height: 18,
-                                            decoration: BoxDecoration(
-                                              color: _primaryBlue,
-                                              shape: BoxShape.circle,
-                                              border: Border.all(
-                                                color: Colors.white,
-                                                width: 1.5,
-                                              ),
-                                            ),
-                                            child: const Center(
-                                              child: Icon(
-                                                Icons.check,
-                                                color: Colors.white,
-                                                size: 10,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(width: 14),
+                          // Toda a área (foto/nome/endereço) abre a troca de conta SOMENTE se for Loja.
+                          FutureBuilder<String?>(
+                            future: _tipoPerfilFuture,
+                            builder: (context, tipoSnapshot) {
+                              final podeTrocarConta =
+                                  tipoSnapshot.data?.trim() == 'Loja';
 
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            nome,
-                                            style: const TextStyle(
-                                              fontSize: 19,
-                                              fontWeight: FontWeight.bold,
-                                              color: Color(0xFF1E293B),
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Row(
-                                            children: [
-                                              const Icon(
-                                                Icons.location_on,
-                                                size: 16,
-                                                color: _primaryBlue,
-                                              ),
-                                              const SizedBox(width: 3),
-                                              Expanded(
-                                                child: Text(
-                                                  endereco,
-                                                  style: const TextStyle(
-                                                    fontSize: 13.5,
-                                                    color: Color(0xFF64748B),
-                                                    fontWeight: FontWeight.w500,
-                                                  ),
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
+                              return Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(12),
+                                  onTap: podeTrocarConta
+                                      ? () async {
+                                          Navigator.of(
+                                            bottomSheetContext,
+                                          ).pop();
+                                          await _mostrarBottomSheetTrocaConta();
+                                        }
+                                      : null,
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 20,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Stack(
+                                          clipBehavior: Clip.none,
+                                          children: [
+                                            Container(
+                                              width: 58,
+                                              height: 58,
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                border: Border.all(
+                                                  color: _primaryBlue,
+                                                  width: 2,
                                                 ),
+                                              ),
+                                              child: ClipOval(
+                                                child:
+                                                    fotoUrl != null &&
+                                                        fotoUrl.isNotEmpty
+                                                    ? Image.network(
+                                                        fotoUrl,
+                                                        fit: BoxFit.cover,
+                                                        errorBuilder: (_, _, _) =>
+                                                            _buildAvatarIniciais(
+                                                              nome,
+                                                            ),
+                                                      )
+                                                    : _buildAvatarIniciais(
+                                                        nome,
+                                                      ),
+                                              ),
+                                            ),
+                                            Positioned(
+                                              bottom: 0,
+                                              right: 0,
+                                              child: Container(
+                                                width: 18,
+                                                height: 18,
+                                                decoration: BoxDecoration(
+                                                  color: _primaryBlue,
+                                                  shape: BoxShape.circle,
+                                                  border: Border.all(
+                                                    color: Colors.white,
+                                                    width: 1.5,
+                                                  ),
+                                                ),
+                                                child: const Center(
+                                                  child: Icon(
+                                                    Icons.check,
+                                                    color: Colors.white,
+                                                    size: 10,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(width: 14),
+
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                nome,
+                                                style: const TextStyle(
+                                                  fontSize: 19,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Color(0xFF1E293B),
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Row(
+                                                children: [
+                                                  const Icon(
+                                                    Icons.location_on,
+                                                    size: 16,
+                                                    color: _primaryBlue,
+                                                  ),
+                                                  const SizedBox(width: 3),
+                                                  Expanded(
+                                                    child: Text(
+                                                      endereco,
+                                                      style: const TextStyle(
+                                                        fontSize: 13.5,
+                                                        color: Color(
+                                                          0xFF64748B,
+                                                        ),
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      ),
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ],
                                           ),
+                                        ),
+                                        if (podeTrocarConta) ...[
+                                          const SizedBox(width: 8),
+                                          const Padding(
+                                            padding: EdgeInsets.all(4),
+                                            child: Icon(
+                                              Icons.swap_horiz,
+                                              size: 26,
+                                              color: Color(0xFF374151),
+                                            ),
+                                          ),
                                         ],
-                                      ),
+                                      ],
                                     ),
-                                    const SizedBox(width: 8),
-
-                                    const Padding(
-                                      padding: EdgeInsets.all(4),
-                                      child: Icon(
-                                        Icons.swap_horiz,
-                                        size: 26,
-                                        color: Color(0xFF374151),
-                                      ),
-                                    ),
-                                  ],
+                                  ),
                                 ),
-                              ),
-                            ),
+                              );
+                            },
                           ),
 
                           const SizedBox(height: 16),
@@ -1910,7 +1955,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     // 1. Dados do Usuário (Profissional CNPJ)
     final usuario = await supabase
         .from('usuarios')
-        .select('id_usuario, nome, foto_perfil_url')
+        .select('id_usuario, nome, foto_perfil_url, fk_tipo_pessoa')
         .eq('auth_id', user.id)
         .maybeSingle();
 
@@ -1950,6 +1995,80 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           .select('*')
           .eq('fk_perfil', idPerfil)
           .maybeSingle();
+    }
+
+    // Se o grupo ainda não foi encontrado, mas o tipo_perfil é 'Loja':
+    if (grupo == null && idPerfil != null) {
+      try {
+        final perfilRow = await supabase
+            .from('perfil')
+            .select('tipo_perfil')
+            .eq('id_perfil', idPerfil)
+            .maybeSingle();
+        final tipo = perfilRow?['tipo_perfil']?.toString();
+        if (tipo == 'Loja') {
+          // Busca nome fantasia ou razão social da PJ
+          String? nomePj;
+          final tipoPessoaId = usuario?['fk_tipo_pessoa'];
+          if (tipoPessoaId != null) {
+            try {
+              final ass = await supabase
+                  .from('ass_tipo_pessoa')
+                  .select('fk_pessoa_juridica')
+                  .eq('id_tipo_pessoa', tipoPessoaId)
+                  .maybeSingle();
+              final fkPj = ass?['fk_pessoa_juridica'];
+              if (fkPj != null) {
+                final pj = await supabase
+                    .from('pessoa_juridica')
+                    .select('nome_fantasia, razao_social')
+                    .eq('id_pessoa_juridica', fkPj)
+                    .maybeSingle();
+                nomePj = pj?['nome_fantasia']?.toString().trim();
+                if (nomePj == null || nomePj.isEmpty) {
+                  nomePj = pj?['razao_social']?.toString().trim();
+                }
+              }
+            } catch (_) {}
+          }
+          final nomeEmpresaCriar = (nomePj != null && nomePj.isNotEmpty)
+              ? nomePj
+              : (nomeProf.isNotEmpty ? nomeProf : 'Minha Loja');
+
+          try {
+            final novoGrupo = await supabase
+                .from('grupo_empresa')
+                .insert({
+                  'fk_perfil': idPerfil,
+                  'nome_empresa': nomeEmpresaCriar,
+                  'tag_empresa': 'LOJA',
+                })
+                .select('*')
+                .maybeSingle();
+
+            if (novoGrupo != null) {
+              grupo = novoGrupo;
+              final novoIdGrupo = (novoGrupo['id_grupo_empresa'] as num?)
+                  ?.toInt();
+              if (novoIdGrupo != null && idProfissional != null) {
+                await supabase
+                    .from('dados_profissionais')
+                    .update({'fk_grupo_empresa': novoIdGrupo})
+                    .eq('id_profissional', idProfissional);
+              }
+            }
+          } catch (e) {
+            debugPrint('Falha ao auto-criar grupo_empresa para Loja: $e');
+          }
+
+          // Fallback caso o insert tenha falhado mas o usuário é 'Loja'
+          grupo ??= {
+            'nome_empresa': nomeEmpresaCriar,
+            'foto_url_empresa': null,
+            'seguidores_empresa': 0,
+          };
+        }
+      } catch (_) {}
     }
 
     final nomeEmpresa = grupo?['nome_empresa']?.toString().trim();
@@ -2002,12 +2121,16 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   }
 
   Future<void> _mostrarBottomSheetTrocaConta() async {
+    final tipo = await _buscarTipoPerfil();
+    if (tipo != 'Loja' || !mounted) return;
+
     if (_cacheInfosContas == null) {
       await _precarregarInfosContas();
       if (!mounted) return;
     } else {
       _precarregarInfosContas();
     }
+    if (!mounted) return;
     final infos = _cacheInfosContas;
     if (infos == null || infos['tem_empresa'] != true) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -3191,6 +3314,13 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                           child: _buildQuickOption(
                             Icons.account_balance_wallet_outlined,
                             'Dados\nFinanceiros',
+                            onTap: () {
+                              Navigator.of(context).push(
+                                _rotaSemAnimacao(
+                                  const MeusDadosFinanceirosProfissionalPage(),
+                                ),
+                              );
+                            },
                           ),
                         ),
                         Expanded(
