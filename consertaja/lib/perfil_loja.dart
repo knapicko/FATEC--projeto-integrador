@@ -159,7 +159,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
   String _nomeEmpresa = 'Caedss & Equipe ConsertaJá';
   String? _fotoUrlEmpresa;
   String? _bannerUrlEmpresa;
-  String? _tagEmpresa = '#CAEDS';
+  String? _tagEmpresa;
   Color? _corTagEmpresa = const Color(0xFF0288D1);
 
   bool _compartilharFuncionarios = false;
@@ -190,7 +190,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
 
   // --- Estado vindo do Supabase (grupo_empresa) ---
   String _descricaoEmpresa = '';
-  String _anosMercado = '1';
+  String _anosMercado = '';
   _DadosEnderecoEmpresa? _enderecoEmpresa;
   bool _enderecoCarregado = false;
 
@@ -478,8 +478,6 @@ class _PerfilLojaState extends State<PerfilLoja> {
               novosProfissionais.add({
                 'idProfissional': idProfDono,
                 'nome': nomeDono,
-                'avaliacao': 4.9,
-                'totalAvaliacoes': 423,
                 'cargo': 'Responsável',
                 'caminhoImagem': fotoDono,
                 'isResponsavel': true,
@@ -521,8 +519,6 @@ class _PerfilLojaState extends State<PerfilLoja> {
             novosProfissionais.add({
               'idProfissional': idProf,
               'nome': nome,
-              'avaliacao': 4.8,
-              'totalAvaliacoes': 198,
               'cargo': ehResponsavel ? 'Responsável' : 'Funcionário',
               'caminhoImagem': foto,
               'isResponsavel': ehResponsavel,
@@ -1242,7 +1238,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildSecaoAvaliacoes(),
+                    const Text('Avaliações indisponíveis nesta tela.'),
                     const SizedBox(height: 20),
                     _buildBarraAcaoRodape(),
                     const SizedBox(height: 24),
@@ -1688,24 +1684,9 @@ class _PerfilLojaState extends State<PerfilLoja> {
         child: Row(
           children: [
             _buildColunaMetrica(
-              icone: Icons.star,
-              corIcone: _kStarGold,
-              valor: '4.9',
-              subtitulo: '120 avaliações',
-            ),
-            _buildDivisorVertical(),
-            _buildColunaMetrica(
-              icone: Icons.verified,
-              corIcone: _kPrimaryCyan,
-              valor: 'Pro',
-              corValor: _kDarkSlate,
-              subtitulo: 'Verificado',
-            ),
-            _buildDivisorVertical(),
-            _buildColunaMetrica(
               icone: Icons.business_center_outlined,
               corIcone: const Color(0xFF475569),
-              valor: _anosMercado,
+              valor: _anosMercado.isEmpty ? '—' : _anosMercado,
               subtitulo: 'Anos exp.',
             ),
             _buildDivisorVertical(),
@@ -1899,10 +1880,6 @@ class _PerfilLojaState extends State<PerfilLoja> {
     final foto = perfil['caminhoImagem']?.toString().trim() ?? '';
     final bool usaFotoRede =
         foto.startsWith('http://') || foto.startsWith('https://');
-    final double avaliacao = (perfil['avaliacao'] as num?)?.toDouble() ?? 4.9;
-    final int totalAvaliacoes =
-        (perfil['totalAvaliacoes'] as num?)?.toInt() ?? 120;
-
     // Apenas 'Responsável' ou 'Funcionário'
     final bool isResponsavel =
         perfil['isResponsavel'] == true || perfil['cargo'] == 'Responsável';
@@ -1917,8 +1894,6 @@ class _PerfilLojaState extends State<PerfilLoja> {
               nomeInicial: nome,
               imagemInicial: foto,
               profissao: cargo,
-              avaliacao: avaliacao,
-              totalAvaliacoes: totalAvaliacoes,
               idGrupoEmpresa: _idGrupoEmpresa,
               idProfissional: (perfil['idProfissional'] as num?)?.toInt(),
             ),
@@ -1974,26 +1949,6 @@ class _PerfilLojaState extends State<PerfilLoja> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 4),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.star, color: _kStarGold, size: 13),
-                const SizedBox(width: 3),
-                Text(
-                  avaliacao.toStringAsFixed(1),
-                  style: const TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.bold,
-                    color: _kDarkSlate,
-                  ),
-                ),
-                const SizedBox(width: 2),
-                Text(
-                  '($totalAvaliacoes)',
-                  style: const TextStyle(fontSize: 10, color: _kTextMuted),
-                ),
-              ],
-            ),
             const Spacer(),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -3033,25 +2988,6 @@ class _PerfilLojaState extends State<PerfilLoja> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
-                    Row(
-                      children: const [
-                        Icon(Icons.star, color: _kStarGold, size: 12),
-                        SizedBox(width: 3),
-                        Text(
-                          '4.9',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: _kDarkSlate,
-                          ),
-                        ),
-                        SizedBox(width: 2),
-                        Text(
-                          '(180)',
-                          style: TextStyle(fontSize: 10, color: _kTextMuted),
-                        ),
-                      ],
-                    ),
                     const Spacer(),
                     const Text(
                       'Preço Médio',
