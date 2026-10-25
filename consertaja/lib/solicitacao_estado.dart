@@ -730,6 +730,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
           idProfissional: _fkGrupoEmpresa == null ? _fkProfissional : null,
           idGrupoEmpresa: _fkGrupoEmpresa,
           idSolicitacao: _idSolicitacao,
+          somenteAbrirConversaExistente: true,
         ),
       ),
     );
@@ -789,9 +790,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
           _idStatusSolicitacao = idStatusAndamento;
           _statusTexto = 'Em Andamento';
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Serviço iniciado.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Serviço iniciado.')));
       }
     } catch (e) {
       if (mounted) {
@@ -910,7 +911,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Serviço concluído. Aguardando confirmação do cliente.'),
+            content: Text(
+              'Serviço concluído. Aguardando confirmação do cliente.',
+            ),
           ),
         );
       }
@@ -1460,8 +1463,8 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         break;
     }
 
-      final status = _statusTexto.trim().toLowerCase();
-      final etapaAtual = status.contains('conclu')
+    final status = _statusTexto.trim().toLowerCase();
+    final etapaAtual = status.contains('conclu')
         ? etapas.length
         : status.contains('aguardando cliente')
         ? etapas.length - 1
@@ -1524,12 +1527,12 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                             height: 30,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                                color: isCurrent
-                                    ? _azul
+                              color: isCurrent
+                                  ? _azul
                                   : const Color(0xFFF1F5F9),
                               border: Border.all(
                                 color: isCurrent
-                                      ? _azul
+                                    ? _azul
                                     : const Color(0xFFCBD5E1),
                                 width: isCurrent ? 2 : 1.5,
                               ),

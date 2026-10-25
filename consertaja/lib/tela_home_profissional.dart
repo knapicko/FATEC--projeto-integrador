@@ -3323,52 +3323,47 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                             },
                           ),
                         ),
-                        Expanded(
-                          child: _buildQuickOption(
-                            Icons.manage_accounts_outlined,
-                            'Modificar\nconta',
-                            onTap: () async {
-                              await Navigator.of(context).push(
-                                _rotaSemAnimacao(
-                                  const ModificarContaProfissionalPage(),
-                                ),
-                              );
-                              if (mounted) {
-                                setState(() {
-                                  _tipoPerfilFuture = _buscarTipoPerfil();
-                                });
-                              }
-                            },
+                        if (!_contaEmpresaAtiva)
+                          Expanded(
+                            child: _buildQuickOption(
+                              Icons.manage_accounts_outlined,
+                              'Modificar\nconta',
+                              onTap: () async {
+                                await Navigator.of(context).push(
+                                  _rotaSemAnimacao(
+                                    const ModificarContaProfissionalPage(),
+                                  ),
+                                );
+                                if (mounted) {
+                                  setState(() {
+                                    _tipoPerfilFuture = _buscarTipoPerfil();
+                                  });
+                                }
+                              },
+                            ),
                           ),
-                        ),
-                        Expanded(
-                          child: FutureBuilder<String?>(
-                            future: _tipoPerfilFuture,
-                            builder: (context, snapshot) {
-                              final isIndependente =
-                                  snapshot.data == 'Independente';
-                              return _buildQuickOption(
-                                isIndependente
-                                    ? Icons.storefront_outlined
-                                    : Icons.remove_red_eye_outlined,
-                                isIndependente
-                                    ? 'Empresa\nassociada'
-                                    : 'Visualizar\nperfil',
-                                onTap: () {
-                                  Navigator.of(context).push(
-                                    _rotaSemAnimacao(
-                                      isIndependente
-                                          ? const EmpresaAssociadaPage()
-                                          : TelaMeuPerfilProfissionalPage(
-                                              isVisitante: widget.isVisitante,
-                                            ),
-                                    ),
-                                  );
-                                },
-                              );
-                            },
+                        if (!_contaEmpresaAtiva)
+                          Expanded(
+                            child: FutureBuilder<String?>(
+                              future: _tipoPerfilFuture,
+                              builder: (context, snapshot) {
+                                if (snapshot.data != 'Independente') {
+                                  return const SizedBox.shrink();
+                                }
+                                return _buildQuickOption(
+                                  Icons.storefront_outlined,
+                                  'Empresa\nassociada',
+                                  onTap: () {
+                                    Navigator.of(context).push(
+                                      _rotaSemAnimacao(
+                                        const EmpresaAssociadaPage(),
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ],
@@ -3391,9 +3386,9 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
         bottomNavigationBar: BottomNavigationBarProfissional(
           key: const ValueKey('bottomProfissional'),
           currentIndex: _currentIndex,
-          // Sem prop isContaEmpresa: a barra usa o cache interno
-          // (leitura síncrona no 1º frame + confirmação em background),
-          // igual às demais telas — sem piscar Perfil/Empresa.
+          isContaEmpresa: _contaEmpresaAtiva,
+          // A barra recebe diretamente o estado da conta ativa para alternar
+          // entre Perfil e Empresa sem depender apenas do cache.
           // Tocar na aba atual (Home) recarrega os dados da página.
           onReselecionarAbaAtual: (_) => _recarregarPaginaAtual(),
           onTap: (index) {
@@ -3427,8 +3422,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
               // 5º botão: conta empresa -> "Empresa" (gestão), senão "Perfil".
               // Usa o cache síncrono da barra (igual às demais telas), sem
               // depender do setState assíncrono de _contaEmpresaAtiva.
-              final ehEmpresa =
-                  BottomNavigationBarProfissional.leituraSincronaContaEmpresa();
+              final ehEmpresa = _contaEmpresaAtiva;
               if (ehEmpresa) {
                 Navigator.of(context).push(
                   AppNavigationUtil.rotaSemAnimacao(

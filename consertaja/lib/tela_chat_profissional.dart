@@ -50,6 +50,7 @@ class TelaChatProfissional extends StatefulWidget {
 
   /// Permite abrir um chat já existente a partir da lista de mensagens.
   final int? idConversa;
+  final bool somenteAbrirConversaExistente;
 
   const TelaChatProfissional({
     super.key,
@@ -60,6 +61,7 @@ class TelaChatProfissional extends StatefulWidget {
     this.idGrupoEmpresa,
     this.idSolicitacao,
     this.idConversa,
+    this.somenteAbrirConversaExistente = false,
   });
 
   @override
@@ -2060,7 +2062,9 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
         await _carregarPapelNaConversa();
         await _carregarStatusContato();
       } else {
-        if (widget.idGrupoEmpresa != null) {
+        if (widget.somenteAbrirConversaExistente) {
+          await _abrirConversaExistenteDaSolicitacao();
+        } else if (widget.idGrupoEmpresa != null) {
           // Chat da EMPRESA (grupo_empresa): conversa cliente x empresa.
           _souEmpresaNaConversa = await _souMembroDoGrupo(
             widget.idGrupoEmpresa!,
@@ -2089,7 +2093,9 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
 
       _oficioContato = widget.oficioPrincipal;
       await _carregarStatusContato();
-      await _vincularSolicitacaoConversa();
+      if (!widget.somenteAbrirConversaExistente) {
+        await _vincularSolicitacaoConversa();
+      }
       await _carregarResumoSolicitacao();
       await _carregarTemaConversa();
       if (_oficioContato.trim().isEmpty ||
@@ -2117,6 +2123,55 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
         setState(() => _carregando = false);
         _rolarParaFim(animado: false);
       }
+    }
+  }
+
+  Future<void> _abrirConversaExistenteDaSolicitacao() async {
+    final idSolicitacao = widget.idSolicitacao;
+    if (idSolicitacao == null) return;
+
+    try {
+      final vinculada = await _supabase
+          .from('conversas')
+          .select('id_conversa, fk_usuario, fk_profissional, fk_grupo_empresa')
+          .eq('fk_solicitacao', idSolicitacao)
+          .order('id_conversa', ascending: true)
+          .limit(1)
+          .maybeSingle();
+      if (vinculada != null) {
+        _idConversa = (vinculada['id_conversa'] as num?)?.toInt();
+        await _carregarPapelNaConversa();
+        return;
+      }
+    } catch (_) {
+      // Compatibilidade com bancos que ainda não possuem fk_solicitacao.
+    }
+
+    final solicitacao = await _supabase
+        .from('solicitacoes')
+        .select('fk_usuario, fk_profissional, fk_grupo_empresa')
+        .eq('id_solicitacao', idSolicitacao)
+        .maybeSingle();
+    final idCliente = (solicitacao?['fk_usuario'] as num?)?.toInt();
+    final idProfissional = (solicitacao?['fk_profissional'] as num?)?.toInt();
+    final idGrupo = (solicitacao?['fk_grupo_empresa'] as num?)?.toInt();
+    if (idCliente == null || (idProfissional == null && idGrupo == null))
+      return;
+
+    dynamic consulta = _supabase
+        .from('conversas')
+        .select('id_conversa, fk_usuario, fk_profissional, fk_grupo_empresa')
+        .eq('fk_usuario', idCliente);
+    consulta = idGrupo != null
+        ? consulta.eq('fk_grupo_empresa', idGrupo)
+        : consulta.eq('fk_profissional', idProfissional!);
+    final conversa = await consulta
+        .order('id_conversa', ascending: true)
+        .limit(1)
+        .maybeSingle();
+    if (conversa != null) {
+      _idConversa = (conversa['id_conversa'] as num?)?.toInt();
+      await _carregarPapelNaConversa();
     }
   }
 
@@ -2463,9 +2518,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       try {
         mensagens = await _supabase
             .from('mensagens')
-            .select(
-              'id_mensagem, conteudo, data_envio, fk_remitente_usuario, lida, tipo_mensagem, url_arquivo, legenda, duracao_audio',
-            )
+            .select('*')
             .eq('fk_conversa', _idConversa!)
             .order('data_envio', ascending: true);
       } catch (_) {
@@ -2645,9 +2698,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       try {
         mensagens = await _supabase
             .from('mensagens')
-            .select(
-              'id_mensagem, conteudo, data_envio, fk_remitente_usuario, lida, tipo_mensagem, url_arquivo, legenda, duracao_audio',
-            )
+            .select('*')
             .eq('fk_conversa', _idConversa!)
             .order('data_envio', ascending: true);
       } catch (_) {
