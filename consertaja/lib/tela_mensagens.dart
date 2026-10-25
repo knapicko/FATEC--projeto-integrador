@@ -578,6 +578,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
           resultado.add(
             _ConversaResumo(
               idConversa: idConv,
+              idCliente: idCliente,
               idSolicitacao: (conv['fk_solicitacao'] as num?)?.toInt(),
               nomeContato: nomeContato,
               fotoUrl: fotoUrl,
@@ -590,6 +591,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
                 contato?['ultima_conexao']?.toString() ?? '',
               ),
               ultimaMensagem: _previaMensagem(ultima),
+              tipoUltimaMensagem: ultima?['tipo_mensagem']?.toString(),
               dataUltimaMensagem: DateTime.tryParse(
                 ultima?['data_envio']?.toString() ?? '',
               ),
@@ -616,6 +618,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
               servicoAssociado: servicoPorConversa[idConv],
               ultimaConexaoContato: null,
               ultimaMensagem: _previaMensagem(ultima),
+              tipoUltimaMensagem: ultima?['tipo_mensagem']?.toString(),
               dataUltimaMensagem: DateTime.tryParse(
                 ultima?['data_envio']?.toString() ?? '',
               ),
@@ -649,6 +652,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
               contato['ultima_conexao']?.toString() ?? '',
             ),
             ultimaMensagem: _previaMensagem(ultima),
+            tipoUltimaMensagem: ultima?['tipo_mensagem']?.toString(),
             dataUltimaMensagem: DateTime.tryParse(
               ultima?['data_envio']?.toString() ?? '',
             ),
@@ -665,7 +669,23 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
         return;
       }
 
-      resultado.sort((a, b) {
+      final unicasPorCliente = <int, _ConversaResumo>{};
+      final semCliente = <_ConversaResumo>[];
+      for (final conversa in resultado) {
+        if (!isProfissional || conversa.idCliente == null) {
+          semCliente.add(conversa);
+          continue;
+        }
+        final anterior = unicasPorCliente[conversa.idCliente!];
+        if (anterior == null || _maisRecente(conversa, anterior)) {
+          unicasPorCliente[conversa.idCliente!] = conversa;
+        }
+      }
+      final listaUnica = isProfissional
+          ? [...unicasPorCliente.values, ...semCliente]
+          : resultado;
+
+      listaUnica.sort((a, b) {
         final fa = a.dataUltimaMensagem;
         final fb = b.dataUltimaMensagem;
         if (fa == null && fb == null) return 0;
@@ -674,7 +694,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
         return fb.compareTo(fa);
       });
 
-      _aplicarLista(resultado);
+      _aplicarLista(listaUnica);
     } catch (erro) {
       if (_eTabelaIndisponivel(erro)) {
         _aplicarLista([]);
@@ -686,6 +706,14 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
         _erro = 'Não foi possível carregar as conversas.';
       });
     }
+  }
+
+  bool _maisRecente(_ConversaResumo atual, _ConversaResumo anterior) {
+    final dataAtual = atual.dataUltimaMensagem;
+    final dataAnterior = anterior.dataUltimaMensagem;
+    if (dataAtual == null) return false;
+    if (dataAnterior == null) return true;
+    return dataAtual.isAfter(dataAnterior);
   }
 
   void _aplicarLista(List<_ConversaResumo> lista) {
@@ -790,12 +818,12 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
     final tipo = (ultima['tipo_mensagem']?.toString() ?? 'Texto').toLowerCase();
     final conteudo = ultima['conteudo']?.toString() ?? '';
 
-    if (tipo == 'imagem') return '📷 Foto';
-    if (tipo == 'audio') return '🎤 Áudio';
+    if (tipo == 'imagem') return 'Foto';
+    if (tipo == 'audio') return 'Áudio';
     if (tipo == 'documento') {
       final nome =
           ChatAnexosService.separarConteudoDocumento(conteudo)?.nome ?? '';
-      return nome.isEmpty ? '📎 Documento' : '📎 $nome';
+      return nome.isEmpty ? 'Documento' : nome;
     }
     return conteudo;
   }
@@ -1273,18 +1301,10 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
                             const SizedBox(width: 4),
                           ],
                           Expanded(
-                            child: Text(
-                              conversa.ultimaMensagem ??
-                                  'Nenhuma mensagem ainda',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: destaqueNaoLida
-                                    ? FontWeight.w600
-                                    : FontWeight.w400,
-                                color: corMensagem,
-                              ),
+                            child: _buildPreviewMensagem(
+                              conversa,
+                              corMensagem,
+                              destaqueNaoLida,
                             ),
                           ),
                           if (conversa.mensagensNaoLidas > 0) ...[
@@ -1301,6 +1321,39 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildPreviewMensagem(
+    _ConversaResumo conversa,
+    Color corMensagem,
+    bool destaqueNaoLida,
+  ) {
+    final tipo = conversa.tipoUltimaMensagem?.toLowerCase();
+    final icone = tipo == 'imagem'
+        ? Icons.image_outlined
+        : tipo == 'audio'
+        ? Icons.mic_none_outlined
+        : null;
+    return Row(
+      children: [
+        if (icone != null) ...[
+          Icon(icone, size: 17, color: _primaryBlue),
+          const SizedBox(width: 4),
+        ],
+        Expanded(
+          child: Text(
+            conversa.ultimaMensagem ?? 'Nenhuma mensagem ainda',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: destaqueNaoLida ? FontWeight.w600 : FontWeight.w400,
+              color: corMensagem,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1398,6 +1451,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
 
 class _ConversaResumo {
   final int idConversa;
+  final int? idCliente;
   final int? idSolicitacao;
   final String nomeContato;
   final String fotoUrl;
@@ -1408,6 +1462,7 @@ class _ConversaResumo {
   final String? servicoAssociado;
   final DateTime? ultimaConexaoContato;
   final String? ultimaMensagem;
+  final String? tipoUltimaMensagem;
   final DateTime? dataUltimaMensagem;
   final int mensagensNaoLidas;
   final bool forcarDestaqueNaoLida;
@@ -1417,6 +1472,7 @@ class _ConversaResumo {
 
   const _ConversaResumo({
     required this.idConversa,
+    this.idCliente,
     this.idSolicitacao,
     required this.nomeContato,
     this.fotoUrl = '',
@@ -1427,6 +1483,7 @@ class _ConversaResumo {
     this.servicoAssociado,
     this.ultimaConexaoContato,
     this.ultimaMensagem,
+    this.tipoUltimaMensagem,
     this.dataUltimaMensagem,
     this.mensagensNaoLidas = 0,
     this.forcarDestaqueNaoLida = false,
