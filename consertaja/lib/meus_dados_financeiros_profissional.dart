@@ -2,6 +2,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'gestao_equipe.dart';
+import 'tela_meu_perfil_profissional.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
 
 class MeusDadosFinanceirosProfissionalPage extends StatefulWidget {
@@ -13,7 +15,8 @@ class MeusDadosFinanceirosProfissionalPage extends StatefulWidget {
 }
 
 class _MeusDadosFinanceirosProfissionalPageState
-    extends State<MeusDadosFinanceirosProfissionalPage> {
+    extends State<MeusDadosFinanceirosProfissionalPage>
+    with SingleTickerProviderStateMixin {
   static const Color _primaryBlue = Color(0xFF0FB3FF);
   static const Color _background = Color(0xFFF8FAFC);
   static const Color _textDark = Color(0xFF0F172A);
@@ -31,6 +34,7 @@ class _MeusDadosFinanceirosProfissionalPageState
   bool _contaEmpresaAtiva = false;
   String _nomeProfissional = '';
   String? _fotoPerfilUrl;
+  String? _stripeConnectedAccountId;
 
   // Chaves do profissional carregadas do cadastro
   String? _cpfCnpjCadastrado;
@@ -44,6 +48,9 @@ class _MeusDadosFinanceirosProfissionalPageState
   bool _aceitaBoleto = false;
 
   String? _chavePix;
+  late final AnimationController _shakeController;
+  late final Animation<double> _shakeAnimation;
+  bool _destacarChavePix = false;
   String _condicoesParcela = 'Até 6x sem juros (Taxa absorvida)';
 
   static const List<String> _opcoesParcelamento = [
@@ -61,7 +68,24 @@ class _MeusDadosFinanceirosProfissionalPageState
   @override
   void initState() {
     super.initState();
+    _shakeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 550),
+    );
+    _shakeAnimation = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0, end: -7), weight: 1),
+      TweenSequenceItem(tween: Tween(begin: -7, end: 7), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: 7, end: -5), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: -5, end: 5), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: 5, end: 0), weight: 1),
+    ]).animate(_shakeController);
     _carregarDados();
+  }
+
+  @override
+  void dispose() {
+    _shakeController.dispose();
+    super.dispose();
   }
 
   Future<void> _carregarDados() async {
@@ -193,7 +217,7 @@ class _MeusDadosFinanceirosProfissionalPageState
         final dadosProf = await _supabase
             .from('dados_profissionais')
             .select(
-              'id_profissional, fk_grupo_empresa, pagamento_aceito, chave_pix, condicoes_parcela',
+              'id_profissional, fk_grupo_empresa, pagamento_aceito, chave_pix, condicoes_parcela, stripe_connected_account_id',
             )
             .eq('fk_usuario', idUsuario)
             .maybeSingle();
@@ -206,7 +230,9 @@ class _MeusDadosFinanceirosProfissionalPageState
               _contaEmpresaAtiva && _idGrupoEmpresa != null
               ? await _supabase
                     .from('grupo_empresa')
-                    .select('pagamento_aceito, chave_pix, condicoes_parcela')
+                    .select(
+                      'pagamento_aceito, chave_pix, condicoes_parcela, nome_empresa, foto_url_empresa, stripe_connected_account_id',
+                    )
                     .eq('id_grupo_empresa', _idGrupoEmpresa!)
                     .maybeSingle()
               : dadosProf;
@@ -237,6 +263,18 @@ class _MeusDadosFinanceirosProfissionalPageState
           }
 
           _chavePix = dadosFinanceiros?['chave_pix']?.toString();
+          _stripeConnectedAccountId =
+              dadosFinanceiros?['stripe_connected_account_id']
+                  ?.toString()
+                  .trim();
+          if (_contaEmpresaAtiva && _idGrupoEmpresa != null) {
+            _nomeProfissional =
+                dadosFinanceiros?['nome_empresa']?.toString().trim() ??
+                _nomeProfissional;
+            _fotoPerfilUrl = dadosFinanceiros?['foto_url_empresa']
+                ?.toString()
+                .trim();
+          }
           final parcelaSalva = dadosFinanceiros?['condicoes_parcela']
               ?.toString();
           if (parcelaSalva != null && parcelaSalva.isNotEmpty) {
@@ -313,6 +351,97 @@ class _MeusDadosFinanceirosProfissionalPageState
       }
     } finally {
       if (mounted) setState(() => _salvando = false);
+    }
+  }
+
+  bool get _pixSemChave =>
+      _aceitaPix && (_chavePix == null || _chavePix!.trim().isEmpty);
+
+  Future<void> _tentarSair() async {
+    if (!_pixSemChave) {
+      if (mounted) Navigator.of(context).pop();
+      return;
+    }
+
+    if (mounted) setState(() => _destacarChavePix = true);
+    _shakeController.forward(from: 0);
+    await showModalBottomSheet<void>(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(22, 14, 22, 24),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFCBD5E1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Icon(Icons.key_rounded, color: Color(0xFFDC2626), size: 38),
+              const SizedBox(height: 12),
+              const Text(
+                'Cadastre sua chave Pix',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: _textDark,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'O Pix está ativo, mas nenhuma chave foi definida. Cadastre uma chave antes de sair desta página.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: _textMuted, fontSize: 14, height: 1.4),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    Future<void>.delayed(
+                      Duration.zero,
+                      _abrirBottomSheetChavePix,
+                    );
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _primaryBlue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  icon: const Icon(Icons.add_link_rounded),
+                  label: const Text(
+                    'Cadastrar chave Pix',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (mounted) {
+      Future<void>.delayed(const Duration(milliseconds: 700), () {
+        if (mounted) setState(() => _destacarChavePix = false);
+      });
     }
   }
 
@@ -695,52 +824,60 @@ class _MeusDadosFinanceirosProfissionalPageState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _background,
-      body: SafeArea(
-        child: _carregando
-            ? const Center(
-                child: CircularProgressIndicator(color: _primaryBlue),
-              )
-            : Column(
-                children: [
-                  _buildHeader(),
-                  if (_salvando)
-                    const LinearProgressIndicator(
-                      minHeight: 2.5,
-                      color: _primaryBlue,
-                      backgroundColor: Colors.transparent,
-                    ),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _tentarSair();
+      },
+      child: Scaffold(
+        backgroundColor: _background,
+        body: SafeArea(
+          child: _carregando
+              ? const Center(
+                  child: CircularProgressIndicator(color: _primaryBlue),
+                )
+              : Column(
+                  children: [
+                    _buildHeader(),
+                    if (_salvando)
+                      const LinearProgressIndicator(
+                        minHeight: 2.5,
+                        color: _primaryBlue,
+                        backgroundColor: Colors.transparent,
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildPillsStatus(),
-                          const SizedBox(height: 16),
-                          _buildTituloPrincipal(),
-                          const SizedBox(height: 20),
-                          _buildCardPix(),
-                          const SizedBox(height: 14),
-                          _buildCardCredito(),
-                          const SizedBox(height: 14),
-                          _buildCardDebito(),
-                          const SizedBox(height: 14),
-                          _buildCardBoleto(),
-                          const SizedBox(height: 20),
-                          _buildRodapeInformativo(),
-                          const SizedBox(height: 24),
-                        ],
+                    Expanded(
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildPillsStatus(),
+                            const SizedBox(height: 16),
+                            _buildTituloPrincipal(),
+                            const SizedBox(height: 20),
+                            _buildCardPix(),
+                            const SizedBox(height: 14),
+                            _buildCardCredito(),
+                            const SizedBox(height: 14),
+                            _buildCardDebito(),
+                            const SizedBox(height: 14),
+                            _buildCardBoleto(),
+                            const SizedBox(height: 20),
+                            _buildCardStripe(),
+                            const SizedBox(height: 14),
+                            _buildRodapeInformativo(),
+                            const SizedBox(height: 24),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+        ),
       ),
     );
   }
@@ -757,7 +894,7 @@ class _MeusDadosFinanceirosProfissionalPageState
               color: Color(0xFF1E293B),
               size: 24,
             ),
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: _tentarSair,
           ),
           const Expanded(
             child: Text(
@@ -787,25 +924,37 @@ class _MeusDadosFinanceirosProfissionalPageState
               );
             },
           ),
-          Container(
-            width: 34,
-            height: 34,
-            decoration: const BoxDecoration(
-              color: _primaryBlue,
-              shape: BoxShape.circle,
-            ),
-            child: ClipOval(
-              child: _fotoPerfilUrl != null && _fotoPerfilUrl!.isNotEmpty
-                  ? Image.network(
-                      _fotoPerfilUrl!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => const Icon(
-                        Icons.person,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    )
-                  : const Icon(Icons.person, color: Colors.white, size: 20),
+          InkWell(
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => _contaEmpresaAtiva
+                      ? const GestaoEquipePage()
+                      : const TelaMeuPerfilProfissionalPage(),
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              width: 34,
+              height: 34,
+              decoration: const BoxDecoration(
+                color: _primaryBlue,
+                shape: BoxShape.circle,
+              ),
+              child: ClipOval(
+                child: _fotoPerfilUrl != null && _fotoPerfilUrl!.isNotEmpty
+                    ? Image.network(
+                        _fotoPerfilUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => const Icon(
+                          Icons.person,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      )
+                    : const Icon(Icons.person, color: Colors.white, size: 20),
+              ),
             ),
           ),
           const SizedBox(width: 4),
@@ -1130,43 +1279,62 @@ class _MeusDadosFinanceirosProfissionalPageState
                       ),
                     )
                   else
-                    InkWell(
-                      onTap: _abrirBottomSheetChavePix,
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEFF6FF),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFFBFDBFE)),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(
-                              Icons.warning_amber_rounded,
-                              size: 20,
-                              color: _primaryBlue,
+                    AnimatedBuilder(
+                      animation: _shakeController,
+                      builder: (context, child) => Transform.translate(
+                        offset: Offset(_shakeAnimation.value, 0),
+                        child: child,
+                      ),
+                      child: InkWell(
+                        onTap: _abrirBottomSheetChavePix,
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _destacarChavePix
+                                ? const Color(0xFFFEF2F2)
+                                : const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: _destacarChavePix
+                                  ? const Color(0xFFFCA5A5)
+                                  : const Color(0xFFBFDBFE),
                             ),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Nenhuma chave cadastrada. Toque para cadastrar uma chave PIX.',
-                                style: TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF1D4ED8),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.warning_amber_rounded,
+                                size: 20,
+                                color: _destacarChavePix
+                                    ? const Color(0xFFDC2626)
+                                    : _primaryBlue,
+                              ),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Nenhuma chave cadastrada. Toque para cadastrar uma chave PIX.',
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: _destacarChavePix
+                                        ? const Color(0xFFB91C1C)
+                                        : const Color(0xFF1D4ED8),
+                                  ),
                                 ),
                               ),
-                            ),
-                            Icon(
-                              Icons.chevron_right,
-                              size: 20,
-                              color: _primaryBlue,
-                            ),
-                          ],
+                              Icon(
+                                Icons.chevron_right,
+                                size: 20,
+                                color: _destacarChavePix
+                                    ? const Color(0xFFDC2626)
+                                    : _primaryBlue,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -1514,6 +1682,64 @@ class _MeusDadosFinanceirosProfissionalPageState
                 height: 1.4,
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCardStripe() {
+    final conectado =
+        _stripeConnectedAccountId != null &&
+        _stripeConnectedAccountId!.isNotEmpty;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _borderLight),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.account_balance_wallet_outlined,
+              color: _primaryBlue,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Recebimentos Stripe',
+                  style: TextStyle(
+                    color: _textDark,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  conectado
+                      ? 'Conta Stripe conectada'
+                      : 'Conta Stripe ainda não conectada',
+                  style: const TextStyle(color: _textMuted, fontSize: 12.5),
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            conectado ? Icons.check_circle_rounded : Icons.info_outline_rounded,
+            color: conectado ? Colors.green : _textMuted,
           ),
         ],
       ),
