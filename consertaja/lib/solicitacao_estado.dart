@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'gestao_equipe.dart';
 import 'meus_servicos_solicitados.dart';
 import 'tela_chat_profissional.dart';
+import 'tela_deslocamento_profissional.dart';
 import 'tela_meu_perfil_profissional.dart';
 import 'utils/app_navigation_util.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
@@ -129,6 +130,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
   // Dados carregados do Supabase
   late int _idSolicitacao;
   int? _idStatusSolicitacao;
+  int _etapaSolicitacao = 0;
   String _statusTexto = '';
   String _codigoPedido = '';
   String _categoriaTitulo = 'Conserto e Reparo';
@@ -448,7 +450,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
           .select(
             'id_solicitacao, data_solicitacao, valor_final, detalhes, '
             'data_agendada, hora_agendada, hora_agendada_fim, tipo_execucao, fk_grupo_empresa, '
-            'fk_status, fk_profissional, fk_usuario, fk_endereco, fk_servico_prof, fk_servico_temp',
+            'fk_status, etapa_solicitacao, fk_profissional, fk_usuario, fk_endereco, fk_servico_prof, fk_servico_temp',
           )
           .eq('id_solicitacao', _idSolicitacao)
           .maybeSingle();
@@ -466,6 +468,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
       _fkGrupoEmpresa = (row['fk_grupo_empresa'] as num?)?.toInt();
       _fkProfissional = (row['fk_profissional'] as num?)?.toInt() ?? 0;
       _idStatusSolicitacao = (row['fk_status'] as num?)?.toInt();
+      _etapaSolicitacao = (row['etapa_solicitacao'] as num?)?.toInt() ?? 0;
       if (_idStatusSolicitacao != null) {
         final statusRow = await _supabase
             .from('status')
@@ -652,7 +655,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         try {
           final end = await _supabase
               .from('enderecos')
-              .select('logradouro, numero, complemento, bairro, cep, fk_cidade')
+              .select(
+                'logradouro, numero, complemento, bairro, cep, fk_cidade, latitude, longitude',
+              )
               .eq('id_endereco', idEndereco)
               .maybeSingle();
 
@@ -661,6 +666,14 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
             final numStr = end['numero']?.toString().trim() ?? 'S/N';
             final comp = end['complemento']?.toString().trim() ?? '';
             final bai = end['bairro']?.toString().trim() ?? '';
+            final lat = double.tryParse(end['latitude']?.toString() ?? '');
+            final lng = double.tryParse(end['longitude']?.toString() ?? '');
+            if (lat != null &&
+                lng != null &&
+                lat.abs() > 0.0001 &&
+                lng.abs() > 0.0001) {
+              _coordenadas = LatLng(lat, lng);
+            }
 
             var cidNome = 'São Paulo';
             var estSigla = 'SP';
@@ -767,7 +780,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
     }
     setState(() => _iniciandoServico = true);
     try {
-      final statusAndamento = await _supabase
+      /* final statusAndamento = await _supabase
           .from('status')
           .select('id_status')
           .eq('tipo_status', 'Serviço')
@@ -783,13 +796,20 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
       await _supabase.rpc(
         'iniciar_servico_pago',
         params: {'p_id_solicitacao': _idSolicitacao},
-      );
+      ); */
+
+      await _supabase
+          .from('solicitacoes')
+          .update({'fk_status': 32, 'etapa_solicitacao': 1})
+          .eq('id_solicitacao', _idSolicitacao);
 
       if (mounted) {
         setState(() {
-          _idStatusSolicitacao = idStatusAndamento;
-          _statusTexto = 'Em Andamento';
+          _idStatusSolicitacao = 32;
+          _etapaSolicitacao = 1;
+          _statusTexto = 'Aguardando Deslocamento';
         });
+        _abrirTelaDeslocamento();
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('Serviço iniciado.')));
@@ -803,6 +823,23 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
     } finally {
       if (mounted) setState(() => _iniciandoServico = false);
     }
+  }
+
+  void _abrirTelaDeslocamento() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => TelaDeslocamentoProfissionalPage(
+          idSolicitacao: _idSolicitacao,
+          destino: _coordenadas,
+          enderecoPrincipal: _enderecoLinha1,
+          enderecoComplementar: _enderecoLinha2,
+          nomeCliente: _nomeCliente,
+          fotoCliente: _fotoCliente,
+          categoria: _categoriaTitulo,
+          codigoPedido: _codigoPedido,
+        ),
+      ),
+    );
   }
 
   Future<void> _concluirServico() async {
@@ -1464,7 +1501,16 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
     }
 
     final status = _statusTexto.trim().toLowerCase();
-    final etapaAtual = status.contains('conclu')
+    final etapaAtual =
+        _modalidade == ModalidadeExecucao.levaETraz && _etapaSolicitacao == 0
+        ? 0
+        : _idStatusSolicitacao == 33 && _etapaSolicitacao >= 2
+        ? 2
+        : _idStatusSolicitacao == 32 && _etapaSolicitacao >= 1
+        ? 1
+        : _idStatusSolicitacao == 34
+        ? 2
+        : status.contains('conclu')
         ? etapas.length
         : status.contains('aguardando cliente')
         ? etapas.length - 1
@@ -1486,6 +1532,8 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
             final isLast = index == etapas.length - 1;
             final isDone = index < etapaAtual;
             final isCurrent = index == etapaAtual && etapaAtual < etapas.length;
+            final isNext =
+                index == etapaAtual + 1 && etapaAtual < etapas.length;
             return Expanded(
               child: Column(
                 children: [
@@ -1531,7 +1579,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                                   ? _azul
                                   : const Color(0xFFF1F5F9),
                               border: Border.all(
-                                color: isCurrent
+                                color: isCurrent || isNext
                                     ? _azul
                                     : const Color(0xFFCBD5E1),
                                 width: isCurrent ? 2 : 1.5,
@@ -1540,7 +1588,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                             child: Icon(
                               icones[index],
                               size: 16,
-                              color: isCurrent ? Colors.white : _textoMuted,
+                              color: isCurrent || isNext ? _azul : _textoMuted,
                             ),
                           ),
                       ],
@@ -1557,7 +1605,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                       fontWeight: isDone || isCurrent
                           ? FontWeight.w800
                           : FontWeight.w600,
-                      color: isDone || isCurrent ? _azul : _textoMuted,
+                      color: isDone || isCurrent || isNext
+                          ? _azul
+                          : _textoMuted,
                     ),
                   ),
                 ],
@@ -1569,6 +1619,8 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
     );
   }
 
+  // Mantido para compatibilidade com layouts antigos desta tela.
+  // ignore: unused_element
   Widget _buildCardAndamentoPedido() {
     late final List<String> etapas;
     late final List<IconData> icones;
@@ -2979,6 +3031,29 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                   ),
                 ),
               ),
+      );
+    }
+
+    if (_idStatusSolicitacao == 32 || _idStatusSolicitacao == 33) {
+      return SizedBox(
+        width: double.infinity,
+        height: 52,
+        child: FilledButton.icon(
+          onPressed: _abrirTelaDeslocamento,
+          icon: const Icon(Icons.navigation_rounded, size: 20),
+          label: Text(
+            _idStatusSolicitacao == 33
+                ? 'Continuar deslocamento'
+                : 'Iniciar Trajeto',
+          ),
+          style: FilledButton.styleFrom(
+            backgroundColor: _azul,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(26),
+            ),
+          ),
+        ),
       );
     }
 
