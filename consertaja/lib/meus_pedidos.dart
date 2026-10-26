@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'detalhes_pedido.dart';
 import 'pagamento_pedido.dart';
+import 'qrcode_pix.dart';
 import 'widgets/skeleton_loading.dart';
 import 'seguindo_cliente.dart';
 import 'tela_chat_profissional.dart';
 import 'tela_home.dart';
 import 'tela_mensagens.dart';
 import 'tela_meu_perfil_cliente.dart';
+import 'models/stripe_pagamento.dart';
+import 'services/stripe_pagamento_service.dart';
 import 'utils/app_navigation_util.dart';
 import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/cor_oficio.dart';
@@ -31,6 +34,7 @@ class PedidoCliente {
   final String? corTag;
   final int? idProf;
   final int? idGrupo;
+  final int? fkStatus;
   final bool avaliadoCliente;
   const PedidoCliente({
     required this.id,
@@ -49,6 +53,7 @@ class PedidoCliente {
     this.corTag,
     this.idProf,
     this.idGrupo,
+    this.fkStatus,
     this.avaliadoCliente = false,
   });
 }
@@ -233,13 +238,7 @@ class MeusPedidosState extends State<MeusPedidosPage> {
       }
     } catch (_) {}
     final aux = await carregarAuxiliar(servMap, linhas);
-    return montarLista(
-      linhas,
-      statusMap,
-      servMap,
-      aux,
-      idsAvaliadosCliente,
-    );
+    return montarLista(linhas, statusMap, servMap, aux, idsAvaliadosCliente);
   }
 
   Future<Map<String, dynamic>> carregarAuxiliar(
@@ -250,7 +249,8 @@ class MeusPedidosState extends State<MeusPedidosPage> {
     final idsGrupo = <int>{};
     final idsProf = <int>{};
     for (final r in linhas) {
-      final idS = ((r['fk_servico_prof'] ?? r['fk_servico_temp']) as num?)?.toInt();
+      final idS = ((r['fk_servico_prof'] ?? r['fk_servico_temp']) as num?)
+          ?.toInt();
       final sv = idS == null ? null : servMap[idS];
       final idOf = (sv?['fk_oficios'] as num?)?.toInt();
       if (idOf != null) idsOf.add(idOf);
@@ -364,7 +364,8 @@ class MeusPedidosState extends State<MeusPedidosPage> {
       if (idSol == null) continue;
       final idSt = (r['fk_status'] as num?)?.toInt();
       final st = idSt == null ? '' : (statusMap[idSt] ?? '');
-      final idS = ((r['fk_servico_prof'] ?? r['fk_servico_temp']) as num?)?.toInt();
+      final idS = ((r['fk_servico_prof'] ?? r['fk_servico_temp']) as num?)
+          ?.toInt();
       final sv = idS == null ? null : servMap[idS];
       var titulo = (sv?['titulo'] ?? '').toString().trim();
       if (titulo.isEmpty) titulo = 'Serviço';
@@ -431,6 +432,7 @@ class MeusPedidosState extends State<MeusPedidosPage> {
           corTag: corTag,
           idProf: idP,
           idGrupo: idG,
+          fkStatus: idSt,
           avaliadoCliente: idsAvaliadosCliente.contains(idSol),
         ),
       );
@@ -447,6 +449,7 @@ class MeusPedidosState extends State<MeusPedidosPage> {
     if (v.contains('finaliz')) return false;
     if (v == 'pago') return false;
     if (v.contains('aguardando cliente')) return false;
+    if (v.contains('aguardando pagamento')) return false;
     if (v.contains('andamento')) return false;
     if (v.contains('execu')) return false;
     return true;
@@ -460,10 +463,19 @@ class MeusPedidosState extends State<MeusPedidosPage> {
     if (v.contains('finaliz')) return false;
     return v.contains('andamento') ||
         v.contains('execu') ||
-      v == 'pago' ||
+        v == 'pago' ||
         v.contains('aguardando cliente') ||
+        v.contains('aguardando pagamento') ||
         v.contains('aceito') ||
         v.contains('aprovado');
+  }
+
+  bool ehAguardandoPagamento(PedidoCliente p) {
+    if (p.fkStatus == 2) return true;
+    final v = p.status.trim().toLowerCase();
+    if (v.contains('aguardando pagamento')) return true;
+    if (v.contains('aceito') || v.contains('aprovado')) return false;
+    return false;
   }
 
   bool ehConcluido(String s) {
@@ -577,6 +589,29 @@ class MeusPedidosState extends State<MeusPedidosPage> {
           valor: p.valor,
           dataAgendada: p.dataAg,
           horaAgendada: p.horaAg,
+        ),
+      ),
+    );
+    if (mounted) await carregar(loading: false);
+  }
+
+  Future<void> abrirQrcodePix(PedidoCliente p) async {
+    StripePagamentoStatus? pagamento;
+    try {
+      pagamento = await StripePagamentoService.consultarStatus(
+        idSolicitacao: p.id,
+      );
+    } catch (_) {}
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => QrcodePixPage(
+          idSolicitacao: p.id,
+          tituloServico: p.titulo,
+          profissional: p.prestador,
+          valor: p.valor,
+          paymentIntentId: pagamento?.paymentIntentId,
+          pixCopiaECola: pagamento?.pixCopiaECola,
+          pixQrCodeUrl: pagamento?.pixQrCodeUrl,
         ),
       ),
     );
@@ -1227,14 +1262,16 @@ class MeusPedidosState extends State<MeusPedidosPage> {
               const SizedBox(width: 8),
               ElevatedButton(
                 onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => DetalhesPedidoPage(
-                        idSolicitacao: p.id,
-                        pedidoResumo: p,
-                      ),
-                    ),
-                  ).then((_) => carregar(loading: false));
+                  Navigator.of(context)
+                      .push(
+                        MaterialPageRoute(
+                          builder: (_) => DetalhesPedidoPage(
+                            idSolicitacao: p.id,
+                            pedidoResumo: p,
+                          ),
+                        ),
+                      )
+                      .then((_) => carregar(loading: false));
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: azul,
@@ -1256,15 +1293,22 @@ class MeusPedidosState extends State<MeusPedidosPage> {
               ),
             ],
           ),
-          if (p.status.trim().toLowerCase() == 'aceito') ...[
+          if (p.status.trim().toLowerCase() == 'aceito' ||
+              ehAguardandoPagamento(p)) ...[
             const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
               height: 42,
               child: FilledButton.icon(
-                onPressed: () => abrirPagamento(p),
+                onPressed: () => ehAguardandoPagamento(p)
+                    ? abrirQrcodePix(p)
+                    : abrirPagamento(p),
                 icon: const Icon(Icons.payments_outlined, size: 17),
-                label: const Text('Realizar pagamento'),
+                label: Text(
+                  ehAguardandoPagamento(p)
+                      ? 'Terminar Pagamento'
+                      : 'Realizar pagamento',
+                ),
                 style: FilledButton.styleFrom(
                   backgroundColor: azul,
                   foregroundColor: Colors.white,

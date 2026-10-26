@@ -4,6 +4,9 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'meus_pedidos.dart';
 import 'pagamento_pedido.dart';
+import 'models/stripe_pagamento.dart';
+import 'qrcode_pix.dart';
+import 'services/stripe_pagamento_service.dart';
 import 'perfil_loja.dart';
 import 'perfil_profissional.dart';
 import 'perguntas_frequentes.dart';
@@ -1323,6 +1326,29 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
           valor: _valorFinal,
           dataAgendada: _dataAgendada,
           horaAgendada: _horaAgendada,
+        ),
+      ),
+    );
+    if (mounted) await _carregarDadosCompletos();
+  }
+
+  Future<void> _abrirQrcodePix() async {
+    StripePagamentoStatus? pagamento;
+    try {
+      pagamento = await StripePagamentoService.consultarStatus(
+        idSolicitacao: _idSolicitacao,
+      );
+    } catch (_) {}
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => QrcodePixPage(
+          idSolicitacao: _idSolicitacao,
+          tituloServico: _tituloServico,
+          profissional: _nomePrestador,
+          valor: _valorFinal,
+          paymentIntentId: pagamento?.paymentIntentId,
+          pixCopiaECola: pagamento?.pixCopiaECola,
+          pixQrCodeUrl: pagamento?.pixQrCodeUrl,
         ),
       ),
     );
@@ -3422,6 +3448,8 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
   Widget _buildBottomBar() {
     final status = _statusTexto.trim().toLowerCase();
     final aguardandoCliente = status == 'aguardando cliente';
+    final aguardandoPagamento =
+        _fkStatus == 2 || status.contains('aguardando pagamento');
     final aceito = status == 'aceito';
     final precisaAvaliarCliente =
         status.contains('conclu') && !_avaliadoCliente;
@@ -3470,6 +3498,8 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
               child: ElevatedButton.icon(
                 onPressed: aguardandoCliente
                     ? (_confirmandoConclusao ? null : _confirmarConclusao)
+                    : aguardandoPagamento
+                    ? _abrirQrcodePix
                     : aceito
                     ? _abrirPagamento
                     : precisaAvaliarCliente
@@ -3487,7 +3517,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                     : Icon(
                         aguardandoCliente
                             ? Icons.check_circle_outline
-                            : aceito
+                            : (aguardandoPagamento || aceito)
                             ? Icons.payments_outlined
                             : precisaAvaliarCliente
                             ? Icons.star_outline_rounded
@@ -3499,6 +3529,8 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                       ? 'Confirmando...'
                       : aguardandoCliente
                       ? 'Confirmar entrega/final'
+                      : aguardandoPagamento
+                      ? 'Terminar Pagamento'
                       : aceito
                       ? 'Realizar pagamento'
                       : precisaAvaliarCliente
