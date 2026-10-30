@@ -361,10 +361,13 @@ class _MeusServicosSolicitadosPageState
         final numero = endereco?['numero']?.toString().trim() ?? '';
         final complemento = endereco?['complemento']?.toString().trim() ?? '';
         final bairro = endereco?['bairro']?.toString().trim() ?? '';
-        if (logradouro.isNotEmpty)
+        if (logradouro.isNotEmpty) {
           enderecoPrincipal =
               '$logradouro, $numero${complemento.isNotEmpty ? ' - $complemento' : ''}';
-        if (bairro.isNotEmpty) enderecoComplementar = bairro;
+        }
+        if (bairro.isNotEmpty) {
+          enderecoComplementar = bairro;
+        }
       } catch (_) {}
     }
     String nomeCliente = 'Cliente';
@@ -1584,7 +1587,13 @@ class _MeusServicosSolicitadosPageState
       ),
     );
     return GestureDetector(
-      onTap: () => _abrirSolicitacaoEstado(item),
+      onTap: () {
+        if (item.fkStatus == 33 || item.fkStatus == 32) {
+          _abrirTelaDeslocamento(item);
+        } else {
+          _abrirSolicitacaoEstado(item);
+        }
+      },
       child: card,
     );
   }
@@ -1784,8 +1793,34 @@ class _MeusServicosSolicitadosPageState
                     ),
                   ),
                 )
+              else if (item.fkStatus == 31 || (status == 'aceito' && !estaPago))
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: null,
+                    icon: const Icon(Icons.payment_rounded, size: 18),
+                    label: const Text('Aguardando pagamento'),
+                    style: FilledButton.styleFrom(
+                      disabledBackgroundColor: const Color(0xFFE2E8F0),
+                      disabledForegroundColor: const Color(0xFF94A3B8),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                    ),
+                  ),
+                )
               else if (estaPago)
-                Expanded(child: _botaoIniciarServico(item, verticalPadding: 13))
+                Expanded(
+                  child: _podeIniciarDeslocamento(item)
+                      ? FilledButton.icon(
+                          onPressed: () => _iniciarServico(item),
+                          icon: const Icon(Icons.near_me_outlined, size: 18),
+                          label: const Text('Iniciar deslocamento'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _azul,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                          ),
+                        )
+                      : _botaoIniciarServico(item, verticalPadding: 13),
+                )
               else if (emAndamento)
                 Expanded(
                   child: _botaoConcluirServico(item, verticalPadding: 13),
@@ -1804,6 +1839,8 @@ class _MeusServicosSolicitadosPageState
                   ),
                 ),
               if (emDeslocamento ||
+                  item.fkStatus == 31 ||
+                  (status == 'aceito' && !estaPago) ||
                   estaPago ||
                   emAndamento ||
                   (!aguardandoCliente && _podeIniciarDeslocamento(item)))
@@ -1826,7 +1863,13 @@ class _MeusServicosSolicitadosPageState
       ),
     );
     return GestureDetector(
-      onTap: () => _abrirSolicitacaoEstado(item),
+      onTap: () {
+        if (item.fkStatus == 33 || item.fkStatus == 32) {
+          _abrirTelaDeslocamento(item);
+        } else {
+          _abrirSolicitacaoEstado(item);
+        }
+      },
       child: cardAceito,
     );
   }
@@ -1918,7 +1961,8 @@ class _MeusServicosSolicitadosPageState
 
   Widget _buildBotoesAceito(SolicitacaoRecebida item) {
     final podeDeslocar = _podeIniciarDeslocamento(item);
-    final estaPago = item.statusTexto?.trim().toLowerCase() == 'pago';
+    final estaPago = item.fkStatus == 3 || item.statusTexto?.trim().toLowerCase() == 'pago';
+    final estaAceito = item.fkStatus == 31 || (item.statusTexto?.trim().toLowerCase() == 'aceito' && !estaPago);
     final emDeslocamento = item.fkStatus == 32 || item.fkStatus == 33;
     return Row(
       children: [
@@ -1935,8 +1979,34 @@ class _MeusServicosSolicitadosPageState
               ),
             ),
           )
+        else if (estaAceito)
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: null,
+              icon: const Icon(Icons.payment_rounded, size: 18),
+              label: const Text('Aguardando pagamento'),
+              style: FilledButton.styleFrom(
+                disabledBackgroundColor: const Color(0xFFE2E8F0),
+                disabledForegroundColor: const Color(0xFF94A3B8),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          )
         else if (estaPago)
-          Expanded(child: _botaoIniciarServico(item, verticalPadding: 12))
+          Expanded(
+            child: podeDeslocar
+                ? FilledButton.icon(
+                    onPressed: () => _iniciarServico(item),
+                    icon: const Icon(Icons.near_me_outlined, size: 18),
+                    label: const Text('Iniciar deslocamento'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _azul,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  )
+                : _botaoIniciarServico(item, verticalPadding: 12),
+          )
         else if (podeDeslocar)
           Expanded(
             child: ElevatedButton.icon(
@@ -1951,7 +2021,7 @@ class _MeusServicosSolicitadosPageState
               ),
             ),
           ),
-        if (emDeslocamento || estaPago || podeDeslocar)
+        if (emDeslocamento || estaAceito || estaPago || podeDeslocar)
           const SizedBox(width: 8),
         Expanded(
           child: OutlinedButton.icon(
