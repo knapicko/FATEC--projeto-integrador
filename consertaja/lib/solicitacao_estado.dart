@@ -155,7 +155,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
 
   String _enderecoLinha1 = 'Rua das Acácias, 452 - Apto 82';
   String _enderecoLinha2 = 'Mooca, São Paulo - SP';
-  String _distanciaTexto = 'Aproximadamente 2.5 km (9 min de carro)';
+  final String _distanciaTexto = 'Aproximadamente 2.5 km (9 min de carro)';
   String _trajetoOverlayTexto = 'Trajeto mais rápido via Av. Paes de Barros';
   LatLng _coordenadas = const LatLng(-23.5605, -46.5983);
 
@@ -749,6 +749,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
     );
   }
 
+  // ignore: unused_element
   Future<void> _iniciarRota() async {
     final enderecoBusca = Uri.encodeComponent(
       '$_enderecoLinha1, $_enderecoLinha2',
@@ -1532,9 +1533,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
             final isLast = index == etapas.length - 1;
             final isDone = index < etapaAtual;
             final isCurrent = index == etapaAtual && etapaAtual < etapas.length;
-            final isNext =
-                index == etapaAtual + 1 && etapaAtual < etapas.length;
-            return Expanded(
+                        return Expanded(
               child: Column(
                 children: [
                   SizedBox(
@@ -1549,7 +1548,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                                   ? const SizedBox()
                                   : Container(
                                       height: 3,
-                                      color: index <= etapaAtual
+                                      color: index <= etapaAtual + 1
                                           ? _azul
                                           : const Color(0xFFCBD5E1),
                                     ),
@@ -1560,7 +1559,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                                   ? const SizedBox()
                                   : Container(
                                       height: 3,
-                                      color: index < etapaAtual
+                                      color: index <= etapaAtual
                                           ? _azul
                                           : const Color(0xFFCBD5E1),
                                     ),
@@ -1568,27 +1567,33 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                           ],
                         ),
                         if (isDone)
-                          _buildCirculoSonar(icones[index])
+                          Container(
+                            width: 30,
+                            height: 30,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _azul,
+                            ),
+                            child: const Icon(
+                              Icons.check,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                          )
+                        else if (isCurrent)
+                          _buildCirculoSonarCurrent(icones[index], size: 30)
                         else
                           Container(
                             width: 30,
                             height: 30,
-                            decoration: BoxDecoration(
+                            decoration: const BoxDecoration(
                               shape: BoxShape.circle,
-                              color: isCurrent
-                                  ? _azul
-                                  : const Color(0xFFF1F5F9),
-                              border: Border.all(
-                                color: isCurrent || isNext
-                                    ? _azul
-                                    : const Color(0xFFCBD5E1),
-                                width: isCurrent ? 2 : 1.5,
-                              ),
+                              color: Color(0xFFCBD5E1),
                             ),
                             child: Icon(
                               icones[index],
                               size: 16,
-                              color: isCurrent || isNext ? _azul : _textoMuted,
+                              color: Colors.white,
                             ),
                           ),
                       ],
@@ -1605,7 +1610,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                       fontWeight: isDone || isCurrent
                           ? FontWeight.w800
                           : FontWeight.w600,
-                      color: isDone || isCurrent || isNext
+                      color: isDone || isCurrent
                           ? _azul
                           : _textoMuted,
                     ),
@@ -1679,6 +1684,26 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         break;
     }
 
+    final status = _statusTexto.trim().toLowerCase();
+    final etapaAtual =
+        _modalidade == ModalidadeExecucao.levaETraz && _etapaSolicitacao == 0
+        ? 0
+        : _idStatusSolicitacao == 33 && _etapaSolicitacao >= 2
+        ? 2
+        : _idStatusSolicitacao == 32 && _etapaSolicitacao >= 1
+        ? 1
+        : _idStatusSolicitacao == 34
+        ? 2
+        : status.contains('conclu')
+        ? etapas.length
+        : status.contains('aguardando cliente')
+        ? etapas.length - 1
+        : status.contains('andamento')
+        ? (etapas.length > 2 ? 2 : etapas.length - 1)
+        : status == 'pago' || status.contains('aceito')
+        ? (etapas.length > 1 ? 1 : 0)
+        : 0;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
@@ -1717,11 +1742,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
             children: List.generate(etapas.length, (index) {
               final isFirst = index == 0;
               final isLast = index == etapas.length - 1;
-              final isDone = index == 0; // Aceito
-              final isCurrent = index == 1; // Próximo passo
-              final isLineDone =
-                  index == 0; // Linha entre Aceito e próximo passo em azul
-
+              final isDone = index < etapaAtual;
+              final isCurrent = index == etapaAtual && etapaAtual < etapas.length;
+              
               return Expanded(
                 child: Column(
                   children: [
@@ -1730,7 +1753,6 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
-                          // Linhas de conexão que tocam exatamente os círculos e ficam perfeitamente centralizadas
                           Row(
                             children: [
                               Expanded(
@@ -1738,7 +1760,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                                     ? const SizedBox()
                                     : Container(
                                         height: 3,
-                                        color: index == 1
+                                        color: index <= etapaAtual + 1
                                             ? _azul
                                             : const Color(0xFFCBD5E1),
                                       ),
@@ -1749,36 +1771,41 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                                     ? const SizedBox()
                                     : Container(
                                         height: 3,
-                                        color: isLineDone
+                                        color: index <= etapaAtual
                                             ? _azul
                                             : const Color(0xFFCBD5E1),
                                       ),
                               ),
                             ],
                           ),
-                          // Círculo com animação sonar no passo atual (em azul)
                           if (isDone)
-                            _buildCirculoSonar(icones[index])
+                            Container(
+                              width: 36,
+                              height: 36,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: _azul,
+                              ),
+                              child: const Icon(
+                                Icons.check,
+                                size: 18,
+                                color: Colors.white,
+                              ),
+                            )
+                          else if (isCurrent)
+                            _buildCirculoSonarCurrent(icones[index], size: 36)
                           else
                             Container(
                               width: 36,
                               height: 36,
-                              decoration: BoxDecoration(
+                              decoration: const BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: isCurrent
-                                    ? Colors.white
-                                    : const Color(0xFFF1F5F9),
-                                border: Border.all(
-                                  color: isCurrent
-                                      ? const Color(0xFF64748B)
-                                      : const Color(0xFFCBD5E1),
-                                  width: isCurrent ? 2.5 : 1.5,
-                                ),
+                                color: Color(0xFFCBD5E1),
                               ),
                               child: Icon(
                                 icones[index],
                                 size: 18,
-                                color: isCurrent ? _textoEscuro : _textoMuted,
+                                color: Colors.white,
                               ),
                             ),
                         ],
@@ -1790,8 +1817,8 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 11.5,
-                        fontWeight: isDone ? FontWeight.w800 : FontWeight.w600,
-                        color: isDone ? _azul : _textoMuted,
+                        fontWeight: isDone || isCurrent ? FontWeight.w800 : FontWeight.w600,
+                        color: isDone || isCurrent ? _azul : _textoMuted,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1841,10 +1868,15 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
     );
   }
 
+  // ignore: unused_element
   Widget _buildCirculoSonar(IconData icone) {
+    return _buildCirculoSonarCurrent(icone, size: 36);
+  }
+
+  Widget _buildCirculoSonarCurrent(IconData icone, {double size = 30}) {
     return SizedBox(
-      width: 52,
-      height: 52,
+      width: size + 16,
+      height: size + 16,
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -1852,8 +1884,8 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
             animation: _sonarAnimation,
             builder: (context, _) {
               final val = _sonarAnimation.value;
-              final ringSize = 36.0 + (val * 14.0);
-              final opacity = ((1.0 - val) * 0.6).clamp(0.0, 1.0);
+              final ringSize = size + (val * 12.0);
+              final opacity = ((1.0 - val) * 0.7).clamp(0.0, 1.0);
               return Container(
                 width: ringSize,
                 height: ringSize,
@@ -1863,19 +1895,20 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                     color: _azul.withValues(alpha: opacity),
                     width: 2.0,
                   ),
-                  color: _azul.withValues(alpha: opacity * 0.25),
+                  color: _azul.withValues(alpha: opacity * 0.2),
                 ),
               );
             },
           ),
           Container(
-            width: 36,
-            height: 36,
-            decoration: const BoxDecoration(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: _azul,
+              color: Colors.white,
+              border: Border.all(color: _azul, width: 2.0),
             ),
-            child: Icon(icone, size: 18, color: Colors.white),
+            child: Icon(icone, size: size * 0.54, color: _azul),
           ),
         ],
       ),
@@ -3057,17 +3090,12 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
       );
     }
 
-    if (status == 'pago' || status == 'em andamento') {
-      final iniciando = status == 'pago';
+    if (status == 'em andamento') {
       return SizedBox(
         width: double.infinity,
         height: 52,
         child: FilledButton.icon(
-          onPressed: _iniciandoServico
-              ? null
-              : iniciando
-              ? _iniciarServico
-              : _concluirServico,
+          onPressed: _iniciandoServico ? null : _concluirServico,
           icon: _iniciandoServico
               ? const SizedBox(
                   width: 18,
@@ -3079,11 +3107,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                 )
               : const Icon(Icons.handyman_outlined, size: 20),
           label: Text(
-            _iniciandoServico
-                ? (iniciando ? 'Iniciando...' : 'Concluindo...')
-                : iniciando
-                ? 'Iniciar serviço'
-                : 'Concluir Serviço',
+            _iniciandoServico ? 'Concluindo...' : 'Concluir Serviço',
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
           ),
           style: FilledButton.styleFrom(
@@ -3097,35 +3121,74 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
       );
     }
 
+    final bool estaAceito = _idStatusSolicitacao == 31 || (status.contains('aceito') && _idStatusSolicitacao != 3);
+
     late final Widget botaoPrincipal;
 
     switch (_modalidade) {
       case ModalidadeExecucao.levaETraz:
       case ModalidadeExecucao.atendimentoDomicilio:
-        botaoPrincipal = SizedBox(
-          width: double.infinity,
-          height: 52,
-          child: FilledButton.icon(
-            onPressed: _iniciarRota,
-            icon: const Icon(Icons.send_rounded, size: 20),
-            label: const Text(
-              'Iniciar Deslocamento / Rota',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.2,
+        if (estaAceito) {
+          botaoPrincipal = SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: FilledButton.icon(
+              onPressed: null,
+              icon: const Icon(Icons.payment_rounded, size: 20),
+              label: const Text(
+                'Aguardando Pagamento',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.2,
+                ),
+              ),
+              style: FilledButton.styleFrom(
+                disabledBackgroundColor: const Color(0xFFE2E8F0),
+                disabledForegroundColor: const Color(0xFF94A3B8),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(26),
+                ),
               ),
             ),
-            style: FilledButton.styleFrom(
-              backgroundColor: _azul,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(26),
+          );
+        } else {
+          // Quando estiver pago (_idStatusSolicitacao == 3 ou status == 'pago')
+          botaoPrincipal = SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: FilledButton.icon(
+              onPressed: _iniciandoServico ? null : _iniciarServico,
+              icon: _iniciandoServico
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.near_me_rounded, size: 20),
+              label: Text(
+                _iniciandoServico ? 'Iniciando...' : 'Iniciar Deslocamento',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.2,
+                ),
+              ),
+              style: FilledButton.styleFrom(
+                backgroundColor: _azul,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(26),
+                ),
               ),
             ),
-          ),
-        );
+          );
+        }
         break;
 
       case ModalidadeExecucao.retiradaNoLocal:

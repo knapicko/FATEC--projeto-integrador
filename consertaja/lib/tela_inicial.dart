@@ -225,7 +225,7 @@ class _TelaInicialState extends State<TelaInicial> {
                                   foreground: _blue,
                                   onPressed: () => _abrirFluxo(login: false),
                                 ),
-                                const SizedBox(height: 10),
+                                const SizedBox(height: 14),
                                 _BotaoInicial(
                                   label: 'JÁ POSSUO UMA CONTA',
                                   background: Colors.transparent,
@@ -233,12 +233,12 @@ class _TelaInicialState extends State<TelaInicial> {
                                   border: Colors.white,
                                   onPressed: () => _abrirFluxo(login: true),
                                 ),
-                                const SizedBox(height: 10),
+                                const SizedBox(height: 14),
                                 _BotaoGoogle(
                                   carregando: _autenticandoGoogle,
                                   onPressed: _entrarComGoogle,
                                 ),
-                                const SizedBox(height: 12),
+                                const SizedBox(height: 10),
                                 TextButton(
                                   onPressed: () {
                                     Navigator.of(context).pushAndRemoveUntil(
@@ -336,45 +336,37 @@ class _BotaoGoogle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 54,
-      child: ElevatedButton(
-        onPressed: carregando ? null : onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white,
-          foregroundColor: const Color(0xFF202124),
-          elevation: 1,
-          shadowColor: Colors.black38,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(13),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (carregando)
-              const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Color(0xFF0FB3FF),
-                ),
-              )
-            else
-              Image.asset(
-                'assets/images/icone/google-logo.png',
-                width: 22,
-                height: 22,
-              ),
-            const SizedBox(width: 12),
-            Text(
-              carregando ? 'CONECTANDO...' : 'CRIAR/ENTRAR COM GOOGLE',
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+    return Center(
+      child: Tooltip(
+        message: 'Entrar com Google',
+        child: SizedBox(
+          width: 52,
+          height: 52,
+          child: ElevatedButton(
+            onPressed: carregando ? null : onPressed,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              elevation: 2,
+              shadowColor: Colors.black38,
+              shape: const CircleBorder(),
+              padding: EdgeInsets.zero,
+              minimumSize: Size.zero,
             ),
-          ],
+            child: carregando
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Color(0xFF0FB3FF),
+                    ),
+                  )
+                : Image.asset(
+                    'assets/images/icone/google-logo.png',
+                    width: 26,
+                    height: 26,
+                  ),
+          ),
         ),
       ),
     );
