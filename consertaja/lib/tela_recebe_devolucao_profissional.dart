@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'gestao_equipe.dart';
+import 'solicitacao_em_andamento.dart';
 import 'tela_chat_profissional.dart';
 import 'tela_meu_perfil_profissional.dart';
 import 'utils/iniciais.dart';
@@ -76,6 +77,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
   String _legendaAnexo = 'Foto anexada pela cliente';
   int _quantidadeAnexos = 0;
   String _valorFinalFormatado = 'R\$ 180,00';
+  double? _valorFinalNumerico;
   final String _prazoDevolucao = '23 de setembro';
   String _codigoCorreto = '';
 
@@ -182,6 +184,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
         final valor = row['valor_final'];
         if (valor != null) {
           final numVal = (valor as num).toDouble();
+          _valorFinalNumerico = numVal;
           _valorFinalFormatado =
               'R\$ ${numVal.toStringAsFixed(2).replaceAll('.', ',')}';
         }
@@ -421,26 +424,38 @@ class _TelaRecebeDevolucaoProfissionalPageState
 
       // 2. Salvar na tabela solicitacoes
       final obs = _obsController.text.trim();
+      final agoraIso = DateTime.now().toIso8601String();
       try {
         await _supabase.from('solicitacoes').update({
           'imagens_recebimento': urlsImagens,
           'obs_do_prof': obs,
-          'fk_status': 35, // Em processo / bancada técnica
-          'etapa_solicitacao': 2,
+          'fk_status': 4, // Em Andamento
+          'etapa_solicitacao': 3,
+          'data_inicio_andamento': agoraIso,
+          'andamento_pausado': false,
         }).eq('id_solicitacao', widget.idSolicitacao);
       } catch (eUpdate) {
-        debugPrint('Erro ao atualizar solicitacoes: $eUpdate');
-        // Tenta sem o campo imagens se der erro de coluna
-        await _supabase.from('solicitacoes').update({
-          'obs_do_prof': obs,
-          'fk_status': 35,
-          'etapa_solicitacao': 2,
-        }).eq('id_solicitacao', widget.idSolicitacao);
+        debugPrint('Erro ao atualizar solicitacoes com novas colunas: $eUpdate');
+        // Tenta sem colunas opcionais caso ainda não tenham sido migradas no Supabase
+        try {
+          await _supabase.from('solicitacoes').update({
+            'imagens_recebimento': urlsImagens,
+            'obs_do_prof': obs,
+            'fk_status': 4,
+            'etapa_solicitacao': 3,
+          }).eq('id_solicitacao', widget.idSolicitacao);
+        } catch (_) {
+          await _supabase.from('solicitacoes').update({
+            'obs_do_prof': obs,
+            'fk_status': 4,
+            'etapa_solicitacao': 3,
+          }).eq('id_solicitacao', widget.idSolicitacao);
+        }
       }
 
       if (!mounted) return;
 
-      // 3. Exibir confirmação e voltar
+      // 3. Exibir confirmação e levar para bancada técnica
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -491,7 +506,24 @@ class _TelaRecebeDevolucaoProfissionalPageState
                 child: FilledButton(
                   onPressed: () {
                     Navigator.of(ctx).pop();
-                    Navigator.of(context).pop();
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(
+                        builder: (_) => SolicitacaoEmAndamentoPage(
+                          idSolicitacao: widget.idSolicitacao,
+                          codigoPedido: widget.codigoPedido,
+                          nomeCliente: widget.nomeCliente,
+                          fotoCliente: widget.fotoCliente,
+                          nomeServico: widget.nomeServico,
+                          modalidade: widget.modalidade,
+                          detalhes: _descricaoCliente,
+                          valorFinal: _valorFinalNumerico,
+                          isEmpresa: widget.isEmpresa,
+                          idGrupoEmpresa: widget.idGrupoEmpresa,
+                          fotoPerfilProfissional: widget.fotoPerfilProfissional,
+                          nomeProfissional: widget.nomeProfissional,
+                        ),
+                      ),
+                    );
                   },
                   style: FilledButton.styleFrom(
                     backgroundColor: _azul,
