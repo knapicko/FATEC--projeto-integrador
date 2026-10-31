@@ -1,3 +1,4 @@
+﻿import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -799,21 +800,26 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         params: {'p_id_solicitacao': _idSolicitacao},
       ); */
 
+      final codigo = (1000 + Random().nextInt(9000)).toString();
       await _supabase
           .from('solicitacoes')
-          .update({'fk_status': 32, 'etapa_solicitacao': 1})
+          .update({
+            'fk_status': 33,
+            'etapa_solicitacao': 2,
+            'codigo_rec_dev': codigo,
+          })
           .eq('id_solicitacao', _idSolicitacao);
 
       if (mounted) {
         setState(() {
-          _idStatusSolicitacao = 32;
-          _etapaSolicitacao = 1;
-          _statusTexto = 'Aguardando Deslocamento';
+          _idStatusSolicitacao = 33;
+          _etapaSolicitacao = 2;
+          _statusTexto = 'Profissional Deslocando';
         });
         _abrirTelaDeslocamento();
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Serviço iniciado.')));
+        ).showSnackBar(const SnackBar(content: Text('Deslocamento iniciado.')));
       }
     } catch (e) {
       if (mounted) {
@@ -3072,12 +3078,31 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         width: double.infinity,
         height: 52,
         child: FilledButton.icon(
-          onPressed: _abrirTelaDeslocamento,
+          onPressed: () async {
+            if (_idStatusSolicitacao == 32) {
+              final codigo = (1000 + Random().nextInt(9000)).toString();
+              try {
+                await _supabase.from('solicitacoes').update({
+                  'fk_status': 33,
+                  'etapa_solicitacao': 2,
+                  'codigo_rec_dev': codigo,
+                }).eq('id_solicitacao', _idSolicitacao);
+                if (mounted) {
+                  setState(() {
+                    _idStatusSolicitacao = 33;
+                    _etapaSolicitacao = 2;
+                    _statusTexto = 'Profissional Deslocando';
+                  });
+                }
+              } catch (_) {}
+            }
+            _abrirTelaDeslocamento();
+          },
           icon: const Icon(Icons.navigation_rounded, size: 20),
           label: Text(
             _idStatusSolicitacao == 33
                 ? 'Continuar deslocamento'
-                : 'Iniciar Trajeto',
+                : 'Iniciar Deslocamento',
           ),
           style: FilledButton.styleFrom(
             backgroundColor: _azul,

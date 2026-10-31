@@ -86,6 +86,7 @@ class _TelaDeslocamentoProfissionalPageState
   IconData _proximaManobraIcone = Icons.straight_rounded;
   int _proximaManobraDistancia = 350;
   String _proximoLogradouro = '';
+  String _ruaAtual = 'Em rota';
 
   // Dados reais da solicitação e do cliente
   late LatLng _destinoCoordenadas;
@@ -291,6 +292,21 @@ class _TelaDeslocamentoProfissionalPageState
       _horaAgendada = sol['hora_agendada']?.toString().trim();
       _horaAgendadaFim = sol['hora_agendada_fim']?.toString().trim();
 
+      final codigoAtual = sol['codigo_rec_dev']?.toString().trim();
+      final fkStatusAtual = (sol['fk_status'] as num?)?.toInt() ?? 0;
+      if (codigoAtual == null || codigoAtual.isEmpty || (fkStatusAtual != 33 && fkStatusAtual != 34)) {
+        final codigoGerado = (codigoAtual != null && codigoAtual.isNotEmpty)
+            ? codigoAtual
+            : (1000 + Random().nextInt(9000)).toString();
+        try {
+          await supabase.from('solicitacoes').update({
+            'fk_status': 33,
+            'etapa_solicitacao': 2,
+            'codigo_rec_dev': codigoGerado,
+          }).eq('id_solicitacao', widget.idSolicitacao);
+        } catch (_) {}
+      }
+
       _codigoPedido =
           '#PED-2026-${widget.idSolicitacao.toString().padLeft(4, '0')}';
 
@@ -495,6 +511,21 @@ class _TelaDeslocamentoProfissionalPageState
     if (!_pausada) {
       _atualizarRota(atual);
     }
+
+    // Transmite localização em tempo real para o cliente acompanhar
+    try {
+      supabase.from('deslocamento_profissional').upsert({
+        'fk_solicitacao': widget.idSolicitacao,
+        'latitude': atual.latitude,
+        'longitude': atual.longitude,
+        'velocidade': speedKmH.clamp(0.0, 180.0),
+        'bearing': bearingAtual,
+        'rua_atual': _ruaAtual,
+        'distancia_metros': _distancia,
+        'duracao_segundos': _duracao,
+        'atualizado_em': DateTime.now().toIso8601String(),
+      }, onConflict: 'fk_solicitacao').then((_) {}, onError: (_) {});
+    } catch (_) {}
   }
 
   /// Traça a rota da ORIGEM (localização do profissional) até o DESTINO (cliente)
@@ -558,6 +589,11 @@ class _TelaDeslocamentoProfissionalPageState
       if (legs != null && legs.isNotEmpty) {
         final steps = legs.first['steps'] as List?;
         if (steps != null && steps.isNotEmpty) {
+          final firstStep = steps.first as Map<String, dynamic>;
+          final name0 = firstStep['name']?.toString().trim() ?? '';
+          if (name0.isNotEmpty) {
+            _ruaAtual = name0;
+          }
           Map<String, dynamic>? nextStep;
           for (final s in steps) {
             final d = (s['distance'] as num?)?.toDouble() ?? 0;
@@ -638,16 +674,13 @@ class _TelaDeslocamentoProfissionalPageState
   }
 
   Future<void> _aoClicarEstouNoLocal() async {
-    final codigo = (1000 + Random().nextInt(9000)).toString();
-
     try {
       await supabase.from('solicitacoes').update({
-        'codigo_rec_dev': codigo,
         'fk_status': 34,
         'etapa_solicitacao': 2,
       }).eq('id_solicitacao', widget.idSolicitacao);
     } catch (e) {
-      debugPrint('Erro ao salvar codigo_rec_dev na solicitacao: $e');
+      debugPrint('Erro ao atualizar status 34 na solicitacao: $e');
     }
 
     if (!mounted) return;

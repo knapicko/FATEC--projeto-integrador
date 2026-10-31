@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'detalhes_pedido.dart';
+import 'acompanhar_deslocamento.dart';
 import 'pagamento_pedido.dart';
 import 'qrcode_pix.dart';
 import 'widgets/skeleton_loading.dart';
@@ -79,7 +80,8 @@ class MeusPedidosPage extends StatefulWidget {
   State<MeusPedidosPage> createState() => MeusPedidosState();
 }
 
-class MeusPedidosState extends State<MeusPedidosPage> {
+class MeusPedidosState extends State<MeusPedidosPage> with SingleTickerProviderStateMixin {
+  late final AnimationController _piscarController;
   static const Color azul = Color(0xFF0FB3FF);
   static const Color fundo = Color(0xFFF6F8FB);
   static const Color escuro = Color(0xFF0F172A);
@@ -100,11 +102,16 @@ class MeusPedidosState extends State<MeusPedidosPage> {
   @override
   void initState() {
     super.initState();
+    _piscarController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
     carregar();
   }
 
   @override
   void dispose() {
+    _piscarController.dispose();
     buscaCtrl.dispose();
     super.dispose();
   }
@@ -1116,10 +1123,37 @@ class MeusPedidosState extends State<MeusPedidosPage> {
     );
   }
 
+  void _aoClicarPedido(PedidoCliente p) {
+    final st = p.fkStatus ?? 0;
+    final s = p.status.trim().toLowerCase();
+    if (st == 33 || st == 34 || s.contains('deslocando') || s.contains('a caminho') || s.contains('chegou')) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => AcompanharDeslocamentoPage(
+            idSolicitacao: p.id,
+          ),
+        ),
+      ).then((_) => carregar(loading: false));
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => DetalhesPedidoPage(
+          idSolicitacao: p.id,
+          pedidoResumo: p,
+        ),
+      ),
+    ).then((_) => carregar(loading: false));
+  }
+
   Widget card(PedidoCliente p) {
-    final e = estiloStatus(p.status);
+    final e = estiloStatus(p.status, p.fkStatus);
     final ag = textoSolicitado(p);
-    return Container(
+    return InkWell(
+      onTap: () => _aoClicarPedido(p),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -1261,18 +1295,7 @@ class MeusPedidosState extends State<MeusPedidosPage> {
               ),
               const SizedBox(width: 8),
               ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context)
-                      .push(
-                        MaterialPageRoute(
-                          builder: (_) => DetalhesPedidoPage(
-                            idSolicitacao: p.id,
-                            pedidoResumo: p,
-                          ),
-                        ),
-                      )
-                      .then((_) => carregar(loading: false));
-                },
+                onPressed: () => _aoClicarPedido(p),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: azul,
                   foregroundColor: Colors.white,
@@ -1391,11 +1414,12 @@ class MeusPedidosState extends State<MeusPedidosPage> {
           ],
         ],
       ),
+    ),
     );
   }
 
   Widget tagStatus(StatusEstilo e) {
-    return Container(
+    Widget tag = Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: e.fundo,
@@ -1422,6 +1446,20 @@ class MeusPedidosState extends State<MeusPedidosPage> {
         ],
       ),
     );
+
+    if (e.piscar) {
+      return AnimatedBuilder(
+        animation: _piscarController,
+        builder: (context, child) {
+          return Opacity(
+            opacity: 0.40 + (0.60 * _piscarController.value),
+            child: child,
+          );
+        },
+        child: tag,
+      );
+    }
+    return tag;
   }
 
   Widget miniTag(String txt, Color base) {
@@ -1475,8 +1513,42 @@ class MeusPedidosState extends State<MeusPedidosPage> {
     );
   }
 
-  StatusEstilo estiloStatus(String status) {
+  StatusEstilo estiloStatus(String status, [int? fkStatus]) {
     final s = status.trim().toLowerCase();
+    final st = fkStatus ?? 0;
+
+    if (st == 34 || s.contains('chegou')) {
+      return const StatusEstilo(
+        rotulo: 'Profissional chegou',
+        fundo: azul,
+        texto: Colors.white,
+        borda: azul,
+        icone: Icons.place_rounded,
+        piscar: false,
+      );
+    }
+
+    if (st == 33 || s.contains('deslocando') || s.contains('a caminho')) {
+      return const StatusEstilo(
+        rotulo: 'Profissional a caminho',
+        fundo: azul,
+        texto: Colors.white,
+        borda: azul,
+        icone: Icons.two_wheeler,
+        piscar: true,
+      );
+    }
+
+    if (st == 32 || s.contains('aguardando deslocamento')) {
+      return const StatusEstilo(
+        rotulo: 'Aguardando deslocamento',
+        fundo: Color(0xFFFFF7ED),
+        texto: Color(0xFFC2410C),
+        borda: Color(0xFFFED7AA),
+        icone: Icons.local_shipping_outlined,
+      );
+    }
+
     if (s == 'aberto' || s == 'pendente' || s == 'novo') {
       return const StatusEstilo(
         rotulo: 'Aguardando profissional',
@@ -1566,11 +1638,13 @@ class StatusEstilo {
   final Color texto;
   final Color borda;
   final IconData icone;
+  final bool piscar;
   const StatusEstilo({
     required this.rotulo,
     required this.fundo,
     required this.texto,
     required this.borda,
     required this.icone,
+    this.piscar = false,
   });
 }
