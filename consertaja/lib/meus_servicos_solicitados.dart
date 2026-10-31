@@ -1,4 +1,4 @@
-﻿import 'dart:math';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart';
 
 import 'gestao_equipe.dart';
 import 'services/solicitacoes_service.dart';
+import 'solicitacao_em_andamento.dart';
 import 'solicitacao_estado.dart';
 import 'tela_deslocamento_profissional.dart';
 import 'tela_recebe_devolucao_profissional.dart';
@@ -511,7 +512,9 @@ class _MeusServicosSolicitadosPageState
     }
 
     return _todas
-        .where((s) => FiltroSolicitacao.porStatus(s.statusTexto) == _filtro)
+        .where((s) =>
+            (_filtro == FiltroSolicitacao.emAndamento && s.fkStatus == 4) ||
+            FiltroSolicitacao.porStatus(s.statusTexto) == _filtro)
         .toList();
   }
 
@@ -521,6 +524,7 @@ class _MeusServicosSolicitadosPageState
       item.fkStatus == 32 ||
       item.fkStatus == 33 ||
       item.fkStatus == 34 ||
+      item.fkStatus == 4 ||
       FiltroSolicitacao.porStatus(item.statusTexto) ==
           FiltroSolicitacao.aceitos;
 
@@ -539,7 +543,9 @@ class _MeusServicosSolicitadosPageState
       return _todas.where((item) => _ehAtivo(item) || _ehAberta(item)).length;
     }
     return _todas
-        .where((s) => FiltroSolicitacao.porStatus(s.statusTexto) == filtro)
+        .where((s) =>
+            (filtro == FiltroSolicitacao.emAndamento && s.fkStatus == 4) ||
+            FiltroSolicitacao.porStatus(s.statusTexto) == filtro)
         .length;
   }
 
@@ -573,11 +579,15 @@ class _MeusServicosSolicitadosPageState
   void _abrirTelaDeslocamento(SolicitacaoRecebida item) {
     if (item.fkStatus == 32) {
       final codigo = (1000 + Random().nextInt(9000)).toString();
-      _supabase.from('solicitacoes').update({
-        'fk_status': 33,
-        'etapa_solicitacao': 2,
-        'codigo_rec_dev': codigo,
-      }).eq('id_solicitacao', item.idSolicitacao).then((_) => _carregar());
+      _supabase
+          .from('solicitacoes')
+          .update({
+            'fk_status': 33,
+            'etapa_solicitacao': 2,
+            'codigo_rec_dev': codigo,
+          })
+          .eq('id_solicitacao', item.idSolicitacao)
+          .then((_) => _carregar());
     }
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -596,6 +606,29 @@ class _MeusServicosSolicitadosPageState
         ),
       ),
     );
+  }
+
+  void _abrirSolicitacaoEmAndamento(SolicitacaoRecebida item) {
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => SolicitacaoEmAndamentoPage(
+              idSolicitacao: item.idSolicitacao,
+              codigoPedido: '#PED-${item.idSolicitacao}',
+              nomeCliente: item.nomeCliente,
+              fotoCliente: item.fotoCliente,
+              nomeServico: item.tituloServico,
+              modalidade: item.tipoExecucao.isNotEmpty
+                  ? item.tipoExecucao
+                  : 'Leva e Traz',
+              detalhes: item.detalhes,
+              valorFinal: item.valorFinal,
+              isEmpresa: _contaEmpresaAtiva,
+              idGrupoEmpresa: item.fkGrupoEmpresa,
+            ),
+          ),
+        )
+        .then((_) => _carregar());
   }
 
   void _abrirSolicitacaoEstado(
@@ -1439,7 +1472,7 @@ class _MeusServicosSolicitadosPageState
 
   Widget _buildCard(SolicitacaoRecebida item) {
     final status = FiltroSolicitacao.porStatus(item.statusTexto);
-    if (_ehAceita(item) || status == FiltroSolicitacao.emAndamento) {
+    if (_ehAceita(item) || status == FiltroSolicitacao.emAndamento || item.fkStatus == 4) {
       return _buildCardAceito(item);
     }
     final corBase = CorOficio.parse(item.corOficio);
@@ -1609,6 +1642,8 @@ class _MeusServicosSolicitadosPageState
       onTap: () {
         if (item.fkStatus == 33 || item.fkStatus == 32 || item.fkStatus == 34) {
           _abrirTelaDeslocamento(item);
+        } else if (item.fkStatus == 4 || status == FiltroSolicitacao.emAndamento) {
+          _abrirSolicitacaoEmAndamento(item);
         } else {
           _abrirSolicitacaoEstado(item);
         }
@@ -1620,7 +1655,7 @@ class _MeusServicosSolicitadosPageState
   Widget _buildCardAceito(SolicitacaoRecebida item) {
     final status = item.statusTexto?.trim().toLowerCase() ?? '';
     final estaPago = status == 'pago';
-    final emAndamento = status == 'em andamento';
+    final emAndamento = item.fkStatus == 4 || status == 'em andamento' || status.contains('andamento');
     final aguardandoCliente = status == 'aguardando cliente';
     final profissionalChegou = item.fkStatus == 34 || status.contains('chegou');
     final emDeslocamento = item.fkStatus == 32 || item.fkStatus == 33;
@@ -1656,8 +1691,8 @@ class _MeusServicosSolicitadosPageState
               profissionalChegou
                   ? '●  No local'
                   : emDeslocamento
-                      ? '●  PROFISSIONAL EM DESLOCAMENTO'
-                      : estaPago
+                  ? '●  PROFISSIONAL EM DESLOCAMENTO'
+                  : estaPago
                   ? '●  PAGAMENTO CONFIRMADO • PRONTO PARA INICIAR'
                   : emAndamento
                   ? '●  SERVIÇO EM ANDAMENTO'
@@ -1902,9 +1937,18 @@ class _MeusServicosSolicitadosPageState
                         )
                       : _botaoIniciarServico(item, verticalPadding: 13),
                 )
-              else if (emAndamento)
+              else if (emAndamento || item.fkStatus == 4)
                 Expanded(
-                  child: _botaoConcluirServico(item, verticalPadding: 13),
+                  child: FilledButton.icon(
+                    onPressed: () => _abrirSolicitacaoEmAndamento(item),
+                    icon: const Icon(Icons.handyman_outlined, size: 18),
+                    label: const Text('Bancada Técnica'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _azul,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                    ),
+                  ),
                 )
               else if (!aguardandoCliente && _podeIniciarDeslocamento(item))
                 Expanded(
@@ -1948,6 +1992,8 @@ class _MeusServicosSolicitadosPageState
       onTap: () {
         if (item.fkStatus == 33 || item.fkStatus == 32 || item.fkStatus == 34) {
           _abrirTelaDeslocamento(item);
+        } else if (item.fkStatus == 4 || status == FiltroSolicitacao.emAndamento) {
+          _abrirSolicitacaoEmAndamento(item);
         } else {
           _abrirSolicitacaoEstado(item);
         }
@@ -2045,8 +2091,11 @@ class _MeusServicosSolicitadosPageState
     final podeDeslocar = _podeIniciarDeslocamento(item);
     final statusTxt = item.statusTexto?.trim().toLowerCase() ?? '';
     final estaPago = item.fkStatus == 3 || statusTxt == 'pago';
-    final estaAceito = item.fkStatus == 31 || (statusTxt == 'aceito' && !estaPago);
-    final profissionalChegou = item.fkStatus == 34 || statusTxt.contains('chegou');
+    final estaAceito =
+        item.fkStatus == 31 || (statusTxt == 'aceito' && !estaPago);
+    final profissionalChegou =
+        item.fkStatus == 34 ||
+        statusTxt.contains('chegou');
     final emDeslocamento = item.fkStatus == 32 || item.fkStatus == 33;
     return Row(
       children: [
@@ -2150,6 +2199,19 @@ class _MeusServicosSolicitadosPageState
                   )
                 : _botaoIniciarServico(item, verticalPadding: 12),
           )
+        else if (item.fkStatus == 4 || statusTxt.contains('andamento'))
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: () => _abrirSolicitacaoEmAndamento(item),
+              icon: const Icon(Icons.handyman_outlined, size: 18),
+              label: const Text('Bancada Técnica'),
+              style: FilledButton.styleFrom(
+                backgroundColor: _azul,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          )
         else if (podeDeslocar)
           Expanded(
             child: ElevatedButton.icon(
@@ -2164,7 +2226,13 @@ class _MeusServicosSolicitadosPageState
               ),
             ),
           ),
-        if (profissionalChegou || emDeslocamento || estaAceito || estaPago || podeDeslocar)
+        if (profissionalChegou ||
+            emDeslocamento ||
+            estaAceito ||
+            estaPago ||
+            podeDeslocar ||
+            item.fkStatus == 4 ||
+            statusTxt.contains('andamento'))
           const SizedBox(width: 8),
         Expanded(
           child: OutlinedButton.icon(
