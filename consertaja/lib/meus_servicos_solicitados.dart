@@ -1,4 +1,4 @@
-import 'dart:math';
+﻿import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -1607,30 +1607,8 @@ class _MeusServicosSolicitadosPageState
     );
     return GestureDetector(
       onTap: () {
-        if (item.fkStatus == 33 || item.fkStatus == 32) {
+        if (item.fkStatus == 33 || item.fkStatus == 32 || item.fkStatus == 34) {
           _abrirTelaDeslocamento(item);
-        } else if (item.fkStatus == 34) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => TelaRecebeDevolucaoProfissionalPage(
-                idSolicitacao: item.idSolicitacao,
-                codigoPedido:
-                    '#PED-2026-',
-                nomeCliente: item.nomeCliente,
-                fotoCliente: item.fotoCliente,
-                nomeServico: item.tituloServico,
-                modalidade: item.tipoExecucao,
-                enderecoPrincipal:
-                    item.enderecoPrincipal ?? 'Destino do cliente',
-                enderecoComplementar:
-                    item.enderecoComplementar ?? '',
-                isEmpresa: item.fkGrupoEmpresa != null,
-                idGrupoEmpresa: item.fkGrupoEmpresa,
-                fotoPerfilProfissional: null,
-                nomeProfissional: null,
-              ),
-            ),
-          ).then((_) => _carregar());
         } else {
           _abrirSolicitacaoEstado(item);
         }
@@ -1676,7 +1654,7 @@ class _MeusServicosSolicitadosPageState
             ),
             child: Text(
               profissionalChegou
-                  ? '●  PROFISSIONAL CHEGOU NO LOCAL'
+                  ? '●  No local'
                   : emDeslocamento
                       ? '●  PROFISSIONAL EM DESLOCAMENTO'
                       : estaPago
@@ -1827,29 +1805,7 @@ class _MeusServicosSolicitadosPageState
               if (profissionalChegou)
                 Expanded(
                   child: FilledButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => TelaRecebeDevolucaoProfissionalPage(
-                            idSolicitacao: item.idSolicitacao,
-                            codigoPedido:
-                                '#PED-2026-',
-                            nomeCliente: item.nomeCliente,
-                            fotoCliente: item.fotoCliente,
-                            nomeServico: item.tituloServico,
-                            modalidade: item.tipoExecucao,
-                            enderecoPrincipal:
-                                item.enderecoPrincipal ?? 'Destino do cliente',
-                            enderecoComplementar:
-                                item.enderecoComplementar ?? '',
-                            isEmpresa: item.fkGrupoEmpresa != null,
-                            idGrupoEmpresa: item.fkGrupoEmpresa,
-                            fotoPerfilProfissional: null,
-                            nomeProfissional: null,
-                          ),
-                        ),
-                      ).then((_) => _carregar());
-                    },
+                    onPressed: () => _abrirTelaDeslocamento(item),
                     style: FilledButton.styleFrom(
                       backgroundColor: _azul,
                       foregroundColor: Colors.white,
@@ -1865,11 +1821,11 @@ class _MeusServicosSolicitadosPageState
                       mainAxisAlignment: MainAxisAlignment.center,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.check_circle_outline_rounded, size: 16),
+                        Icon(Icons.near_me_outlined, size: 16),
                         SizedBox(width: 6),
                         Flexible(
                           child: Text(
-                            'Confirmar Chegada',
+                            'Abrir detalhes',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -1990,30 +1946,8 @@ class _MeusServicosSolicitadosPageState
     );
     return GestureDetector(
       onTap: () {
-        if (item.fkStatus == 33 || item.fkStatus == 32) {
+        if (item.fkStatus == 33 || item.fkStatus == 32 || item.fkStatus == 34) {
           _abrirTelaDeslocamento(item);
-        } else if (item.fkStatus == 34) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => TelaRecebeDevolucaoProfissionalPage(
-                idSolicitacao: item.idSolicitacao,
-                codigoPedido:
-                    '#PED-2026-',
-                nomeCliente: item.nomeCliente,
-                fotoCliente: item.fotoCliente,
-                nomeServico: item.tituloServico,
-                modalidade: item.tipoExecucao,
-                enderecoPrincipal:
-                    item.enderecoPrincipal ?? 'Destino do cliente',
-                enderecoComplementar:
-                    item.enderecoComplementar ?? '',
-                isEmpresa: item.fkGrupoEmpresa != null,
-                idGrupoEmpresa: item.fkGrupoEmpresa,
-                fotoPerfilProfissional: null,
-                nomeProfissional: null,
-              ),
-            ),
-          ).then((_) => _carregar());
         } else {
           _abrirSolicitacaoEstado(item);
         }
@@ -2119,29 +2053,7 @@ class _MeusServicosSolicitadosPageState
         if (profissionalChegou)
           Expanded(
             child: FilledButton(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => TelaRecebeDevolucaoProfissionalPage(
-                      idSolicitacao: item.idSolicitacao,
-                      codigoPedido:
-                          '#PED-2026-',
-                      nomeCliente: item.nomeCliente,
-                      fotoCliente: item.fotoCliente,
-                      nomeServico: item.tituloServico,
-                      modalidade: item.tipoExecucao,
-                      enderecoPrincipal:
-                          item.enderecoPrincipal ?? 'Destino do cliente',
-                      enderecoComplementar:
-                          item.enderecoComplementar ?? '',
-                      isEmpresa: item.fkGrupoEmpresa != null,
-                      idGrupoEmpresa: item.fkGrupoEmpresa,
-                      fotoPerfilProfissional: null,
-                      nomeProfissional: null,
-                    ),
-                  ),
-                ).then((_) => _carregar());
-              },
+              onPressed: () => _abrirTelaDeslocamento(item),
               style: FilledButton.styleFrom(
                 backgroundColor: _azul,
                 foregroundColor: Colors.white,
@@ -2157,11 +2069,11 @@ class _MeusServicosSolicitadosPageState
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.check_circle_outline_rounded, size: 16),
+                  Icon(Icons.near_me_outlined, size: 16),
                   SizedBox(width: 6),
                   Flexible(
                     child: Text(
-                      'Confirmar Chegada',
+                      'Abrir detalhes',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
