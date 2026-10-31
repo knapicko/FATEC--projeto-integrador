@@ -1,8 +1,9 @@
-// ignore_for_file: deprecated_member_use, unnecessary_underscores
+﻿// ignore_for_file: deprecated_member_use, unnecessary_underscores
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'meus_pedidos.dart';
+import 'acompanhar_deslocamento.dart';
 import 'pagamento_pedido.dart';
 import 'models/stripe_pagamento.dart';
 import 'qrcode_pix.dart';
@@ -534,6 +535,27 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
     final isRetiradaOuReceba =
         modalidade.contains('retirad') ||
         (modalidade.contains('receba') && modalidade.contains('casa'));
+
+    final st = _fkStatus ?? 0;
+    if (st == 32 || s.contains('aguardando deslocamento')) {
+      return (
+        titulo: 'Aguardando Deslocamento',
+        subtitulo:
+            'O profissional está se preparando para ir até o seu endereço',
+      );
+    }
+    if (st == 33 || s.contains('deslocando') || s.contains('a caminho')) {
+      return (
+        titulo: 'Profissional a caminho',
+        subtitulo: 'Acompanhe o trajeto do profissional em tempo real',
+      );
+    }
+    if (st == 34 || s.contains('chegou')) {
+      return (
+        titulo: 'Profissional Chegou',
+        subtitulo: 'O profissional está na área',
+      );
+    }
 
     if (s.contains('cancel')) {
       return (titulo: 'Pedido cancelado', subtitulo: 'O pedido foi cancelado');
@@ -1886,24 +1908,49 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
   // ===========================================================================
   Widget _buildCardSituacaoPedido() {
     final situacao = _obterSituacaoPedido();
+    final st = _fkStatus ?? 0;
+    final isAguardandoDeslocamento = st == 32 ||
+        _statusTexto.trim().toLowerCase().contains('aguardando deslocamento');
+    final isDeslocando = st == 33 ||
+        _statusTexto.trim().toLowerCase().contains('deslocando') ||
+        _statusTexto.trim().toLowerCase().contains('a caminho');
+    final isChegou = st == 34 ||
+        _statusTexto.trim().toLowerCase().contains('chegou');
 
-    return Container(
+    final card = Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: azulFundoCard,
+        color: isAguardandoDeslocamento
+            ? const Color(0xFFFFF7ED)
+            : (isChegou
+                ? const Color(0xFFF0F9FF)
+                : azulFundoCard),
         borderRadius: BorderRadius.circular(16),
+        border: isAguardandoDeslocamento
+            ? Border.all(color: const Color(0xFFFED7AA))
+            : ((isDeslocando || isChegou)
+                ? Border.all(color: const Color(0xFFBAE6FD), width: 1.5)
+                : null),
       ),
       child: Row(
         children: [
           Container(
             width: 44,
             height: 44,
-            decoration: const BoxDecoration(
-              color: azulPrincipal,
+            decoration: BoxDecoration(
+              color: isAguardandoDeslocamento
+                  ? const Color(0xFFF97316)
+                  : azulPrincipal,
               shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.notifications_active_outlined,
+            child: Icon(
+              isAguardandoDeslocamento
+                  ? Icons.local_shipping_outlined
+                  : (isDeslocando
+                      ? Icons.two_wheeler
+                      : (isChegou
+                          ? Icons.place_rounded
+                          : Icons.notifications_active_outlined)),
               color: Colors.white,
               size: 22,
             ),
@@ -1934,10 +1981,36 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
             ),
           ),
           const SizedBox(width: 6),
-          const Icon(Icons.chevron_right, color: textoMuted, size: 22),
+          Icon(
+            (isDeslocando || isChegou)
+                ? Icons.arrow_forward_ios_rounded
+                : Icons.chevron_right,
+            color: isAguardandoDeslocamento
+                ? const Color(0xFFEA580C)
+                : ((isDeslocando || isChegou) ? azulPrincipal : textoMuted),
+            size: (isDeslocando || isChegou) ? 18 : 22,
+          ),
         ],
       ),
     );
+
+    if (isDeslocando || isChegou) {
+      return InkWell(
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => AcompanharDeslocamentoPage(
+                idSolicitacao: _idSolicitacao,
+              ),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: card,
+      );
+    }
+
+    return card;
   }
 
   // ===========================================================================
