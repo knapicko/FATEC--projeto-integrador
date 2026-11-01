@@ -12,6 +12,7 @@ import 'solicitacao_em_andamento.dart';
 import 'tela_chat_profissional.dart';
 import 'tela_meu_perfil_profissional.dart';
 import 'utils/iniciais.dart';
+import 'widgets/skeleton_loading.dart';
 
 class TelaRecebeDevolucaoProfissionalPage extends StatefulWidget {
   final int idSolicitacao;
@@ -70,6 +71,12 @@ class _TelaRecebeDevolucaoProfissionalPageState
 
   bool _carregando = true;
   bool _enviando = false;
+  int? _fkStatus;
+  int _etapaSolicitacao = 0;
+
+  bool get _ehDevolucao =>
+      _etapaSolicitacao == 4 &&
+      (_fkStatus == 35 || _fkStatus == 36 || _fkStatus == 37);
 
   // Dados carregados da solicitação
   String _descricaoCliente = '';
@@ -126,9 +133,10 @@ class _TelaRecebeDevolucaoProfissionalPageState
       duration: const Duration(milliseconds: 400),
     );
 
-    _shakeAnimation = Tween<double>(begin: 0.0, end: 10.0)
-        .chain(CurveTween(curve: Curves.elasticIn))
-        .animate(_shakeController);
+    _shakeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 10.0,
+    ).chain(CurveTween(curve: Curves.elasticIn)).animate(_shakeController);
 
     _carregarDados();
   }
@@ -174,12 +182,15 @@ class _TelaRecebeDevolucaoProfissionalPageState
           .from('solicitacoes')
           .select(
             'id_solicitacao, valor_final, detalhes, data_agendada, tipo_execucao, '
-            'codigo_rec_dev, fk_usuario, fk_servico_prof, fk_servico_temp',
+            'codigo_rec_dev, fk_usuario, fk_servico_prof, fk_servico_temp, '
+            'fk_status, etapa_solicitacao',
           )
           .eq('id_solicitacao', widget.idSolicitacao)
           .maybeSingle();
 
       if (row != null) {
+        _fkStatus = (row['fk_status'] as num?)?.toInt();
+        _etapaSolicitacao = (row['etapa_solicitacao'] as num?)?.toInt() ?? 0;
         _codigoCorreto = row['codigo_rec_dev']?.toString().trim() ?? '';
         final valor = row['valor_final'];
         if (valor != null) {
@@ -211,7 +222,8 @@ class _TelaRecebeDevolucaoProfissionalPageState
             if (nomeArq != null && nomeArq.isNotEmpty) {
               _legendaAnexo = nomeArq;
             } else {
-              _legendaAnexo = 'Foto anexada pela cliente (${widget.nomeServico})';
+              _legendaAnexo =
+                  'Foto anexada pela cliente (${widget.nomeServico})';
             }
           } else {
             _quantidadeAnexos = 0;
@@ -228,7 +240,8 @@ class _TelaRecebeDevolucaoProfissionalPageState
               _quantidadeAnexos = anexos.length;
               final primeiro = anexos.first;
               _anexoClienteUrl = primeiro['arquivo_url']?.toString();
-              _legendaAnexo = 'Foto anexada pela cliente (${widget.nomeServico})';
+              _legendaAnexo =
+                  'Foto anexada pela cliente (${widget.nomeServico})';
             } else {
               _quantidadeAnexos = 0;
               _anexoClienteUrl = null;
@@ -366,11 +379,11 @@ class _TelaRecebeDevolucaoProfissionalPageState
   bool get _podeConfirmar {
     final fotosObrigatoriasOk =
         _fotos.length >= 2 && _fotos[0] != null && _fotos[1] != null;
-    return fotosObrigatoriasOk && (_codigoValido == true);
+    return !_ehDevolucao && fotosObrigatoriasOk && _codigoValido == true;
   }
 
   Future<void> _confirmarColeta() async {
-    if (!_podeConfirmar || _enviando) return;
+    if (_ehDevolucao || !_podeConfirmar || _enviando) return;
 
     setState(() => _enviando = true);
 
@@ -387,24 +400,9 @@ class _TelaRecebeDevolucaoProfissionalPageState
         final nomeArquivo =
             'recebimento_${widget.idSolicitacao}_${DateTime.now().millisecondsSinceEpoch}_$i.$ext';
 
-        try {
-          await _supabase.storage.from('Imagens Recebimento').uploadBinary(
-            nomeArquivo,
-            bytes,
-            fileOptions: const FileOptions(
-              contentType: 'image/jpeg',
-              upsert: true,
-            ),
-          );
-          final url = _supabase.storage
-              .from('Imagens Recebimento')
-              .getPublicUrl(nomeArquivo);
-          urlsImagens.add(url);
-        } catch (eStorage) {
-          debugPrint('Upload falhou no bucket principal: $eStorage');
-          // Fallback para bucket 'imagens_recebimento'
-          try {
-            await _supabase.storage.from('imagens_recebimento').uploadBinary(
+        await _supabase.storage
+            .from('Imagens Recebimento')
+            .uploadBinary(
               nomeArquivo,
               bytes,
               fileOptions: const FileOptions(
@@ -412,44 +410,54 @@ class _TelaRecebeDevolucaoProfissionalPageState
                 upsert: true,
               ),
             );
-            final url = _supabase.storage
-                .from('imagens_recebimento')
-                .getPublicUrl(nomeArquivo);
-            urlsImagens.add(url);
-          } catch (_) {
-            urlsImagens.add(xfile.path);
-          }
-        }
+        urlsImagens.add(
+          _supabase.storage
+              .from('Imagens Recebimento')
+              .getPublicUrl(nomeArquivo),
+        );
       }
 
       // 2. Salvar na tabela solicitacoes
       final obs = _obsController.text.trim();
       final agoraIso = DateTime.now().toIso8601String();
       try {
-        await _supabase.from('solicitacoes').update({
-          'imagens_recebimento': urlsImagens,
-          'obs_do_prof': obs,
-          'fk_status': 4, // Em Andamento
-          'etapa_solicitacao': 3,
-          'data_inicio_andamento': agoraIso,
-          'andamento_pausado': false,
-        }).eq('id_solicitacao', widget.idSolicitacao);
+        await _supabase
+            .from('solicitacoes')
+            .update({
+              if (_ehDevolucao) 'imagens_devolucao': urlsImagens,
+              if (!_ehDevolucao) 'imagens_recebimento': urlsImagens,
+              'obs_do_prof': obs,
+              'fk_status': _ehDevolucao ? 6 : 4,
+              'etapa_solicitacao': _ehDevolucao ? 5 : 3,
+              'data_inicio_andamento': agoraIso,
+              'andamento_pausado': false,
+            })
+            .eq('id_solicitacao', widget.idSolicitacao);
       } catch (eUpdate) {
-        debugPrint('Erro ao atualizar solicitacoes com novas colunas: $eUpdate');
+        debugPrint(
+          'Erro ao atualizar solicitacoes com novas colunas: $eUpdate',
+        );
         // Tenta sem colunas opcionais caso ainda não tenham sido migradas no Supabase
         try {
-          await _supabase.from('solicitacoes').update({
-            'imagens_recebimento': urlsImagens,
-            'obs_do_prof': obs,
-            'fk_status': 4,
-            'etapa_solicitacao': 3,
-          }).eq('id_solicitacao', widget.idSolicitacao);
+          await _supabase
+              .from('solicitacoes')
+              .update({
+                if (_ehDevolucao) 'imagens_devolucao': urlsImagens,
+                if (!_ehDevolucao) 'imagens_recebimento': urlsImagens,
+                'obs_do_prof': obs,
+                'fk_status': _ehDevolucao ? 6 : 4,
+                'etapa_solicitacao': _ehDevolucao ? 5 : 3,
+              })
+              .eq('id_solicitacao', widget.idSolicitacao);
         } catch (_) {
-          await _supabase.from('solicitacoes').update({
-            'obs_do_prof': obs,
-            'fk_status': 4,
-            'etapa_solicitacao': 3,
-          }).eq('id_solicitacao', widget.idSolicitacao);
+          await _supabase
+              .from('solicitacoes')
+              .update({
+                'obs_do_prof': obs,
+                'fk_status': _ehDevolucao ? 6 : 4,
+                'etapa_solicitacao': _ehDevolucao ? 5 : 3,
+              })
+              .eq('id_solicitacao', widget.idSolicitacao);
         }
       }
 
@@ -493,11 +501,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
               const Text(
                 'O aparelho foi recebido com sucesso e está sob sua custódia técnica.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: _textoMuted,
-                  height: 1.4,
-                ),
+                style: TextStyle(fontSize: 13, color: _textoMuted, height: 1.4),
               ),
               const SizedBox(height: 20),
               SizedBox(
@@ -531,12 +535,9 @@ class _TelaRecebeDevolucaoProfissionalPageState
                       borderRadius: BorderRadius.circular(24),
                     ),
                   ),
-                  child: const Text(
+                  child: Text(
                     'Continuar para a Bancada',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
                   ),
                 ),
               ),
@@ -559,11 +560,9 @@ class _TelaRecebeDevolucaoProfissionalPageState
 
   void _aoClicarPerfil() {
     if (widget.isEmpresa) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => const GestaoEquipePage(),
-        ),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const GestaoEquipePage()));
     } else {
       Navigator.of(context).push(
         MaterialPageRoute(
@@ -615,14 +614,16 @@ class _TelaRecebeDevolucaoProfissionalPageState
                 ],
               ),
               const SizedBox(height: 14),
-              const Text(
+              Text(
                 'Se estiver em situação de risco, acione as autoridades imediatamente:',
                 style: TextStyle(fontSize: 13, color: _textoMuted),
               ),
               const SizedBox(height: 16),
               ListTile(
-                leading: const Icon(Icons.local_police_outlined,
-                    color: Color(0xFFE11D48)),
+                leading: const Icon(
+                  Icons.local_police_outlined,
+                  color: Color(0xFFE11D48),
+                ),
                 title: const Text('Polícia Militar (190)'),
                 onTap: () {
                   launchUrl(Uri.parse('tel:190'));
@@ -630,8 +631,10 @@ class _TelaRecebeDevolucaoProfissionalPageState
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.medical_services_outlined,
-                    color: Color(0xFFE11D48)),
+                leading: const Icon(
+                  Icons.medical_services_outlined,
+                  color: Color(0xFFE11D48),
+                ),
                 title: const Text('SAMU (192)'),
                 onTap: () {
                   launchUrl(Uri.parse('tel:192'));
@@ -651,9 +654,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
       backgroundColor: _fundo,
       body: SafeArea(
         child: _carregando
-            ? const Center(
-                child: CircularProgressIndicator(color: _azul),
-              )
+            ? const SkeletonTelaRecebeDevolucaoProfissional()
             : Column(
                 children: [
                   _buildHeader(),
@@ -670,7 +671,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
                           const SizedBox(height: 14),
                           _buildCardDetalhesServico(),
                           const SizedBox(height: 14),
-                          _buildCardRegistroEstado(),
+                          if (!_ehDevolucao) _buildCardRegistroEstado(),
                           const SizedBox(height: 14),
                           _buildCardCodigoLiberacao(),
                         ],
@@ -680,7 +681,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
                 ],
               ),
       ),
-      bottomSheet: _buildBottomConfirmButton(),
+      bottomSheet: _ehDevolucao ? null : _buildBottomConfirmButton(),
     );
   }
 
@@ -708,7 +709,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Row(
+                Row(
                   children: [
                     Text('🔴', style: TextStyle(fontSize: 10)),
                     SizedBox(width: 4),
@@ -746,8 +747,11 @@ class _TelaRecebeDevolucaoProfissionalPageState
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.emergency_rounded,
-                      color: Color(0xFFE11D48), size: 14),
+                  Icon(
+                    Icons.emergency_rounded,
+                    color: Color(0xFFE11D48),
+                    size: 14,
+                  ),
                   SizedBox(width: 4),
                   Text(
                     'sos',
@@ -774,7 +778,8 @@ class _TelaRecebeDevolucaoProfissionalPageState
                 border: Border.all(color: _azul, width: 1.5),
               ),
               child: ClipOval(
-                child: widget.fotoPerfilProfissional != null &&
+                child:
+                    widget.fotoPerfilProfissional != null &&
                         widget.fotoPerfilProfissional!.isNotEmpty
                     ? Image.network(
                         widget.fotoPerfilProfissional!,
@@ -819,7 +824,15 @@ class _TelaRecebeDevolucaoProfissionalPageState
       Icons.local_shipping_outlined,
       Icons.check_circle_outline,
     ];
-    const etapaAtual = 1; // Busca (atual)
+    final etapaAtual = _ehDevolucao
+        ? 3
+        : _etapaSolicitacao >= 5
+        ? 4
+        : _etapaSolicitacao >= 3
+        ? 2
+        : _etapaSolicitacao >= 2
+        ? 1
+        : 0;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -886,14 +899,16 @@ class _TelaRecebeDevolucaoProfissionalPageState
                 ),
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
                   color: _azul,
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Text(
-                  'Etapa 2 de 5',
+                child: Text(
+                  'Etapa ${etapaAtual + 1} de ${etapas.length}',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 11.5,
@@ -912,7 +927,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
               final isLast = index == etapas.length - 1;
               final isDone = index < etapaAtual;
               final isCurrent = index == etapaAtual;
-              
+
               return Expanded(
                 child: Column(
                   children: [
@@ -1078,7 +1093,8 @@ class _TelaRecebeDevolucaoProfissionalPageState
                       border: Border.all(color: _cinzaBorda, width: 1.5),
                     ),
                     child: ClipOval(
-                      child: widget.fotoCliente != null &&
+                      child:
+                          widget.fotoCliente != null &&
                               widget.fotoCliente!.isNotEmpty
                           ? Image.network(
                               widget.fotoCliente!,
@@ -1149,8 +1165,8 @@ class _TelaRecebeDevolucaoProfissionalPageState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'PONTO DE RETIRADA',
+                    Text(
+                      _ehDevolucao ? 'PONTO DE DEVOLUÇÃO' : 'PONTO DE RETIRADA',
                       style: TextStyle(
                         fontSize: 10.5,
                         fontWeight: FontWeight.w800,
@@ -1189,8 +1205,11 @@ class _TelaRecebeDevolucaoProfissionalPageState
             height: 44,
             child: OutlinedButton.icon(
               onPressed: _abrirChat,
-              icon: const Icon(Icons.chat_bubble_outline,
-                  color: _azul, size: 18),
+              icon: const Icon(
+                Icons.chat_bubble_outline,
+                color: _azul,
+                size: 18,
+              ),
               label: const Text(
                 'Conversar no Chat',
                 style: TextStyle(
@@ -1252,7 +1271,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
             children: [
               const Icon(Icons.receipt_long_outlined, color: _azul, size: 20),
               const SizedBox(width: 8),
-              const Text(
+              Text(
                 'Detalhes do serviço',
                 style: TextStyle(
                   fontSize: 16,
@@ -1262,8 +1281,10 @@ class _TelaRecebeDevolucaoProfissionalPageState
               ),
               const Spacer(),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: _azul,
                   borderRadius: BorderRadius.circular(14),
@@ -1305,7 +1326,9 @@ class _TelaRecebeDevolucaoProfissionalPageState
                     if (_quantidadeAnexos > 0)
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(10),
@@ -1313,8 +1336,11 @@ class _TelaRecebeDevolucaoProfissionalPageState
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.attach_file,
-                                size: 13, color: _textoMuted),
+                            const Icon(
+                              Icons.attach_file,
+                              size: 13,
+                              color: _textoMuted,
+                            ),
                             const SizedBox(width: 3),
                             Text(
                               '$_quantidadeAnexos anexo${_quantidadeAnexos > 1 ? 's' : ''}',
@@ -1349,7 +1375,8 @@ class _TelaRecebeDevolucaoProfissionalPageState
                     ),
                   ),
                 ],
-                if (_anexoClienteUrl != null && _anexoClienteUrl!.isNotEmpty) ...[
+                if (_anexoClienteUrl != null &&
+                    _anexoClienteUrl!.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   // Foto anexada pelo cliente
                   ClipRRect(
@@ -1362,18 +1389,22 @@ class _TelaRecebeDevolucaoProfissionalPageState
                           height: 150,
                           width: double.infinity,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) =>
-                              _placeholderFotoCliente(),
+                          errorBuilder: (_, _, _) => _placeholderFotoCliente(),
                         ),
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 6),
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
                           color: Colors.black.withValues(alpha: 0.65),
                           child: Row(
                             children: [
-                              const Icon(Icons.camera_alt_outlined,
-                                  color: Colors.white, size: 14),
+                              const Icon(
+                                Icons.camera_alt_outlined,
+                                color: Colors.white,
+                                size: 14,
+                              ),
                               const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
@@ -1436,8 +1467,11 @@ class _TelaRecebeDevolucaoProfissionalPageState
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.access_time_rounded,
-                                size: 14, color: _textoEscuro),
+                            const Icon(
+                              Icons.access_time_rounded,
+                              size: 14,
+                              color: _textoEscuro,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               _prazoDevolucao,
@@ -1502,12 +1536,14 @@ class _TelaRecebeDevolucaoProfissionalPageState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               Icon(Icons.camera_alt_outlined, color: _azul, size: 20),
               SizedBox(width: 8),
               Text(
-                'Registro do Estado na Coleta',
+                _ehDevolucao
+                    ? 'Registro do Estado na Devolução'
+                    : 'Registro do Estado na Coleta',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
@@ -1517,13 +1553,11 @@ class _TelaRecebeDevolucaoProfissionalPageState
             ],
           ),
           const SizedBox(height: 6),
-          const Text(
-            'Fotografe o produto na presença do cliente antes de retirá-lo (frente, riscos e placa de série). Este checklist protege você e o cliente durante a custódia técnica.',
-            style: TextStyle(
-              fontSize: 12.5,
-              color: _textoMuted,
-              height: 1.35,
-            ),
+          Text(
+            _ehDevolucao
+                ? 'Fotografe o produto na presença do cliente no momento da devolução (frente, riscos e placa de série). Este registro protege você e o cliente.'
+                : 'Fotografe o produto na presença do cliente antes de retirá-lo (frente, riscos e placa de série). Este checklist protege você e o cliente durante a custódia técnica.',
+            style: TextStyle(fontSize: 12.5, color: _textoMuted, height: 1.35),
           ),
           const SizedBox(height: 14),
           // Slots de imagens
@@ -1549,8 +1583,11 @@ class _TelaRecebeDevolucaoProfissionalPageState
             height: 44,
             child: FilledButton.icon(
               onPressed: _adicionarSlotOpcional,
-              icon: const Icon(Icons.add_circle_outline,
-                  color: _textoEscuro, size: 18),
+              icon: const Icon(
+                Icons.add_circle_outline,
+                color: _textoEscuro,
+                size: 18,
+              ),
               label: const Text(
                 'Adicionar outra Foto (Opcional)',
                 style: TextStyle(
@@ -1570,8 +1607,8 @@ class _TelaRecebeDevolucaoProfissionalPageState
           ),
           const SizedBox(height: 16),
           // Observações / Acessórios Recebidos
-          const Text(
-            'Observações / Acessórios Recebidos',
+          Text(
+            _ehDevolucao ? 'Observações' : 'Observações / Acessórios Recebidos',
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w800,
@@ -1607,7 +1644,11 @@ class _TelaRecebeDevolucaoProfissionalPageState
   }
 
   Widget _buildSlotFoto(
-      int index, XFile? foto, bool obrigatoria, String titulo) {
+    int index,
+    XFile? foto,
+    bool obrigatoria,
+    String titulo,
+  ) {
     if (foto != null) {
       return SizedBox(
         width: 140,
@@ -1634,8 +1675,11 @@ class _TelaRecebeDevolucaoProfissionalPageState
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.check_circle,
-                        color: Colors.greenAccent, size: 12),
+                    const Icon(
+                      Icons.check_circle,
+                      color: Colors.greenAccent,
+                      size: 12,
+                    ),
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
@@ -1760,8 +1804,10 @@ class _TelaRecebeDevolucaoProfissionalPageState
             child: const Icon(Icons.key_rounded, color: Colors.white, size: 20),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Código de Liberação do Cliente',
+          Text(
+            _ehDevolucao
+                ? 'Código da Devolução'
+                : 'Código de Liberação do Cliente',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 16,
@@ -1771,7 +1817,9 @@ class _TelaRecebeDevolucaoProfissionalPageState
           ),
           const SizedBox(height: 6),
           Text(
-            'Solicite à cliente ${widget.nomeCliente} os 4 dígitos exibidos no app dela para autorizar a custódia do aparelho.',
+            _ehDevolucao
+                ? 'Confira o código exibido pelo cliente para confirmar a devolução.'
+                : 'Solicite à cliente ${widget.nomeCliente} os 4 dígitos exibidos no app dela para autorizar a custódia do aparelho.',
             textAlign: TextAlign.center,
             style: const TextStyle(
               fontSize: 12,
@@ -1781,7 +1829,10 @@ class _TelaRecebeDevolucaoProfissionalPageState
           ),
           const SizedBox(height: 16),
           // Se o usuário rolou até o final, os 4 inputs se desgrudam da barra inferior e ficam aqui na seção
-          if (_codigoNoLugarOriginal) ...[
+          if (_ehDevolucao) ...[
+            _buildCodigoDevolucaoProfissional(),
+            const SizedBox(height: 14),
+          ] else if (_codigoNoLugarOriginal) ...[
             _buildInputsCodigo(compacto: false),
             const SizedBox(height: 14),
           ] else ...[
@@ -1792,6 +1843,36 @@ class _TelaRecebeDevolucaoProfissionalPageState
           _buildBotaoAssinaturaManual(),
         ],
       ),
+    );
+  }
+
+  Widget _buildCodigoDevolucaoProfissional() {
+    final digitos = _codigoCorreto.padRight(4, '-').split('');
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (int i = 0; i < 4; i++) ...[
+          Container(
+            width: 58,
+            height: 58,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE0F2FE),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFBAE6FD), width: 2),
+            ),
+            child: Text(
+              i < digitos.length ? digitos[i] : '-',
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+                color: _azul,
+              ),
+            ),
+          ),
+          if (i < 3) const SizedBox(width: 8),
+        ],
+      ],
     );
   }
 
@@ -1832,10 +1913,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
         final offset = _codigoValido == false
             ? sin(_shakeController.value * pi * 4) * 8
             : 0.0;
-        return Transform.translate(
-          offset: Offset(offset, 0),
-          child: child,
-        );
+        return Transform.translate(offset: Offset(offset, 0), child: child);
       },
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -1847,10 +1925,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
             decoration: BoxDecoration(
               color: _obterCorFundoDigito(index),
               borderRadius: BorderRadius.circular(compacto ? 14 : 16),
-              border: Border.all(
-                color: _obterCorBordaDigito(index),
-                width: 2,
-              ),
+              border: Border.all(color: _obterCorBordaDigito(index), width: 2),
             ),
             alignment: Alignment.center,
             child: TextField(
@@ -1883,9 +1958,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
       onTap: () {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              'Opção de assinatura em tela selecionada.',
-            ),
+            content: Text('Opção de assinatura em tela selecionada.'),
             duration: Duration(seconds: 2),
           ),
         );
@@ -1975,7 +2048,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
           mainAxisSize: MainAxisSize.min,
           children: [
             // Quando a tela não está no fim da seção, os elementos de código acompanham aqui acima do botão
-            if (!_codigoNoLugarOriginal) ...[
+            if (!_ehDevolucao && !_codigoNoLugarOriginal) ...[
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
                 child: Column(
@@ -1991,8 +2064,11 @@ class _TelaRecebeDevolucaoProfissionalPageState
                             color: _azul,
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.key_rounded,
-                              color: Colors.white, size: 12),
+                          child: const Icon(
+                            Icons.key_rounded,
+                            color: Colors.white,
+                            size: 12,
+                          ),
                         ),
                         const SizedBox(width: 8),
                         const Text(
@@ -2031,7 +2107,13 @@ class _TelaRecebeDevolucaoProfissionalPageState
                         )
                       : const Icon(Icons.two_wheeler_rounded, size: 22),
                   label: Text(
-                    _enviando ? 'Confirmando Coleta...' : 'Confirmar Coleta',
+                    _enviando
+                        ? (_ehDevolucao
+                              ? 'Confirmando Devolução...'
+                              : 'Confirmando Coleta...')
+                        : (_ehDevolucao
+                              ? 'Confirmar Devolução'
+                              : 'Confirmar Coleta'),
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
@@ -2057,4 +2139,3 @@ class _TelaRecebeDevolucaoProfissionalPageState
     );
   }
 }
-

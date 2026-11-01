@@ -7,9 +7,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'gestao_equipe.dart';
 import 'meus_servicos_solicitados.dart';
+import 'solicitacao_estado.dart';
 import 'tela_chat_profissional.dart';
 import 'tela_meu_perfil_profissional.dart';
 import 'utils/iniciais.dart';
+import 'widgets/skeleton_loading.dart';
 
 class SolicitacaoEmAndamentoPage extends StatefulWidget {
   final int idSolicitacao;
@@ -46,7 +48,8 @@ class SolicitacaoEmAndamentoPage extends StatefulWidget {
       _SolicitacaoEmAndamentoPageState();
 }
 
-class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage> {
+class _SolicitacaoEmAndamentoPageState
+    extends State<SolicitacaoEmAndamentoPage> {
   static const Color _azul = Color(0xFF0FB3FF);
   static const Color _fundo = Color(0xFFF8FAFC);
   static const Color _textoEscuro = Color(0xFF0F172A);
@@ -59,6 +62,12 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
 
   bool _carregando = true;
   bool _salvando = false;
+  String _nomeCliente = '';
+  String? _fotoCliente;
+  String? _fotoPerfilProfissional;
+  String? _nomeProfissional;
+  int? _idProfissional;
+  bool _isEmpresaPerfil = false;
 
   // Diagnóstico
   String? _diagnostico;
@@ -99,6 +108,52 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
           .maybeSingle();
 
       if (res != null && mounted) {
+        _nomeCliente = widget.nomeCliente;
+        _fotoCliente = widget.fotoCliente;
+        final idGrupo = (res['fk_grupo_empresa'] as num?)?.toInt();
+        _idProfissional = (res['fk_profissional'] as num?)?.toInt();
+        _isEmpresaPerfil = idGrupo != null || widget.isEmpresa;
+        if (_isEmpresaPerfil && (idGrupo ?? widget.idGrupoEmpresa) != null) {
+          final grupo = await _supabase
+              .from('grupo_empresa')
+              .select('nome_empresa, foto_url_empresa')
+              .eq('id_grupo_empresa', idGrupo ?? widget.idGrupoEmpresa!)
+              .maybeSingle();
+          _nomeProfissional = grupo?['nome_empresa']?.toString().trim();
+          _fotoPerfilProfissional = grupo?['foto_url_empresa']
+              ?.toString()
+              .trim();
+        } else if (_idProfissional != null) {
+          final profissional = await _supabase
+              .from('dados_profissionais')
+              .select('fk_usuario')
+              .eq('id_profissional', _idProfissional!)
+              .maybeSingle();
+          final idUsuarioProf = (profissional?['fk_usuario'] as num?)?.toInt();
+          if (idUsuarioProf != null) {
+            final usuarioProf = await _supabase
+                .from('usuarios')
+                .select('nome, foto_perfil_url')
+                .eq('id_usuario', idUsuarioProf)
+                .maybeSingle();
+            _nomeProfissional = usuarioProf?['nome']?.toString().trim();
+            _fotoPerfilProfissional = usuarioProf?['foto_perfil_url']
+                ?.toString()
+                .trim();
+          }
+        }
+        final idCliente = (res['fk_usuario'] as num?)?.toInt();
+        if (idCliente != null) {
+          final cliente = await _supabase
+              .from('usuarios')
+              .select('nome, foto_perfil_url')
+              .eq('id_usuario', idCliente)
+              .maybeSingle();
+          final nome = cliente?['nome']?.toString().trim() ?? '';
+          final foto = cliente?['foto_perfil_url']?.toString().trim() ?? '';
+          if (nome.isNotEmpty) _nomeCliente = nome;
+          if (foto.isNotEmpty) _fotoCliente = foto;
+        }
         // Carrega diagnóstico existente
         _diagnostico = res['diagnostico'] as String?;
         if (_diagnostico != null) {
@@ -109,8 +164,10 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
         if (res['imagens_recebimento'] != null) {
           final dynList = res['imagens_recebimento'];
           if (dynList is List) {
-            _imagensRecebimento =
-                dynList.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+            _imagensRecebimento = dynList
+                .map((e) => e.toString().trim())
+                .where((e) => e.isNotEmpty)
+                .toList();
           }
         }
 
@@ -118,8 +175,10 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
         if (res['imagens_em_andamento'] != null) {
           final dynList = res['imagens_em_andamento'];
           if (dynList is List) {
-            _imagensEmAndamento =
-                dynList.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+            _imagensEmAndamento = dynList
+                .map((e) => e.toString())
+                .where((e) => e.isNotEmpty)
+                .toList();
           }
         }
 
@@ -128,7 +187,9 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
         final duracaoSalva = (res['duracao_servico'] as num?)?.toInt() ?? 0;
 
         if (res['data_inicio_andamento'] != null) {
-          _dataInicio = DateTime.tryParse(res['data_inicio_andamento'].toString());
+          _dataInicio = DateTime.tryParse(
+            res['data_inicio_andamento'].toString(),
+          );
         }
         _dataInicio ??= DateTime.now();
 
@@ -192,10 +253,13 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
     }
 
     try {
-      await _supabase.from('solicitacoes').update({
-        'andamento_pausado': novoEstado,
-        'duracao_servico': _segundosAndamento,
-      }).eq('id_solicitacao', widget.idSolicitacao);
+      await _supabase
+          .from('solicitacoes')
+          .update({
+            'andamento_pausado': novoEstado,
+            'duracao_servico': _segundosAndamento,
+          })
+          .eq('id_solicitacao', widget.idSolicitacao);
     } catch (e) {
       debugPrint('Erro ao salvar pausa: $e');
     }
@@ -208,7 +272,9 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                 ? 'Cronômetro pausado (Falta de peça / Interrupção).'
                 : 'Cronômetro retomado com sucesso.',
           ),
-          backgroundColor: novoEstado ? Colors.amber.shade800 : const Color(0xFF16A34A),
+          backgroundColor: novoEstado
+              ? Colors.amber.shade800
+              : const Color(0xFF16A34A),
           duration: const Duration(seconds: 2),
         ),
       );
@@ -291,7 +357,10 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                   decoration: InputDecoration(
                     hintText:
                         'Ex: Falha no capacitor de alta tensão em curto e desgaste severo no emissor do magnetron. Substituído conjunto...',
-                    hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                    hintStyle: const TextStyle(
+                      color: Color(0xFF94A3B8),
+                      fontSize: 13,
+                    ),
                     filled: true,
                     fillColor: _cinzaCard,
                     border: OutlineInputBorder(
@@ -318,7 +387,9 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                       if (texto.isEmpty) {
                         ScaffoldMessenger.of(ctx).showSnackBar(
                           const SnackBar(
-                            content: Text('Por favor, informe o diagnóstico técnico.'),
+                            content: Text(
+                              'Por favor, informe o diagnóstico técnico.',
+                            ),
                             backgroundColor: Colors.red,
                           ),
                         );
@@ -353,16 +424,19 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
         _diagnostico = resultado;
       });
       try {
-        await _supabase.from('solicitacoes').update({
-          'diagnostico': resultado,
-        }).eq('id_solicitacao', widget.idSolicitacao);
+        await _supabase
+            .from('solicitacoes')
+            .update({'diagnostico': resultado})
+            .eq('id_solicitacao', widget.idSolicitacao);
       } catch (e) {
         debugPrint('Erro ao salvar diagnóstico: $e');
       }
     }
   }
 
-  Future<void> _adicionarFotoEvidencia({ImageSource source = ImageSource.camera}) async {
+  Future<void> _adicionarFotoEvidencia({
+    ImageSource source = ImageSource.camera,
+  }) async {
     try {
       final XFile? foto = await _picker.pickImage(
         source: source,
@@ -381,13 +455,12 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
 
       // 1. Tentar bucket 'Imagens Em Andamento'
       try {
-        await _supabase.storage.from('Imagens Em Andamento').uploadBinary(
+        await _supabase.storage
+            .from('Imagens Em Andamento')
+            .uploadBinary(
               nomeArquivo,
               bytes,
-              fileOptions: FileOptions(
-                contentType: 'image/$ext',
-                upsert: true,
-              ),
+              fileOptions: FileOptions(contentType: 'image/$ext', upsert: true),
             );
         urlPublica = _supabase.storage
             .from('Imagens Em Andamento')
@@ -395,7 +468,9 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
       } catch (_) {
         // 2. Fallback bucket 'imagens_em_andamento'
         try {
-          await _supabase.storage.from('imagens_em_andamento').uploadBinary(
+          await _supabase.storage
+              .from('imagens_em_andamento')
+              .uploadBinary(
                 nomeArquivo,
                 bytes,
                 fileOptions: FileOptions(
@@ -409,7 +484,9 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
         } catch (_) {
           // 3. Fallback bucket 'solicitacoes'
           try {
-            await _supabase.storage.from('solicitacoes').uploadBinary(
+            await _supabase.storage
+                .from('solicitacoes')
+                .uploadBinary(
                   nomeArquivo,
                   bytes,
                   fileOptions: FileOptions(
@@ -417,8 +494,9 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                     upsert: true,
                   ),
                 );
-            urlPublica =
-                _supabase.storage.from('solicitacoes').getPublicUrl(nomeArquivo);
+            urlPublica = _supabase.storage
+                .from('solicitacoes')
+                .getPublicUrl(nomeArquivo);
           } catch (_) {
             urlPublica = foto.path;
           }
@@ -432,9 +510,10 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
 
       // Atualizar no Supabase
       try {
-        await _supabase.from('solicitacoes').update({
-          'imagens_em_andamento': novaLista,
-        }).eq('id_solicitacao', widget.idSolicitacao);
+        await _supabase
+            .from('solicitacoes')
+            .update({'imagens_em_andamento': novaLista})
+            .eq('id_solicitacao', widget.idSolicitacao);
       } catch (e) {
         debugPrint('Erro ao atualizar imagens_em_andamento: $e');
       }
@@ -458,9 +537,10 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
       _imagensEmAndamento = novaLista;
     });
     try {
-      await _supabase.from('solicitacoes').update({
-        'imagens_em_andamento': novaLista,
-      }).eq('id_solicitacao', widget.idSolicitacao);
+      await _supabase
+          .from('solicitacoes')
+          .update({'imagens_em_andamento': novaLista})
+          .eq('id_solicitacao', widget.idSolicitacao);
     } catch (e) {
       debugPrint('Erro ao remover imagem: $e');
     }
@@ -470,8 +550,10 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => TelaChatProfissional(
-          nomeProfissional: widget.nomeCliente,
-          fotoProfissional: widget.fotoCliente ?? '',
+          nomeProfissional: _nomeCliente.isNotEmpty
+              ? _nomeCliente
+              : widget.nomeCliente,
+          fotoProfissional: _fotoCliente ?? '',
           oficioPrincipal: widget.nomeServico,
           idProfissional: widget.isEmpresa ? null : null,
           idGrupoEmpresa: widget.idGrupoEmpresa,
@@ -482,16 +564,15 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
   }
 
   void _abrirPerfilProfissional() {
-    if (widget.isEmpresa) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => const GestaoEquipePage(),
-        ),
-      );
+    if (_isEmpresaPerfil) {
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const GestaoEquipePage()));
     } else {
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => const TelaMeuPerfilProfissionalPage(isVisitante: false),
+          builder: (_) =>
+              const TelaMeuPerfilProfissionalPage(isVisitante: false),
         ),
       );
     }
@@ -524,7 +605,11 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
             const SizedBox(height: 18),
             const Row(
               children: [
-                Icon(Icons.notifications_active_outlined, color: _azul, size: 24),
+                Icon(
+                  Icons.notifications_active_outlined,
+                  color: _azul,
+                  size: 24,
+                ),
                 SizedBox(width: 10),
                 Text(
                   'Notificar Cliente',
@@ -548,25 +633,39 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
               subtitle: const Text('Notifica que o conserto já foi iniciado'),
               onTap: () {
                 Navigator.pop(ctx);
-                _enviarMensagemRapida('Olá! Seu aparelho já está na bancada técnica em processo de reparo.');
+                _enviarMensagemRapida(
+                  'Olá! Seu aparelho já está na bancada técnica em processo de reparo.',
+                );
               },
             ),
             ListTile(
-              leading: const Icon(Icons.inventory_2_outlined, color: Colors.orange),
+              leading: const Icon(
+                Icons.inventory_2_outlined,
+                color: Colors.orange,
+              ),
               title: const Text('Aguardando peça de reposição'),
               subtitle: const Text('Notifica que um componente foi solicitado'),
               onTap: () {
                 Navigator.pop(ctx);
-                _enviarMensagemRapida('Olá! Estamos aguardando a chegada de uma peça de reposição para continuar.');
+                _enviarMensagemRapida(
+                  'Olá! Estamos aguardando a chegada de uma peça de reposição para continuar.',
+                );
               },
             ),
             ListTile(
-              leading: const Icon(Icons.check_circle_outline, color: Color(0xFF16A34A)),
+              leading: const Icon(
+                Icons.check_circle_outline,
+                color: Color(0xFF16A34A),
+              ),
               title: const Text('Reparo em fase final de testes'),
-              subtitle: const Text('Notifica que os testes finais estão em curso'),
+              subtitle: const Text(
+                'Notifica que os testes finais estão em curso',
+              ),
               onTap: () {
                 Navigator.pop(ctx);
-                _enviarMensagemRapida('Olá! O reparo foi concluído e seu aparelho está passando pelos testes finais!');
+                _enviarMensagemRapida(
+                  'Olá! O reparo foi concluído e seu aparelho está passando pelos testes finais!',
+                );
               },
             ),
           ],
@@ -597,7 +696,8 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
   }
 
   bool get _requisitosAtendidos {
-    final temDiagnostico = _diagnostico != null && _diagnostico!.trim().isNotEmpty;
+    final temDiagnostico =
+        _diagnostico != null && _diagnostico!.trim().isNotEmpty;
     final temFotosSuficientes = _imagensEmAndamento.length >= 3;
     return temDiagnostico && temFotosSuficientes;
   }
@@ -619,11 +719,15 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
 
     try {
       // Salva duração final e atualiza etapa
-      await _supabase.from('solicitacoes').update({
-        'duracao_servico': _segundosAndamento,
-        'andamento_pausado': true,
-        'etapa_solicitacao': 4, // Etapa entrega / pronto
-      }).eq('id_solicitacao', widget.idSolicitacao);
+      await _supabase
+          .from('solicitacoes')
+          .update({
+            'duracao_servico': _segundosAndamento,
+            'andamento_pausado': true,
+            'fk_status': 35, // Aguardando Devolução
+            'etapa_solicitacao': 4,
+          })
+          .eq('id_solicitacao', widget.idSolicitacao);
 
       if (!mounted) return;
 
@@ -665,11 +769,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
               const Text(
                 'O diagnóstico e as evidências foram registradas com sucesso. O aparelho está pronto para devolução/entrega.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: _textoMuted,
-                  height: 1.4,
-                ),
+                style: TextStyle(fontSize: 13, color: _textoMuted, height: 1.4),
               ),
               const SizedBox(height: 22),
               SizedBox(
@@ -678,11 +778,14 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                 child: FilledButton(
                   onPressed: () {
                     Navigator.of(ctx).pop();
-                    Navigator.of(context).pushAndRemoveUntil(
+                    Navigator.of(context).pushReplacement(
                       MaterialPageRoute(
-                        builder: (_) => const MeusServicosSolicitadosPage(),
+                        builder: (_) => SolicitacaoEstadoPage(
+                          idSolicitacao: widget.idSolicitacao,
+                          nomeClienteInicial: widget.nomeCliente,
+                          fotoClienteInicial: widget.fotoCliente,
+                        ),
                       ),
-                      (route) => route.isFirst,
                     );
                   },
                   style: FilledButton.styleFrom(
@@ -693,10 +796,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                   ),
                   child: const Text(
                     'Voltar para Serviços',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
                   ),
                 ),
               ),
@@ -724,9 +824,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
       backgroundColor: _fundo,
       appBar: _buildAppBar(),
       body: _carregando
-          ? const Center(
-              child: CircularProgressIndicator(color: _azul),
-            )
+          ? const SkeletonSolicitacaoEmAndamento()
           : SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Column(
@@ -810,24 +908,37 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
             child: CircleAvatar(
               radius: 18,
               backgroundColor: _azul,
-              backgroundImage: widget.fotoPerfilProfissional != null &&
-                      widget.fotoPerfilProfissional!.isNotEmpty
-                  ? NetworkImage(widget.fotoPerfilProfissional!)
+              backgroundImage:
+                  ((_fotoPerfilProfissional ?? widget.fotoPerfilProfissional)
+                          ?.isNotEmpty ??
+                      false)
+                  ? NetworkImage(
+                      _fotoPerfilProfissional ?? widget.fotoPerfilProfissional!,
+                    )
                   : null,
-              child: widget.fotoPerfilProfissional == null ||
-                      widget.fotoPerfilProfissional!.isEmpty
-                  ? (widget.nomeProfissional != null &&
-                          widget.nomeProfissional!.isNotEmpty
-                      ? Text(
-                          obterIniciais(widget.nomeProfissional!),
-                          style: const TextStyle(
+              child:
+                  ((_fotoPerfilProfissional ?? widget.fotoPerfilProfissional)
+                          ?.isNotEmpty ??
+                      false)
+                  ? null
+                  : ((_nomeProfissional ?? widget.nomeProfissional) != null &&
+                            (_nomeProfissional ?? widget.nomeProfissional)!
+                                .isNotEmpty
+                        ? Text(
+                            obterIniciais(
+                              _nomeProfissional ?? widget.nomeProfissional!,
+                            ),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.person,
                             color: Colors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        )
-                      : const Icon(Icons.person, color: Colors.white, size: 20))
-                  : null,
+                            size: 20,
+                          )),
             ),
           ),
         ),
@@ -869,7 +980,10 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
                   color: _azul,
                   borderRadius: BorderRadius.circular(12),
@@ -970,10 +1084,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
       circle = Container(
         width: 28,
         height: 28,
-        decoration: const BoxDecoration(
-          color: _azul,
-          shape: BoxShape.circle,
-        ),
+        decoration: const BoxDecoration(color: _azul, shape: BoxShape.circle),
         child: Icon(icone ?? Icons.check, color: Colors.white, size: 16),
       );
     } else if (ativo) {
@@ -1070,14 +1181,18 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                 children: [
                   CircleAvatar(
                     radius: 24,
-                    backgroundColor: const Color(0xFFE2E8F0),
-                    backgroundImage: widget.fotoCliente != null &&
-                            widget.fotoCliente!.isNotEmpty
-                        ? NetworkImage(widget.fotoCliente!)
+                    backgroundColor: _azul,
+                    backgroundImage:
+                        _fotoCliente != null && _fotoCliente!.isNotEmpty
+                        ? NetworkImage(_fotoCliente!)
                         : null,
-                    child: widget.fotoCliente == null || widget.fotoCliente!.isEmpty
+                    child: _fotoCliente == null || _fotoCliente!.isEmpty
                         ? Text(
-                            obterIniciais(widget.nomeCliente),
+                            obterIniciais(
+                              _nomeCliente.isNotEmpty
+                                  ? _nomeCliente
+                                  : widget.nomeCliente,
+                            ),
                             style: const TextStyle(
                               color: _textoEscuro,
                               fontWeight: FontWeight.w700,
@@ -1097,7 +1212,11 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 2),
                       ),
-                      child: const Icon(Icons.check, color: Colors.white, size: 8),
+                      child: const Icon(
+                        Icons.check,
+                        color: Colors.white,
+                        size: 8,
+                      ),
                     ),
                   ),
                 ],
@@ -1120,10 +1239,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                       widget.nomeServico,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: _textoMuted,
-                      ),
+                      style: const TextStyle(fontSize: 13, color: _textoMuted),
                     ),
                   ],
                 ),
@@ -1161,8 +1277,11 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
             height: 44,
             child: OutlinedButton.icon(
               onPressed: _abrirChat,
-              icon: const Icon(Icons.chat_bubble_outline_rounded,
-                  color: _azul, size: 18),
+              icon: const Icon(
+                Icons.chat_bubble_outline_rounded,
+                color: _azul,
+                size: 18,
+              ),
               label: const Text(
                 'Conversar no Chat',
                 style: TextStyle(
@@ -1205,7 +1324,10 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
                   color: _azul,
                   borderRadius: BorderRadius.circular(12),
@@ -1285,8 +1407,11 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                               width: 64,
                               height: 64,
                               color: _cinzaCard,
-                              child: const Icon(Icons.broken_image,
-                                  color: Color(0xFF94A3B8), size: 24),
+                              child: const Icon(
+                                Icons.broken_image,
+                                color: Color(0xFF94A3B8),
+                                size: 24,
+                              ),
                             ),
                           )
                         : Image.file(
@@ -1298,8 +1423,11 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                               width: 64,
                               height: 64,
                               color: _cinzaCard,
-                              child: const Icon(Icons.broken_image,
-                                  color: Color(0xFF94A3B8), size: 24),
+                              child: const Icon(
+                                Icons.broken_image,
+                                color: Color(0xFF94A3B8),
+                                size: 24,
+                              ),
                             ),
                           ),
                   );
@@ -1342,8 +1470,11 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                               ),
                             ),
                           ),
-                          const Icon(Icons.payments_outlined,
-                              color: Color(0xFF64748B), size: 20),
+                          const Icon(
+                            Icons.payments_outlined,
+                            color: Color(0xFF64748B),
+                            size: 20,
+                          ),
                         ],
                       ),
                     ],
@@ -1383,7 +1514,11 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                               ),
                             ),
                           ),
-                          const Icon(Icons.timer_outlined, color: _azul, size: 20),
+                          const Icon(
+                            Icons.timer_outlined,
+                            color: _azul,
+                            size: 20,
+                          ),
                         ],
                       ),
                     ],
@@ -1398,7 +1533,8 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
   }
 
   Widget _buildContainerDiagnostico() {
-    final temDiagnostico = _diagnostico != null && _diagnostico!.trim().isNotEmpty;
+    final temDiagnostico =
+        _diagnostico != null && _diagnostico!.trim().isNotEmpty;
 
     if (!temDiagnostico) {
       // Container Azul Primário chamando para definir diagnóstico
@@ -1427,8 +1563,11 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                   color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.edit_note_rounded,
-                    color: Colors.white, size: 24),
+                child: const Icon(
+                  Icons.edit_note_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
               ),
               const SizedBox(width: 12),
               const Expanded(
@@ -1446,10 +1585,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                     SizedBox(height: 2),
                     Text(
                       'Clique para registrar o defeito constatado.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.white,
-                      ),
+                      style: TextStyle(fontSize: 12, color: Colors.white),
                     ),
                   ],
                 ),
@@ -1574,8 +1710,8 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                 final legenda = idx == 0
                     ? '1. Placa & Teste de Bancada'
                     : idx == 1
-                        ? '2. Peça Nova (Substituída)'
-                        : '${idx + 1}. Evidência Técnica';
+                    ? '2. Peça Nova (Substituída)'
+                    : '${idx + 1}. Evidência Técnica';
 
                 return Container(
                   decoration: BoxDecoration(
@@ -1600,8 +1736,10 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                                       fit: BoxFit.cover,
                                       errorBuilder: (_, __, ___) => Container(
                                         color: _cinzaCard,
-                                        child: const Icon(Icons.broken_image,
-                                            color: Color(0xFF94A3B8)),
+                                        child: const Icon(
+                                          Icons.broken_image,
+                                          color: Color(0xFF94A3B8),
+                                        ),
                                       ),
                                     )
                                   : Image.file(
@@ -1609,8 +1747,10 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                                       fit: BoxFit.cover,
                                       errorBuilder: (_, __, ___) => Container(
                                         color: _cinzaCard,
-                                        child: const Icon(Icons.broken_image,
-                                            color: Color(0xFF94A3B8)),
+                                        child: const Icon(
+                                          Icons.broken_image,
+                                          color: Color(0xFF94A3B8),
+                                        ),
                                       ),
                                     ),
                             ),
@@ -1626,7 +1766,9 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.1),
+                                        color: Colors.black.withValues(
+                                          alpha: 0.1,
+                                        ),
                                         blurRadius: 4,
                                       ),
                                     ],
@@ -1644,7 +1786,9 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                       ),
                       Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 6),
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
                         child: Text(
                           legenda,
                           maxLines: 1,
@@ -1671,7 +1815,8 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                 child: InkWell(
                   onTap: _enviandoFoto
                       ? null
-                      : () => _adicionarFotoEvidencia(source: ImageSource.camera),
+                      : () =>
+                            _adicionarFotoEvidencia(source: ImageSource.camera),
                   borderRadius: BorderRadius.circular(14),
                   child: Container(
                     height: 110,
@@ -1690,8 +1835,11 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                             color: _azul,
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.camera_alt,
-                              color: Colors.white, size: 20),
+                          child: const Icon(
+                            Icons.camera_alt,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         const Text(
@@ -1705,10 +1853,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                         const SizedBox(height: 2),
                         const Text(
                           'Aparelho ligado aquecendo',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: _textoMuted,
-                          ),
+                          style: TextStyle(fontSize: 10, color: _textoMuted),
                         ),
                       ],
                     ),
@@ -1720,7 +1865,9 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                 child: InkWell(
                   onTap: _enviandoFoto
                       ? null
-                      : () => _adicionarFotoEvidencia(source: ImageSource.gallery),
+                      : () => _adicionarFotoEvidencia(
+                          source: ImageSource.gallery,
+                        ),
                   borderRadius: BorderRadius.circular(14),
                   child: Container(
                     height: 110,
@@ -1739,8 +1886,11 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                             color: _azul,
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.attach_file_rounded,
-                              color: Colors.white, size: 20),
+                          child: const Icon(
+                            Icons.attach_file_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         const Text(
@@ -1754,10 +1904,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                         const SizedBox(height: 2),
                         const Text(
                           'PDF ou Imagem fiscal',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: _textoMuted,
-                          ),
+                          style: TextStyle(fontSize: 10, color: _textoMuted),
                         ),
                       ],
                     ),
@@ -1775,10 +1922,16 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                   SizedBox(
                     width: 16,
                     height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: _azul),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: _azul,
+                    ),
                   ),
                   SizedBox(width: 10),
-                  Text('Enviando foto...', style: TextStyle(fontSize: 12, color: _textoMuted)),
+                  Text(
+                    'Enviando foto...',
+                    style: TextStyle(fontSize: 12, color: _textoMuted),
+                  ),
                 ],
               ),
             ),
@@ -1819,7 +1972,11 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                 : const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.check_circle_outline, color: Colors.white, size: 20),
+                      Icon(
+                        Icons.check_circle_outline,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                       SizedBox(width: 8),
                       Text(
                         'Concluir Serviço →',
@@ -1918,4 +2075,3 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
     );
   }
 }
-

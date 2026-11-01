@@ -420,8 +420,10 @@ class ServicosProfissionalService {
 
       final idPerfilProf = (dadosProf['fk_perfil'] as num?)?.toInt();
       final idUsuarioProf = (dadosProf['fk_usuario'] as num?)?.toInt();
-      final idGrupoProf = (dadosProf['fk_grupo_empresa'] as num?)?.toInt();
-      final idGrupo = servico.fkGrupoEmpresa ?? idGrupoProf;
+      // A identidade exibida é determinada pelo próprio serviço. Um vínculo
+      // do profissional com uma empresa não transforma automaticamente um
+      // serviço independente em serviço da empresa.
+      final idGrupo = servico.fkGrupoEmpresa;
 
       Map<String, dynamic>? grupo;
       if (idGrupo != null) {
@@ -445,7 +447,35 @@ class ServicosProfissionalService {
             perfil?['tipo_perfil']?.toString().trim().toLowerCase() ?? '';
       }
 
-      final ehLoja = tipoPerfil == 'loja' || idGrupo != null && grupo != null;
+      final ehLoja = idGrupo != null && grupo != null;
+
+      String tipoPrestador = 'cpf';
+      if (ehLoja) {
+        tipoPrestador = 'empresa';
+      } else if (tipoPerfil == 'independente') {
+        tipoPrestador = 'independente';
+      } else if (idUsuarioProf != null) {
+        try {
+          final uTipo = await _supabase
+              .from('usuarios')
+              .select('fk_tipo_pessoa')
+              .eq('id_usuario', idUsuarioProf)
+              .maybeSingle();
+          final fkT = uTipo?['fk_tipo_pessoa'];
+          if (fkT != null) {
+            final assT = await _supabase
+                .from('ass_tipo_pessoa')
+                .select('fk_pessoa_juridica, fk_pessoa_fisica')
+                .eq('id_tipo_pessoa', fkT)
+                .maybeSingle();
+            if (assT?['fk_pessoa_juridica'] != null) {
+              tipoPrestador = 'independente';
+            } else {
+              tipoPrestador = 'cpf';
+            }
+          }
+        } catch (_) {}
+      }
 
       String nomePrestador = 'Profissional';
       String? fotoPrestador;
@@ -490,6 +520,7 @@ class ServicosProfissionalService {
 
       final endereco = await _buscarEnderecoPrestador(
         ehLoja: ehLoja,
+        tipoPrestador: tipoPrestador,
         idGrupo: idGrupo,
         idProfissional: servico.fkProfissional,
         idUsuarioFallback: idUsuarioEndereco,
@@ -507,6 +538,7 @@ class ServicosProfissionalService {
         nomePrestador: nomePrestador,
         fotoPrestador: fotoPrestador,
         ehLoja: ehLoja,
+        tipoPrestador: tipoPrestador,
         tagEmpresa: (tagEmpresa == null || tagEmpresa.isEmpty)
             ? null
             : tagEmpresa,
@@ -739,6 +771,7 @@ class ServicosProfissionalService {
   >
   _buscarEnderecoPrestador({
     required bool ehLoja,
+    String? tipoPrestador,
     int? idGrupo,
     int? idProfissional,
     int? idUsuarioFallback,
@@ -746,14 +779,26 @@ class ServicosProfissionalService {
     try {
       // 1. Loja: vínculo da empresa.
       if (ehLoja && idGrupo != null) {
-        final vinculos = await _supabase
-            .from('ass_grupo_empresa_endereco')
-            .select('fk_endereco, apelido_endereco, endereco_ativo')
-            .eq('fk_grupo_empresa', idGrupo);
-        final fk = _escolherFkEnderecoAtivo(vinculos);
-        if (fk != null) {
-          final endereco = await _lerEnderecoFisico(fk);
-          if (endereco != null) return endereco;
+        try {
+          final vinculos = await _supabase
+              .from('ass_grupo_empresa_endereco')
+              .select('fk_endereco, endereco_ativo')
+              .eq('fk_grupo_empresa', idGrupo);
+          final fk = _escolherFkEnderecoAtivo(vinculos);
+          if (fk != null) {
+            final endereco = await _lerEnderecoFisico(fk);
+            if (endereco != null) return endereco;
+          }
+        } catch (_) {
+          final vinculos = await _supabase
+              .from('ass_grupo_empresa_endereco')
+              .select('fk_endereco')
+              .eq('fk_grupo_empresa', idGrupo);
+          final fk = _escolherFkEnderecoAtivo(vinculos);
+          if (fk != null) {
+            final endereco = await _lerEnderecoFisico(fk);
+            if (endereco != null) return endereco;
+          }
         }
       }
       // 2. Independente (CNPJ): vínculo comercial do profissional.
@@ -761,14 +806,26 @@ class ServicosProfissionalService {
         try {
           final vinculos = await _supabase
               .from('ass_profissional_endereco')
-              .select('fk_endereco, apelido_endereco, endereco_ativo')
+              .select('fk_endereco, endereco_ativo')
               .eq('fk_profissional', idProfissional);
           final fk = _escolherFkEnderecoAtivo(vinculos);
           if (fk != null) {
             final endereco = await _lerEnderecoFisico(fk);
             if (endereco != null) return endereco;
           }
-        } catch (_) {}
+        } catch (_) {
+          try {
+            final vinculos = await _supabase
+                .from('ass_profissional_endereco')
+                .select('fk_endereco')
+                .eq('fk_profissional', idProfissional);
+            final fk = _escolherFkEnderecoAtivo(vinculos);
+            if (fk != null) {
+              final endereco = await _lerEnderecoFisico(fk);
+              if (endereco != null) return endereco;
+            }
+          } catch (_) {}
+        }
       }
       // 3. Fallback legado: endereço comercial do dono em
       // ass_usuario_endereco (Loja/Oficina/Outro) — mesma regra do

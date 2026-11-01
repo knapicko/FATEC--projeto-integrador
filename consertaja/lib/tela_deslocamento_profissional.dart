@@ -17,11 +17,13 @@ import 'tela_meu_perfil_profissional.dart';
 import 'tela_recebe_devolucao_profissional.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
 import 'utils/iniciais.dart';
+import 'widgets/skeleton_loading.dart';
 
 /// Configuração do Mapbox
 class MapboxConfig {
-  static const String mapboxAccessTokenPadrao =
-      String.fromEnvironment('MAPBOX_ACCESS_TOKEN');
+  static const String mapboxAccessTokenPadrao = String.fromEnvironment(
+    'MAPBOX_ACCESS_TOKEN',
+  );
 
   static const String estiloPadrao = 'navigation-day-v1';
 }
@@ -82,11 +84,11 @@ class _TelaDeslocamentoProfissionalPageState
   final String _mapboxStyleId = MapboxConfig.estiloPadrao;
 
   // Turn-by-Turn / Orientações Waze
-  String _proximaManobraTexto = 'Siga em frente';
+  String _proximaManobraTexto = '';
   IconData _proximaManobraIcone = Icons.straight_rounded;
-  int _proximaManobraDistancia = 350;
+  int _proximaManobraDistancia = 0;
   String _proximoLogradouro = '';
-  String _ruaAtual = 'Em rota';
+  String _ruaAtual = '';
 
   // Dados reais da solicitação e do cliente
   late LatLng _destinoCoordenadas;
@@ -108,8 +110,15 @@ class _TelaDeslocamentoProfissionalPageState
 
   // Distinção: Empresa/Loja vs Autônomo
   bool _isEmpresa = false;
+  bool _carregando = true;
   String? _fotoPerfilProfissional;
   String? _nomeProfissional;
+  int? _fkStatus;
+  int _etapaSolicitacao = 0;
+
+  bool get _ehDevolucao =>
+      _etapaSolicitacao == 4 &&
+      (_fkStatus == 35 || _fkStatus == 36 || _fkStatus == 37);
 
   @override
   void initState() {
@@ -292,20 +301,9 @@ class _TelaDeslocamentoProfissionalPageState
       _horaAgendada = sol['hora_agendada']?.toString().trim();
       _horaAgendadaFim = sol['hora_agendada_fim']?.toString().trim();
 
-      final codigoAtual = sol['codigo_rec_dev']?.toString().trim();
       final fkStatusAtual = (sol['fk_status'] as num?)?.toInt() ?? 0;
-      if (codigoAtual == null || codigoAtual.isEmpty || (fkStatusAtual != 33 && fkStatusAtual != 34)) {
-        final codigoGerado = (codigoAtual != null && codigoAtual.isNotEmpty)
-            ? codigoAtual
-            : (1000 + Random().nextInt(9000)).toString();
-        try {
-          await supabase.from('solicitacoes').update({
-            'fk_status': 33,
-            'etapa_solicitacao': 2,
-            'codigo_rec_dev': codigoGerado,
-          }).eq('id_solicitacao', widget.idSolicitacao);
-        } catch (_) {}
-      }
+      _fkStatus = fkStatusAtual;
+      _etapaSolicitacao = (sol['etapa_solicitacao'] as num?)?.toInt() ?? 0;
 
       _codigoPedido =
           '#PED-2026-${widget.idSolicitacao.toString().padLeft(4, '0')}';
@@ -350,7 +348,8 @@ class _TelaDeslocamentoProfissionalPageState
         }
       }
       if (nomeServico.isEmpty) {
-        nomeServico = widget.categoria.isNotEmpty &&
+        nomeServico =
+            widget.categoria.isNotEmpty &&
                 widget.categoria.toLowerCase() != 'eletricista'
             ? widget.categoria
             : 'Serviço Solicitado';
@@ -405,7 +404,11 @@ class _TelaDeslocamentoProfissionalPageState
       }
 
       if (mounted) setState(() {});
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Erro ao carregar solicitação para deslocamento: $e');
+    } finally {
+      if (mounted) setState(() => _carregando = false);
+    }
   }
 
   /// Inicia o monitoramento de localização em altíssima precisão
@@ -459,6 +462,7 @@ class _TelaDeslocamentoProfissionalPageState
         );
       }
     }
+    if (mounted) setState(() => _carregando = false);
   }
 
   void _atualizarPosicao(Position p) {
@@ -514,17 +518,20 @@ class _TelaDeslocamentoProfissionalPageState
 
     // Transmite localização em tempo real para o cliente acompanhar
     try {
-      supabase.from('deslocamento_profissional').upsert({
-        'fk_solicitacao': widget.idSolicitacao,
-        'latitude': atual.latitude,
-        'longitude': atual.longitude,
-        'velocidade': speedKmH.clamp(0.0, 180.0),
-        'bearing': bearingAtual,
-        'rua_atual': _ruaAtual,
-        'distancia_metros': _distancia,
-        'duracao_segundos': _duracao,
-        'atualizado_em': DateTime.now().toIso8601String(),
-      }, onConflict: 'fk_solicitacao').then((_) {}, onError: (_) {});
+      supabase
+          .from('deslocamento_profissional')
+          .upsert({
+            'fk_solicitacao': widget.idSolicitacao,
+            'latitude': atual.latitude,
+            'longitude': atual.longitude,
+            'velocidade': speedKmH.clamp(0.0, 180.0),
+            'bearing': bearingAtual,
+            'rua_atual': _ruaAtual,
+            'distancia_metros': _distancia,
+            'duracao_segundos': _duracao,
+            'atualizado_em': DateTime.now().toIso8601String(),
+          }, onConflict: 'fk_solicitacao')
+          .then((_) {}, onError: (_) {});
     } catch (_) {}
   }
 
@@ -579,9 +586,9 @@ class _TelaDeslocamentoProfissionalPageState
     final dist = (route['distance'] as num?)?.toDouble();
     final dur = (route['duration'] as num?)?.round();
 
-    String manobraTexto = 'Siga em frente';
+    String manobraTexto = '';
     IconData manobraIcone = Icons.straight_rounded;
-    int manobraDistancia = 350;
+    int manobraDistancia = 0;
     String proximoLogradouro = _proximoLogradouro;
 
     try {
@@ -606,7 +613,7 @@ class _TelaDeslocamentoProfissionalPageState
               ? steps[1] as Map<String, dynamic>
               : steps.first as Map<String, dynamic>;
 
-          final stepDist = (nextStep['distance'] as num?)?.round() ?? 350;
+          final stepDist = (nextStep['distance'] as num?)?.round() ?? 0;
           manobraDistancia = stepDist;
           final stepName = nextStep['name']?.toString().trim() ?? '';
           if (stepName.isNotEmpty) proximoLogradouro = stepName;
@@ -674,13 +681,25 @@ class _TelaDeslocamentoProfissionalPageState
   }
 
   Future<void> _aoClicarEstouNoLocal() async {
-    try {
-      await supabase.from('solicitacoes').update({
-        'fk_status': 34,
-        'etapa_solicitacao': 2,
-      }).eq('id_solicitacao', widget.idSolicitacao);
-    } catch (e) {
-      debugPrint('Erro ao atualizar status 34 na solicitacao: $e');
+    if (_ehDevolucao && _fkStatus == 36) {
+      try {
+        await supabase
+            .from('solicitacoes')
+            .update({'fk_status': 37, 'etapa_solicitacao': 4})
+            .eq('id_solicitacao', widget.idSolicitacao);
+        _fkStatus = 37;
+      } catch (e) {
+        debugPrint('Erro ao atualizar status 37 na devolução: $e');
+      }
+    } else if (!_ehDevolucao) {
+      try {
+        await supabase
+            .from('solicitacoes')
+            .update({'fk_status': 34, 'etapa_solicitacao': 2})
+            .eq('id_solicitacao', widget.idSolicitacao);
+      } catch (e) {
+        debugPrint('Erro ao atualizar status 34 na solicitacao: $e');
+      }
     }
 
     if (!mounted) return;
@@ -692,10 +711,12 @@ class _TelaDeslocamentoProfissionalPageState
           codigoPedido: _codigoPedido,
           nomeCliente: _nomeCliente,
           fotoCliente: _fotoCliente,
-          nomeServico:
-              _tituloServico.isNotEmpty ? _tituloServico : widget.categoria,
-          modalidade:
-              widget.categoria.isNotEmpty ? widget.categoria : 'Leva e Traz',
+          nomeServico: _tituloServico.isNotEmpty
+              ? _tituloServico
+              : widget.categoria,
+          modalidade: widget.categoria.isNotEmpty
+              ? widget.categoria
+              : 'Leva e Traz',
           enderecoPrincipal: _enderecoPrincipal,
           enderecoComplementar: _enderecoComplementar,
           isEmpresa: _isEmpresa,
@@ -707,13 +728,33 @@ class _TelaDeslocamentoProfissionalPageState
     );
   }
 
+  Future<void> _iniciarDeslocamentoDevolucao() async {
+    try {
+      final codigo = (1000 + Random().nextInt(9000)).toString();
+      await supabase
+          .from('solicitacoes')
+          .update({
+            'fk_status': 36,
+            'etapa_solicitacao': 4,
+            'codigo_rec_dev': codigo,
+          })
+          .eq('id_solicitacao', widget.idSolicitacao);
+      if (mounted) {
+        setState(() {
+          _fkStatus = 36;
+          _etapaSolicitacao = 4;
+        });
+      }
+    } catch (e) {
+      debugPrint('Erro ao iniciar deslocamento de devolução: $e');
+    }
+  }
+
   void _aoClicarPerfil() {
     if (_isEmpresa) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => const GestaoEquipePage(),
-        ),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const GestaoEquipePage()));
     } else {
       Navigator.of(context).push(
         MaterialPageRoute(
@@ -835,7 +876,11 @@ class _TelaDeslocamentoProfissionalPageState
               const SizedBox(height: 16),
               const Row(
                 children: [
-                  Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 24),
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    color: Colors.orange,
+                    size: 24,
+                  ),
                   SizedBox(width: 8),
                   Text(
                     'Avisar Atraso ao Cliente',
@@ -861,7 +906,11 @@ class _TelaDeslocamentoProfissionalPageState
                       side: const BorderSide(color: Color(0xFFE2E8F0)),
                     ),
                     title: Text(msg, style: const TextStyle(fontSize: 13.5)),
-                    trailing: const Icon(Icons.send_rounded, color: azul, size: 20),
+                    trailing: const Icon(
+                      Icons.send_rounded,
+                      color: azul,
+                      size: 20,
+                    ),
                     onTap: () {
                       Navigator.of(ctx).pop();
                       _enviarAvisoRapidoChat(msg);
@@ -895,7 +944,8 @@ class _TelaDeslocamentoProfissionalPageState
   }
 
   String _chegadaPrevistaHoraCalculada() {
-    final durSec = _duracao ?? 600;
+    if (_duracao == null) return '--:--';
+    final durSec = _duracao!;
     final previsao = DateTime.now().add(Duration(seconds: durSec));
     final h = previsao.hour.toString().padLeft(2, '0');
     final m = previsao.minute.toString().padLeft(2, '0');
@@ -944,6 +994,13 @@ class _TelaDeslocamentoProfissionalPageState
 
   @override
   Widget build(BuildContext context) {
+    if (_carregando) {
+      return const Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(child: SkeletonTelaDeslocamentoProfissional()),
+      );
+    }
+
     final double distanciaAteDestino = _atual != null
         ? Geolocator.distanceBetween(
             _atual!.latitude,
@@ -1024,9 +1081,7 @@ class _TelaDeslocamentoProfissionalPageState
                               width: 54,
                               height: 54,
                               alignment: Alignment.center,
-                              child: _WazeChevronMarker(
-                                bearing: _bearing,
-                              ),
+                              child: _WazeChevronMarker(bearing: _bearing),
                             ),
                         ],
                       ),
@@ -1042,18 +1097,10 @@ class _TelaDeslocamentoProfissionalPageState
                   ),
 
                   // 3. HUD Esquerdo: Velocímetro funcional (espaçamento adequado do banner)
-                  Positioned(
-                    top: 125,
-                    left: 14,
-                    child: _painelVelocimetro(),
-                  ),
+                  Positioned(top: 125, left: 14, child: _painelVelocimetro()),
 
                   // 4. HUD Direito: Chat e Centralizar no Profissional (espaçamento adequado do banner)
-                  Positioned(
-                    top: 125,
-                    right: 14,
-                    child: _painelAcoesDireita(),
-                  ),
+                  Positioned(top: 125, right: 14, child: _painelAcoesDireita()),
 
                   // 5. Badge Mapbox e Clima
                   Positioned(
@@ -1154,8 +1201,11 @@ class _TelaDeslocamentoProfissionalPageState
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.emergency_rounded,
-                      color: Color(0xFFDC2626), size: 16),
+                  Icon(
+                    Icons.emergency_rounded,
+                    color: Color(0xFFDC2626),
+                    size: 16,
+                  ),
                   SizedBox(width: 4),
                   Text(
                     'sos',
@@ -1184,7 +1234,8 @@ class _TelaDeslocamentoProfissionalPageState
                     border: Border.all(color: azul, width: 2),
                   ),
                   child: ClipOval(
-                    child: _fotoPerfilProfissional != null &&
+                    child:
+                        _fotoPerfilProfissional != null &&
                             _fotoPerfilProfissional!.isNotEmpty
                         ? Image.network(
                             _fotoPerfilProfissional!,
@@ -1253,11 +1304,7 @@ class _TelaDeslocamentoProfissionalPageState
       ),
       child: Row(
         children: [
-          Icon(
-            _proximaManobraIcone,
-            color: Colors.white,
-            size: 38,
-          ),
+          Icon(_proximaManobraIcone, color: Colors.white, size: 38),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -1277,8 +1324,8 @@ class _TelaDeslocamentoProfissionalPageState
                 Text(
                   _proximoLogradouro.isNotEmpty
                       ? (_proximaManobraTexto.toLowerCase().contains('siga')
-                          ? _proximoLogradouro
-                          : '$_proximaManobraTexto - $_proximoLogradouro')
+                            ? _proximoLogradouro
+                            : '$_proximaManobraTexto - $_proximoLogradouro')
                       : _proximaManobraTexto,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1346,10 +1393,7 @@ class _TelaDeslocamentoProfissionalPageState
       mainAxisSize: MainAxisSize.min,
       children: [
         // 1. Chat
-        _botaoPillHUD(
-          icon: Icons.chat_bubble_rounded,
-          onTap: _abrirChat,
-        ),
+        _botaoPillHUD(icon: Icons.chat_bubble_rounded, onTap: _abrirChat),
         const SizedBox(height: 10),
         // 2. Centralizar Seta do Profissional
         _botaoPillHUD(
@@ -1384,7 +1428,11 @@ class _TelaDeslocamentoProfissionalPageState
           ],
         ),
         alignment: Alignment.center,
-        child: Icon(icon, color: iconColor == Colors.white ? escuroTexto : iconColor, size: 21),
+        child: Icon(
+          icon,
+          color: iconColor == Colors.white ? escuroTexto : iconColor,
+          size: 21,
+        ),
       ),
     );
   }
@@ -1647,10 +1695,19 @@ class _TelaDeslocamentoProfissionalPageState
                         width: double.infinity,
                         height: 52,
                         child: ElevatedButton.icon(
-                          onPressed: perto ? _aoClicarEstouNoLocal : null,
-                          icon: const Icon(Icons.check_circle_rounded, size: 22),
+                          onPressed: _fkStatus == 35
+                              ? _iniciarDeslocamentoDevolucao
+                              : (perto ? _aoClicarEstouNoLocal : null),
+                          icon: Icon(
+                            _fkStatus == 35
+                                ? Icons.navigation_rounded
+                                : Icons.check_circle_rounded,
+                            size: 22,
+                          ),
                           label: Text(
-                            perto
+                            _fkStatus == 35
+                                ? 'Iniciar Deslocamento'
+                                : perto
                                 ? 'Cheguei no Local'
                                 : 'Cheguei no Local (${(_distancia ?? 0).round()}m restantes)',
                             style: const TextStyle(
@@ -1679,14 +1736,21 @@ class _TelaDeslocamentoProfissionalPageState
                           Expanded(
                             child: OutlinedButton.icon(
                               onPressed: _mostrarDialogoAtraso,
-                              icon: const Icon(Icons.warning_amber_rounded,
-                                  size: 18, color: Colors.orange),
+                              icon: const Icon(
+                                Icons.warning_amber_rounded,
+                                size: 18,
+                                color: Colors.orange,
+                              ),
                               label: const Text('Avisar Atraso'),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: escuroTexto,
                                 backgroundColor: Colors.white,
-                                side: const BorderSide(color: Color(0xFFE2E8F0)),
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                side: const BorderSide(
+                                  color: Color(0xFFE2E8F0),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(20),
                                 ),
@@ -1700,9 +1764,11 @@ class _TelaDeslocamentoProfissionalPageState
                                 setState(() => _pausada = !_pausada);
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Text(_pausada
-                                        ? 'Rota pausada.'
-                                        : 'Rota retomada.'),
+                                    content: Text(
+                                      _pausada
+                                          ? 'Rota pausada.'
+                                          : 'Rota retomada.',
+                                    ),
                                     duration: const Duration(seconds: 1),
                                   ),
                                 );
@@ -1714,12 +1780,18 @@ class _TelaDeslocamentoProfissionalPageState
                                 size: 18,
                                 color: cinzaTexto,
                               ),
-                              label: Text(_pausada ? 'Retomar Rota' : 'Pausar Rota'),
+                              label: Text(
+                                _pausada ? 'Retomar Rota' : 'Pausar Rota',
+                              ),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: escuroTexto,
                                 backgroundColor: Colors.white,
-                                side: const BorderSide(color: Color(0xFFE2E8F0)),
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                side: const BorderSide(
+                                  color: Color(0xFFE2E8F0),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(20),
                                 ),
@@ -1735,7 +1807,9 @@ class _TelaDeslocamentoProfissionalPageState
                         onTap: () {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Central de Suporte Operacional: 0800 123 4567'),
+                              content: Text(
+                                'Central de Suporte Operacional: 0800 123 4567',
+                              ),
                               behavior: SnackBarBehavior.floating,
                             ),
                           );
@@ -1743,8 +1817,11 @@ class _TelaDeslocamentoProfissionalPageState
                         child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.help_outline_rounded,
-                                size: 15, color: cinzaTexto),
+                            Icon(
+                              Icons.help_outline_rounded,
+                              size: 15,
+                              color: cinzaTexto,
+                            ),
                             SizedBox(width: 5),
                             Text(
                               'Central de Suporte Operacional ConsertaJá',
@@ -1842,8 +1919,11 @@ class _TelaDeslocamentoProfissionalPageState
               const SizedBox(height: 3),
               Row(
                 children: [
-                  const Icon(Icons.access_time_rounded,
-                      size: 15, color: cinzaTexto),
+                  const Icon(
+                    Icons.access_time_rounded,
+                    size: 15,
+                    color: cinzaTexto,
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     _chegadaPrevistaHoraCalculada(),
@@ -1947,8 +2027,11 @@ class _TelaDeslocamentoProfissionalPageState
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      const Icon(Icons.access_time_rounded,
-                          size: 16, color: cinzaTexto),
+                      const Icon(
+                        Icons.access_time_rounded,
+                        size: 16,
+                        color: cinzaTexto,
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         _chegadaPrevistaHoraCalculada(),
@@ -1987,9 +2070,10 @@ class _TelaDeslocamentoProfissionalPageState
                       Text(
                         'Partida',
                         style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            color: cinzaTexto),
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: cinzaTexto,
+                        ),
                       ),
                     ],
                   ),
@@ -2000,9 +2084,10 @@ class _TelaDeslocamentoProfissionalPageState
                       Text(
                         'Em trânsito',
                         style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w800,
-                            color: azul),
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                          color: azul,
+                        ),
                       ),
                     ],
                   ),
@@ -2013,9 +2098,10 @@ class _TelaDeslocamentoProfissionalPageState
                       Text(
                         'Destino',
                         style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF94A3B8)),
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF94A3B8),
+                        ),
                       ),
                     ],
                   ),
@@ -2026,10 +2112,7 @@ class _TelaDeslocamentoProfissionalPageState
                 borderRadius: BorderRadius.circular(4),
                 child: Row(
                   children: [
-                    Expanded(
-                      flex: 1,
-                      child: Container(height: 5, color: azul),
-                    ),
+                    Expanded(flex: 1, child: Container(height: 5, color: azul)),
                     Expanded(
                       flex: 1,
                       child: Container(
@@ -2095,7 +2178,9 @@ class _TelaDeslocamentoProfissionalPageState
                   );
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Endereço copiado para a área de transferência!'),
+                      content: Text(
+                        'Endereço copiado para a área de transferência!',
+                      ),
                       behavior: SnackBarBehavior.floating,
                       duration: Duration(seconds: 2),
                     ),
@@ -2103,8 +2188,10 @@ class _TelaDeslocamentoProfissionalPageState
                 },
                 borderRadius: BorderRadius.circular(10),
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(10),
@@ -2161,9 +2248,7 @@ class _TelaDeslocamentoProfissionalPageState
                   Container(
                     width: 48,
                     height: 48,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                    ),
+                    decoration: const BoxDecoration(shape: BoxShape.circle),
                     child: ClipOval(
                       child: _fotoCliente != null && _fotoCliente!.isNotEmpty
                           ? Image.network(
@@ -2276,10 +2361,7 @@ class _TelaDeslocamentoProfissionalPageState
     );
   }
 
-  Widget _chipAvisoRapido({
-    required IconData icone,
-    required String texto,
-  }) {
+  Widget _chipAvisoRapido({required IconData icone, required String texto}) {
     return InkWell(
       onTap: () => _enviarAvisoRapidoChat(texto),
       borderRadius: BorderRadius.circular(20),
@@ -2337,10 +2419,7 @@ class _WazeChevronMarker extends StatelessWidget {
               ],
             ),
           ),
-          CustomPaint(
-            size: const Size(42, 42),
-            painter: _WazeArrowPainter(),
-          ),
+          CustomPaint(size: const Size(42, 42), painter: _WazeArrowPainter()),
         ],
       ),
     );

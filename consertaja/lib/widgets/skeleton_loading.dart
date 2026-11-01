@@ -669,3 +669,43 @@ class SkeletonServiceSheet extends StatelessWidget {
     );
   }
 }
+
+class SkeletonSolicitacaoEmAndamento extends StatelessWidget {
+  const SkeletonSolicitacaoEmAndamento({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      const SkeletonPage(layout: SkeletonLayout.request, itemCount: 4);
+}
+
+class SkeletonAcompanharDeslocamento extends StatelessWidget {
+  const SkeletonAcompanharDeslocamento({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      const SkeletonPage(layout: SkeletonLayout.request, itemCount: 5);
+}
+
+class SkeletonTelaDeslocamentoProfissional extends StatelessWidget {
+  const SkeletonTelaDeslocamentoProfissional({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      const SkeletonPage(layout: SkeletonLayout.request, itemCount: 5);
+}
+
+class SkeletonTelaRecebeDevolucaoProfissional extends StatelessWidget {
+  const SkeletonTelaRecebeDevolucaoProfissional({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      const SkeletonPage(layout: SkeletonLayout.request, itemCount: 5);
+}
+
+class SkeletonPerfilProfissional extends StatelessWidget {
+  const SkeletonPerfilProfissional({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      const SkeletonPage(layout: SkeletonLayout.profile, itemCount: 4);
+}

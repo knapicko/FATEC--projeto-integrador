@@ -82,6 +82,7 @@ class _TelaServicoState extends State<TelaServico> {
       detalhe = DetalheServicoPublico(
         servico: s,
         ehLoja: s.fkGrupoEmpresa != null,
+        tipoPrestador: s.fkGrupoEmpresa != null ? 'empresa' : 'cpf',
         idGrupoEmpresa: s.fkGrupoEmpresa,
         idProfissional: s.fkProfissional,
         nomePrestador: s.fkGrupoEmpresa != null
@@ -114,6 +115,7 @@ class _TelaServicoState extends State<TelaServico> {
       detalhe = DetalheServicoPublico(
         servico: sPadrao,
         ehLoja: false,
+        tipoPrestador: 'cpf',
         idGrupoEmpresa: null,
         idProfissional: 1,
         nomePrestador: 'Profissional',
@@ -649,6 +651,8 @@ class _TelaServicoState extends State<TelaServico> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
+                        _buildChipTipoPrestador(detalhe.tipoPrestador),
+                        const SizedBox(width: 6),
                         if (temTagEmpresa) ...[
                           Container(
                             padding: const EdgeInsets.symmetric(
@@ -695,7 +699,7 @@ class _TelaServicoState extends State<TelaServico> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${detalhe.seguidores} ${detalhe.seguidores == 1 ? 'Seguidor' : 'Seguidores'} • ${detalhe.ehLoja ? 'Loja Verificada' : 'Profissional Verificado'}',
+                      '${detalhe.seguidores} ${detalhe.seguidores == 1 ? 'Seguidor' : 'Seguidores'} • ${detalhe.rotuloTipoPrestador}',
                       style: const TextStyle(
                         fontSize: 11,
                         color: Color(0xFF64748B),
@@ -772,7 +776,7 @@ class _TelaServicoState extends State<TelaServico> {
                       }
                     },
                     child: Text(
-                      detalhe.ehLoja ? 'Ver Loja' : 'Ver Perfil',
+                      detalhe.ehEmpresa ? 'Ver Loja' : 'Ver Perfil',
                       style: const TextStyle(
                         color: _azul,
                         fontWeight: FontWeight.w700,
@@ -786,6 +790,58 @@ class _TelaServicoState extends State<TelaServico> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildChipTipoPrestador(String tipo) {
+    final Color corFundo;
+    final Color corBorda;
+    final Color corTexto;
+    final IconData icone;
+    final String texto;
+
+    if (tipo == 'empresa') {
+      corFundo = const Color(0xFFEFF6FF);
+      corBorda = const Color(0xFFBFDBFE);
+      corTexto = const Color(0xFF1D4ED8);
+      icone = Icons.storefront_outlined;
+      texto = 'Loja / Empresa';
+    } else if (tipo == 'independente') {
+      corFundo = const Color(0xFFF0FDF4);
+      corBorda = const Color(0xFFBBF7D0);
+      corTexto = const Color(0xFF15803D);
+      icone = Icons.business_center_outlined;
+      texto = 'Independente (CNPJ)';
+    } else {
+      corFundo = const Color(0xFFF8FAFC);
+      corBorda = const Color(0xFFCBD5E1);
+      corTexto = const Color(0xFF475569);
+      icone = Icons.person_outline;
+      texto = 'Autônomo (CPF)';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: corFundo,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: corBorda, width: 0.8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icone, size: 10, color: corTexto),
+          const SizedBox(width: 3.5),
+          Text(
+            texto,
+            style: TextStyle(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w700,
+              color: corTexto,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -3080,7 +3136,12 @@ class _TelaServicoState extends State<TelaServico> {
   ) {
     if (_sheetDataSelecionada == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
+          shape: const Border(
+            top: BorderSide(color: Color(0xFF025380), width: 3.5),
+          ),
+          behavior: SnackBarBehavior.fixed,
+          duration: const Duration(seconds: 3),
           content: Text('Selecione uma data primeiro para escolher o horário.'),
         ),
       );
@@ -3284,7 +3345,12 @@ class _TelaServicoState extends State<TelaServico> {
     final user = supabase.auth.currentUser;
     if (user == null) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('Faça login para adicionar um serviço.')),
+        SnackBar(
+          shape: const Border(
+            top: BorderSide(color: Color(0xFF025380), width: 3.5),
+          ),
+          behavior: SnackBarBehavior.fixed,
+          duration: const Duration(seconds: 3),content: Text('Faça login para adicionar um serviço.')),
       );
       return;
     }
@@ -3300,7 +3366,12 @@ class _TelaServicoState extends State<TelaServico> {
 
     if (_sheetIdUsuario == null) {
       messenger.showSnackBar(
-        const SnackBar(
+        SnackBar(
+          shape: const Border(
+            top: BorderSide(color: Color(0xFF025380), width: 3.5),
+          ),
+          behavior: SnackBarBehavior.fixed,
+          duration: const Duration(seconds: 3),
           content: Text('Não foi possível identificar o usuário.'),
         ),
       );
@@ -3314,7 +3385,12 @@ class _TelaServicoState extends State<TelaServico> {
 
     if (precisaEnderecoCliente && _sheetEnderecoClienteSelecionado == null) {
       messenger.showSnackBar(
-        const SnackBar(
+        SnackBar(
+          shape: const Border(
+            top: BorderSide(color: Color(0xFF025380), width: 3.5),
+          ),
+          behavior: SnackBarBehavior.fixed,
+          duration: const Duration(seconds: 3),
           content: Text('Selecione um endereço para o atendimento.'),
         ),
       );
@@ -3323,14 +3399,24 @@ class _TelaServicoState extends State<TelaServico> {
 
     if (_sheetDataSelecionada == null) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('Selecione uma data para o agendamento.')),
+        SnackBar(
+          shape: const Border(
+            top: BorderSide(color: Color(0xFF025380), width: 3.5),
+          ),
+          behavior: SnackBarBehavior.fixed,
+          duration: const Duration(seconds: 3),content: Text('Selecione uma data para o agendamento.')),
       );
       return;
     }
 
     if (_sheetHorarioSelecionado == null) {
       messenger.showSnackBar(
-        const SnackBar(
+        SnackBar(
+          shape: const Border(
+            top: BorderSide(color: Color(0xFF025380), width: 3.5),
+          ),
+          behavior: SnackBarBehavior.fixed,
+          duration: const Duration(seconds: 3),
           content: Text('Selecione um horário para o agendamento.'),
         ),
       );
@@ -3386,8 +3472,13 @@ class _TelaServicoState extends State<TelaServico> {
       nav.pop(); // Fecha o bottom sheet
 
       messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Serviço adicionado à sua lista com sucesso!'),
+        SnackBar(
+          shape: const Border(
+            top: BorderSide(color: Color(0xFF025380), width: 3.5),
+          ),
+          behavior: SnackBarBehavior.fixed,
+          duration: const Duration(seconds: 3),
+          content: const Text('Serviço adicionado à sua lista com sucesso!', style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white)),
           backgroundColor: Color(0xFF0FB3FF),
         ),
       );

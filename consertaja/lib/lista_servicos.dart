@@ -6,7 +6,24 @@ import 'perfil_loja.dart';
 import 'perfil_profissional.dart';
 import 'services/lista_servicos_service.dart';
 import 'services/servicos_profissional_service.dart';
+import 'meus_enderecos.dart';
 import 'widgets/skeleton_loading.dart';
+
+class EnderecoItemLista {
+  final int idEndereco;
+  final String apelido;
+  final String tipoEndereco;
+  final String enderecoFormatado;
+  final bool principal;
+
+  const EnderecoItemLista({
+    required this.idEndereco,
+    required this.apelido,
+    required this.tipoEndereco,
+    required this.enderecoFormatado,
+    required this.principal,
+  });
+}
 
 class ItemServicoLista {
   final int fkLista;
@@ -23,11 +40,22 @@ class ItemServicoLista {
   final String? funcao;
   final String? tagEmpresa;
   final bool ehLoja;
+  final String tipoPrestador; // 'empresa' | 'independente' | 'cpf'
   final int? idGrupoEmpresa;
   final int? idProfissional;
   final String nomePrestador;
   final String? fotoPrestador;
   final String enderecoPrestador;
+
+  bool get ehEmpresa => tipoPrestador == 'empresa' || ehLoja;
+  bool get ehIndependente => tipoPrestador == 'independente';
+  bool get ehCpf => tipoPrestador == 'cpf';
+
+  String get rotuloTipoPrestador {
+    if (ehEmpresa) return 'Loja / Empresa';
+    if (ehIndependente) return 'Independente (CNPJ)';
+    return 'Autônomo (CPF)';
+  }
 
   ItemServicoLista({
     required this.fkLista,
@@ -44,6 +72,7 @@ class ItemServicoLista {
     this.funcao,
     this.tagEmpresa,
     required this.ehLoja,
+    this.tipoPrestador = 'cpf',
     this.idGrupoEmpresa,
     this.idProfissional,
     required this.nomePrestador,
@@ -72,7 +101,9 @@ class _ListaServicosState extends State<ListaServicos> {
   bool _carregando = true;
   bool _enviandoSolicitacao = false;
   int? _idLista;
-  String _enderecoUsuario = 'Novo Horizonte - SP';
+  int? _idUsuarioResolvido;
+  String _enderecoUsuario = 'Carregando endereço...';
+  List<EnderecoItemLista> _enderecosUsuario = [];
   List<ItemServicoLista> _itens = [];
 
   @override
@@ -169,6 +200,7 @@ class _ListaServicosState extends State<ListaServicos> {
             'Travessa Doutor Eduardo Maffei, 87, Casa 3,...';
         String? tagEmpresa;
         bool ehLoja = idGrupoEmpresa != null;
+        String tipoPrestador = ehLoja ? 'empresa' : 'cpf';
 
         try {
           final detalhePublico =
@@ -181,6 +213,7 @@ class _ListaServicosState extends State<ListaServicos> {
             enderecoPrestador = detalhePublico.enderecoFormatado;
             tagEmpresa = detalhePublico.tagEmpresa;
             ehLoja = detalhePublico.ehLoja;
+            tipoPrestador = detalhePublico.tipoPrestador;
           }
         } catch (_) {}
 
@@ -200,6 +233,7 @@ class _ListaServicosState extends State<ListaServicos> {
             funcao: funcao ?? 'Geral',
             tagEmpresa: tagEmpresa,
             ehLoja: ehLoja,
+            tipoPrestador: tipoPrestador,
             idGrupoEmpresa: idGrupoEmpresa,
             idProfissional: idProfissional,
             nomePrestador: nomePrestador,
@@ -226,7 +260,155 @@ class _ListaServicosState extends State<ListaServicos> {
     }
   }
 
-  Future<void> _carregarEnderecoCliente(int idUsuario) async {
+  Future<void> _definirEnderecoAtivo(int idEndereco) async {
+    if (_idUsuarioResolvido == null) return;
+    try {
+      await _supabase
+          .from('ass_usuario_endereco')
+          .update({'endereco_ativo': false})
+          .eq('fk_usuario', _idUsuarioResolvido!);
+
+      await _supabase
+          .from('ass_usuario_endereco')
+          .update({'endereco_ativo': true})
+          .eq('fk_usuario', _idUsuarioResolvido!)
+          .eq('fk_endereco', idEndereco);
+
+      await _carregarEnderecoCliente(_idUsuarioResolvido!);
+    } catch (e) {
+      debugPrint('Erro ao definir endereco ativo: $e');
+    }
+  }
+
+  Future<void> _carregarEnderecoCliente([int? idUsuario]) async {
+    final resolvedId = idUsuario ?? _idUsuarioResolvido;
+    if (resolvedId == null) return;
+    _idUsuarioResolvido = resolvedId;
+    try {
+      final assResponse = await _supabase
+          .from('ass_usuario_endereco')
+          .select('fk_endereco, apelido_endereco, tipo_endereco, endereco_ativo')
+          .eq('fk_usuario', resolvedId);
+
+      if (assResponse.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _enderecoUsuario = 'Cadastre um endereço';
+            _enderecosUsuario = [];
+          });
+        }
+        return;
+      }
+
+      final idsEnderecos = assResponse
+          .map((a) => (a['fk_endereco'] as num?)?.toInt())
+          .whereType<int>()
+          .toList();
+
+      if (idsEnderecos.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _enderecoUsuario = 'Cadastre um endereço';
+            _enderecosUsuario = [];
+          });
+        }
+        return;
+      }
+
+      final enderecosResponse = await _supabase
+          .from('enderecos')
+          .select('id_endereco, logradouro, numero, bairro, complemento, fk_cidade')
+          .inFilter('id_endereco', idsEnderecos);
+
+      final cidadesResponse = await _supabase
+          .from('cidades')
+          .select('id_cidade, nome_cidade, fk_estado');
+
+      final estadosResponse = await _supabase
+          .from('estados')
+          .select('id_estado, sigla_estado');
+
+      final Map<int, Map<String, dynamic>> cidadesMap = {};
+      for (final cidade in cidadesResponse) {
+        final id = (cidade['id_cidade'] as num?)?.toInt();
+        if (id != null) cidadesMap[id] = Map<String, dynamic>.from(cidade);
+      }
+
+      final Map<int, String> estadosMap = {};
+      for (final estado in estadosResponse) {
+        final id = (estado['id_estado'] as num?)?.toInt();
+        if (id != null) estadosMap[id] = estado['sigla_estado']?.toString() ?? '';
+      }
+
+      final listaEnd = <EnderecoItemLista>[];
+      String? enderecoAtivoTexto;
+
+      for (final ass in assResponse) {
+        final idEnd = (ass['fk_endereco'] as num?)?.toInt();
+        if (idEnd == null) continue;
+
+        final endRow = enderecosResponse.firstWhere(
+          (r) => (r['id_endereco'] as num?)?.toInt() == idEnd,
+          orElse: () => const {},
+        );
+
+        final logradouro = endRow['logradouro']?.toString().trim() ?? '';
+        final numero = endRow['numero']?.toString().trim() ?? '';
+        final bairro = endRow['bairro']?.toString().trim() ?? '';
+        final idCidade = (endRow['fk_cidade'] as num?)?.toInt();
+
+        final cidadeInfo = idCidade != null ? cidadesMap[idCidade] : null;
+        final nomeCidade = cidadeInfo?['nome_cidade']?.toString().trim() ?? '';
+        final idEstado = (cidadeInfo?['fk_estado'] as num?)?.toInt();
+        final siglaEstado = idEstado != null ? (estadosMap[idEstado] ?? '') : '';
+
+        var formatado = '';
+        if (logradouro.isNotEmpty) {
+          formatado = numero.isNotEmpty ? '$logradouro, $numero' : logradouro;
+          if (bairro.isNotEmpty) formatado += ' - $bairro';
+          if (nomeCidade.isNotEmpty) formatado += ', $nomeCidade';
+          if (siglaEstado.isNotEmpty) formatado += ' - $siglaEstado';
+        } else if (nomeCidade.isNotEmpty) {
+          formatado = siglaEstado.isNotEmpty ? '$nomeCidade - $siglaEstado' : nomeCidade;
+        } else {
+          formatado = 'Endereço #$idEnd';
+        }
+
+        final ativo = ass['endereco_ativo'] == true;
+        final apelido = ass['apelido_endereco']?.toString().trim() ?? '';
+        final tipo = ass['tipo_endereco']?.toString().trim() ?? 'Residencial';
+
+        if (ativo) {
+          enderecoAtivoTexto = formatado;
+        }
+
+        listaEnd.add(
+          EnderecoItemLista(
+            idEndereco: idEnd,
+            apelido: apelido.isNotEmpty ? apelido : tipo,
+            tipoEndereco: tipo,
+            enderecoFormatado: formatado,
+            principal: ativo,
+          ),
+        );
+      }
+
+      listaEnd.sort((a, b) => b.principal ? 1 : (a.principal ? -1 : 0));
+      enderecoAtivoTexto ??= listaEnd.isNotEmpty ? listaEnd.first.enderecoFormatado : 'Nenhum endereço selecionado';
+
+      if (mounted) {
+        setState(() {
+          _enderecosUsuario = listaEnd;
+          _enderecoUsuario = enderecoAtivoTexto!;
+        });
+      }
+      return;
+    } catch (e) {
+      debugPrint('Erro ao carregar enderecos do cliente: $e');
+    }
+  }
+
+  Future<void> _carregarEnderecoClienteLegado(int idUsuario) async {
     try {
       final assResponse = await _supabase
           .from('ass_usuario_endereco')
@@ -927,34 +1109,7 @@ class _ListaServicosState extends State<ListaServicos> {
               const SizedBox(height: 2),
               Padding(
                 padding: const EdgeInsets.only(left: 14),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.location_on_outlined,
-                      color: Colors.white,
-                      size: 19,
-                    ),
-                    const SizedBox(width: 4),
-                    Flexible(
-                      child: Text(
-                        _enderecoUsuario,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 2),
-                    const Icon(
-                      Icons.keyboard_arrow_down,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ],
-                ),
+                child: _buildSeletorEndereco(),
               ),
             ],
           ),
@@ -1061,17 +1216,26 @@ class _ListaServicosState extends State<ListaServicos> {
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                item.enderecoPrestador,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: _textoMuted,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
-                                ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  _buildBadgeTipoPrestador(item.tipoPrestador),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      item.enderecoPrestador,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: _textoMuted,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
+
                             ],
                           ),
                         ),
@@ -1517,6 +1681,205 @@ class _ListaServicosState extends State<ListaServicos> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildBadgeTipoPrestador(String tipo) {
+    final tipoNormalizado = tipo.trim().toLowerCase();
+    Color bg;
+    Color borda;
+    Color texto;
+    IconData icone;
+    String rotulo;
+
+    if (tipoNormalizado == 'empresa' || tipoNormalizado == 'loja') {
+      bg = const Color(0xFFEFF6FF);
+      borda = const Color(0xFF93C5FD);
+      texto = const Color(0xFF1D4ED8);
+      icone = Icons.storefront_outlined;
+      rotulo = 'Empresa';
+    } else if (tipoNormalizado == 'independente' || tipoNormalizado == 'cnpj') {
+      bg = const Color(0xFFECFDF5);
+      borda = const Color(0xFFA7F3D0);
+      texto = const Color(0xFF047857);
+      icone = Icons.business_center_outlined;
+      rotulo = 'Independente';
+    } else {
+      bg = const Color(0xFFF1F5F9);
+      borda = const Color(0xFFCBD5E1);
+      texto = const Color(0xFF475569);
+      icone = Icons.person_outline;
+      rotulo = 'AutÃ´nomo';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: borda, width: 0.8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icone, size: 11, color: texto),
+          const SizedBox(width: 3),
+          Text(
+            rotulo,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: texto,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSeletorEndereco() {
+    final conteudo = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(
+          Icons.location_on_outlined,
+          color: Colors.white,
+          size: 19,
+        ),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            _enderecoUsuario,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const SizedBox(width: 2),
+        const Icon(
+          Icons.keyboard_arrow_down,
+          color: Colors.white,
+          size: 20,
+        ),
+      ],
+    );
+
+    if (_enderecosUsuario.isEmpty) {
+      return GestureDetector(
+        onTap: () async {
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => MeusEnderecosPage(isVisitante: false),
+            ),
+          );
+          await _carregarEnderecoCliente();
+        },
+        child: conteudo,
+      );
+    }
+
+    return PopupMenuButton<int>(
+      tooltip: 'Selecionar endereÃ§o',
+      offset: const Offset(0, 32),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      onSelected: (idEndereco) async {
+        if (idEndereco == -1) {
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => MeusEnderecosPage(isVisitante: false),
+            ),
+          );
+          await _carregarEnderecoCliente();
+        } else {
+          await _definirEnderecoAtivo(idEndereco);
+        }
+      },
+      itemBuilder: (context) {
+        final List<PopupMenuEntry<int>> items = [];
+
+        for (final end in _enderecosUsuario) {
+          items.add(
+            PopupMenuItem<int>(
+              value: end.idEndereco,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 290),
+                child: Row(
+                  children: [
+                    Icon(
+                      end.principal ? Icons.location_on : Icons.place_outlined,
+                      size: 18,
+                      color: end.principal ? _azul : Colors.grey.shade600,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            end.enderecoFormatado,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            end.tipoEndereco,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (end.principal) ...[
+                      const SizedBox(width: 8),
+                      const Icon(
+                        Icons.check,
+                        color: _azul,
+                        size: 18,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
+        items.add(const PopupMenuDivider());
+        items.add(
+          PopupMenuItem<int>(
+            value: -1,
+            child: Row(
+              children: const [
+                Icon(Icons.add_location_alt_outlined, color: _azul, size: 18),
+                SizedBox(width: 8),
+                Text(
+                  'Gerenciar endereÃ§os',
+                  style: TextStyle(
+                    color: _azul,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+
+        return items;
+      },
+      child: conteudo,
     );
   }
 }

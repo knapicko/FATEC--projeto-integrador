@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'detalhes_pedido.dart';
 import 'acompanhar_deslocamento.dart';
@@ -1126,7 +1126,13 @@ class MeusPedidosState extends State<MeusPedidosPage> with SingleTickerProviderS
   void _aoClicarPedido(PedidoCliente p) {
     final st = p.fkStatus ?? 0;
     final s = p.status.trim().toLowerCase();
-    if (st == 33 || st == 34 || s.contains('deslocando') || s.contains('a caminho') || s.contains('chegou')) {
+    if (st == 36 || st == 37 ||
+        (st != 4 &&
+            (st == 33 ||
+                st == 34 ||
+                s.contains('deslocando') ||
+                s.contains('a caminho') ||
+                s.contains('chegou')))) {
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => AcompanharDeslocamentoPage(
@@ -1312,7 +1318,14 @@ class MeusPedidosState extends State<MeusPedidosPage> with SingleTickerProviderS
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                child: const Text('Ver Detalhes'),
+                child: Text(
+                  (p.fkStatus == 33 ||
+                          p.fkStatus == 34 ||
+                          p.fkStatus == 36 ||
+                          p.fkStatus == 37)
+                      ? 'Acompanhar'
+                      : 'Ver Detalhes',
+                ),
               ),
             ],
           ),
@@ -1516,6 +1529,35 @@ class MeusPedidosState extends State<MeusPedidosPage> with SingleTickerProviderS
   StatusEstilo estiloStatus(String status, [int? fkStatus]) {
     final s = status.trim().toLowerCase();
     final st = fkStatus ?? 0;
+
+    if (st == 37) {
+      return const StatusEstilo(
+        rotulo: 'No local',
+        fundo: azul,
+        texto: Colors.white,
+        borda: azul,
+        icone: Icons.place_rounded,
+      );
+    }
+    if (st == 36) {
+      return const StatusEstilo(
+        rotulo: 'Em Deslocamento',
+        fundo: azul,
+        texto: Colors.white,
+        borda: azul,
+        icone: Icons.two_wheeler,
+        piscar: true,
+      );
+    }
+    if (st == 35) {
+      return const StatusEstilo(
+        rotulo: 'Aguardando Deslocamento',
+        fundo: Color(0xFFFFF7ED),
+        texto: Color(0xFFC2410C),
+        borda: Color(0xFFFED7AA),
+        icone: Icons.local_shipping_outlined,
+      );
+    }
 
     if (st == 34 || s.contains('chegou')) {
       return const StatusEstilo(
