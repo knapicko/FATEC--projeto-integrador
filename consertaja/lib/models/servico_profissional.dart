@@ -121,6 +121,7 @@ class DetalheServicoPublico {
     required this.nomePrestador,
     this.fotoPrestador,
     required this.ehLoja,
+    this.tipoPrestador = 'cpf',
     this.tagEmpresa,
     this.corTagEmpresa,
     this.idGrupoEmpresa,
@@ -138,6 +139,7 @@ class DetalheServicoPublico {
   final String nomePrestador;
   final String? fotoPrestador;
   final bool ehLoja;
+  final String tipoPrestador; // 'empresa' | 'independente' | 'cpf'
   final String? tagEmpresa;
   final String? corTagEmpresa;
   final int? idGrupoEmpresa;
@@ -149,4 +151,14 @@ class DetalheServicoPublico {
   final double latitude;
   final double longitude;
   final bool temCoordenadas;
+
+  bool get ehEmpresa => tipoPrestador == 'empresa' || ehLoja;
+  bool get ehIndependente => tipoPrestador == 'independente';
+  bool get ehCpf => tipoPrestador == 'cpf';
+
+  String get rotuloTipoPrestador {
+    if (ehEmpresa) return 'Loja / Empresa';
+    if (ehIndependente) return 'Independente (CNPJ)';
+    return 'Autônomo (CPF)';
+  }
 }

@@ -1,4 +1,5 @@
-﻿// ignore_for_file: deprecated_member_use, unnecessary_underscores
+// ignore_for_file: deprecated_member_use, unnecessary_underscores
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -19,11 +20,13 @@ import 'widgets/skeleton_loading.dart';
 class DetalhesPedidoPage extends StatefulWidget {
   final int idSolicitacao;
   final PedidoCliente? pedidoResumo;
+  final bool mostrarAvisoManutencao;
 
   const DetalhesPedidoPage({
     super.key,
     required this.idSolicitacao,
     this.pedidoResumo,
+    this.mostrarAvisoManutencao = false,
   });
 
   @override
@@ -65,6 +68,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
   bool _carregando = true;
   bool _carregandoCliente = true;
   bool _confirmandoConclusao = false;
+  bool _avisoManutencaoExibido = false;
   bool _avaliadoCliente = false;
   List<Map<String, dynamic>> _avaliacoesCliente = [];
   String? _erro;
@@ -112,6 +116,15 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
   // Anexos da Solicitação
   List<Map<String, dynamic>> _anexos = [];
 
+  // Diagnóstico e Andamento Técnico
+  String? _diagnostico;
+  int _duracaoServicoSegundos = 0;
+  bool _andamentoPausado = false;
+  DateTime? _dataInicioAndamento;
+  Timer? _timerAndamento;
+  List<String> _imagensRecebimento = [];
+  List<String> _imagensEmAndamento = [];
+
   bool get _podeCancelar {
     final s = _statusTexto.trim().toLowerCase();
     return s == 'aberto' ||
@@ -137,6 +150,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
 
   @override
   void dispose() {
+    _timerAndamento?.cancel();
     _sonarController.dispose();
     super.dispose();
   }
@@ -220,10 +234,39 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
         }
       }
 
-      if (_statusTexto.trim().toLowerCase() == 'em andamento' &&
+      if ((_statusTexto.trim().toLowerCase() == 'em andamento' ||
+              _fkStatus == 4) &&
           _etapaSolicitacao < 3) {
         _etapaSolicitacao = 3;
       }
+
+      _diagnostico = sol['diagnostico']?.toString().trim();
+      _andamentoPausado = sol['andamento_pausado'] == true;
+      final duracaoSalva = (sol['duracao_servico'] as num?)?.toInt() ?? 0;
+      _duracaoServicoSegundos = duracaoSalva;
+
+      final dtInicio = sol['data_inicio_andamento'];
+      if (dtInicio != null) {
+        _dataInicioAndamento = DateTime.tryParse(dtInicio.toString());
+      }
+
+      _imagensRecebimento = [];
+      if (sol['imagens_recebimento'] != null) {
+        final dynList = sol['imagens_recebimento'];
+        if (dynList is List) {
+          _imagensRecebimento = dynList.map((e) => e.toString()).toList();
+        }
+      }
+
+      _imagensEmAndamento = [];
+      if (sol['imagens_em_andamento'] != null) {
+        final dynList = sol['imagens_em_andamento'];
+        if (dynList is List) {
+          _imagensEmAndamento = dynList.map((e) => e.toString()).toList();
+        }
+      }
+
+      _iniciarTimerAndamento();
 
       _avaliadoCliente = false;
       _avaliacoesCliente = [];
@@ -390,6 +433,53 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
 
       if (mounted) {
         setState(() => _carregando = false);
+        if (widget.mostrarAvisoManutencao && !_avisoManutencaoExibido) {
+          _avisoManutencaoExibido = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            showModalBottomSheet<void>(
+              context: context,
+              backgroundColor: Colors.transparent,
+              builder: (_) => Container(
+                padding: const EdgeInsets.fromLTRB(22, 18, 22, 28),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: const Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.handyman_rounded,
+                      color: azulPrincipal,
+                      size: 42,
+                    ),
+                    SizedBox(height: 10),
+                    Text(
+                      'Produto recebido pelo profissional',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: textoEscuro,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'O profissional recebeu o produto e iniciou a manutenção.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: textoMuted,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -527,16 +617,26 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
   // ===========================================================================
   ({String titulo, String subtitulo}) _obterSituacaoPedido() {
     final s = _statusTexto.trim().toLowerCase();
-    final modalidade = _tipoExecucao.trim().toLowerCase();
-
-    final isDomicilioOuLeva =
-        modalidade.contains('domic') ||
-        (modalidade.contains('leva') && modalidade.contains('traz'));
-    final isRetiradaOuReceba =
-        modalidade.contains('retirad') ||
-        (modalidade.contains('receba') && modalidade.contains('casa'));
-
-    final st = _fkStatus ?? 0;
+    final st = _fkStatus;
+    if (st == 35 || s.contains('aguardando devolu')) {
+      return (
+        titulo: 'Aguardando devolução',
+        subtitulo:
+            'O serviço foi concluído e o profissional irá devolver o produto',
+      );
+    }
+    if (st == 36 || s.contains('devolução deslocando')) {
+      return (
+        titulo: 'Devolução em deslocamento',
+        subtitulo: 'Acompanhe o trajeto do profissional até o seu endereço',
+      );
+    }
+    if (st == 37 || s.contains('devolução chegou')) {
+      return (
+        titulo: 'Profissional no local',
+        subtitulo: 'O profissional chegou para devolver o produto',
+      );
+    }
     if (st == 32 || s.contains('aguardando deslocamento')) {
       return (
         titulo: 'Aguardando Deslocamento',
@@ -577,24 +677,20 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
         subtitulo: 'O serviço foi concluído$dataFmt',
       );
     }
-    if (s.contains('andamento') || s.contains('execu')) {
-      if (isDomicilioOuLeva && _etapaSolicitacao == 1) {
-        return (
-          titulo: 'Pedido em andamento',
-          subtitulo: 'O profissional está a caminho do seu endereço',
-        );
-      }
-      if (isRetiradaOuReceba && _etapaSolicitacao == 1) {
-        return (
-          titulo: 'Pedido em andamento',
-          subtitulo: 'O profissional está aguardando você iniciar o trajeto',
-        );
-      }
+    if (st == 4 || s.contains('andamento') || s.contains('execu')) {
+      return (
+        titulo: 'Serviço em andamento',
+        subtitulo:
+            'O serviço está em execução na bancada técnica. Você será informado a cada atualização.',
+      );
+    }
+    /*
       return (
         titulo: 'Pedido em andamento',
         subtitulo: 'O serviço está sendo realizado pelo profissional',
       );
     }
+    */
     if (s.contains('aguardando cliente')) {
       return (
         titulo: 'Aguardando cliente',
@@ -633,6 +729,11 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
   // Regras das Etapas por Modalidade de Execução
   // ===========================================================================
   List<_EtapaVisualConfig> _gerarEtapas() {
+    if (_etapaSolicitacao == 4 &&
+        (_fkStatus == 35 || _fkStatus == 36 || _fkStatus == 37)) {
+      return _gerarEtapasDevolucao();
+    }
+
     final mod = _tipoExecucao.trim().toLowerCase();
 
     if (mod.contains('domic')) {
@@ -645,6 +746,58 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
     } else {
       return _gerarEtapasLevaETraz();
     }
+  }
+
+  List<_EtapaVisualConfig> _gerarEtapasDevolucao() {
+    final devolucaoEmDeslocamento = _fkStatus == 36;
+    final devolucaoNoLocal = _fkStatus == 37;
+    const concluida = _EtapaVisualConfig(
+      titulo: 'Concluído',
+      icone: Icons.check_circle_outline,
+      corFundo: Color(0xFFF1F5F9),
+      corIcone: Color(0xFF94A3B8),
+      corTexto: Color(0xFF64748B),
+      concluida: false,
+    );
+
+    return [
+      const _EtapaVisualConfig(
+        titulo: 'Aceito',
+        icone: Icons.check,
+        corFundo: azulPrincipal,
+        corIcone: Colors.white,
+        corTexto: azulPrincipal,
+        concluida: true,
+      ),
+      const _EtapaVisualConfig(
+        titulo: 'Recebimento',
+        icone: Icons.inventory_2_outlined,
+        corFundo: azulPrincipal,
+        corIcone: Colors.white,
+        corTexto: azulPrincipal,
+        concluida: true,
+      ),
+      const _EtapaVisualConfig(
+        titulo: 'Manutenção',
+        icone: Icons.handyman_outlined,
+        corFundo: azulPrincipal,
+        corIcone: Colors.white,
+        corTexto: azulPrincipal,
+        concluida: true,
+      ),
+      _EtapaVisualConfig(
+        titulo: 'Devolução',
+        icone: devolucaoNoLocal
+            ? Icons.place_rounded
+            : Icons.local_shipping_outlined,
+        corFundo: azulPrincipal,
+        corIcone: Colors.white,
+        corTexto: azulPrincipal,
+        temSonar: devolucaoEmDeslocamento,
+        concluida: false,
+      ),
+      concluida,
+    ];
   }
 
   /// 1. Atendimento em Domicílio (4 etapas)
@@ -716,7 +869,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
     late _EtapaVisualConfig etapa3;
     if (e >= 4 && st == 6) {
       etapa3 = const _EtapaVisualConfig(
-        titulo: 'Em andamento',
+        titulo: 'Manutenção',
         icone: Icons.check,
         corFundo: azulPrincipal,
         corIcone: Colors.white,
@@ -725,7 +878,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       );
     } else if (e == 3 && st == 4) {
       etapa3 = const _EtapaVisualConfig(
-        titulo: 'Em andamento',
+        titulo: 'Manutenção',
         icone: Icons.handyman_outlined,
         corFundo: azulPrincipal,
         corIcone: Colors.white,
@@ -735,7 +888,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       );
     } else if (e == 3 && st == 34) {
       etapa3 = const _EtapaVisualConfig(
-        titulo: 'Em andamento',
+        titulo: 'Manutenção',
         icone: Icons.hourglass_top_outlined,
         corFundo: laranjaEspera,
         corIcone: Colors.white,
@@ -744,7 +897,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       );
     } else {
       etapa3 = const _EtapaVisualConfig(
-        titulo: 'Em andamento',
+        titulo: 'Manutenção',
         icone: Icons.handyman_outlined,
         corFundo: Color(0xFFF1F5F9),
         corIcone: Color(0xFF94A3B8),
@@ -855,7 +1008,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       );
     } else if (e == 3 && st == 4) {
       etapa3 = const _EtapaVisualConfig(
-        titulo: 'Em andamento',
+        titulo: 'Manutenção',
         icone: Icons.handyman_outlined,
         corFundo: azulPrincipal,
         corIcone: Colors.white,
@@ -865,7 +1018,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       );
     } else if (e == 3 && st == 34) {
       etapa3 = const _EtapaVisualConfig(
-        titulo: 'Em andamento',
+        titulo: 'Manutenção',
         icone: Icons.hourglass_top_outlined,
         corFundo: laranjaEspera,
         corIcone: Colors.white,
@@ -874,7 +1027,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       );
     } else {
       etapa3 = const _EtapaVisualConfig(
-        titulo: 'Em andamento',
+        titulo: 'Manutenção',
         icone: Icons.handyman_outlined,
         corFundo: Color(0xFFF1F5F9),
         corIcone: Color(0xFF94A3B8),
@@ -1025,7 +1178,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       );
     } else if (e == 3 && st == 4) {
       etapa3 = const _EtapaVisualConfig(
-        titulo: 'Em andamento',
+        titulo: 'Manutenção',
         icone: Icons.handyman_outlined,
         corFundo: azulPrincipal,
         corIcone: Colors.white,
@@ -1035,7 +1188,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       );
     } else if (e == 3 && st == 34) {
       etapa3 = const _EtapaVisualConfig(
-        titulo: 'Em andamento',
+        titulo: 'Manutenção',
         icone: Icons.hourglass_top_outlined,
         corFundo: laranjaEspera,
         corIcone: Colors.white,
@@ -1044,7 +1197,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       );
     } else {
       etapa3 = const _EtapaVisualConfig(
-        titulo: 'Em andamento',
+        titulo: 'Manutenção',
         icone: Icons.handyman_outlined,
         corFundo: Color(0xFFF1F5F9),
         corIcone: Color(0xFF94A3B8),
@@ -1195,7 +1348,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       );
     } else if (e == 3 && st == 4) {
       etapa3 = const _EtapaVisualConfig(
-        titulo: 'Em andamento',
+        titulo: 'Manutenção',
         icone: Icons.handyman_outlined,
         corFundo: azulPrincipal,
         corIcone: Colors.white,
@@ -1205,7 +1358,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       );
     } else if (e == 3 && st == 34) {
       etapa3 = const _EtapaVisualConfig(
-        titulo: 'Em andamento',
+        titulo: 'Manutenção',
         icone: Icons.hourglass_top_outlined,
         corFundo: laranjaEspera,
         corIcone: Colors.white,
@@ -1878,9 +2031,13 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
         children: [
           _buildCardSituacaoPedido(),
           const SizedBox(height: 14),
+          _buildCardDiagnosticoETempo(),
+          const SizedBox(height: 14),
           _buildCardIdEtapas(),
           const SizedBox(height: 14),
           _buildCardOferecidoPor(),
+          const SizedBox(height: 14),
+          _buildCardEvidenciasServico(),
           const SizedBox(height: 14),
           _buildCardServicoSelecionado(),
           const SizedBox(height: 14),
@@ -1908,29 +2065,29 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
   // ===========================================================================
   Widget _buildCardSituacaoPedido() {
     final situacao = _obterSituacaoPedido();
-    final st = _fkStatus ?? 0;
-    final isAguardandoDeslocamento = st == 32 ||
+    final st = _fkStatus;
+    final isAguardandoDeslocamento =
+        st == 32 ||
         _statusTexto.trim().toLowerCase().contains('aguardando deslocamento');
-    final isDeslocando = st == 33 ||
+    final isDeslocando =
+        st == 33 ||
         _statusTexto.trim().toLowerCase().contains('deslocando') ||
         _statusTexto.trim().toLowerCase().contains('a caminho');
-    final isChegou = st == 34 ||
-        _statusTexto.trim().toLowerCase().contains('chegou');
+    final isChegou =
+        st == 34 || _statusTexto.trim().toLowerCase().contains('chegou');
 
     final card = Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isAguardandoDeslocamento
             ? const Color(0xFFFFF7ED)
-            : (isChegou
-                ? const Color(0xFFF0F9FF)
-                : azulFundoCard),
+            : (isChegou ? const Color(0xFFF0F9FF) : azulFundoCard),
         borderRadius: BorderRadius.circular(16),
         border: isAguardandoDeslocamento
             ? Border.all(color: const Color(0xFFFED7AA))
             : ((isDeslocando || isChegou)
-                ? Border.all(color: const Color(0xFFBAE6FD), width: 1.5)
-                : null),
+                  ? Border.all(color: const Color(0xFFBAE6FD), width: 1.5)
+                  : null),
       ),
       child: Row(
         children: [
@@ -1947,10 +2104,10 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
               isAguardandoDeslocamento
                   ? Icons.local_shipping_outlined
                   : (isDeslocando
-                      ? Icons.two_wheeler
-                      : (isChegou
-                          ? Icons.place_rounded
-                          : Icons.notifications_active_outlined)),
+                        ? Icons.two_wheeler
+                        : (isChegou
+                              ? Icons.place_rounded
+                              : Icons.notifications_active_outlined)),
               color: Colors.white,
               size: 22,
             ),
@@ -1999,9 +2156,8 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => AcompanharDeslocamentoPage(
-                idSolicitacao: _idSolicitacao,
-              ),
+              builder: (_) =>
+                  AcompanharDeslocamentoPage(idSolicitacao: _idSolicitacao),
             ),
           );
         },
@@ -2080,6 +2236,32 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
           ),
           const SizedBox(height: 24),
           _buildStepperEtapas(etapas),
+          if (_fkStatus == 4 || _etapaSolicitacao == 3) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.info_outline, color: textoMuted, size: 16),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Aparelho alocado na bancada técnica do especialista.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: textoMuted,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -2111,7 +2293,9 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       fundo = const Color(0xFFF1F5F9);
       textoCor = const Color(0xFF334155);
       borda = const Color(0xFFE2E8F0);
-    } else if (s.contains('andamento') || s.contains('execu')) {
+    } else if (s.contains('andamento') ||
+        s.contains('execu') ||
+        _fkStatus == 4) {
       texto = 'Em andamento';
       icone = Icons.autorenew;
       fundo = const Color(0xFF0B3B5B);
@@ -3626,6 +3810,441 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _iniciarTimerAndamento() {
+    _timerAndamento?.cancel();
+    if (_fkStatus != 4 || _andamentoPausado) return;
+
+    _timerAndamento = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {
+        if (_dataInicioAndamento != null) {
+          final diff = DateTime.now()
+              .difference(_dataInicioAndamento!)
+              .inSeconds;
+          _duracaoServicoSegundos = diff > 0
+              ? diff
+              : _duracaoServicoSegundos + 1;
+        } else {
+          _duracaoServicoSegundos++;
+        }
+      });
+    });
+  }
+
+  String _formatarTempoServico(int totalSegundos) {
+    final dur = Duration(seconds: totalSegundos);
+    final dias = dur.inDays;
+    final horas = dur.inHours % 24;
+    final minutos = dur.inMinutes % 60;
+    final segundos = dur.inSeconds % 60;
+
+    final hStr = horas.toString().padLeft(2, '0');
+    final mStr = minutos.toString().padLeft(2, '0');
+    final sStr = segundos.toString().padLeft(2, '0');
+
+    if (dias > 0) {
+      return '${dias}d $hStr:$mStr:$sStr';
+    }
+    return '$hStr:$mStr:$sStr';
+  }
+
+  Widget _buildCardDiagnosticoETempo() {
+    final temDiagnostico =
+        _diagnostico != null && _diagnostico!.trim().isNotEmpty;
+    final tempoFormatado = _formatarTempoServico(_duracaoServicoSegundos);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE0F2FE),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.build_circle_outlined,
+                  color: azulPrincipal,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Bancada Técnica & Diagnóstico',
+                  style: TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w800,
+                    color: textoEscuro,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const SizedBox(width: 2),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: _andamentoPausado
+                      ? const Color(0xFFFEF3C7)
+                      : (_fkStatus == 4
+                            ? const Color(0xFFDCFCE7)
+                            : const Color(0xFFF1F5F9)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _andamentoPausado
+                          ? Icons.pause_circle_outline
+                          : Icons.timer_outlined,
+                      size: 12,
+                      color: _andamentoPausado
+                          ? const Color(0xFFD97706)
+                          : (_fkStatus == 4
+                                ? const Color(0xFF16A34A)
+                                : textoMuted),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _andamentoPausado
+                          ? 'Pausado'
+                          : (_fkStatus == 4 ? 'Em execução' : 'Finalizado'),
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        color: _andamentoPausado
+                            ? const Color(0xFFD97706)
+                            : (_fkStatus == 4
+                                  ? const Color(0xFF16A34A)
+                                  : textoMuted),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          if (temDiagnostico) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0F9FF),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFBAE6FD)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: const [
+                      Icon(Icons.troubleshoot, color: azulPrincipal, size: 18),
+                      SizedBox(width: 6),
+                      Text(
+                        'Diagnóstico Confirmado',
+                        style: TextStyle(
+                          color: azulPrincipal,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _diagnostico!,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: textoEscuro,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: const [
+                  Icon(
+                    Icons.pending_actions_outlined,
+                    color: textoMuted,
+                    size: 20,
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'O profissional ainda não forneceu um diagnóstico para este serviço.',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: textoMuted,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Tempo de Serviço',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: textoMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      tempoFormatado,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: azulPrincipal,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+                Icon(
+                  Icons.av_timer_rounded,
+                  color: azulPrincipal.withOpacity(0.8),
+                  size: 32,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCardEvidenciasServico() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(
+                Icons.photo_library_outlined,
+                color: azulPrincipal,
+                size: 20,
+              ),
+              SizedBox(width: 8),
+              Text(
+                'Evidências & Fotos do Serviço',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: textoEscuro,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          const Text(
+            'Fotos do Recebimento (Coleta)',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: textoEscuro,
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (_imagensRecebimento.isNotEmpty)
+            _buildCarrosselMiniaturas(_imagensRecebimento, 'Foto da Coleta')
+          else
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(
+                    Icons.image_not_supported_outlined,
+                    size: 18,
+                    color: textoMuted,
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'O profissional ainda não anexou as fotos do recebimento.',
+                      style: TextStyle(fontSize: 12, color: textoMuted),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          const SizedBox(height: 16),
+
+          const Text(
+            'Fotos do Conserto / Andamento',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: textoEscuro,
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (_imagensEmAndamento.isNotEmpty)
+            _buildCarrosselMiniaturas(_imagensEmAndamento, 'Foto do Conserto')
+          else
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(
+                    Icons.image_not_supported_outlined,
+                    size: 18,
+                    color: textoMuted,
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'O profissional ainda não anexou as fotos do serviço em andamento.',
+                      style: TextStyle(fontSize: 12, color: textoMuted),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCarrosselMiniaturas(List<String> urls, String tituloModal) {
+    return SizedBox(
+      height: 90,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: urls.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (context, index) {
+          final url = urls[index];
+          return GestureDetector(
+            onTap: () =>
+                _abrirImagemFullscreen(url, '$tituloModal ${index + 1}'),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                width: 90,
+                height: 90,
+                color: const Color(0xFFF1F5F9),
+                child: Image.network(
+                  url,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const Center(
+                    child: Icon(Icons.broken_image_outlined, color: textoMuted),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _abrirImagemFullscreen(String url, String titulo) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: Stack(
+          alignment: Alignment.topRight,
+          children: [
+            InteractiveViewer(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(url, fit: BoxFit.contain),
+              ),
+            ),
+            IconButton(
+              icon: const CircleAvatar(
+                backgroundColor: Colors.black54,
+                radius: 16,
+                child: Icon(Icons.close, color: Colors.white, size: 18),
+              ),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -1,24 +1,25 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'detalhes_pedido.dart';
 import 'tela_chat_profissional.dart';
 import 'tela_meu_perfil_cliente.dart';
 import 'utils/iniciais.dart';
+import 'widgets/skeleton_loading.dart';
 
 class AcompanharDeslocamentoPage extends StatefulWidget {
   final int idSolicitacao;
 
-  const AcompanharDeslocamentoPage({
-    super.key,
-    required this.idSolicitacao,
-  });
+  const AcompanharDeslocamentoPage({super.key, required this.idSolicitacao});
 
   @override
   State<AcompanharDeslocamentoPage> createState() =>
@@ -34,6 +35,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
 
   final SupabaseClient supabase = Supabase.instance.client;
   final MapController mapController = MapController();
+  final ImagePicker _imagePicker = ImagePicker();
 
   bool _carregando = true;
   Timer? _timerPolling;
@@ -41,6 +43,33 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
   RealtimeChannel? _canalRealtimeSolicitacao;
   late AnimationController _sonarController;
   int? _fkStatus;
+  bool _redirecionandoEmAndamento = false;
+  final List<TextEditingController> _codigoControllers = List.generate(
+    4,
+    (_) => TextEditingController(),
+  );
+  final List<FocusNode> _codigoFocusNodes = List.generate(
+    4,
+    (_) => FocusNode(),
+  );
+  final List<XFile?> _fotosDevolucao = [null, null];
+  bool _codigoDevolucaoValido = false;
+  bool _confirmandoDevolucao = false;
+
+  void _verificarRedirecionamentoEmAndamento(int? status) {
+    if (status == 4 && !_redirecionandoEmAndamento && mounted) {
+      _redirecionandoEmAndamento = true;
+      _timerPolling?.cancel();
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => DetalhesPedidoPage(
+            idSolicitacao: widget.idSolicitacao,
+            mostrarAvisoManutencao: true,
+          ),
+        ),
+      );
+    }
+  }
 
   // Dados do Cliente logado
   String? _fotoPerfilCliente;
@@ -96,6 +125,12 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
   void dispose() {
     _timerPolling?.cancel();
     _sonarController.dispose();
+    for (final controller in _codigoControllers) {
+      controller.dispose();
+    }
+    for (final focusNode in _codigoFocusNodes) {
+      focusNode.dispose();
+    }
     if (_canalRealtime != null) {
       supabase.removeChannel(_canalRealtime!);
     }
@@ -107,12 +142,10 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
 
   Future<void> _carregarDadosIniciais() async {
     try {
-      await Future.wait([
-        _carregarClienteLogado(),
-        _carregarSolicitacao(),
-      ]);
+      await Future.wait([_carregarClienteLogado(), _carregarSolicitacao()]);
       await _carregarDadosDeslocamento();
-    } catch (_) {} finally {
+    } catch (_) {
+    } finally {
       if (mounted) setState(() => _carregando = false);
     }
   }
@@ -149,6 +182,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
       if (row == null) return;
 
       _fkStatus = (row['fk_status'] as num?)?.toInt();
+      _verificarRedirecionamentoEmAndamento(_fkStatus);
       final codigoBanco = row['codigo_rec_dev']?.toString().trim() ?? '';
       if (codigoBanco.isNotEmpty) {
         _codigoRecDev = codigoBanco;
@@ -286,6 +320,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
           setState(() {
             _fkStatus = st;
           });
+          _verificarRedirecionamentoEmAndamento(st);
         }
         final cod = solCheck['codigo_rec_dev']?.toString().trim();
         if (cod != null && cod.isNotEmpty) {
@@ -417,6 +452,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                   setState(() {
                     _fkStatus = st;
                   });
+                  _verificarRedirecionamentoEmAndamento(st);
                 }
               }
             },
@@ -498,7 +534,11 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                 '• O mapa exibe a posição do profissional em tempo real enquanto ele se desloca até o seu local.\n'
                 '• Mantenha seu telefone por perto para receber o profissional.\n'
                 '• Forneça o código de confirmação apenas quando o prestador estiver pessoalmente no local com você.',
-                style: TextStyle(fontSize: 13.5, color: cinzaTexto, height: 1.5),
+                style: TextStyle(
+                  fontSize: 13.5,
+                  color: cinzaTexto,
+                  height: 1.5,
+                ),
               ),
               const SizedBox(height: 20),
               SizedBox(
@@ -533,7 +573,8 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
   }
 
   String _inicioDeslocamentoTexto() {
-    final inicio = _horarioInicioDeslocamento ??
+    final inicio =
+        _horarioInicioDeslocamento ??
         DateTime.now().subtract(const Duration(minutes: 10));
     final h = inicio.hour.toString().padLeft(2, '0');
     final m = inicio.minute.toString().padLeft(2, '0');
@@ -543,7 +584,9 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
   String _distanciaTexto() {
     if (_distanciaMetros == null) return 'Distância restante: 3,4 km';
     if (_distanciaMetros! >= 1000) {
-      final km = (_distanciaMetros! / 1000).toStringAsFixed(1).replaceAll('.', ',');
+      final km = (_distanciaMetros! / 1000)
+          .toStringAsFixed(1)
+          .replaceAll('.', ',');
       return 'Distância restante: $km km';
     }
     return 'Distância restante: ${_distanciaMetros!.round()} m';
@@ -554,7 +597,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
     if (_carregando) {
       return const Scaffold(
         backgroundColor: cinzaFundo,
-        body: Center(child: CircularProgressIndicator(color: azul)),
+        body: SkeletonAcompanharDeslocamento(),
       );
     }
 
@@ -586,7 +629,17 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                       const SizedBox(height: 14),
                       _buildCardInfoProfissional(),
                       const SizedBox(height: 14),
-                      _buildCardCodigoConfirmacao(),
+                      _fkStatus == 37
+                          ? Column(
+                              children: [
+                                _buildCardCodigoDevolucao(),
+                                const SizedBox(height: 14),
+                                _buildCardFotosDevolucao(),
+                                const SizedBox(height: 14),
+                                _buildBotaoConfirmarDevolucao(),
+                              ],
+                            )
+                          : _buildCardCodigoConfirmacao(),
                       const SizedBox(height: 14),
                       _buildCardInfoServico(),
                       const SizedBox(height: 14),
@@ -641,8 +694,8 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                 border: Border.all(color: azul, width: 1.5),
               ),
               child: ClipOval(
-                child: _fotoPerfilCliente != null &&
-                        _fotoPerfilCliente!.isNotEmpty
+                child:
+                    _fotoPerfilCliente != null && _fotoPerfilCliente!.isNotEmpty
                     ? Image.network(
                         _fotoPerfilCliente!,
                         fit: BoxFit.cover,
@@ -672,73 +725,45 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
     );
   }
 
-  /// 2. Row com Status do GPS e "Atualizado agora"
+  /// 2. Status do GPS
   Widget _buildPillGpsStatusBar() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  color: azul,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                _fkStatus == 34
-                    ? 'Profissional no local • Conectado'
-                    : 'GPS em tempo real • Conectado',
-                style: const TextStyle(
-                  color: azul,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: const BoxDecoration(
+              color: azul,
+              shape: BoxShape.circle,
+            ),
           ),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF0F9FF),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFBAE6FD)),
+          const SizedBox(width: 8),
+          Text(
+            _fkStatus == 34
+                ? 'Profissional no local - Conectado'
+                : 'GPS em tempo real - Conectado',
+            style: const TextStyle(
+              color: azul,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
           ),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.auto_awesome, color: azul, size: 14),
-              SizedBox(width: 5),
-              Text(
-                'Atualizado agora',
-                style: TextStyle(
-                  color: azul,
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -777,8 +802,9 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color:
-                              Colors.white.withValues(alpha: (1.0 - t) * 0.75),
+                          color: Colors.white.withValues(
+                            alpha: (1.0 - t) * 0.75,
+                          ),
                           width: 2.5,
                         ),
                       ),
@@ -792,11 +818,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                     color: Colors.white,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    Icons.place_rounded,
-                    color: azul,
-                    size: 26,
-                  ),
+                  child: const Icon(Icons.place_rounded, color: azul, size: 26),
                 ),
               ],
             ),
@@ -894,11 +916,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
               color: Colors.white.withValues(alpha: 0.22),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.two_wheeler,
-              color: Colors.white,
-              size: 30,
-            ),
+            child: const Icon(Icons.two_wheeler, color: Colors.white, size: 30),
           ),
         ],
       ),
@@ -1011,7 +1029,8 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
 
   /// 5. Seção de Mapa com Marcadores Estilizados e Rota
   Widget _buildAreaMapa() {
-    final posProf = _posicaoProfissional ??
+    final posProf =
+        _posicaoProfissional ??
         LatLng(_destino.latitude - 0.015, _destino.longitude - 0.012);
 
     return Container(
@@ -1041,12 +1060,9 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
               ),
               children: [
                 TileLayer(
-                  urlTemplate:
-                      'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'br.com.consertaja',
                   maxZoom: 19,
-                  fallbackUrl:
-                      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 ),
                 if (_fkStatus != 34 && _rota.isNotEmpty)
                   PolylineLayer(
@@ -1056,11 +1072,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                         color: azul.withValues(alpha: 0.35),
                         strokeWidth: 9.0,
                       ),
-                      Polyline(
-                        points: _rota,
-                        color: azul,
-                        strokeWidth: 5.5,
-                      ),
+                      Polyline(points: _rota, color: azul, strokeWidth: 5.5),
                     ],
                   ),
                 MarkerLayer(
@@ -1097,10 +1109,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                     onTap: () => mapController.rotate(0),
                   ),
                   const SizedBox(height: 8),
-                  _botaoControleMapa(
-                    icon: Icons.layers_outlined,
-                    onTap: () {},
-                  ),
+                  _botaoControleMapa(icon: Icons.layers_outlined, onTap: () {}),
                   const SizedBox(height: 8),
                   _botaoControleMapa(
                     icon: Icons.near_me_outlined,
@@ -1120,8 +1129,10 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                 left: 14,
                 right: 14,
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 9,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
@@ -1290,10 +1301,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: azul.withValues(alpha: 0.2),
-                          border: Border.all(
-                            color: azul,
-                            width: 2.0,
-                          ),
+                          border: Border.all(color: azul, width: 2.0),
                         ),
                       ),
                     ),
@@ -1306,10 +1314,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: azul.withValues(alpha: 0.25),
-                          border: Border.all(
-                            color: azul,
-                            width: 2.5,
-                          ),
+                          border: Border.all(color: azul, width: 2.5),
                         ),
                       ),
                     ),
@@ -1329,8 +1334,8 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                         ],
                       ),
                       child: ClipOval(
-                        child: _fotoPrestador != null &&
-                                _fotoPrestador!.isNotEmpty
+                        child:
+                            _fotoPrestador != null && _fotoPrestador!.isNotEmpty
                             ? Image.network(
                                 _fotoPrestador!,
                                 fit: BoxFit.cover,
@@ -1499,7 +1504,11 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                     const SizedBox(height: 3),
                     Row(
                       children: [
-                        const Icon(Icons.star, color: Color(0xFFF59E0B), size: 14),
+                        const Icon(
+                          Icons.star,
+                          color: Color(0xFFF59E0B),
+                          size: 14,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           '${_notaAvaliacao.toStringAsFixed(1)} • $_totalAtendimentos atendimentos',
@@ -1515,8 +1524,10 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                 ),
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFE2E8F0),
                   borderRadius: BorderRadius.circular(12),
@@ -1570,8 +1581,10 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                   ),
                 ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(8),
@@ -1648,14 +1661,17 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Row(
             children: [
-              Row(
-                children: [
-                  Icon(Icons.confirmation_number_outlined,
-                      color: azul, size: 20),
-                  SizedBox(width: 8),
+              const Icon(
+                Icons.confirmation_number_outlined,
+                color: azul,
+                size: 22,
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
                   Text(
                     'Código de Confirmação',
                     style: TextStyle(
@@ -1664,15 +1680,16 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                       color: escuro,
                     ),
                   ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Forneça apenas na chegada',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: cinzaTexto,
+                    ),
+                  ),
                 ],
-              ),
-              Text(
-                'Forneça apenas na chegada',
-                style: TextStyle(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w600,
-                  color: cinzaTexto,
-                ),
               ),
             ],
           ),
@@ -1708,8 +1725,11 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
             ),
             child: const Row(
               children: [
-                Icon(Icons.verified_user_outlined,
-                    color: Color(0xFF16A34A), size: 18),
+                Icon(
+                  Icons.verified_user_outlined,
+                  color: Color(0xFF16A34A),
+                  size: 18,
+                ),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -1728,6 +1748,331 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
         ],
       ),
     );
+  }
+
+  Widget _buildCardCodigoDevolucao() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.confirmation_number_outlined, color: azul, size: 22),
+              SizedBox(width: 10),
+              Text(
+                'Código da Devolução',
+                style: TextStyle(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w800,
+                  color: escuro,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Digite os 4 dígitos informados pelo profissional para confirmar a devolução.',
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w500,
+              color: cinzaTexto,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(4, (index) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                child: SizedBox(
+                  width: 52,
+                  height: 58,
+                  child: TextField(
+                    controller: _codigoControllers[index],
+                    focusNode: _codigoFocusNodes[index],
+                    textAlign: TextAlign.center,
+                    keyboardType: TextInputType.number,
+                    maxLength: 1,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      color: azul,
+                    ),
+                    decoration: InputDecoration(
+                      counterText: '',
+                      filled: true,
+                      fillColor: const Color(0xFFE0F2FE),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFBAE6FD),
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                    onChanged: (value) {
+                      if (value.isNotEmpty && index < 3) {
+                        _codigoFocusNodes[index + 1].requestFocus();
+                      }
+                      final preenchido = _codigoControllers.every(
+                        (controller) => controller.text.length == 1,
+                      );
+                      if (!preenchido && _codigoDevolucaoValido) {
+                        setState(() => _codigoDevolucaoValido = false);
+                      } else if (preenchido) {
+                        _validarCodigoDevolucao();
+                      }
+                    },
+                  ),
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _validarCodigoDevolucao() {
+    final codigo = _codigoControllers
+        .map((controller) => controller.text)
+        .join();
+    if (codigo.length != 4) return;
+    final correto = codigo == _codigoRecDev;
+    if (mounted) {
+      setState(() => _codigoDevolucaoValido = correto);
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          correto
+              ? 'Código da devolução conferido.'
+              : 'Código incorreto. Confira os 4 dígitos.',
+        ),
+        backgroundColor: correto ? Colors.green : Colors.red,
+      ),
+    );
+    if (!correto && mounted) {
+      for (final controller in _codigoControllers) {
+        controller.clear();
+      }
+      _codigoFocusNodes.first.requestFocus();
+    }
+  }
+
+  Future<void> _selecionarFotoDevolucao(int index) async {
+    try {
+      final foto = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 85,
+      );
+      if (foto != null && mounted) {
+        setState(() => _fotosDevolucao[index] = foto);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Não foi possível adicionar a foto: $e')),
+      );
+    }
+  }
+
+  Widget _buildCardFotosDevolucao() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Registro de Estado na Devolução',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: escuro,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Registre duas fotos do produto no momento da devolução.',
+            style: TextStyle(
+              fontSize: 12.5,
+              color: cinzaTexto,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: List.generate(2, (index) {
+              final foto = _fotosDevolucao[index];
+              return Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(right: index == 0 ? 8 : 0),
+                  child: InkWell(
+                    onTap: () => _selecionarFotoDevolucao(index),
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      height: 140,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFCBD5E1)),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: foto == null
+                          ? const Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.add_a_photo_outlined,
+                                  color: azul,
+                                  size: 30,
+                                ),
+                                SizedBox(height: 8),
+                                Text(
+                                  'Adicionar foto',
+                                  style: TextStyle(
+                                    color: cinzaTexto,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Image.file(File(foto.path), fit: BoxFit.cover),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBotaoConfirmarDevolucao() {
+    final fotosValidas =
+        _fotosDevolucao[0] != null && _fotosDevolucao[1] != null;
+    final habilitado =
+        _codigoDevolucaoValido && fotosValidas && !_confirmandoDevolucao;
+
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: FilledButton.icon(
+        onPressed: habilitado ? _confirmarDevolucao : null,
+        icon: _confirmandoDevolucao
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : const Icon(Icons.check_circle_outline),
+        label: Text(
+          _confirmandoDevolucao
+              ? 'Confirmando...'
+              : 'Confirmar Devolução',
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        style: FilledButton.styleFrom(
+          backgroundColor: azul,
+          disabledBackgroundColor: const Color(0xFFE2E8F0),
+          disabledForegroundColor: const Color(0xFF94A3B8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(26),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmarDevolucao() async {
+    if (!_codigoDevolucaoValido ||
+        _fotosDevolucao[0] == null ||
+        _fotosDevolucao[1] == null ||
+        _confirmandoDevolucao) {
+      return;
+    }
+
+    setState(() => _confirmandoDevolucao = true);
+    try {
+      final urls = <String>[];
+      for (var index = 0; index < _fotosDevolucao.length; index++) {
+        final foto = _fotosDevolucao[index]!;
+        final bytes = await foto.readAsBytes();
+        final extensao = foto.path.split('.').last;
+        final nomeArquivo =
+            'devolucao_${widget.idSolicitacao}_${DateTime.now().millisecondsSinceEpoch}_$index.$extensao';
+        await supabase.storage
+            .from('Imagens Recebimento')
+            .uploadBinary(
+              nomeArquivo,
+              bytes,
+              fileOptions: const FileOptions(
+                contentType: 'image/jpeg',
+                upsert: true,
+              ),
+            );
+        urls.add(
+          supabase.storage
+              .from('Imagens Recebimento')
+              .getPublicUrl(nomeArquivo),
+        );
+      }
+
+      await supabase
+          .from('solicitacoes')
+          .update({
+            'imagens_devolucao': urls,
+            'fk_status': 6,
+            'etapa_solicitacao': 5,
+          })
+          .eq('id_solicitacao', widget.idSolicitacao);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Devolução confirmada com sucesso.')),
+      );
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _confirmandoDevolucao = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Não foi possível confirmar a devolução: $e')),
+      );
+    }
   }
 
   Widget _caixaDigito(String digito) {
@@ -1838,7 +2183,11 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.headset_mic_outlined, color: Color(0xFF94A3B8), size: 15),
+            Icon(
+              Icons.headset_mic_outlined,
+              color: Color(0xFF94A3B8),
+              size: 15,
+            ),
             SizedBox(width: 6),
             Text(
               'Central de Ajuda 24h disponível pelo suporte',
@@ -1854,4 +2203,3 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
     );
   }
 }
-

@@ -113,6 +113,7 @@ enum FiltroSolicitacao {
         s.contains('deslocamento') ||
         s.contains('deslocando') ||
         s.contains('chegou') ||
+        s.contains('devolu') ||
         s.contains('exec') ||
         s.contains('aguardando cliente')) {
       return FiltroSolicitacao.emAndamento;
@@ -133,7 +134,8 @@ class MeusServicosSolicitadosPage extends StatefulWidget {
 }
 
 class _MeusServicosSolicitadosPageState
-    extends State<MeusServicosSolicitadosPage> {
+    extends State<MeusServicosSolicitadosPage>
+    with SingleTickerProviderStateMixin {
   static const Color _azul = Color(0xFF0FB3FF);
   static const Color _textoEscuro = Color(0xFF0F172A);
   static const Color _textoMuted = Color(0xFF64748B);
@@ -146,6 +148,7 @@ class _MeusServicosSolicitadosPageState
   final Set<int> _iniciandoSolicitacoes = {};
   final Set<int> _concluindoSolicitacoes = {};
   final Set<int> _avaliandoClientes = {};
+  late final AnimationController _animacaoDevolucao;
 
   List<SolicitacaoRecebida> _todas = [];
   FiltroSolicitacao _filtro = FiltroSolicitacao.novos;
@@ -153,7 +156,19 @@ class _MeusServicosSolicitadosPageState
   @override
   void initState() {
     super.initState();
+    _animacaoDevolucao = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+      lowerBound: 0.88,
+      upperBound: 1,
+    )..repeat(reverse: true);
     _inicializar();
+  }
+
+  @override
+  void dispose() {
+    _animacaoDevolucao.dispose();
+    super.dispose();
   }
 
   Future<void> _inicializar() async {
@@ -512,9 +527,11 @@ class _MeusServicosSolicitadosPageState
     }
 
     return _todas
-        .where((s) =>
-            (_filtro == FiltroSolicitacao.emAndamento && s.fkStatus == 4) ||
-            FiltroSolicitacao.porStatus(s.statusTexto) == _filtro)
+        .where(
+          (s) =>
+              (_filtro == FiltroSolicitacao.emAndamento && s.fkStatus == 4) ||
+              FiltroSolicitacao.porStatus(s.statusTexto) == _filtro,
+        )
         .toList();
   }
 
@@ -543,9 +560,11 @@ class _MeusServicosSolicitadosPageState
       return _todas.where((item) => _ehAtivo(item) || _ehAberta(item)).length;
     }
     return _todas
-        .where((s) =>
-            (filtro == FiltroSolicitacao.emAndamento && s.fkStatus == 4) ||
-            FiltroSolicitacao.porStatus(s.statusTexto) == filtro)
+        .where(
+          (s) =>
+              (filtro == FiltroSolicitacao.emAndamento && s.fkStatus == 4) ||
+              FiltroSolicitacao.porStatus(s.statusTexto) == filtro,
+        )
         .length;
   }
 
@@ -576,19 +595,28 @@ class _MeusServicosSolicitadosPageState
     );
   }
 
-  void _abrirTelaDeslocamento(SolicitacaoRecebida item) {
-    if (item.fkStatus == 32) {
+  Future<void> _abrirTelaDeslocamento(SolicitacaoRecebida item) async {
+    final solicitacao = await _supabase
+        .from('solicitacoes')
+        .select('fk_status')
+        .eq('id_solicitacao', item.idSolicitacao)
+        .maybeSingle();
+    final statusAtual = (solicitacao?['fk_status'] as num?)?.toInt();
+
+    if (statusAtual == 32) {
       final codigo = (1000 + Random().nextInt(9000)).toString();
-      _supabase
+      await _supabase
           .from('solicitacoes')
           .update({
             'fk_status': 33,
             'etapa_solicitacao': 2,
             'codigo_rec_dev': codigo,
           })
-          .eq('id_solicitacao', item.idSolicitacao)
-          .then((_) => _carregar());
+          .eq('id_solicitacao', item.idSolicitacao);
     }
+
+    await _carregar();
+    if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => TelaDeslocamentoProfissionalPage(
@@ -606,6 +634,43 @@ class _MeusServicosSolicitadosPageState
         ),
       ),
     );
+  }
+
+  void _abrirTelaRecebeDevolucao(SolicitacaoRecebida item) {
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => TelaRecebeDevolucaoProfissionalPage(
+              idSolicitacao: item.idSolicitacao,
+              codigoPedido: '#PED-${item.idSolicitacao}',
+              nomeCliente: item.nomeCliente,
+              fotoCliente: item.fotoCliente,
+              nomeServico: item.tituloServico,
+              modalidade: item.tipoExecucao.isNotEmpty
+                  ? item.tipoExecucao
+                  : 'Leva e Traz',
+              enderecoPrincipal: item.enderecoPrincipal ?? 'Destino do cliente',
+              enderecoComplementar: item.enderecoComplementar ?? '',
+              isEmpresa: _contaEmpresaAtiva,
+              idGrupoEmpresa: item.fkGrupoEmpresa,
+            ),
+          ),
+        )
+        .then((_) => _carregar());
+  }
+
+  void _abrirPorStatus(SolicitacaoRecebida item) {
+    if (item.fkStatus == 35 || item.fkStatus == 36) {
+      _abrirTelaDeslocamento(item);
+    } else if (item.fkStatus == 37) {
+      _abrirTelaRecebeDevolucao(item);
+    } else if (item.fkStatus == 32 ||
+        item.fkStatus == 33 ||
+        item.fkStatus == 34) {
+      _abrirTelaDeslocamento(item);
+    } else {
+      _abrirSolicitacaoEstado(item);
+    }
   }
 
   void _abrirSolicitacaoEmAndamento(SolicitacaoRecebida item) {
@@ -893,21 +958,11 @@ class _MeusServicosSolicitadosPageState
     }
     setState(() {});
     try {
-      final codigo = (1000 + Random().nextInt(9000)).toString();
-      await _supabase
-          .from('solicitacoes')
-          .update({
-            'fk_status': 33,
-            'etapa_solicitacao': 2,
-            'codigo_rec_dev': codigo,
-          })
-          .eq('id_solicitacao', item.idSolicitacao);
-      await _carregar();
+      await _abrirTelaDeslocamento(item);
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('Deslocamento iniciado.')));
-        _abrirTelaDeslocamento(item);
       }
     } catch (e) {
       if (mounted) {
@@ -1472,7 +1527,10 @@ class _MeusServicosSolicitadosPageState
 
   Widget _buildCard(SolicitacaoRecebida item) {
     final status = FiltroSolicitacao.porStatus(item.statusTexto);
-    if (_ehAceita(item) || status == FiltroSolicitacao.emAndamento || item.fkStatus == 4) {
+    final statusTxt = item.statusTexto?.trim().toLowerCase() ?? '';
+    if (_ehAceita(item) ||
+        status == FiltroSolicitacao.emAndamento ||
+        item.fkStatus == 4) {
       return _buildCardAceito(item);
     }
     final corBase = CorOficio.parse(item.corOficio);
@@ -1640,9 +1698,11 @@ class _MeusServicosSolicitadosPageState
     );
     return GestureDetector(
       onTap: () {
-        if (item.fkStatus == 33 || item.fkStatus == 32 || item.fkStatus == 34) {
-          _abrirTelaDeslocamento(item);
-        } else if (item.fkStatus == 4 || status == FiltroSolicitacao.emAndamento) {
+        if (item.fkStatus == 35 || item.fkStatus == 36 || item.fkStatus == 37) {
+          _abrirPorStatus(item);
+        } else if (item.fkStatus == 4 ||
+            statusTxt.contains('andamento') ||
+            statusTxt.contains('devolu')) {
           _abrirSolicitacaoEmAndamento(item);
         } else {
           _abrirSolicitacaoEstado(item);
@@ -1655,10 +1715,16 @@ class _MeusServicosSolicitadosPageState
   Widget _buildCardAceito(SolicitacaoRecebida item) {
     final status = item.statusTexto?.trim().toLowerCase() ?? '';
     final estaPago = status == 'pago';
-    final emAndamento = item.fkStatus == 4 || status == 'em andamento' || status.contains('andamento');
+    final emAndamento =
+        item.fkStatus == 4 ||
+        status == 'em andamento' ||
+        status.contains('andamento');
     final aguardandoCliente = status == 'aguardando cliente';
     final profissionalChegou = item.fkStatus == 34 || status.contains('chegou');
     final emDeslocamento = item.fkStatus == 32 || item.fkStatus == 33;
+    final aguardandoDevolucao = item.fkStatus == 35;
+    final devolucaoEmAndamento = item.fkStatus == 36;
+    final devolucaoChegou = item.fkStatus == 37;
     final descricao = item.detalhes?.isNotEmpty == true
         ? item.detalhes!
         : (item.descricaoServico ?? 'Detalhes não informados.');
@@ -1684,25 +1750,40 @@ class _MeusServicosSolicitadosPageState
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
             decoration: BoxDecoration(
-              color: _azul.withValues(alpha: .14),
+              color: aguardandoDevolucao
+                  ? Colors.orange.withValues(alpha: .14)
+                  : _azul.withValues(alpha: .14),
               borderRadius: BorderRadius.circular(18),
             ),
-            child: Text(
-              profissionalChegou
-                  ? '●  No local'
-                  : emDeslocamento
-                  ? '●  PROFISSIONAL EM DESLOCAMENTO'
-                  : estaPago
-                  ? '●  PAGAMENTO CONFIRMADO • PRONTO PARA INICIAR'
-                  : emAndamento
-                  ? '●  SERVIÇO EM ANDAMENTO'
-                  : aguardandoCliente
-                  ? '●  AGUARDANDO CONFIRMAÇÃO DO CLIENTE'
-                  : '●  SERVIÇO ACEITO',
-              style: TextStyle(
-                color: _azul,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
+            child: AnimatedBuilder(
+              animation: _animacaoDevolucao,
+              builder: (context, child) => Opacity(
+                opacity: devolucaoEmAndamento ? _animacaoDevolucao.value : 1,
+                child: child,
+              ),
+              child: Text(
+                aguardandoDevolucao
+                    ? '●  AGUARDANDO DESLOCAMENTO'
+                    : devolucaoEmAndamento
+                    ? '●  DEVOLUÇÃO EM ANDAMENTO'
+                    : devolucaoChegou
+                    ? '●  NO LOCAL'
+                    : profissionalChegou
+                    ? '●  No local'
+                    : emDeslocamento
+                    ? '●  PROFISSIONAL EM DESLOCAMENTO'
+                    : estaPago
+                    ? '●  PAGAMENTO CONFIRMADO • PRONTO PARA INICIAR'
+                    : emAndamento
+                    ? '●  SERVIÇO EM ANDAMENTO'
+                    : aguardandoCliente
+                    ? '●  AGUARDANDO CONFIRMAÇÃO DO CLIENTE'
+                    : '●  SERVIÇO ACEITO',
+                style: TextStyle(
+                  color: aguardandoDevolucao ? Colors.orange.shade700 : _azul,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
           ),
@@ -1990,9 +2071,11 @@ class _MeusServicosSolicitadosPageState
     );
     return GestureDetector(
       onTap: () {
-        if (item.fkStatus == 33 || item.fkStatus == 32 || item.fkStatus == 34) {
-          _abrirTelaDeslocamento(item);
-        } else if (item.fkStatus == 4 || status == FiltroSolicitacao.emAndamento) {
+        if (item.fkStatus == 35 || item.fkStatus == 36 || item.fkStatus == 37) {
+          _abrirPorStatus(item);
+        } else if (item.fkStatus == 4 ||
+            status.contains('andamento') ||
+            status.contains('devolu')) {
           _abrirSolicitacaoEmAndamento(item);
         } else {
           _abrirSolicitacaoEstado(item);
@@ -2094,12 +2177,53 @@ class _MeusServicosSolicitadosPageState
     final estaAceito =
         item.fkStatus == 31 || (statusTxt == 'aceito' && !estaPago);
     final profissionalChegou =
-        item.fkStatus == 34 ||
-        statusTxt.contains('chegou');
+        item.fkStatus == 34 || statusTxt.contains('chegou');
     final emDeslocamento = item.fkStatus == 32 || item.fkStatus == 33;
+    final aguardandoDevolucao = item.fkStatus == 35;
+    final devolucaoEmDeslocamento = item.fkStatus == 36;
+    final devolucaoChegou = item.fkStatus == 37;
     return Row(
       children: [
-        if (profissionalChegou)
+        if (aguardandoDevolucao)
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: () => _abrirTelaDeslocamento(item),
+              icon: const Icon(Icons.local_shipping_outlined, size: 18),
+              label: const Text('Iniciar Devolução'),
+              style: FilledButton.styleFrom(
+                backgroundColor: _azul,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          )
+        else if (devolucaoChegou)
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: () => _abrirTelaRecebeDevolucao(item),
+              icon: const Icon(Icons.assignment_turned_in_outlined, size: 18),
+              label: const Text('Realizar Devolução'),
+              style: FilledButton.styleFrom(
+                backgroundColor: _azul,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          )
+        else if (devolucaoEmDeslocamento)
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: () => _abrirTelaDeslocamento(item),
+              icon: const Icon(Icons.navigation_rounded, size: 18),
+              label: const Text('Continuar Devolução'),
+              style: FilledButton.styleFrom(
+                backgroundColor: _azul,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          )
+        else if (profissionalChegou)
           Expanded(
             child: FilledButton(
               onPressed: () => _abrirTelaDeslocamento(item),
@@ -2226,7 +2350,10 @@ class _MeusServicosSolicitadosPageState
               ),
             ),
           ),
-        if (profissionalChegou ||
+        if (aguardandoDevolucao ||
+            profissionalChegou ||
+            devolucaoChegou ||
+            devolucaoEmDeslocamento ||
             emDeslocamento ||
             estaAceito ||
             estaPago ||

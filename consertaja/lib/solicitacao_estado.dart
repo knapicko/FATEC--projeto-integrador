@@ -1,4 +1,4 @@
-﻿import 'dart:math';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -145,6 +145,12 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
   String _legendaAnexo = '';
   ModalidadeExecucao _modalidade = ModalidadeExecucao.levaETraz;
   String _tipoExecucaoOriginal = 'Leva e Traz';
+
+  bool get _ehDevolucao =>
+      _etapaSolicitacao == 4 &&
+      (_idStatusSolicitacao == 35 ||
+          _idStatusSolicitacao == 36 ||
+          _idStatusSolicitacao == 37);
 
   String _dataExibicao = '15 de Outubro';
   String _periodoExibicao = 'Hoje à tarde';
@@ -1238,7 +1244,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                             physics: const AlwaysScrollableScrollPhysics(),
                             padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
                             children: [
-                              if (widget.recemAceito) ...[
+                              if (widget.recemAceito || _ehDevolucao) ...[
                                 _buildCardConfirmacaoAceite(),
                                 const SizedBox(height: 14),
                               ],
@@ -1361,6 +1367,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
   // 2. CARD DE CONFIRMAÇÃO DE ACEITE
   // ==========================================
   Widget _buildCardConfirmacaoAceite() {
+    final devolucao = _ehDevolucao;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
@@ -1386,7 +1393,11 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
               color: _azul,
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.verified, color: Colors.white, size: 28),
+            child: Icon(
+              devolucao ? Icons.local_shipping_rounded : Icons.verified,
+              color: Colors.white,
+              size: 28,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -1405,13 +1416,13 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                         color: _azul,
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.circle, color: Colors.white, size: 7),
                           SizedBox(width: 5),
                           Text(
-                            'Confirmado',
+                            devolucao ? 'Devolução' : 'Confirmado',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 12,
@@ -1432,8 +1443,10 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                   ],
                 ),
                 const SizedBox(height: 10),
-                const Text(
-                  'Você aceitou este serviço!',
+                Text(
+                  devolucao
+                      ? 'Cliente aguardando a devolução'
+                      : 'Você aceitou este serviço!',
                   style: TextStyle(
                     color: _textoEscuro,
                     fontSize: 18,
@@ -1442,7 +1455,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'A cliente $_nomeCliente foi notificada. Seu horário está reservado com exclusividade.',
+                  devolucao
+                      ? 'O serviço foi concluído com sucesso. Organize o deslocamento para devolver o produto ao cliente.'
+                      : 'A cliente $_nomeCliente foi notificada. Seu horário está reservado com exclusividade.',
                   style: const TextStyle(
                     color: _textoMuted,
                     fontSize: 13.5,
@@ -1465,57 +1480,78 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
     late final List<String> etapas;
     late final List<IconData> icones;
 
-    switch (_modalidade) {
-      case ModalidadeExecucao.levaETraz:
-        etapas = ['Aceito', 'Busca', 'Processo', 'Entrega', 'Concluído'];
-        icones = [
-          Icons.check,
-          Icons.radio_button_checked,
-          Icons.business_center_outlined,
-          Icons.local_shipping_outlined,
-          Icons.check_circle_outline,
-        ];
-        break;
-      case ModalidadeExecucao.atendimentoDomicilio:
-        etapas = ['Aceito', 'Deslocamento', 'No Local', 'Concluído'];
-        icones = [
-          Icons.check,
-          Icons.radio_button_checked,
-          Icons.business_center_outlined,
-          Icons.check_circle_outline,
-        ];
-        break;
-      case ModalidadeExecucao.retiradaNoLocal:
-        etapas = ['Aceito', 'Cliente', 'Processo', 'Cliente', 'Concluído'];
-        icones = [
-          Icons.check,
-          Icons.radio_button_checked,
-          Icons.business_center_outlined,
-          Icons.local_shipping_outlined,
-          Icons.check_circle_outline,
-        ];
-        break;
-      case ModalidadeExecucao.recebaEmCasa:
-        etapas = ['Aceito', 'Cliente', 'Processo', 'Entrega', 'Concluído'];
-        icones = [
-          Icons.check,
-          Icons.radio_button_checked,
-          Icons.business_center_outlined,
-          Icons.local_shipping_outlined,
-          Icons.check_circle_outline,
-        ];
-        break;
+    if (_ehDevolucao) {
+      etapas = [
+        'Aceito',
+        'Recebimento',
+        'Manutenção',
+        'Devolução',
+        'Concluído',
+      ];
+      icones = [
+        Icons.check,
+        Icons.inventory_2_outlined,
+        Icons.handyman_outlined,
+        Icons.local_shipping_outlined,
+        Icons.check_circle_outline,
+      ];
+    } else {
+      switch (_modalidade) {
+        case ModalidadeExecucao.levaETraz:
+          etapas = ['Aceito', 'Busca', 'Processo', 'Entrega', 'Concluído'];
+          icones = [
+            Icons.check,
+            Icons.radio_button_checked,
+            Icons.business_center_outlined,
+            Icons.local_shipping_outlined,
+            Icons.check_circle_outline,
+          ];
+          break;
+        case ModalidadeExecucao.atendimentoDomicilio:
+          etapas = ['Aceito', 'Deslocamento', 'No Local', 'Concluído'];
+          icones = [
+            Icons.check,
+            Icons.radio_button_checked,
+            Icons.business_center_outlined,
+            Icons.check_circle_outline,
+          ];
+          break;
+        case ModalidadeExecucao.retiradaNoLocal:
+          etapas = ['Aceito', 'Cliente', 'Processo', 'Cliente', 'Concluído'];
+          icones = [
+            Icons.check,
+            Icons.radio_button_checked,
+            Icons.business_center_outlined,
+            Icons.local_shipping_outlined,
+            Icons.check_circle_outline,
+          ];
+          break;
+        case ModalidadeExecucao.recebaEmCasa:
+          etapas = ['Aceito', 'Cliente', 'Processo', 'Entrega', 'Concluído'];
+          icones = [
+            Icons.check,
+            Icons.radio_button_checked,
+            Icons.business_center_outlined,
+            Icons.local_shipping_outlined,
+            Icons.check_circle_outline,
+          ];
+          break;
+      }
     }
 
     final status = _statusTexto.trim().toLowerCase();
-    final etapaAtual =
-        _modalidade == ModalidadeExecucao.levaETraz && _etapaSolicitacao == 0
+    final etapaAtual = _ehDevolucao
+        ? 3
+        : _modalidade == ModalidadeExecucao.levaETraz && _etapaSolicitacao == 0
         ? 0
         : _idStatusSolicitacao == 33 && _etapaSolicitacao >= 2
         ? 2
         : _idStatusSolicitacao == 32 && _etapaSolicitacao >= 1
         ? 1
-        : _idStatusSolicitacao == 34
+        : (_idStatusSolicitacao == 34 ||
+              _idStatusSolicitacao == 35 ||
+              _idStatusSolicitacao == 36 ||
+              _idStatusSolicitacao == 37)
         ? 2
         : status.contains('conclu')
         ? etapas.length
@@ -1539,7 +1575,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
             final isLast = index == etapas.length - 1;
             final isDone = index < etapaAtual;
             final isCurrent = index == etapaAtual && etapaAtual < etapas.length;
-                        return Expanded(
+            return Expanded(
               child: Column(
                 children: [
                   SizedBox(
@@ -1616,9 +1652,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                       fontWeight: isDone || isCurrent
                           ? FontWeight.w800
                           : FontWeight.w600,
-                      color: isDone || isCurrent
-                          ? _azul
-                          : _textoMuted,
+                      color: isDone || isCurrent ? _azul : _textoMuted,
                     ),
                   ),
                 ],
@@ -1749,8 +1783,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
               final isFirst = index == 0;
               final isLast = index == etapas.length - 1;
               final isDone = index < etapaAtual;
-              final isCurrent = index == etapaAtual && etapaAtual < etapas.length;
-              
+              final isCurrent =
+                  index == etapaAtual && etapaAtual < etapas.length;
+
               return Expanded(
                 child: Column(
                   children: [
@@ -1823,7 +1858,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 11.5,
-                        fontWeight: isDone || isCurrent ? FontWeight.w800 : FontWeight.w600,
+                        fontWeight: isDone || isCurrent
+                            ? FontWeight.w800
+                            : FontWeight.w600,
                         color: isDone || isCurrent ? _azul : _textoMuted,
                       ),
                       maxLines: 1,
@@ -3073,31 +3110,40 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
       );
     }
 
+    if (_idStatusSolicitacao == 35 ||
+        _idStatusSolicitacao == 36 ||
+        _idStatusSolicitacao == 37) {
+      return SizedBox(
+        width: double.infinity,
+        height: 52,
+        child: FilledButton.icon(
+          onPressed: _idStatusSolicitacao == 37
+              ? null
+              : () => _abrirTelaDeslocamento(),
+          icon: const Icon(Icons.navigation_rounded, size: 20),
+          label: Text(
+            _idStatusSolicitacao == 35
+                ? 'Iniciar Deslocamento'
+                : 'Continuar deslocamento',
+          ),
+          style: FilledButton.styleFrom(
+            backgroundColor: _azul,
+            foregroundColor: Colors.white,
+            disabledBackgroundColor: const Color(0xFFE2E8F0),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(26),
+            ),
+          ),
+        ),
+      );
+    }
+
     if (_idStatusSolicitacao == 32 || _idStatusSolicitacao == 33) {
       return SizedBox(
         width: double.infinity,
         height: 52,
         child: FilledButton.icon(
-          onPressed: () async {
-            if (_idStatusSolicitacao == 32) {
-              final codigo = (1000 + Random().nextInt(9000)).toString();
-              try {
-                await _supabase.from('solicitacoes').update({
-                  'fk_status': 33,
-                  'etapa_solicitacao': 2,
-                  'codigo_rec_dev': codigo,
-                }).eq('id_solicitacao', _idSolicitacao);
-                if (mounted) {
-                  setState(() {
-                    _idStatusSolicitacao = 33;
-                    _etapaSolicitacao = 2;
-                    _statusTexto = 'Profissional Deslocando';
-                  });
-                }
-              } catch (_) {}
-            }
-            _abrirTelaDeslocamento();
-          },
+          onPressed: () => _abrirTelaDeslocamento(),
           icon: const Icon(Icons.navigation_rounded, size: 20),
           label: Text(
             _idStatusSolicitacao == 33
@@ -3146,7 +3192,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
       );
     }
 
-    final bool estaAceito = _idStatusSolicitacao == 31 || (status.contains('aceito') && _idStatusSolicitacao != 3);
+    final bool estaAceito =
+        _idStatusSolicitacao == 31 ||
+        (status.contains('aceito') && _idStatusSolicitacao != 3);
 
     late final Widget botaoPrincipal;
 
