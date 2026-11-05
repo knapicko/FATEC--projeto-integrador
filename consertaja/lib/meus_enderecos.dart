@@ -8,12 +8,15 @@ import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart' hide Path;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'gestao_equipe.dart';
 import 'tela_home.dart';
 import 'tela_home_profissional.dart';
 import 'meus_pedidos.dart';
+import 'meus_servicos_solicitados.dart';
 import 'tela_meu_perfil_cliente.dart';
 import 'seguindo_cliente.dart';
 import 'tela_meu_perfil_profissional.dart';
+import 'tela_mensagens.dart';
 import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
 import 'utils/app_navigation_util.dart';
@@ -1346,6 +1349,7 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
     return widget.isProfissional
         ? BottomNavigationBarProfissional(
             currentIndex: 4,
+            isContaEmpresa: _contaEmpresaAtiva,
             // Tocar em Perfil/Empresa estando em Endereços recarrega a lista.
             onReselecionarAbaAtual: (_) => _carregarEnderecos(),
             onTap: _onBottomNavigationTap,
@@ -1359,21 +1363,67 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
   }
 
   void _onBottomNavigationTap(int index) {
+    if (widget.isProfissional) {
+      if (index == 0 || index == 1) {
+        AppNavigationUtil.navegarAba(
+          context,
+          TelaHomeProfissional(isVisitante: widget.isVisitante),
+          isHome: true,
+        );
+      } else if (index == 2) {
+        AppNavigationUtil.navegarAba(
+          context,
+          TelaMensagensPage(
+            isVisitante: widget.isVisitante,
+            isProfissional: true,
+          ),
+          isHome: false,
+        );
+      } else if (index == 3) {
+        Navigator.of(context).push(
+          AppNavigationUtil.rotaSemAnimacao(
+            const MeusServicosSolicitadosPage(),
+            nome: 'MeusServicosSolicitadosPage',
+          ),
+        );
+      } else if (index == 4) {
+        if (_contaEmpresaAtiva) {
+          Navigator.of(context).push(
+            AppNavigationUtil.rotaSemAnimacao(
+              const GestaoEquipePage(),
+              nome: 'GestaoEquipePage',
+            ),
+          );
+        } else {
+          AppNavigationUtil.navegarAba(
+            context,
+            TelaMeuPerfilProfissionalPage(isVisitante: widget.isVisitante),
+            isHome: false,
+          );
+        }
+      }
+      return;
+    }
+
     if (index == 0) {
       AppNavigationUtil.navegarAba(
         context,
-        widget.isProfissional
-            ? TelaHomeProfissional(isVisitante: widget.isVisitante)
-            : TelaHome(isVisitante: widget.isVisitante),
+        TelaHome(isVisitante: widget.isVisitante),
         isHome: true,
       );
-    } else if (index == 1 && !widget.isProfissional) {
+    } else if (index == 1) {
       AppNavigationUtil.navegarAba(
         context,
         SeguindoClientePage(isVisitante: widget.isVisitante),
         isHome: false,
       );
-    } else if (index == 3 && !widget.isProfissional) {
+    } else if (index == 2) {
+      AppNavigationUtil.navegarAba(
+        context,
+        TelaMensagensPage(isVisitante: widget.isVisitante),
+        isHome: false,
+      );
+    } else if (index == 3) {
       AppNavigationUtil.navegarAba(
         context,
         MeusPedidosPage(isVisitante: widget.isVisitante),
@@ -1382,9 +1432,7 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
     } else if (index == 4) {
       AppNavigationUtil.navegarAba(
         context,
-        widget.isProfissional
-            ? TelaMeuPerfilProfissionalPage(isVisitante: widget.isVisitante)
-            : TelaMeuPerfilClientePage(isVisitante: widget.isVisitante),
+        TelaMeuPerfilClientePage(isVisitante: widget.isVisitante),
         isHome: false,
       );
     }
