@@ -52,9 +52,15 @@ O projeto foi desenvolvido por uma equipe multidisciplinar:
 
 ## APIs e Ferramentas Utilizadas
 
-* **[JusBrasil](https://www.jusbrasil.com.br/)** — Validação de documentos, CNPJs e CPFs
-* **[AwesomeAPI](https://docs.awesomeapi.com.br/)** — Serviço de geolocalização
-* **[Leaflet](https://leafletjs.com/)** — Exibição do mapa interativo
+* **[Supabase](https://supabase.com/)** — Banco de dados, autenticação, armazenamento e funções de backend
+* **[Stripe](https://stripe.com/br)** — Processamento de pagamentos integrado ao backend do Supabase
+* **[Mapbox](https://www.mapbox.com/)** — Mapas e consulta de rotas durante o deslocamento
+* **[BrasilAPI](https://brasilapi.com.br/)** — Consulta de dados de CNPJ
+* **[AwesomeAPI](https://docs.awesomeapi.com.br/)** — Consulta de endereço a partir do CEP
+* **[OpenStreetMap](https://www.openstreetmap.org/)** — Mapas e geocodificação de endereços com o serviço Nominatim
+* **[OSRM](https://project-osrm.org/)** — Serviço alternativo para cálculo de rotas
+* **[Google Sign-In](https://developers.google.com/identity)** — Autenticação com conta Google
+* **[Flutter Map](https://pub.dev/packages/flutter_map)** — Exibição dos mapas na interface do aplicativo
 
 ---
 
@@ -67,7 +73,7 @@ Você pode testar a **Conserta Já** de duas maneiras: utilizando o aplicativo p
 Se você deseja apenas testar o aplicativo sem precisar configurar um ambiente de desenvolvimento:
 
 1. Acesse a área de **[Releases](../../releases)** deste repositório.
-2. Baixe o arquivo `app-release.apk`.
+2. Baixe o ultimo arquivo `app-release.apk`.
 3. Transfira para o seu dispositivo Android e execute-o para instalar.
 
 ### Opção 2 — Executar pelo VS Code ou Android Studio (Para Desenvolvedores)
@@ -204,4 +210,3 @@ A pasta `docs/` contém a documentação e os materiais utilizados no projeto.
 Este projeto foi desenvolvido como parte do **Projeto Integrador da FATEC Ipiranga**.
 
 ---
-
