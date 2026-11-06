@@ -1,20 +1,9 @@
-<p align="center">
-  <a href="LINK_DOCUMENTACAO">
-    <img src="https://img.shields.io/badge/Documentação-Drive-4285F4?style=for-the-badge&logo=googledrive&logoColor=white" alt="Documentação">
-  </a>
-  <a href="LINK_FIGMA">
-    <img src="https://img.shields.io/badge/Prototipação-Figma-F24E1E?style=for-the-badge&logo=figma&logoColor=white" alt="Figma">
-  </a>
-  <a href="LINK_FORM_CLIENTES">
-    <img src="https://img.shields.io/badge/Clientes-Formulário-34A853?style=for-the-badge&logo=googleforms&logoColor=white" alt="Formulário de Clientes">
-  </a>
-  <a href="LINK_FORM_PROFISSIONAIS">
-    <img src="https://img.shields.io/badge/Profissionais-Formulário-673AB7?style=for-the-badge&logo=googleforms&logoColor=white" alt="Formulário de Profissionais">
-  </a>
-  <a href="LINK_RELEASES">
-    <img src="https://img.shields.io/badge/Releases-GitHub-181717?style=for-the-badge&logo=github&logoColor=white" alt="Releases">
-  </a>
-</p>
+
+[![Documentação](https://img.shields.io/badge/Google%20Drive-Documentação-4285F4?logo=googledrive&logoColor=white)](LINK_DOCUMENTACAO)
+[![Figma](https://img.shields.io/badge/Figma-Prototipação-F24E1E?logo=figma&logoColor=white)](LINK_FIGMA)
+[![Clientes](https://img.shields.io/badge/Google%20Forms-Clientes-7248B9?logo=googleforms&logoColor=white)](LINK_FORM_CLIENTES)
+[![Profissionais](https://img.shields.io/badge/Google%20Forms-Profissionais-7248B9?logo=googleforms&logoColor=white)](LINK_FORM_PROFISSIONAIS)
+[![GitHub Releases](https://img.shields.io/badge/GitHub-Releases-181717?logo=github&logoColor=white)](LINK_RELEASES)
 
 # Conserta Já
 
