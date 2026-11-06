@@ -390,7 +390,10 @@ class _TelaRecebeDevolucaoProfissionalPageState
     try {
       final List<String> urlsImagens = [];
 
-      // 1. Upload de cada foto no bucket 'Imagens Recebimento'
+      // 1. Upload de cada foto no bucket correspondente à etapa.
+      final bucketImagens = _ehDevolucao
+          ? 'Imagens Devolucao'
+          : 'Imagens Recebimento';
       for (int i = 0; i < _fotos.length; i++) {
         final xfile = _fotos[i];
         if (xfile == null) continue;
@@ -398,68 +401,37 @@ class _TelaRecebeDevolucaoProfissionalPageState
         final bytes = await xfile.readAsBytes();
         final ext = xfile.path.split('.').last;
         final nomeArquivo =
-            'recebimento_${widget.idSolicitacao}_${DateTime.now().millisecondsSinceEpoch}_$i.$ext';
+            'solicitacao/${widget.idSolicitacao}/${_ehDevolucao ? 'devolucao' : 'recebimento'}_${DateTime.now().millisecondsSinceEpoch}_$i.$ext';
 
         await _supabase.storage
-            .from('Imagens Recebimento')
+            .from(bucketImagens)
             .uploadBinary(
               nomeArquivo,
               bytes,
-              fileOptions: const FileOptions(
-                contentType: 'image/jpeg',
-                upsert: true,
-              ),
+              fileOptions: const FileOptions(contentType: 'image/jpeg'),
             );
         urlsImagens.add(
-          _supabase.storage
-              .from('Imagens Recebimento')
-              .getPublicUrl(nomeArquivo),
+          _supabase.storage.from(bucketImagens).getPublicUrl(nomeArquivo),
         );
       }
 
       // 2. Salvar na tabela solicitacoes
       final obs = _obsController.text.trim();
       final agoraIso = DateTime.now().toIso8601String();
-      try {
-        await _supabase
-            .from('solicitacoes')
-            .update({
-              if (_ehDevolucao) 'imagens_devolucao': urlsImagens,
-              if (!_ehDevolucao) 'imagens_recebimento': urlsImagens,
-              'obs_do_prof': obs,
-              'fk_status': _ehDevolucao ? 6 : 4,
-              'etapa_solicitacao': _ehDevolucao ? 5 : 3,
-              'data_inicio_andamento': agoraIso,
-              'andamento_pausado': false,
-            })
-            .eq('id_solicitacao', widget.idSolicitacao);
-      } catch (eUpdate) {
-        debugPrint(
-          'Erro ao atualizar solicitacoes com novas colunas: $eUpdate',
-        );
-        // Tenta sem colunas opcionais caso ainda não tenham sido migradas no Supabase
-        try {
-          await _supabase
-              .from('solicitacoes')
-              .update({
-                if (_ehDevolucao) 'imagens_devolucao': urlsImagens,
-                if (!_ehDevolucao) 'imagens_recebimento': urlsImagens,
-                'obs_do_prof': obs,
-                'fk_status': _ehDevolucao ? 6 : 4,
-                'etapa_solicitacao': _ehDevolucao ? 5 : 3,
-              })
-              .eq('id_solicitacao', widget.idSolicitacao);
-        } catch (_) {
-          await _supabase
-              .from('solicitacoes')
-              .update({
-                'obs_do_prof': obs,
-                'fk_status': _ehDevolucao ? 6 : 4,
-                'etapa_solicitacao': _ehDevolucao ? 5 : 3,
-              })
-              .eq('id_solicitacao', widget.idSolicitacao);
-        }
-      }
+      await _supabase
+          .from('solicitacoes')
+          .update({
+            if (_ehDevolucao) 'imagens_devolucao': urlsImagens,
+            if (!_ehDevolucao) 'imagens_recebimento': urlsImagens,
+            'obs_do_prof': obs,
+            'fk_status': _ehDevolucao ? 6 : 4,
+            'etapa_solicitacao': _ehDevolucao ? 5 : 3,
+            'data_inicio_andamento': agoraIso,
+            'andamento_pausado': false,
+          })
+          .eq('id_solicitacao', widget.idSolicitacao)
+          .select('id_solicitacao')
+          .single();
 
       if (!mounted) return;
 

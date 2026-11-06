@@ -1920,11 +1920,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
           const SizedBox(height: 6),
           const Text(
             'Registre duas fotos do produto no momento da devolução.',
-            style: TextStyle(
-              fontSize: 12.5,
-              color: cinzaTexto,
-              height: 1.3,
-            ),
+            style: TextStyle(fontSize: 12.5, color: cinzaTexto, height: 1.3),
           ),
           const SizedBox(height: 14),
           Row(
@@ -1998,13 +1994,8 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
               )
             : const Icon(Icons.check_circle_outline),
         label: Text(
-          _confirmandoDevolucao
-              ? 'Confirmando...'
-              : 'Confirmar Devolução',
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
-          ),
+          _confirmandoDevolucao ? 'Confirmando...' : 'Confirmar Devolução',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
         ),
         style: FilledButton.styleFrom(
           backgroundColor: azul,
@@ -2034,21 +2025,16 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
         final bytes = await foto.readAsBytes();
         final extensao = foto.path.split('.').last;
         final nomeArquivo =
-            'devolucao_${widget.idSolicitacao}_${DateTime.now().millisecondsSinceEpoch}_$index.$extensao';
+            'solicitacao/${widget.idSolicitacao}/devolucao_${DateTime.now().millisecondsSinceEpoch}_$index.$extensao';
         await supabase.storage
-            .from('Imagens Recebimento')
+            .from('Imagens Devolucao')
             .uploadBinary(
               nomeArquivo,
               bytes,
-              fileOptions: const FileOptions(
-                contentType: 'image/jpeg',
-                upsert: true,
-              ),
+              fileOptions: const FileOptions(contentType: 'image/jpeg'),
             );
         urls.add(
-          supabase.storage
-              .from('Imagens Recebimento')
-              .getPublicUrl(nomeArquivo),
+          supabase.storage.from('Imagens Devolucao').getPublicUrl(nomeArquivo),
         );
       }
 
@@ -2059,7 +2045,9 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
             'fk_status': 6,
             'etapa_solicitacao': 5,
           })
-          .eq('id_solicitacao', widget.idSolicitacao);
+          .eq('id_solicitacao', widget.idSolicitacao)
+          .select('id_solicitacao')
+          .single();
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
