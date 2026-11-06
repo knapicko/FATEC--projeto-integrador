@@ -1,3 +1,9 @@
+  [![Documentação](https://img.shields.io/badge/Google%20Drive-Documentação-4285F4?logo=googledrive&logoColor=white)](LINK_DOCUMENTACAO)
+  [![Figma](https://img.shields.io/badge/Figma-Prototipação-F24E1E?logo=figma&logoColor=white)](LINK_FIGMA)
+  [![Clientes](https://img.shields.io/badge/Google%20Forms-Clientes-7248B9?logo=googleforms&logoColor=white)](https://forms.gle/KBp326Jr1YuALpBh7)
+  [![Profissionais](https://img.shields.io/badge/Google%20Forms-Profissionais-7248B9?logo=googleforms&logoColor=white)](https://forms.gle/75LYpiQaMZWYdZ7QA)
+  [![GitHub Releases](https://img.shields.io/badge/GitHub-Releases-181717?logo=github&logoColor=white)](https://github.com/knapicko/FATEC--projeto-integrador/releases)
+
 # Conserta Já
 
 <p align="center">
