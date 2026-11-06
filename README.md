@@ -1,18 +1,18 @@
 <p align="center">
-  <a href="LINK_DOCUMENTACAO" target="_blank">
-    <img src="https://img.shields.io/badge/Documentação-Google%20Drive-4285F4?style=for-the-badge&logo=googledrive&logoColor=white" alt="Documentação">
+  <a href="LINK_DOCUMENTACAO">
+    <img src="https://img.shields.io/badge/Documentação-Drive-4285F4?style=for-the-badge&logo=googledrive&logoColor=white" alt="Documentação">
   </a>
-  <a href="LINK_FIGMA" target="_blank">
+  <a href="LINK_FIGMA">
     <img src="https://img.shields.io/badge/Prototipação-Figma-F24E1E?style=for-the-badge&logo=figma&logoColor=white" alt="Figma">
   </a>
-  <a href="LINK_FORM_CLIENTES" target="_blank">
-    <img src="https://img.shields.io/badge/Pesquisa-Clientes-34A853?style=for-the-badge&logo=googleforms&logoColor=white" alt="Pesquisa com Clientes">
+  <a href="LINK_FORM_CLIENTES">
+    <img src="https://img.shields.io/badge/Clientes-Formulário-34A853?style=for-the-badge&logo=googleforms&logoColor=white" alt="Formulário de Clientes">
   </a>
-  <a href="LINK_FORM_PROFISSIONAIS" target="_blank">
-    <img src="https://img.shields.io/badge/Pesquisa-Profissionais-673AB7?style=for-the-badge&logo=googleforms&logoColor=white" alt="Pesquisa com Profissionais">
+  <a href="LINK_FORM_PROFISSIONAIS">
+    <img src="https://img.shields.io/badge/Profissionais-Formulário-673AB7?style=for-the-badge&logo=googleforms&logoColor=white" alt="Formulário de Profissionais">
   </a>
-  <a href="LINK_RELEASES" target="_blank">
-    <img src="https://img.shields.io/badge/Downloads-Releases-181717?style=for-the-badge&logo=github&logoColor=white" alt="Releases">
+  <a href="LINK_RELEASES">
+    <img src="https://img.shields.io/badge/Releases-GitHub-181717?style=for-the-badge&logo=github&logoColor=white" alt="Releases">
   </a>
 </p>
 
