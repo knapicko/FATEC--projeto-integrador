@@ -1,3 +1,21 @@
+<p align="center">
+  <a href="LINK_DOCUMENTACAO" target="_blank">
+    <img src="https://img.shields.io/badge/Documentação-Google%20Drive-4285F4?style=for-the-badge&logo=googledrive&logoColor=white" alt="Documentação">
+  </a>
+  <a href="LINK_FIGMA" target="_blank">
+    <img src="https://img.shields.io/badge/Prototipação-Figma-F24E1E?style=for-the-badge&logo=figma&logoColor=white" alt="Figma">
+  </a>
+  <a href="LINK_FORM_CLIENTES" target="_blank">
+    <img src="https://img.shields.io/badge/Pesquisa-Clientes-34A853?style=for-the-badge&logo=googleforms&logoColor=white" alt="Pesquisa com Clientes">
+  </a>
+  <a href="LINK_FORM_PROFISSIONAIS" target="_blank">
+    <img src="https://img.shields.io/badge/Pesquisa-Profissionais-673AB7?style=for-the-badge&logo=googleforms&logoColor=white" alt="Pesquisa com Profissionais">
+  </a>
+  <a href="LINK_RELEASES" target="_blank">
+    <img src="https://img.shields.io/badge/Downloads-Releases-181717?style=for-the-badge&logo=github&logoColor=white" alt="Releases">
+  </a>
+</p>
+
 # Conserta Já
 
 <p align="center">
