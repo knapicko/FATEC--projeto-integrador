@@ -15,6 +15,7 @@ import 'gestao_equipe.dart';
 import 'tela_chat_profissional.dart';
 import 'tela_meu_perfil_profissional.dart';
 import 'tela_recebe_devolucao_profissional.dart';
+import 'profissional_no_local_atendimento_presencial.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
 import 'utils/iniciais.dart';
 import 'widgets/skeleton_loading.dart';
@@ -115,6 +116,7 @@ class _TelaDeslocamentoProfissionalPageState
   String? _nomeProfissional;
   int? _fkStatus;
   int _etapaSolicitacao = 0;
+  String _tipoExecucao = 'Leva e Traz';
 
   bool get _ehDevolucao =>
       _etapaSolicitacao == 4 &&
@@ -286,7 +288,7 @@ class _TelaDeslocamentoProfissionalPageState
           .select(
             'id_solicitacao, data_solicitacao, valor_final, detalhes, '
             'data_agendada, hora_agendada, hora_agendada_fim, tipo_execucao, fk_grupo_empresa, '
-            'fk_status, etapa_solicitacao, fk_profissional, fk_usuario, fk_endereco, fk_servico_prof, fk_servico_temp',
+            'fk_status, etapa_solicitacao, tipo_execucao, fk_profissional, fk_usuario, fk_endereco, fk_servico_prof, fk_servico_temp',
           )
           .eq('id_solicitacao', widget.idSolicitacao)
           .maybeSingle();
@@ -304,6 +306,7 @@ class _TelaDeslocamentoProfissionalPageState
       final fkStatusAtual = (sol['fk_status'] as num?)?.toInt() ?? 0;
       _fkStatus = fkStatusAtual;
       _etapaSolicitacao = (sol['etapa_solicitacao'] as num?)?.toInt() ?? 0;
+      _tipoExecucao = sol['tipo_execucao']?.toString().trim() ?? 'Leva e Traz';
 
       _codigoPedido =
           '#PED-2026-${widget.idSolicitacao.toString().padLeft(4, '0')}';
@@ -692,10 +695,18 @@ class _TelaDeslocamentoProfissionalPageState
         debugPrint('Erro ao atualizar status 37 na devolução: $e');
       }
     } else if (!_ehDevolucao) {
+      final atendimentoDomicilio = _tipoExecucao
+          .toLowerCase()
+          .replaceAll('í', 'i')
+          .replaceAll('ã', 'a')
+          .contains('domicilio');
       try {
         await supabase
             .from('solicitacoes')
-            .update({'fk_status': 34, 'etapa_solicitacao': 2})
+            .update({
+              'fk_status': 34,
+              'etapa_solicitacao': atendimentoDomicilio ? 3 : 2,
+            })
             .eq('id_solicitacao', widget.idSolicitacao);
       } catch (e) {
         debugPrint('Erro ao atualizar status 34 na solicitacao: $e');
@@ -704,26 +715,45 @@ class _TelaDeslocamentoProfissionalPageState
 
     if (!mounted) return;
 
+    final atendimentoDomicilio = _tipoExecucao
+        .toLowerCase()
+        .replaceAll('í', 'i')
+        .replaceAll('ã', 'a')
+        .contains('domicilio');
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => TelaRecebeDevolucaoProfissionalPage(
-          idSolicitacao: widget.idSolicitacao,
-          codigoPedido: _codigoPedido,
-          nomeCliente: _nomeCliente,
-          fotoCliente: _fotoCliente,
-          nomeServico: _tituloServico.isNotEmpty
-              ? _tituloServico
-              : widget.categoria,
-          modalidade: widget.categoria.isNotEmpty
-              ? widget.categoria
-              : 'Leva e Traz',
-          enderecoPrincipal: _enderecoPrincipal,
-          enderecoComplementar: _enderecoComplementar,
-          isEmpresa: _isEmpresa,
-          idGrupoEmpresa: _idGrupoEmpresa,
-          fotoPerfilProfissional: _fotoPerfilProfissional,
-          nomeProfissional: _nomeProfissional,
-        ),
+        builder: (_) => atendimentoDomicilio
+            ? ProfissionalNoLocalAtendimentoPresencialPage(
+                idSolicitacao: widget.idSolicitacao,
+                codigoPedido: _codigoPedido,
+                nomeCliente: _nomeCliente,
+                fotoCliente: _fotoCliente,
+                nomeServico: _tituloServico,
+                enderecoPrincipal: _enderecoPrincipal,
+                enderecoComplementar: _enderecoComplementar,
+                isEmpresa: _isEmpresa,
+                idGrupoEmpresa: _idGrupoEmpresa,
+                fotoPerfilProfissional: _fotoPerfilProfissional,
+                nomeProfissional: _nomeProfissional,
+              )
+            : TelaRecebeDevolucaoProfissionalPage(
+                idSolicitacao: widget.idSolicitacao,
+                codigoPedido: _codigoPedido,
+                nomeCliente: _nomeCliente,
+                fotoCliente: _fotoCliente,
+                nomeServico: _tituloServico.isNotEmpty
+                    ? _tituloServico
+                    : widget.categoria,
+                modalidade: widget.categoria.isNotEmpty
+                    ? widget.categoria
+                    : 'Leva e Traz',
+                enderecoPrincipal: _enderecoPrincipal,
+                enderecoComplementar: _enderecoComplementar,
+                isEmpresa: _isEmpresa,
+                idGrupoEmpresa: _idGrupoEmpresa,
+                fotoPerfilProfissional: _fotoPerfilProfissional,
+                nomeProfissional: _nomeProfissional,
+              ),
       ),
     );
   }
