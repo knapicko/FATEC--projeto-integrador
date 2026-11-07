@@ -817,7 +817,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       );
     } else {
       etapa1 = const _EtapaVisualConfig(
-        titulo: 'Solicitado',
+        titulo: 'Aceito',
         icone: Icons.hourglass_top_outlined,
         corFundo: laranjaEspera,
         corIcone: Colors.white,
@@ -827,9 +827,9 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
     }
 
     late _EtapaVisualConfig etapa2;
-    if (e > 2 || (e == 2 && st == 34) || st == 4 || st == 6) {
+    if (e >= 3 || st == 34 || st == 4 || st == 6) {
       etapa2 = const _EtapaVisualConfig(
-        titulo: 'No local',
+        titulo: 'A caminho',
         icone: Icons.check,
         corFundo: azulPrincipal,
         corIcone: Colors.white,
@@ -838,7 +838,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       );
     } else if (e == 2 && st == 33) {
       etapa2 = const _EtapaVisualConfig(
-        titulo: 'Deslocamento',
+        titulo: 'A caminho',
         icone: Icons.two_wheeler,
         corFundo: azulPrincipal,
         corIcone: Colors.white,
@@ -848,7 +848,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       );
     } else if (e == 1 && st == 32) {
       etapa2 = const _EtapaVisualConfig(
-        titulo: 'Deslocamento',
+        titulo: 'A caminho',
         icone: Icons.hourglass_top_outlined,
         corFundo: laranjaEspera,
         corIcone: Colors.white,
@@ -857,7 +857,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       );
     } else {
       etapa2 = const _EtapaVisualConfig(
-        titulo: 'Deslocamento',
+        titulo: 'A caminho',
         icone: Icons.two_wheeler,
         corFundo: Color(0xFFF1F5F9),
         corIcone: Color(0xFF94A3B8),
@@ -869,7 +869,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
     late _EtapaVisualConfig etapa3;
     if (e >= 4 && st == 6) {
       etapa3 = const _EtapaVisualConfig(
-        titulo: 'Manutenção',
+        titulo: 'No Local',
         icone: Icons.check,
         corFundo: azulPrincipal,
         corIcone: Colors.white,
@@ -878,8 +878,8 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       );
     } else if (e == 3 && st == 4) {
       etapa3 = const _EtapaVisualConfig(
-        titulo: 'Manutenção',
-        icone: Icons.handyman_outlined,
+        titulo: 'No Local',
+        icone: Icons.place_outlined,
         corFundo: azulPrincipal,
         corIcone: Colors.white,
         corTexto: azulPrincipal,
@@ -888,7 +888,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       );
     } else if (e == 3 && st == 34) {
       etapa3 = const _EtapaVisualConfig(
-        titulo: 'Manutenção',
+        titulo: 'No Local',
         icone: Icons.hourglass_top_outlined,
         corFundo: laranjaEspera,
         corIcone: Colors.white,
@@ -897,8 +897,8 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       );
     } else {
       etapa3 = const _EtapaVisualConfig(
-        titulo: 'Manutenção',
-        icone: Icons.handyman_outlined,
+        titulo: 'No Local',
+        icone: Icons.place_outlined,
         corFundo: Color(0xFFF1F5F9),
         corIcone: Color(0xFF94A3B8),
         corTexto: Color(0xFF64748B),
@@ -918,7 +918,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       );
     } else {
       etapa4 = const _EtapaVisualConfig(
-        titulo: 'Conclusão',
+        titulo: 'Concluído',
         icone: Icons.check_circle_outline,
         corFundo: Color(0xFFF1F5F9),
         corIcone: Color(0xFF94A3B8),

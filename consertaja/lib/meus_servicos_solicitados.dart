@@ -11,6 +11,7 @@ import 'solicitacao_em_andamento.dart';
 import 'solicitacao_estado.dart';
 import 'tela_deslocamento_profissional.dart';
 import 'tela_recebe_devolucao_profissional.dart';
+import 'profissional_no_local_atendimento_presencial.dart';
 import 'tela_home_profissional.dart';
 import 'tela_chat_profissional.dart';
 import 'tela_mensagens.dart';
@@ -659,11 +660,34 @@ class _MeusServicosSolicitadosPageState
         .then((_) => _carregar());
   }
 
+  void _abrirAtendimentoNoLocal(SolicitacaoRecebida item) {
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => ProfissionalNoLocalAtendimentoPresencialPage(
+              idSolicitacao: item.idSolicitacao,
+              codigoPedido: '#PED-${item.idSolicitacao}',
+              nomeCliente: item.nomeCliente,
+              fotoCliente: item.fotoCliente,
+              nomeServico: item.tituloServico,
+              enderecoPrincipal: item.enderecoPrincipal ?? 'Destino do cliente',
+              enderecoComplementar: item.enderecoComplementar ?? '',
+              isEmpresa: _contaEmpresaAtiva,
+              idGrupoEmpresa: item.fkGrupoEmpresa,
+            ),
+          ),
+        )
+        .then((_) => _carregar());
+  }
+
   void _abrirPorStatus(SolicitacaoRecebida item) {
     if (item.fkStatus == 35 || item.fkStatus == 36) {
       _abrirTelaDeslocamento(item);
     } else if (item.fkStatus == 37) {
       _abrirTelaRecebeDevolucao(item);
+    } else if (item.fkStatus == 34 &&
+        item.tipoExecucao.toLowerCase().contains('domic')) {
+      _abrirAtendimentoNoLocal(item);
     } else if (item.fkStatus == 32 ||
         item.fkStatus == 33 ||
         item.fkStatus == 34) {

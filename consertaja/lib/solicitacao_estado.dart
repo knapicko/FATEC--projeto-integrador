@@ -1508,7 +1508,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
           ];
           break;
         case ModalidadeExecucao.atendimentoDomicilio:
-          etapas = ['Aceito', 'Deslocamento', 'No Local', 'Concluído'];
+          etapas = ['Aceito', 'A caminho', 'No Local', 'Concluído'];
           icones = [
             Icons.check,
             Icons.radio_button_checked,
@@ -1544,6 +1544,12 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         ? 3
         : _modalidade == ModalidadeExecucao.levaETraz && _etapaSolicitacao == 0
         ? 0
+        : _modalidade == ModalidadeExecucao.atendimentoDomicilio
+        ? (_idStatusSolicitacao == 34 || _etapaSolicitacao >= 3
+              ? 2
+              : _idStatusSolicitacao == 33 || _etapaSolicitacao >= 2
+              ? 1
+              : 0)
         : _idStatusSolicitacao == 33 && _etapaSolicitacao >= 2
         ? 2
         : _idStatusSolicitacao == 32 && _etapaSolicitacao >= 1
