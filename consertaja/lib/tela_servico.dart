@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'lista_servicos.dart';
 import 'models/servico_profissional.dart';
 import 'meus_enderecos.dart';
-import 'perfil_loja.dart';
-import 'perfil_profissional.dart';
 import 'services/lista_servicos_service.dart';
 import 'services/servicos_profissional_service.dart';
 import 'tela_chat_profissional.dart';
@@ -48,6 +47,9 @@ class _TelaServicoState extends State<TelaServico> {
   bool _sheetDropdownMetodosAberto = false;
   final TextEditingController _sheetDetalhesController =
       TextEditingController();
+  final ImagePicker _imagePicker = ImagePicker();
+  List<XFile> _sheetImagensAnexadas = [];
+  List<String> _sheetPagamentosDisponiveis = [];
   DateTime? _sheetDataSelecionada;
   String? _sheetHorarioSelecionado;
   String? _sheetHoraAgendadaSql;
@@ -68,6 +70,17 @@ class _TelaServicoState extends State<TelaServico> {
     _pageController.dispose();
     _sheetDetalhesController.dispose();
     super.dispose();
+  }
+
+  Future<void> _selecionarImagensAnexadas(StateSetter setSheetState) async {
+    final imagens = await _imagePicker.pickMultiImage(imageQuality: 85);
+    if (imagens.isEmpty) return;
+    setSheetState(() {
+      _sheetImagensAnexadas = [
+        ..._sheetImagensAnexadas,
+        ...imagens,
+      ].take(5).toList();
+    });
   }
 
   Future<void> _carregar() async {
@@ -409,6 +422,9 @@ class _TelaServicoState extends State<TelaServico> {
 
   // Formas de Pagamento: Pix, Cartão, Boleto
   Widget _buildFormasPagamento() {
+    final pagamentos = _sheetPagamentosDisponiveis.isEmpty
+        ? const ['Pix', 'Cartão', 'Boleto']
+        : _sheetPagamentosDisponiveis;
     return Row(
       children: [
         const Text(
@@ -420,38 +436,21 @@ class _TelaServicoState extends State<TelaServico> {
           ),
         ),
         const SizedBox(width: 8),
-        _pagamentoChip(
-          iconeWidget: Container(
-            width: 14,
-            height: 14,
-            decoration: const BoxDecoration(
-              color: Color(0xFF00BDAE),
-              shape: BoxShape.circle,
-            ),
-            child: const Center(
-              child: Icon(Icons.apps, size: 9, color: Colors.white),
-            ),
-          ),
-          label: 'Pix',
-        ),
-        const SizedBox(width: 6),
-        _pagamentoChip(
-          iconeWidget: const Icon(
-            Icons.credit_card_outlined,
-            size: 14,
-            color: Color(0xFF64748B),
-          ),
-          label: 'Cartão',
-        ),
-        const SizedBox(width: 6),
-        _pagamentoChip(
-          iconeWidget: const Icon(
-            Icons.view_week_outlined,
-            size: 14,
-            color: Color(0xFF64748B),
-          ),
-          label: 'Boleto',
-        ),
+        ...pagamentos
+            .map(
+              (pagamento) => Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: _pagamentoChip(
+                  iconeWidget: const Icon(
+                    Icons.payments_outlined,
+                    size: 14,
+                    color: Color(0xFF64748B),
+                  ),
+                  label: pagamento,
+                ),
+              ),
+            )
+            .toList(),
       ],
     );
   }
@@ -742,45 +741,6 @@ class _TelaServicoState extends State<TelaServico> {
                           fontWeight: FontWeight.w700,
                           fontSize: 12.5,
                         ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  GestureDetector(
-                    onTap: () {
-                      if (detalhe.ehLoja && detalhe.idGrupoEmpresa != null) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => PerfilLoja(
-                              idGrupoEmpresa: detalhe.idGrupoEmpresa,
-                              nomeEmpresa: nomePrestador,
-                              fotoUrlEmpresa: detalhe.fotoPrestador,
-                              tagEmpresa: tagEmpresa,
-                              corTagEmpresa: detalhe.corTagEmpresa,
-                            ),
-                          ),
-                        );
-                      } else {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => PerfilProfissionalPage(
-                              nomeInicial: nomePrestador,
-                              imagemInicial: detalhe.fotoPrestador ?? '',
-                              profissao: categoria ?? '',
-                              idGrupoEmpresa: detalhe.idGrupoEmpresa,
-                            ),
-                          ),
-                        );
-                      }
-                    },
-                    child: Text(
-                      detalhe.ehEmpresa ? 'Ver Loja' : 'Ver Perfil',
-                      style: const TextStyle(
-                        color: _azul,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 11.5,
                       ),
                     ),
                   ),
@@ -1891,13 +1851,37 @@ class _TelaServicoState extends State<TelaServico> {
         }
       }
 
-      // 2. Só o tipo_execucao do serviço (passo 2). Sem metodo_entrega
-      // (nem metodo_entrega_empresa): a coluna oficial é
-      // servicos_profissional.tipo_execucao.
+      // Os dados de pagamento e entrega pertencem à conta que oferece o
+      // serviço, não ao catálogo do serviço.
       final metodos = <String>[];
-      if (servico.tipoExecucao.isNotEmpty &&
-          servico.tipoExecucao != 'Execução' &&
-          servico.tipoExecucao != 'Geral') {
+      final pagamentos = <String>[];
+      final tabelaPrestador = servico.fkGrupoEmpresa != null
+          ? 'grupo_empresa'
+          : 'dados_profissionais';
+      final idColuna = servico.fkGrupoEmpresa != null
+          ? 'id_grupo_empresa'
+          : 'id_profissional';
+      final campoEntrega = servico.fkGrupoEmpresa != null
+          ? 'metodo_entrega_empresa'
+          : 'metodo_entrega';
+      try {
+        final conta = await supabase
+            .from(tabelaPrestador)
+            .select('$campoEntrega, pagamento_aceito')
+            .eq(idColuna, servico.fkGrupoEmpresa ?? servico.fkProfissional)
+            .maybeSingle();
+        void adicionar(dynamic valor, List<String> destino) {
+          if (valor is List) {
+            destino.addAll(valor.map((item) => item.toString()));
+          } else if (valor != null) {
+            destino.addAll(valor.toString().split(','));
+          }
+        }
+
+        adicionar(conta?[campoEntrega], metodos);
+        adicionar(conta?['pagamento_aceito'], pagamentos);
+      } catch (_) {}
+      if (metodos.isEmpty && servico.tipoExecucao.isNotEmpty) {
         for (final m in servico.tipoExecucao.split(',')) {
           final limpo = m.trim();
           if (limpo.isNotEmpty && !metodos.contains(limpo)) {
@@ -1941,6 +1925,10 @@ class _TelaServicoState extends State<TelaServico> {
       if (mounted) {
         setState(() {
           _sheetMetodosDisponiveis = metodos;
+          _sheetPagamentosDisponiveis = pagamentos
+              .map((item) => item.trim())
+              .where((item) => item.isNotEmpty)
+              .toList();
           if (_sheetTipoExecucaoSelecionado == null ||
               !_sheetMetodosDisponiveis.contains(
                 _sheetTipoExecucaoSelecionado,
@@ -2502,6 +2490,18 @@ class _TelaServicoState extends State<TelaServico> {
                 ),
               ),
               const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  onPressed: () => _selecionarImagensAnexadas(setSheetState),
+                  icon: const Icon(Icons.add_photo_alternate_outlined),
+                  label: Text(
+                    _sheetImagensAnexadas.isEmpty
+                        ? 'Adicionar imagens'
+                        : '${_sheetImagensAnexadas.length} imagem(ns) anexada(s)',
+                  ),
+                ),
+              ),
               Text(
                 '${_sheetDetalhesController.text.length}/500',
                 style: const TextStyle(
@@ -3350,7 +3350,9 @@ class _TelaServicoState extends State<TelaServico> {
             top: BorderSide(color: Color(0xFF025380), width: 3.5),
           ),
           behavior: SnackBarBehavior.fixed,
-          duration: const Duration(seconds: 3),content: Text('Faça login para adicionar um serviço.')),
+          duration: const Duration(seconds: 3),
+          content: Text('Faça login para adicionar um serviço.'),
+        ),
       );
       return;
     }
@@ -3404,7 +3406,9 @@ class _TelaServicoState extends State<TelaServico> {
             top: BorderSide(color: Color(0xFF025380), width: 3.5),
           ),
           behavior: SnackBarBehavior.fixed,
-          duration: const Duration(seconds: 3),content: Text('Selecione uma data para o agendamento.')),
+          duration: const Duration(seconds: 3),
+          content: Text('Selecione uma data para o agendamento.'),
+        ),
       );
       return;
     }
@@ -3456,6 +3460,21 @@ class _TelaServicoState extends State<TelaServico> {
       }
 
       // 2. Insere/atualiza o serviço em ass_servicos_lista
+      final imagensAnexadas = <String>[];
+      for (var index = 0; index < _sheetImagensAnexadas.length; index++) {
+        final imagem = _sheetImagensAnexadas[index];
+        final caminho =
+            'solicitacao-temp/${user.id}/${DateTime.now().microsecondsSinceEpoch}_$index.jpg';
+        await supabase.storage
+            .from('Imagens Anexadas Cliente')
+            .uploadBinary(caminho, await imagem.readAsBytes());
+        imagensAnexadas.add(
+          supabase.storage
+              .from('Imagens Anexadas Cliente')
+              .getPublicUrl(caminho),
+        );
+      }
+
       final dadosAss = <String, dynamic>{
         'fk_lista': idLista,
         'fk_servico_prof': servico.id,
@@ -3466,6 +3485,7 @@ class _TelaServicoState extends State<TelaServico> {
         'data_agendada': dataAgendadaSql,
         'hora_agendada': horaAgendadaSql,
         'hora_agendada_fim': horaAgendadaFimSql,
+        'imagens_anexadas_cliente': imagensAnexadas,
       };
       await supabase.from('ass_servicos_lista').upsert(dadosAss);
 
@@ -3478,7 +3498,10 @@ class _TelaServicoState extends State<TelaServico> {
           ),
           behavior: SnackBarBehavior.fixed,
           duration: const Duration(seconds: 3),
-          content: const Text('Serviço adicionado à sua lista com sucesso!', style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white)),
+          content: const Text(
+            'Serviço adicionado à sua lista com sucesso!',
+            style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
+          ),
           backgroundColor: Color(0xFF0FB3FF),
         ),
       );

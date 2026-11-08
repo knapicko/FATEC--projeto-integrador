@@ -10,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'gestao_equipe.dart';
 import 'meus_servicos_solicitados.dart';
 import 'tela_chat_profissional.dart';
+import 'services/solicitacoes_service.dart';
 import 'tela_deslocamento_profissional.dart';
 import 'tela_meu_perfil_profissional.dart';
 import 'utils/app_navigation_util.dart';
@@ -142,6 +143,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
   String _relatoCliente = '';
   int _quantidadeAnexos = 1;
   String? _imagemAnexoUrl;
+  List<String> _imagensAnexadasCliente = [];
   String _legendaAnexo = '';
   ModalidadeExecucao _modalidade = ModalidadeExecucao.levaETraz;
   String _tipoExecucaoOriginal = 'Leva e Traz';
@@ -670,7 +672,19 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         }
       } catch (_) {}
 
-      if (_legendaAnexo.isEmpty) {
+      final imagensCliente = row['imagens_anexadas_cliente'];
+      if (imagensCliente is List) {
+        _imagensAnexadasCliente = imagensCliente
+            .map((item) => item.toString().trim())
+            .where((item) => item.isNotEmpty)
+            .toList();
+        if (_imagensAnexadasCliente.isNotEmpty) {
+          _imagemAnexoUrl = _imagensAnexadasCliente.first;
+          _quantidadeAnexos = _imagensAnexadasCliente.length;
+        }
+      }
+
+      if (_legendaAnexo.isEmpty && _imagemAnexoUrl != null) {
         _legendaAnexo = _modeloEquipamento.isNotEmpty
             ? _modeloEquipamento
             : 'Foto anexada pela cliente';
@@ -2415,7 +2429,8 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
               ),
             ),
           const SizedBox(height: 14),
-          ClipRRect(
+          if (_imagemAnexoUrl != null && _imagemAnexoUrl!.isNotEmpty)
+            ClipRRect(
             borderRadius: BorderRadius.circular(14),
             child: Stack(
               children: [
@@ -2429,7 +2444,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                           errorBuilder: (_, _, _) => _imagemAnexoFallback(),
                         )
                       : _imagemAnexoFallback(),
-                ),
+                  ),
                 Positioned(
                   left: 0,
                   right: 0,
@@ -3215,7 +3230,66 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
   // ==========================================
   // 11. BOTÕES DE AÇÃO INFERIORES
   // ==========================================
+  Future<void> _aceitarSolicitacao() async {
+    final idProfissional = _fkProfissional;
+    if (idProfissional <= 0) return;
+    setState(() => _iniciandoServico = true);
+    try {
+      await SolicitacoesService.aceitar(
+        idSolicitacao: _idSolicitacao,
+        idProfissional: idProfissional,
+      );
+      await _carregarDadosCompletos();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erro ao aceitar: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _iniciandoServico = false);
+    }
+  }
+
+  Future<void> _recusarSolicitacao() async {
+    setState(() => _iniciandoServico = true);
+    try {
+      await _supabase.rpc(
+        'recusar_solicitacao',
+        params: {'p_id_solicitacao': _idSolicitacao},
+      );
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erro ao recusar: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _iniciandoServico = false);
+    }
+  }
+
   Widget _buildBotoesAcao() {
+    if (_idStatusSolicitacao == 1) {
+      return Row(
+        children: [
+          Expanded(
+            child: FilledButton(
+              onPressed: _iniciandoServico ? null : _aceitarSolicitacao,
+              child: const Text('Aceitar'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: OutlinedButton(
+              onPressed: _iniciandoServico ? null : _recusarSolicitacao,
+              child: const Text('Recusar'),
+            ),
+          ),
+        ],
+      );
+    }
     final status = _statusTexto.trim().toLowerCase();
     if (status.contains('conclu')) {
       return SizedBox(
