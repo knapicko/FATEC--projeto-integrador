@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'gestao_equipe.dart';
+import 'servico_concluido.dart';
 import 'tela_chat_profissional.dart';
 import 'tela_meu_perfil_profissional.dart';
 
@@ -53,12 +54,19 @@ class _ProfissionalNoLocalAtendimentoPresencialPageState
   final _picker = ImagePicker();
   Timer? _timer;
   Timer? _relogio;
+  Timer? _statusPolling;
   DateTime? _inicio;
   int _segundos = 0;
   bool _pausado = false;
   bool _carregando = true;
   bool _salvando = false;
   bool _finalizado = false;
+  bool _codigoValidado = false;
+  String _codigoRecDev = '';
+  final List<TextEditingController> _codigoControllers = List.generate(
+    4,
+    (_) => TextEditingController(),
+  );
   double _preco = 0;
   List<String> _antes = [];
   List<String> _depois = [];
@@ -75,6 +83,10 @@ class _ProfissionalNoLocalAtendimentoPresencialPageState
   void dispose() {
     _timer?.cancel();
     _relogio?.cancel();
+    _statusPolling?.cancel();
+    for (final controller in _codigoControllers) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -85,6 +97,7 @@ class _ProfissionalNoLocalAtendimentoPresencialPageState
           .select(
             'data_inicio_andamento, duracao_atendimento, andamento_pausado, '
             'profissional_finalizado_atendimento, valor_final, '
+            'codigo_rec_dev, fk_status, '
             'imagens_atendimento_antes, imagens_atendimento_depois',
           )
           .eq('id_solicitacao', widget.idSolicitacao)
@@ -92,29 +105,52 @@ class _ProfissionalNoLocalAtendimentoPresencialPageState
       _segundos = (row['duracao_atendimento'] as num?)?.toInt() ?? 0;
       _pausado = row['andamento_pausado'] == true;
       _finalizado = row['profissional_finalizado_atendimento'] == true;
+      _codigoRecDev = row['codigo_rec_dev']?.toString().trim() ?? '';
       _preco = (row['valor_final'] as num?)?.toDouble() ?? 0;
       _inicio = DateTime.tryParse(
         row['data_inicio_andamento']?.toString() ?? '',
       );
       _antes = _lista(row['imagens_atendimento_antes']);
       _depois = _lista(row['imagens_atendimento_depois']);
-      if (_inicio == null && !_pausado && !_finalizado) {
-        _inicio = DateTime.now();
-        await _supabase
-            .from('solicitacoes')
-            .update({
-              'data_inicio_andamento': _inicio!.toUtc().toIso8601String(),
-              'duracao_atendimento': 0,
-              'andamento_pausado': false,
-            })
-            .eq('id_solicitacao', widget.idSolicitacao);
+      if ((row['fk_status'] as num?)?.toInt() == 6) {
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) =>
+                  ServicoConcluidoPage(idSolicitacao: widget.idSolicitacao),
+            ),
+          );
+        }
+        return;
       }
-      _iniciarRelogios();
+      _codigoValidado = _inicio != null;
+      if (_codigoValidado) _iniciarRelogios();
+      _statusPolling = Timer.periodic(
+        const Duration(seconds: 5),
+        (_) => _verificarConclusaoCliente(),
+      );
     } catch (e) {
       if (mounted) _mostrarErro('Não foi possível carregar o atendimento: $e');
     } finally {
       if (mounted) setState(() => _carregando = false);
     }
+  }
+
+  Future<void> _verificarConclusaoCliente() async {
+    if (!mounted) return;
+    final row = await _supabase
+        .from('solicitacoes')
+        .select('fk_status')
+        .eq('id_solicitacao', widget.idSolicitacao)
+        .maybeSingle();
+    if ((row?['fk_status'] as num?)?.toInt() != 6 || !mounted) return;
+    _statusPolling?.cancel();
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) =>
+            ServicoConcluidoPage(idSolicitacao: widget.idSolicitacao),
+      ),
+    );
   }
 
   List<String> _lista(dynamic value) => value is List
@@ -188,6 +224,38 @@ class _ProfissionalNoLocalAtendimentoPresencialPageState
       }
     } catch (e) {
       _mostrarErro('Não foi possível alterar a pausa: $e');
+    } finally {
+      if (mounted) setState(() => _salvando = false);
+    }
+  }
+
+  Future<void> _validarCodigo() async {
+    final informado = _codigoControllers.map((c) => c.text).join();
+    if (informado.length != 4 || _codigoRecDev.isEmpty) {
+      _mostrarErro('Informe os 4 dígitos do código mostrado ao cliente.');
+      return;
+    }
+    if (informado != _codigoRecDev) {
+      _mostrarErro('Código inválido. Confira o código com o cliente.');
+      return;
+    }
+    setState(() => _salvando = true);
+    try {
+      _inicio = DateTime.now();
+      _codigoValidado = true;
+      await _supabase
+          .from('solicitacoes')
+          .update({
+            'data_inicio_andamento': _inicio!.toUtc().toIso8601String(),
+            'duracao_atendimento': 0,
+            'andamento_pausado': false,
+          })
+          .eq('id_solicitacao', widget.idSolicitacao);
+      _iniciarRelogios();
+    } catch (e) {
+      _codigoValidado = false;
+      _inicio = null;
+      _mostrarErro('Não foi possível iniciar o atendimento: $e');
     } finally {
       if (mounted) setState(() => _salvando = false);
     }
@@ -455,6 +523,7 @@ class _ProfissionalNoLocalAtendimentoPresencialPageState
         padding: const EdgeInsets.fromLTRB(10, 8, 10, 18),
         children: [
           _etapas(),
+          if (!_codigoValidado) _codigoAtendimento(),
           _cliente(),
           _tempo(),
           _fotos(),
@@ -496,6 +565,61 @@ class _ProfissionalNoLocalAtendimentoPresencialPageState
               ],
             ),
           ),
+      ],
+    ),
+  );
+
+  Widget _codigoAtendimento() => _card(
+    Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'CONFIRMAÇÃO DE CHEGADA',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: _muted,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Digite o código mostrado no celular do cliente para iniciar o timer.',
+          style: TextStyle(fontSize: 12, color: _texto),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: List.generate(
+            4,
+            (index) => SizedBox(
+              width: 48,
+              child: TextField(
+                controller: _codigoControllers[index],
+                textAlign: TextAlign.center,
+                keyboardType: TextInputType.number,
+                maxLength: 1,
+                decoration: const InputDecoration(
+                  counterText: '',
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (value) {
+                  if (value.isNotEmpty && index < 3) {
+                    FocusScope.of(context).nextFocus();
+                  }
+                },
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: _salvando ? null : _validarCodigo,
+            icon: const Icon(Icons.lock_open_outlined),
+            label: const Text('Validar código e iniciar atendimento'),
+          ),
+        ),
       ],
     ),
   );

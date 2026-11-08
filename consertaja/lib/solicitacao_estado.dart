@@ -167,6 +167,12 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
   LatLng _coordenadas = const LatLng(-23.5605, -46.5983);
 
   String _valorExibicao = 'R\$ 150,00 - 250,00';
+  int _duracaoAtendimento = 0;
+  final List<String> _imagensAtendimentoAntes = [];
+  final List<String> _imagensAtendimentoDepois = [];
+  final List<String> _imagensRecebimento = [];
+  final List<String> _imagensEmAndamento = [];
+  final List<String> _imagensDevolucao = [];
   final String _metodoPagamento = 'Pix ou Cartão';
 
   // Checklist do Especialista (específico de Receba em casa / serviços técnicos)
@@ -457,7 +463,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
           .select(
             'id_solicitacao, data_solicitacao, valor_final, detalhes, '
             'data_agendada, hora_agendada, hora_agendada_fim, tipo_execucao, fk_grupo_empresa, '
-            'fk_status, etapa_solicitacao, fk_profissional, fk_usuario, fk_endereco, fk_servico_prof, fk_servico_temp',
+            'fk_status, etapa_solicitacao, fk_profissional, fk_usuario, fk_endereco, fk_servico_prof, fk_servico_temp, '
+            'duracao_atendimento, imagens_atendimento_antes, imagens_atendimento_depois, '
+            'imagens_recebimento, imagens_em_andamento, imagens_devolucao',
           )
           .eq('id_solicitacao', _idSolicitacao)
           .maybeSingle();
@@ -476,6 +484,18 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
       _fkProfissional = (row['fk_profissional'] as num?)?.toInt() ?? 0;
       _idStatusSolicitacao = (row['fk_status'] as num?)?.toInt();
       _etapaSolicitacao = (row['etapa_solicitacao'] as num?)?.toInt() ?? 0;
+      _duracaoAtendimento = (row['duracao_atendimento'] as num?)?.toInt() ?? 0;
+      _carregarLista(
+        row['imagens_atendimento_antes'],
+        _imagensAtendimentoAntes,
+      );
+      _carregarLista(
+        row['imagens_atendimento_depois'],
+        _imagensAtendimentoDepois,
+      );
+      _carregarLista(row['imagens_recebimento'], _imagensRecebimento);
+      _carregarLista(row['imagens_em_andamento'], _imagensEmAndamento);
+      _carregarLista(row['imagens_devolucao'], _imagensDevolucao);
       if (_idStatusSolicitacao != null) {
         final statusRow = await _supabase
             .from('status')
@@ -1244,33 +1264,37 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                             physics: const AlwaysScrollableScrollPhysics(),
                             padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
                             children: [
-                              if (widget.recemAceito || _ehDevolucao) ...[
-                                _buildCardConfirmacaoAceite(),
+                              if (_idStatusSolicitacao == 6)
+                                _buildServicoConcluido(),
+                              if (_idStatusSolicitacao != 6) ...[
+                                if (widget.recemAceito || _ehDevolucao) ...[
+                                  _buildCardConfirmacaoAceite(),
+                                  const SizedBox(height: 14),
+                                ],
+                                _buildCardPerfilCliente(),
                                 const SizedBox(height: 14),
-                              ],
-                              _buildCardPerfilCliente(),
-                              const SizedBox(height: 14),
-                              if (_avaliacaoCliente != null) ...[
-                                _buildCardAvaliacaoCliente(),
+                                if (_avaliacaoCliente != null) ...[
+                                  _buildCardAvaliacaoCliente(),
+                                  const SizedBox(height: 14),
+                                ],
+                                _buildCardServicoSelecionado(),
                                 const SizedBox(height: 14),
-                              ],
-                              _buildCardServicoSelecionado(),
-                              const SizedBox(height: 14),
-                              _buildCardModalidadeAtendimento(),
-                              const SizedBox(height: 14),
-                              _buildCardsAgendamento(),
-                              const SizedBox(height: 14),
-                              _buildCardLocalizacao(),
-                              const SizedBox(height: 14),
-                              _buildCardEstimativaCombinada(),
-                              if (_modalidade ==
-                                  ModalidadeExecucao.recebaEmCasa) ...[
+                                _buildCardModalidadeAtendimento(),
                                 const SizedBox(height: 14),
-                                _buildCardChecklistEspecialista(),
+                                _buildCardsAgendamento(),
+                                const SizedBox(height: 14),
+                                _buildCardLocalizacao(),
+                                const SizedBox(height: 14),
+                                _buildCardEstimativaCombinada(),
+                                if (_modalidade ==
+                                    ModalidadeExecucao.recebaEmCasa) ...[
+                                  const SizedBox(height: 14),
+                                  _buildCardChecklistEspecialista(),
+                                ],
+                                const SizedBox(height: 20),
+                                _buildBotoesAcao(),
+                                const SizedBox(height: 16),
                               ],
-                              const SizedBox(height: 20),
-                              _buildBotoesAcao(),
-                              const SizedBox(height: 16),
                             ],
                           ),
                         ),
@@ -1283,13 +1307,130 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
     );
   }
 
+  void _carregarLista(dynamic valor, List<String> destino) {
+    if (valor is List) {
+      destino
+        ..clear()
+        ..addAll(
+          valor.map((item) => item.toString()).where((item) => item.isNotEmpty),
+        );
+    }
+  }
+
+  Widget _buildServicoConcluido() {
+    final domicilio = _modalidade == ModalidadeExecucao.atendimentoDomicilio;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            children: [
+              _buildEtapasAndamentoCompacto(),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: _azul,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.white),
+                    SizedBox(width: 8),
+                    Text(
+                      'Serviço Finalizado com Sucesso!',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        _buildCardPerfilCliente(),
+        const SizedBox(height: 14),
+        _buildCardServicoSelecionado(),
+        const SizedBox(height: 14),
+        _buildCardLocalizacao(),
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Text(
+            'Duração do ${domicilio ? 'atendimento' : 'serviço'}: '
+            '${(domicilio ? _duracaoAtendimento : 0) ~/ 60} minutos',
+            style: const TextStyle(
+              color: _textoEscuro,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        _buildImagensConclusao(),
+      ],
+    );
+  }
+
+  Widget _buildImagensConclusao() {
+    final grupos = _modalidade == ModalidadeExecucao.atendimentoDomicilio
+        ? <String, List<String>>{
+            'Antes': _imagensAtendimentoAntes,
+            'Depois': _imagensAtendimentoDepois,
+          }
+        : <String, List<String>>{
+            'Recebimento': _imagensRecebimento,
+            'Em andamento': _imagensEmAndamento,
+            'Devolução': _imagensDevolucao,
+          };
+    final fotos = <Widget>[];
+    for (final grupo in grupos.entries) {
+      for (final url in grupo.value) {
+        fotos.add(
+          SizedBox(
+            width: 130,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Image.network(url, height: 90, fit: BoxFit.cover),
+                Text(grupo.key, style: const TextStyle(fontSize: 11)),
+              ],
+            ),
+          ),
+        );
+      }
+    }
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: fotos.isEmpty
+          ? const Text('Nenhuma imagem de vistoria registrada.')
+          : Wrap(spacing: 8, runSpacing: 8, children: fotos),
+    );
+  }
+
   // ==========================================
   // 1. HEADER
   // ==========================================
   Widget _buildHeader() {
-    final titulo = _tituloServico.isNotEmpty
-        ? _tituloServico
-        : _categoriaTitulo;
+    final titulo = _idStatusSolicitacao == 6
+        ? 'Serviço Concluído E Recebimento'
+        : (_tituloServico.isNotEmpty ? _tituloServico : _categoriaTitulo);
 
     return Container(
       color: Colors.white,

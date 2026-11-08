@@ -1405,7 +1405,7 @@ class _MeusServicosSolicitadosPageState
         bottom: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(4, 8, 8, 12),
-          child: const Row(
+          child: Row(
             children: [
               BackButton(color: _azul),
               Expanded(
@@ -1957,7 +1957,7 @@ class _MeusServicosSolicitadosPageState
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -2250,7 +2250,9 @@ class _MeusServicosSolicitadosPageState
         else if (profissionalChegou)
           Expanded(
             child: FilledButton(
-              onPressed: () => _abrirTelaDeslocamento(item),
+              onPressed: () => item.tipoExecucao.toLowerCase().contains('domic')
+                  ? _abrirAtendimentoNoLocal(item)
+                  : _abrirTelaDeslocamento(item),
               style: FilledButton.styleFrom(
                 backgroundColor: _azul,
                 foregroundColor: Colors.white,
@@ -2262,15 +2264,17 @@ class _MeusServicosSolicitadosPageState
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.near_me_outlined, size: 16),
-                  SizedBox(width: 6),
+                  const Icon(Icons.near_me_outlined, size: 16),
+                  const SizedBox(width: 6),
                   Flexible(
                     child: Text(
-                      'Abrir detalhes',
+                      item.tipoExecucao.toLowerCase().contains('domic')
+                          ? 'No local'
+                          : 'Abrir detalhes',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
