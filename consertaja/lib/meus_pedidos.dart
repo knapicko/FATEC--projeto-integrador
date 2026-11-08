@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'detalhes_pedido.dart';
 import 'acompanhar_deslocamento.dart';
+import 'atendimento_no_local_cliente.dart';
 import 'pagamento_pedido.dart';
 import 'qrcode_pix.dart';
 import 'widgets/skeleton_loading.dart';
@@ -36,6 +37,8 @@ class PedidoCliente {
   final int? idProf;
   final int? idGrupo;
   final int? fkStatus;
+  final String tipoExecucao;
+  final int etapaSolicitacao;
   final bool avaliadoCliente;
   const PedidoCliente({
     required this.id,
@@ -55,6 +58,8 @@ class PedidoCliente {
     this.idProf,
     this.idGrupo,
     this.fkStatus,
+    this.tipoExecucao = '',
+    this.etapaSolicitacao = 0,
     this.avaliadoCliente = false,
   });
 }
@@ -80,7 +85,8 @@ class MeusPedidosPage extends StatefulWidget {
   State<MeusPedidosPage> createState() => MeusPedidosState();
 }
 
-class MeusPedidosState extends State<MeusPedidosPage> with SingleTickerProviderStateMixin {
+class MeusPedidosState extends State<MeusPedidosPage>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _piscarController;
   static const Color azul = Color(0xFF0FB3FF);
   static const Color fundo = Color(0xFFF6F8FB);
@@ -164,7 +170,7 @@ class MeusPedidosState extends State<MeusPedidosPage> with SingleTickerProviderS
     final linhas = await db
         .from('solicitacoes')
         .select(
-          'id_solicitacao, data_solicitacao, data_agendada, hora_agendada, valor_final, fk_profissional, fk_grupo_empresa, fk_servico_prof, fk_servico_temp, fk_status',
+          'id_solicitacao, data_solicitacao, data_agendada, hora_agendada, valor_final, fk_profissional, fk_grupo_empresa, fk_servico_prof, fk_servico_temp, fk_status, tipo_execucao, etapa_solicitacao',
         )
         .eq('fk_usuario', idUsuario)
         .order('data_solicitacao', ascending: false);
@@ -440,6 +446,8 @@ class MeusPedidosState extends State<MeusPedidosPage> with SingleTickerProviderS
           idProf: idP,
           idGrupo: idG,
           fkStatus: idSt,
+          tipoExecucao: (r['tipo_execucao'] ?? '').toString(),
+          etapaSolicitacao: (r['etapa_solicitacao'] as num?)?.toInt() ?? 0,
           avaliadoCliente: idsAvaliadosCliente.contains(idSol),
         ),
       );
@@ -1126,31 +1134,47 @@ class MeusPedidosState extends State<MeusPedidosPage> with SingleTickerProviderS
   void _aoClicarPedido(PedidoCliente p) {
     final st = p.fkStatus ?? 0;
     final s = p.status.trim().toLowerCase();
-    if (st == 36 || st == 37 ||
+    final domicilio =
+        p.tipoExecucao.toLowerCase().contains('domic') &&
+        st == 34 &&
+        p.etapaSolicitacao == 3;
+    if (domicilio) {
+      Navigator.of(context)
+          .push(
+            MaterialPageRoute(
+              builder: (_) =>
+                  AtendimentoNoLocalClientePage(idSolicitacao: p.id),
+            ),
+          )
+          .then((_) => carregar(loading: false));
+      return;
+    }
+    if (st == 36 ||
+        st == 37 ||
         (st != 4 &&
             (st == 33 ||
                 st == 34 ||
                 s.contains('deslocando') ||
                 s.contains('a caminho') ||
                 s.contains('chegou')))) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => AcompanharDeslocamentoPage(
-            idSolicitacao: p.id,
-          ),
-        ),
-      ).then((_) => carregar(loading: false));
+      Navigator.of(context)
+          .push(
+            MaterialPageRoute(
+              builder: (_) => AcompanharDeslocamentoPage(idSolicitacao: p.id),
+            ),
+          )
+          .then((_) => carregar(loading: false));
       return;
     }
 
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => DetalhesPedidoPage(
-          idSolicitacao: p.id,
-          pedidoResumo: p,
-        ),
-      ),
-    ).then((_) => carregar(loading: false));
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) =>
+                DetalhesPedidoPage(idSolicitacao: p.id, pedidoResumo: p),
+          ),
+        )
+        .then((_) => carregar(loading: false));
   }
 
   Widget card(PedidoCliente p) {
@@ -1160,274 +1184,281 @@ class MeusPedidosState extends State<MeusPedidosPage> with SingleTickerProviderS
       onTap: () => _aoClicarPedido(p),
       borderRadius: BorderRadius.circular(16),
       child: Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              tagStatus(e),
-              const SizedBox(width: 10),
-              if (ag.isNotEmpty)
-                Flexible(
-                  child: Text(
-                    ag,
-                    textAlign: TextAlign.right,
-                    style: const TextStyle(fontSize: 11, color: muted),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              imgServ(p),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            p.titulo,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: escuro,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Container(
-                          width: 16,
-                          height: 16,
-                          decoration: const BoxDecoration(
-                            color: azul,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.check,
-                            color: Colors.white,
-                            size: 10,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      p.prestador,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12.5, color: muted),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        if ((p.tagEmp ?? '').trim().isNotEmpty)
-                          miniTag(
-                            '#${p.tagEmp!.trim()}',
-                            CorOficio.parse(p.corTag),
-                          ),
-                        if ((p.funcao ?? '').isNotEmpty)
-                          miniTag(p.funcao!, CorOficio.parse(p.corOficio)),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      rotuloValor(p),
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                tagStatus(e),
+                const SizedBox(width: 10),
+                if (ag.isNotEmpty)
+                  Flexible(
+                    child: Text(
+                      ag,
+                      textAlign: TextAlign.right,
                       style: const TextStyle(fontSize: 11, color: muted),
                     ),
-                    Text(
-                      fmtValor(p.valor),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF1D4F91),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                imgServ(p),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              p.titulo,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: escuro,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Container(
+                            width: 16,
+                            height: 16,
+                            decoration: const BoxDecoration(
+                              color: azul,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.check,
+                              color: Colors.white,
+                              size: 10,
+                            ),
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: 2),
+                      Text(
+                        p.prestador,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12.5, color: muted),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          if ((p.tagEmp ?? '').trim().isNotEmpty)
+                            miniTag(
+                              '#${p.tagEmp!.trim()}',
+                              CorOficio.parse(p.corTag),
+                            ),
+                          if ((p.funcao ?? '').isNotEmpty)
+                            miniTag(p.funcao!, CorOficio.parse(p.corOficio)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        rotuloValor(p),
+                        style: const TextStyle(fontSize: 11, color: muted),
+                      ),
+                      Text(
+                        fmtValor(p.valor),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1D4F91),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => abrirConversa(p),
+                  icon: const Icon(Icons.chat_outlined, size: 15),
+                  label: const Text('Conversar'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: escuro,
+                    side: BorderSide(color: Colors.grey.shade300),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
                     ),
-                  ],
-                ),
-              ),
-              OutlinedButton.icon(
-                onPressed: () => abrirConversa(p),
-                icon: const Icon(Icons.chat_outlined, size: 15),
-                label: const Text('Conversar'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: escuro,
-                  side: BorderSide(color: Colors.grey.shade300),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  textStyle: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton(
-                onPressed: () => _aoClicarPedido(p),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: azul,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 11,
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: () => _aoClicarPedido(p),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: azul,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 11,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  textStyle: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
+                  child: Text(
+                    (p.fkStatus == 33 ||
+                            p.fkStatus == 34 ||
+                            p.fkStatus == 36 ||
+                            p.fkStatus == 37)
+                        ? (p.fkStatus == 34 &&
+                                  p.tipoExecucao.toLowerCase().contains(
+                                    'domic',
+                                  ) &&
+                                  p.etapaSolicitacao == 3
+                              ? 'Atendimento no local'
+                              : 'Acompanhar')
+                        : 'Ver Detalhes',
                   ),
                 ),
-                child: Text(
-                  (p.fkStatus == 33 ||
-                          p.fkStatus == 34 ||
-                          p.fkStatus == 36 ||
-                          p.fkStatus == 37)
-                      ? 'Acompanhar'
-                      : 'Ver Detalhes',
+              ],
+            ),
+            if (p.fkStatus != 6 &&
+                (p.status.trim().toLowerCase() == 'aceito' ||
+                    ehAguardandoPagamento(p))) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                height: 42,
+                child: FilledButton.icon(
+                  onPressed: () => ehAguardandoPagamento(p)
+                      ? abrirQrcodePix(p)
+                      : abrirPagamento(p),
+                  icon: const Icon(Icons.payments_outlined, size: 17),
+                  label: Text(
+                    ehAguardandoPagamento(p)
+                        ? 'Terminar Pagamento'
+                        : 'Realizar pagamento',
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: azul,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ),
             ],
-          ),
-          if (p.status.trim().toLowerCase() == 'aceito' ||
-              ehAguardandoPagamento(p)) ...[
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              height: 42,
-              child: FilledButton.icon(
-                onPressed: () => ehAguardandoPagamento(p)
-                    ? abrirQrcodePix(p)
-                    : abrirPagamento(p),
-                icon: const Icon(Icons.payments_outlined, size: 17),
-                label: Text(
-                  ehAguardandoPagamento(p)
-                      ? 'Terminar Pagamento'
-                      : 'Realizar pagamento',
-                ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: azul,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+            if (p.status.trim().toLowerCase() == 'aguardando cliente') ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                height: 42,
+                child: FilledButton.icon(
+                  onPressed: confirmandoConclusao.contains(p.id)
+                      ? null
+                      : () => confirmarConclusao(p),
+                  icon: confirmandoConclusao.contains(p.id)
+                      ? const SizedBox(
+                          width: 17,
+                          height: 17,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.check_circle_outline, size: 17),
+                  label: Text(
+                    confirmandoConclusao.contains(p.id)
+                        ? 'Confirmando...'
+                        : 'Confirmar entrega/final',
                   ),
-                  textStyle: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-          ],
-          if (p.status.trim().toLowerCase() == 'aguardando cliente') ...[
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              height: 42,
-              child: FilledButton.icon(
-                onPressed: confirmandoConclusao.contains(p.id)
-                    ? null
-                    : () => confirmarConclusao(p),
-                icon: confirmandoConclusao.contains(p.id)
-                    ? const SizedBox(
-                        width: 17,
-                        height: 17,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.check_circle_outline, size: 17),
-                label: Text(
-                  confirmandoConclusao.contains(p.id)
-                      ? 'Confirmando...'
-                      : 'Confirmar entrega/final',
-                ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF168A52),
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  textStyle: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF168A52),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
-          if ((p.status.toLowerCase().contains('conclu') ||
-                  p.status.toLowerCase().contains('finaliz')) &&
-              !p.avaliadoCliente) ...[
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              height: 42,
-              child: FilledButton.icon(
-                onPressed: () => _avaliarPedidoCliente(p.id),
-                icon: const Icon(Icons.star_outline_rounded, size: 18),
-                label: const Text('Avaliar'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF168A52),
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  textStyle: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
+            ],
+            if ((p.status.toLowerCase().contains('conclu') ||
+                    p.status.toLowerCase().contains('finaliz')) &&
+                !p.avaliadoCliente) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                height: 42,
+                child: FilledButton.icon(
+                  onPressed: () => _avaliarPedidoCliente(p.id),
+                  icon: const Icon(Icons.star_outline_rounded, size: 18),
+                  label: const Text('Avaliar'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF168A52),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ),
-            ),
+            ],
           ],
-        ],
+        ),
       ),
-    ),
     );
   }
 
@@ -1529,6 +1560,16 @@ class MeusPedidosState extends State<MeusPedidosPage> with SingleTickerProviderS
   StatusEstilo estiloStatus(String status, [int? fkStatus]) {
     final s = status.trim().toLowerCase();
     final st = fkStatus ?? 0;
+
+    if (st == 6) {
+      return const StatusEstilo(
+        rotulo: 'Concluído',
+        fundo: Color(0xFFF1F5F9),
+        texto: Color(0xFF334155),
+        borda: Color(0xFFE2E8F0),
+        icone: Icons.check_circle_outline,
+      );
+    }
 
     if (st == 37) {
       return const StatusEstilo(

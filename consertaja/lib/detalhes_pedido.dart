@@ -119,6 +119,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
   // Diagnóstico e Andamento Técnico
   String? _diagnostico;
   int _duracaoServicoSegundos = 0;
+  int _duracaoAtendimentoSegundos = 0;
   bool _andamentoPausado = false;
   DateTime? _dataInicioAndamento;
   Timer? _timerAndamento;
@@ -244,6 +245,8 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       _andamentoPausado = sol['andamento_pausado'] == true;
       final duracaoSalva = (sol['duracao_servico'] as num?)?.toInt() ?? 0;
       _duracaoServicoSegundos = duracaoSalva;
+      _duracaoAtendimentoSegundos =
+          (sol['duracao_atendimento'] as num?)?.toInt() ?? 0;
 
       final dtInicio = sol['data_inicio_andamento'];
       if (dtInicio != null) {
@@ -1921,7 +1924,8 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                     ? _buildErro()
                     : _buildConteudo(),
               ),
-              if (!_carregando && _erro == null) _buildBottomBar(),
+              if (!_carregando && _erro == null)
+                if (_fkStatus != 6) _buildBottomBar(),
             ],
           ),
         ),
@@ -2029,6 +2033,10 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
         children: [
+          if (_fkStatus == 6) ...[
+            _buildCardServicoConcluido(),
+            const SizedBox(height: 14),
+          ],
           _buildCardSituacaoPedido(),
           const SizedBox(height: 14),
           _buildCardDiagnosticoETempo(),
@@ -2055,6 +2063,57 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
           const SizedBox(height: 20),
           _buildAcoesRodape(),
           const SizedBox(height: 14),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCardServicoConcluido() {
+    final domicilio = _tipoExecucao.toLowerCase().contains('domic');
+    final duracao = domicilio
+        ? _duracaoAtendimentoSegundos
+        : _duracaoServicoSegundos;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: azulPrincipal,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Text(
+                  'Serviço finalizado com sucesso!',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Duração do ${domicilio ? 'atendimento' : 'serviço'}: '
+            '${duracao ~/ 60} minutos',
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Status: $_statusTexto',
+            style: const TextStyle(color: textoMuted),
+          ),
         ],
       ),
     );
@@ -3708,6 +3767,11 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
     final aguardandoPagamento =
         _fkStatus == 2 || status.contains('aguardando pagamento');
     final aceito = status == 'aceito';
+    final pago = _fkStatus == 3 || status == 'pago';
+    final atendimentoDomicilio = _tipoExecucao.toLowerCase().contains('domic');
+    final acompanhar =
+        atendimentoDomicilio &&
+        (pago || _fkStatus == 32 || _fkStatus == 33 || _fkStatus == 34);
     final precisaAvaliarCliente =
         status.contains('conclu') && !_avaliadoCliente;
     return Container(
@@ -3757,6 +3821,14 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                     ? (_confirmandoConclusao ? null : _confirmarConclusao)
                     : aguardandoPagamento
                     ? _abrirQrcodePix
+                    : acompanhar
+                    ? () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => AcompanharDeslocamentoPage(
+                            idSolicitacao: _idSolicitacao,
+                          ),
+                        ),
+                      )
                     : aceito
                     ? _abrirPagamento
                     : precisaAvaliarCliente
@@ -3774,6 +3846,8 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                     : Icon(
                         aguardandoCliente
                             ? Icons.check_circle_outline
+                            : acompanhar
+                            ? Icons.navigation_outlined
                             : (aguardandoPagamento || aceito)
                             ? Icons.payments_outlined
                             : precisaAvaliarCliente
@@ -3788,6 +3862,8 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                       ? 'Confirmar entrega/final'
                       : aguardandoPagamento
                       ? 'Terminar Pagamento'
+                      : acompanhar
+                      ? 'Acompanhar deslocamento'
                       : aceito
                       ? 'Realizar pagamento'
                       : precisaAvaliarCliente
