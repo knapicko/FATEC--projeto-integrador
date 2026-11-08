@@ -32,6 +32,7 @@ class ItemServicoLista {
   final String tipoExecucao;
   final int? fkEnderecoEscolhido;
   final String? detalhes;
+  final List<String> imagensAnexadasCliente;
   final String dataAgendada;
   final String horaAgendada;
   final String horaAgendadaFim;
@@ -64,6 +65,7 @@ class ItemServicoLista {
     required this.tipoExecucao,
     this.fkEnderecoEscolhido,
     this.detalhes,
+    this.imagensAnexadasCliente = const [],
     required this.dataAgendada,
     required this.horaAgendada,
     required this.horaAgendadaFim,
@@ -173,6 +175,13 @@ class _ListaServicosState extends State<ListaServicos> {
             row['tipo_execucao_escolhido']?.toString() ?? 'Retirada';
         final fkEndereco = (row['fk_endereco_escolhido'] as num?)?.toInt();
         final detalhes = row['detalhes']?.toString();
+        final imagensAnexadasCliente = row['imagens_anexadas_cliente'] is List
+            ? List<String>.from(
+                (row['imagens_anexadas_cliente'] as List).map(
+                  (item) => item.toString(),
+                ),
+              )
+            : <String>[];
         final dataAgendada = row['data_agendada']?.toString() ?? '';
         final horaAgendada = row['hora_agendada']?.toString() ?? '';
         final horaAgendadaFim = row['hora_agendada_fim']?.toString() ?? '';
@@ -225,6 +234,7 @@ class _ListaServicosState extends State<ListaServicos> {
             tipoExecucao: tipoExecucao,
             fkEnderecoEscolhido: fkEndereco,
             detalhes: detalhes,
+            imagensAnexadasCliente: imagensAnexadasCliente,
             dataAgendada: dataAgendada,
             horaAgendada: horaAgendada,
             horaAgendadaFim: horaAgendadaFim,
@@ -287,7 +297,9 @@ class _ListaServicosState extends State<ListaServicos> {
     try {
       final assResponse = await _supabase
           .from('ass_usuario_endereco')
-          .select('fk_endereco, apelido_endereco, tipo_endereco, endereco_ativo')
+          .select(
+            'fk_endereco, apelido_endereco, tipo_endereco, endereco_ativo',
+          )
           .eq('fk_usuario', resolvedId);
 
       if (assResponse.isEmpty) {
@@ -317,7 +329,9 @@ class _ListaServicosState extends State<ListaServicos> {
 
       final enderecosResponse = await _supabase
           .from('enderecos')
-          .select('id_endereco, logradouro, numero, bairro, complemento, fk_cidade')
+          .select(
+            'id_endereco, logradouro, numero, bairro, complemento, fk_cidade',
+          )
           .inFilter('id_endereco', idsEnderecos);
 
       final cidadesResponse = await _supabase
@@ -337,7 +351,8 @@ class _ListaServicosState extends State<ListaServicos> {
       final Map<int, String> estadosMap = {};
       for (final estado in estadosResponse) {
         final id = (estado['id_estado'] as num?)?.toInt();
-        if (id != null) estadosMap[id] = estado['sigla_estado']?.toString() ?? '';
+        if (id != null)
+          estadosMap[id] = estado['sigla_estado']?.toString() ?? '';
       }
 
       final listaEnd = <EnderecoItemLista>[];
@@ -360,7 +375,9 @@ class _ListaServicosState extends State<ListaServicos> {
         final cidadeInfo = idCidade != null ? cidadesMap[idCidade] : null;
         final nomeCidade = cidadeInfo?['nome_cidade']?.toString().trim() ?? '';
         final idEstado = (cidadeInfo?['fk_estado'] as num?)?.toInt();
-        final siglaEstado = idEstado != null ? (estadosMap[idEstado] ?? '') : '';
+        final siglaEstado = idEstado != null
+            ? (estadosMap[idEstado] ?? '')
+            : '';
 
         var formatado = '';
         if (logradouro.isNotEmpty) {
@@ -369,7 +386,9 @@ class _ListaServicosState extends State<ListaServicos> {
           if (nomeCidade.isNotEmpty) formatado += ', $nomeCidade';
           if (siglaEstado.isNotEmpty) formatado += ' - $siglaEstado';
         } else if (nomeCidade.isNotEmpty) {
-          formatado = siglaEstado.isNotEmpty ? '$nomeCidade - $siglaEstado' : nomeCidade;
+          formatado = siglaEstado.isNotEmpty
+              ? '$nomeCidade - $siglaEstado'
+              : nomeCidade;
         } else {
           formatado = 'Endereço #$idEnd';
         }
@@ -394,7 +413,9 @@ class _ListaServicosState extends State<ListaServicos> {
       }
 
       listaEnd.sort((a, b) => b.principal ? 1 : (a.principal ? -1 : 0));
-      enderecoAtivoTexto ??= listaEnd.isNotEmpty ? listaEnd.first.enderecoFormatado : 'Nenhum endereço selecionado';
+      enderecoAtivoTexto ??= listaEnd.isNotEmpty
+          ? listaEnd.first.enderecoFormatado
+          : 'Nenhum endereço selecionado';
 
       if (mounted) {
         setState(() {
@@ -904,6 +925,7 @@ class _ListaServicosState extends State<ListaServicos> {
           'hora_agendada_fim': item.horaAgendadaFim.isNotEmpty
               ? item.horaAgendadaFim
               : null,
+          'imagens_anexadas_cliente': item.imagensAnexadasCliente,
         };
       }).toList();
       await _supabase.from('solicitacoes').insert(solicitacoes);
@@ -1235,7 +1257,6 @@ class _ListaServicosState extends State<ListaServicos> {
                                   ),
                                 ],
                               ),
-
                             ],
                           ),
                         ),
@@ -1741,11 +1762,7 @@ class _ListaServicosState extends State<ListaServicos> {
     final conteudo = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(
-          Icons.location_on_outlined,
-          color: Colors.white,
-          size: 19,
-        ),
+        const Icon(Icons.location_on_outlined, color: Colors.white, size: 19),
         const SizedBox(width: 4),
         Flexible(
           child: Text(
@@ -1760,11 +1777,7 @@ class _ListaServicosState extends State<ListaServicos> {
           ),
         ),
         const SizedBox(width: 2),
-        const Icon(
-          Icons.keyboard_arrow_down,
-          color: Colors.white,
-          size: 20,
-        ),
+        const Icon(Icons.keyboard_arrow_down, color: Colors.white, size: 20),
       ],
     );
 
@@ -1785,9 +1798,7 @@ class _ListaServicosState extends State<ListaServicos> {
     return PopupMenuButton<int>(
       tooltip: 'Selecionar endereÃ§o',
       offset: const Offset(0, 32),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       onSelected: (idEndereco) async {
         if (idEndereco == -1) {
           await Navigator.of(context).push(
@@ -1843,11 +1854,7 @@ class _ListaServicosState extends State<ListaServicos> {
                     ),
                     if (end.principal) ...[
                       const SizedBox(width: 8),
-                      const Icon(
-                        Icons.check,
-                        color: _azul,
-                        size: 18,
-                      ),
+                      const Icon(Icons.check, color: _azul, size: 18),
                     ],
                   ],
                 ),
