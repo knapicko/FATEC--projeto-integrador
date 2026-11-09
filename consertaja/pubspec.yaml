@@ -38,6 +38,7 @@ dependencies:
   file_selector: ^1.0.3
   url_launcher: ^6.3.2
   geolocator: ^14.0.2
+  flutter_compass: ^0.8.1
   qr_flutter: ^4.1.0
 
 dev_dependencies:
