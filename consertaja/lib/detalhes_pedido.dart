@@ -809,7 +809,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
     final st = _fkStatus;
 
     late _EtapaVisualConfig etapa1;
-    if (e >= 1 || st >= 31) {
+    if (e >= 1 || st >= 31 || (e == 0 && (st == 2 || st == 3))) {
       etapa1 = const _EtapaVisualConfig(
         titulo: 'Aceito',
         icone: Icons.check,
@@ -939,7 +939,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
     final st = _fkStatus;
 
     late _EtapaVisualConfig etapa1;
-    if (e >= 1 || st >= 31) {
+    if (e >= 1 || st >= 31 || (e == 0 && (st == 2 || st == 3))) {
       etapa1 = const _EtapaVisualConfig(
         titulo: 'Aceito',
         icone: Icons.check,
@@ -1109,7 +1109,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
     final st = _fkStatus;
 
     late _EtapaVisualConfig etapa1;
-    if (e >= 1 || st >= 31) {
+    if (e >= 1 || st >= 31 || (e == 0 && (st == 2 || st == 3))) {
       etapa1 = const _EtapaVisualConfig(
         titulo: 'Aceito',
         icone: Icons.check,
@@ -1279,7 +1279,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
     final st = _fkStatus;
 
     late _EtapaVisualConfig etapa1;
-    if (e >= 1 || st >= 31) {
+    if (e >= 1 || st >= 31 || (e == 0 && (st == 2 || st == 3))) {
       etapa1 = const _EtapaVisualConfig(
         titulo: 'Aceito',
         icone: Icons.check,
@@ -3773,7 +3773,8 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
     final atendimentoDomicilio = _tipoExecucao.toLowerCase().contains('domic');
     final acompanhar =
         atendimentoDomicilio &&
-        (pago || _fkStatus == 32 || _fkStatus == 33 || _fkStatus == 34);
+        !pago &&
+        (_fkStatus == 32 || _fkStatus == 33 || _fkStatus == 34);
     final precisaAvaliarCliente =
         status.contains('conclu') && !_avaliadoCliente;
     return Container(
@@ -4011,7 +4012,11 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                     Text(
                       _andamentoPausado
                           ? 'Pausado'
-                          : (_fkStatus == 4 ? 'Em execução' : 'Finalizado'),
+                          : (_fkStatus == 4
+                                ? 'Em execução'
+                                : (_duracaoServicoSegundos == 0
+                                      ? 'Não iniciado'
+                                      : 'Finalizado')),
                       style: TextStyle(
                         fontSize: 10.5,
                         fontWeight: FontWeight.w700,

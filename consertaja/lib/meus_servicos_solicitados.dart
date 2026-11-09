@@ -574,7 +574,9 @@ class _MeusServicosSolicitadosPageState
         .toLowerCase()
         .replaceAll('á', 'a')
         .replaceAll('ã', 'a')
-        .replaceAll('â', 'a');
+        .replaceAll('â', 'a')
+        .replaceAll('í', 'i')
+        .replaceAll('ú', 'u');
     return (tipo.contains('leva') && tipo.contains('traz')) ||
         tipo.contains('domicilio');
   }
@@ -604,7 +606,7 @@ class _MeusServicosSolicitadosPageState
         .maybeSingle();
     final statusAtual = (solicitacao?['fk_status'] as num?)?.toInt();
 
-    if (statusAtual == 32) {
+    if (statusAtual == 3 || statusAtual == 32) {
       final codigo = (1000 + Random().nextInt(9000)).toString();
       await _supabase
           .from('solicitacoes')

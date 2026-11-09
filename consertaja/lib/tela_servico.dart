@@ -425,7 +425,8 @@ class _TelaServicoState extends State<TelaServico> {
     final pagamentos = _sheetPagamentosDisponiveis.isEmpty
         ? const ['Pix', 'Cartão', 'Boleto']
         : _sheetPagamentosDisponiveis;
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
           'Formas de Pagamento:',
@@ -435,12 +436,13 @@ class _TelaServicoState extends State<TelaServico> {
             fontSize: 12.5,
           ),
         ),
-        const SizedBox(width: 8),
-        ...pagamentos
-            .map(
-              (pagamento) => Padding(
-                padding: const EdgeInsets.only(right: 6),
-                child: _pagamentoChip(
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: pagamentos
+              .map(
+                (pagamento) => _pagamentoChip(
                   iconeWidget: const Icon(
                     Icons.payments_outlined,
                     size: 14,
@@ -448,9 +450,9 @@ class _TelaServicoState extends State<TelaServico> {
                   ),
                   label: pagamento,
                 ),
-              ),
-            )
-            .toList(),
+              )
+              .toList(),
+        ),
       ],
     );
   }
@@ -598,10 +600,12 @@ class _TelaServicoState extends State<TelaServico> {
               ),
             ],
           ),
-          child: Row(
+          child: Column(
             children: [
-              // Logotipo da loja com selo de verificação
-              Stack(
+              Row(
+                children: [
+                  // Logotipo da loja com selo de verificação
+                  Stack(
                 clipBehavior: Clip.none,
                 children: [
                   Container(
@@ -632,9 +636,9 @@ class _TelaServicoState extends State<TelaServico> {
                   ),
                 ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
@@ -706,10 +710,14 @@ class _TelaServicoState extends State<TelaServico> {
                       ),
                     ),
                   ],
-                ),
+                    ),
+                  ),
+                ],
               ),
-              Column(
-                children: [
+              const SizedBox(height: 12),
+              Center(
+                child: Column(
+                  children: [
                   SizedBox(
                     height: 32,
                     child: ElevatedButton(
@@ -744,7 +752,8 @@ class _TelaServicoState extends State<TelaServico> {
                       ),
                     ),
                   ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),

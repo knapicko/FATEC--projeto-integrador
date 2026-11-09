@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_compass/flutter_compass.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart' hide Path;
@@ -66,6 +67,8 @@ class _TelaDeslocamentoProfissionalPageState
   final MapController mapa = MapController();
 
   StreamSubscription<Position>? _posicao;
+  StreamSubscription<CompassEvent>? _compass;
+  bool _bussolaDisponivel = false;
   LatLng? _atual;
   DateTime? _ultimoMomentoGps;
   LatLng? _ultimaPosicaoGps;
@@ -141,12 +144,28 @@ class _TelaDeslocamentoProfissionalPageState
     _carregarDadosProfissionalLogado();
     _carregarDadosSupabaseSolicitacao();
     _iniciarLocalizacao();
+    _iniciarBussola();
   }
 
   @override
   void dispose() {
     _posicao?.cancel();
+    _compass?.cancel();
     super.dispose();
+  }
+
+  void _iniciarBussola() {
+    _compass = FlutterCompass.events?.listen((event) {
+      final heading = event.heading;
+      if (!mounted || heading == null || heading.isNaN) return;
+
+      _bussolaDisponivel = true;
+      final alvo = (heading + 360) % 360;
+      final atual = _bearing;
+      final diferenca = ((alvo - atual + 540) % 360) - 180;
+      final suavizado = (atual + diferenca * 0.22 + 360) % 360;
+      setState(() => _bearing = suavizado);
+    });
   }
 
   Future<void> _carregarConfiguracoesMapbox() async {
@@ -490,9 +509,10 @@ class _TelaDeslocamentoProfissionalPageState
       }
     }
 
-    // Cálculo da orientação da seta (bearing) com base no heading ou deslocamento
+    // O heading da bússola é preferido; o GPS permanece como fallback durante
+    // a inicialização ou quando o sensor não fornece orientação.
     double bearingAtual = _bearing;
-    if (p.heading > 0) {
+    if (!_bussolaDisponivel && p.heading.isFinite && p.heading >= 0) {
       bearingAtual = p.heading;
     } else if (_ultimaPosicaoGps != null) {
       final calcB = Geolocator.bearingBetween(
