@@ -3,12 +3,14 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'gestao_equipe.dart';
 import 'meus_servicos_solicitados.dart';
 import 'solicitacao_estado.dart';
 import 'tela_chat_profissional.dart';
+import 'tela_deslocamento_profissional.dart';
 import 'tela_meu_perfil_profissional.dart';
 import 'utils/iniciais.dart';
 import 'widgets/skeleton_loading.dart';
@@ -26,6 +28,10 @@ class SolicitacaoEmAndamentoPage extends StatefulWidget {
   final int? idGrupoEmpresa;
   final String? fotoPerfilProfissional;
   final String? nomeProfissional;
+  final double? latitudeCliente;
+  final double? longitudeCliente;
+  final String? enderecoCliente;
+  final String? complementoCliente;
 
   const SolicitacaoEmAndamentoPage({
     super.key,
@@ -41,6 +47,10 @@ class SolicitacaoEmAndamentoPage extends StatefulWidget {
     this.idGrupoEmpresa,
     this.fotoPerfilProfissional,
     this.nomeProfissional,
+    this.latitudeCliente,
+    this.longitudeCliente,
+    this.enderecoCliente,
+    this.complementoCliente,
   });
 
   @override
@@ -731,6 +741,7 @@ class _SolicitacaoEmAndamentoPageState
 
       if (!mounted) return;
 
+      final recebaEmCasa = widget.modalidade.toLowerCase().contains('receba');
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -778,15 +789,37 @@ class _SolicitacaoEmAndamentoPageState
                 child: FilledButton(
                   onPressed: () {
                     Navigator.of(ctx).pop();
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(
-                        builder: (_) => SolicitacaoEstadoPage(
-                          idSolicitacao: widget.idSolicitacao,
-                          nomeClienteInicial: widget.nomeCliente,
-                          fotoClienteInicial: widget.fotoCliente,
+                    if (recebaEmCasa) {
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(
+                          builder: (_) => TelaDeslocamentoProfissionalPage(
+                            idSolicitacao: widget.idSolicitacao,
+                            destino: LatLng(
+                              widget.latitudeCliente ?? -23.5505,
+                              widget.longitudeCliente ?? -46.6333,
+                            ),
+                            enderecoPrincipal:
+                                widget.enderecoCliente ?? 'Endereço do cliente',
+                            enderecoComplementar:
+                                widget.complementoCliente ?? '',
+                            nomeCliente: widget.nomeCliente,
+                            fotoCliente: widget.fotoCliente,
+                            categoria: widget.nomeServico,
+                            codigoPedido: widget.codigoPedido,
+                          ),
                         ),
-                      ),
-                    );
+                      );
+                    } else {
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(
+                          builder: (_) => SolicitacaoEstadoPage(
+                            idSolicitacao: widget.idSolicitacao,
+                            nomeClienteInicial: widget.nomeCliente,
+                            fotoClienteInicial: widget.fotoCliente,
+                          ),
+                        ),
+                      );
+                    }
                   },
                   style: FilledButton.styleFrom(
                     backgroundColor: _azul,

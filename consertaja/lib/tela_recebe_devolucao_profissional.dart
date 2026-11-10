@@ -76,7 +76,10 @@ class _TelaRecebeDevolucaoProfissionalPageState
 
   bool get _ehDevolucao =>
       _etapaSolicitacao == 4 &&
-      (_fkStatus == 35 || _fkStatus == 36 || _fkStatus == 37);
+      (_fkStatus == 34 ||
+          _fkStatus == 35 ||
+          _fkStatus == 36 ||
+          _fkStatus == 37);
 
   // Dados carregados da solicitação
   String _descricaoCliente = '';

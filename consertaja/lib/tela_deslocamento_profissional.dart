@@ -705,12 +705,20 @@ class _TelaDeslocamentoProfissionalPageState
 
   Future<void> _aoClicarEstouNoLocal() async {
     if (_ehDevolucao && _fkStatus == 36) {
+      final recebaEmCasa = _tipoExecucao
+          .toLowerCase()
+          .replaceAll('í', 'i')
+          .replaceAll('ã', 'a')
+          .contains('receba');
       try {
         await supabase
             .from('solicitacoes')
-            .update({'fk_status': 37, 'etapa_solicitacao': 4})
+            .update({
+              'fk_status': recebaEmCasa ? 34 : 37,
+              'etapa_solicitacao': 4,
+            })
             .eq('id_solicitacao', widget.idSolicitacao);
-        _fkStatus = 37;
+        _fkStatus = recebaEmCasa ? 34 : 37;
       } catch (e) {
         debugPrint('Erro ao atualizar status 37 na devolução: $e');
       }
