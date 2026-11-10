@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'gestao_equipe.dart';
 import 'meus_servicos_solicitados.dart';
+import 'solicitacao_em_andamento.dart';
 import 'tela_chat_profissional.dart';
 import 'services/solicitacoes_service.dart';
 import 'tela_deslocamento_profissional.dart';
@@ -147,6 +148,10 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
   String _legendaAnexo = '';
   ModalidadeExecucao _modalidade = ModalidadeExecucao.levaETraz;
   String _tipoExecucaoOriginal = 'Leva e Traz';
+  String _codigoRecDev = '';
+  final List<TextEditingController> _codigoRecebimentoControllers =
+      List.generate(4, (_) => TextEditingController());
+  bool _codigoRecebimentoValido = false;
 
   bool get _ehDevolucao =>
       _etapaSolicitacao == 4 &&
@@ -227,6 +232,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
 
   @override
   void dispose() {
+    for (final controller in _codigoRecebimentoControllers) {
+      controller.dispose();
+    }
     _sonarController.dispose();
     super.dispose();
   }
@@ -486,6 +494,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
       _fkProfissional = (row['fk_profissional'] as num?)?.toInt() ?? 0;
       _idStatusSolicitacao = (row['fk_status'] as num?)?.toInt();
       _etapaSolicitacao = (row['etapa_solicitacao'] as num?)?.toInt() ?? 0;
+      _codigoRecDev = row['codigo_rec_dev']?.toString().trim() ?? '';
       _duracaoAtendimento = (row['duracao_atendimento'] as num?)?.toInt() ?? 0;
       _carregarLista(
         row['imagens_atendimento_antes'],
@@ -1304,6 +1313,12 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                                     ModalidadeExecucao.recebaEmCasa) ...[
                                   const SizedBox(height: 14),
                                   _buildCardChecklistEspecialista(),
+                                ],
+                                if (_modalidade ==
+                                        ModalidadeExecucao.recebaEmCasa &&
+                                    _idStatusSolicitacao == 38) ...[
+                                  const SizedBox(height: 14),
+                                  _buildCardCodigoRecebimento(),
                                 ],
                                 const SizedBox(height: 20),
                                 _buildBotoesAcao(),
@@ -2431,66 +2446,67 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
           const SizedBox(height: 14),
           if (_imagemAnexoUrl != null && _imagemAnexoUrl!.isNotEmpty)
             ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: Stack(
-              children: [
-                SizedBox(
-                  width: double.infinity,
-                  height: 180,
-                  child: _imagemAnexoUrl != null && _imagemAnexoUrl!.isNotEmpty
-                      ? Image.network(
-                          _imagemAnexoUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => _imagemAnexoFallback(),
-                        )
-                      : _imagemAnexoFallback(),
+              borderRadius: BorderRadius.circular(14),
+              child: Stack(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    height: 180,
+                    child:
+                        _imagemAnexoUrl != null && _imagemAnexoUrl!.isNotEmpty
+                        ? Image.network(
+                            _imagemAnexoUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => _imagemAnexoFallback(),
+                          )
+                        : _imagemAnexoFallback(),
                   ),
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.bottomCenter,
-                        end: Alignment.topCenter,
-                        colors: [
-                          Colors.black.withValues(alpha: 0.85),
-                          Colors.transparent,
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.85),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.photo_camera_outlined,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Foto anexada pela cliente ($_legendaAnexo)',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.photo_camera_outlined,
-                          color: Colors.white,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            'Foto anexada pela cliente ($_legendaAnexo)',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -3270,6 +3286,121 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
     }
   }
 
+  Widget _buildBotaoAguardar(String texto, IconData icone) {
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: FilledButton.icon(
+        onPressed: null,
+        icon: Icon(icone, size: 20),
+        label: Text(texto, style: const TextStyle(fontWeight: FontWeight.w800)),
+      ),
+    );
+  }
+
+  Widget _buildCardCodigoRecebimento() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        children: [
+          const Text(
+            'CÓDIGO DE ENTREGA NO BALCÃO',
+            style: TextStyle(
+              color: Color(0xFF475569),
+              fontWeight: FontWeight.w800,
+              letterSpacing: .5,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Informe os 4 dígitos de $_nomeCliente',
+            style: const TextStyle(color: _textoMuted),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: List.generate(
+              4,
+              (index) => SizedBox(
+                width: 58,
+                child: TextField(
+                  controller: _codigoRecebimentoControllers[index],
+                  textAlign: TextAlign.center,
+                  keyboardType: TextInputType.number,
+                  maxLength: 1,
+                  decoration: const InputDecoration(
+                    counterText: '',
+                    filled: true,
+                    fillColor: Color(0xFFF8FAFC),
+                    border: OutlineInputBorder(
+                      borderSide: BorderSide.none,
+                      borderRadius: BorderRadius.all(Radius.circular(12)),
+                    ),
+                  ),
+                  onChanged: (value) {
+                    if (value.isNotEmpty && index < 3) {
+                      FocusScope.of(context).nextFocus();
+                    }
+                    final informado = _codigoRecebimentoControllers
+                        .map((item) => item.text)
+                        .join();
+                    setState(
+                      () => _codigoRecebimentoValido =
+                          informado.length == 4 && informado == _codigoRecDev,
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+          if (_codigoRecebimentoValido) ...[
+            const SizedBox(height: 14),
+            FilledButton.icon(
+              onPressed: _confirmarRecebimentoCliente,
+              icon: const Icon(Icons.check),
+              label: const Text('Confirmar entrega'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmarRecebimentoCliente() async {
+    if (!_codigoRecebimentoValido) return;
+    await _supabase
+        .from('solicitacoes')
+        .update({'fk_status': 4, 'etapa_solicitacao': 3})
+        .eq('id_solicitacao', _idSolicitacao);
+    await _carregarDadosCompletos();
+  }
+
+  void _abrirAndamento() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SolicitacaoEmAndamentoPage(
+          idSolicitacao: _idSolicitacao,
+          codigoPedido: _codigoPedido,
+          nomeCliente: _nomeCliente,
+          fotoCliente: _fotoCliente,
+          nomeServico: _tituloServico,
+          modalidade: _tipoExecucaoOriginal,
+          detalhes: _relatoCliente,
+          valorFinal: double.tryParse(
+            _valorExibicao.replaceAll('R\$', '').replaceAll(',', '.'),
+          ),
+          isEmpresa: _fkGrupoEmpresa != null,
+          idGrupoEmpresa: _fkGrupoEmpresa,
+        ),
+      ),
+    );
+  }
+
   Widget _buildBotoesAcao() {
     if (_idStatusSolicitacao == 1) {
       return Row(
@@ -3359,6 +3490,22 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
       );
     }
 
+    if (_modalidade == ModalidadeExecucao.recebaEmCasa &&
+        _idStatusSolicitacao == 3) {
+      return _buildBotaoAguardar(
+        'Aguarde o cliente iniciar o trajeto',
+        Icons.hourglass_top_rounded,
+      );
+    }
+
+    if (_modalidade == ModalidadeExecucao.recebaEmCasa &&
+        _idStatusSolicitacao == 38) {
+      return _buildBotaoAguardar(
+        'Aguarde a entrega do cliente',
+        Icons.inventory_2_outlined,
+      );
+    }
+
     if (_idStatusSolicitacao == 32 || _idStatusSolicitacao == 33) {
       return SizedBox(
         width: double.infinity,
@@ -3387,7 +3534,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         width: double.infinity,
         height: 52,
         child: FilledButton.icon(
-          onPressed: _iniciandoServico ? null : _concluirServico,
+          onPressed: () => _abrirAndamento(),
           icon: _iniciandoServico
               ? const SizedBox(
                   width: 18,

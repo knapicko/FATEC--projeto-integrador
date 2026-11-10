@@ -688,6 +688,9 @@ class _MeusServicosSolicitadosPageState
     } else if (item.fkStatus == 37) {
       _abrirTelaRecebeDevolucao(item);
     } else if (item.fkStatus == 34 &&
+        item.tipoExecucao.toLowerCase().contains('receba')) {
+      _abrirTelaRecebeDevolucao(item);
+    } else if (item.fkStatus == 34 &&
         item.tipoExecucao.toLowerCase().contains('domic')) {
       _abrirAtendimentoNoLocal(item);
     } else if (item.fkStatus == 32 ||
@@ -716,6 +719,10 @@ class _MeusServicosSolicitadosPageState
               valorFinal: item.valorFinal,
               isEmpresa: _contaEmpresaAtiva,
               idGrupoEmpresa: item.fkGrupoEmpresa,
+              latitudeCliente: item.latitude,
+              longitudeCliente: item.longitude,
+              enderecoCliente: item.enderecoPrincipal,
+              complementoCliente: item.enderecoComplementar,
             ),
           ),
         )
@@ -1724,7 +1731,9 @@ class _MeusServicosSolicitadosPageState
     );
     return GestureDetector(
       onTap: () {
-        if (item.fkStatus == 35 || item.fkStatus == 36 || item.fkStatus == 37) {
+        if (item.fkStatus != null &&
+            item.fkStatus! >= 32 &&
+            item.fkStatus! <= 37) {
           _abrirPorStatus(item);
         } else if (item.fkStatus == 4 ||
             statusTxt.contains('andamento') ||
@@ -2044,6 +2053,14 @@ class _MeusServicosSolicitadosPageState
                         )
                       : _botaoIniciarServico(item, verticalPadding: 13),
                 )
+              else if (item.fkStatus == 38)
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: null,
+                    icon: const Icon(Icons.hourglass_top_rounded, size: 18),
+                    label: const Text('Aguardando entrega do cliente'),
+                  ),
+                )
               else if (emAndamento || item.fkStatus == 4)
                 Expanded(
                   child: FilledButton.icon(
@@ -2352,6 +2369,14 @@ class _MeusServicosSolicitadosPageState
                     ),
                   )
                 : _botaoIniciarServico(item, verticalPadding: 12),
+          )
+        else if (item.fkStatus == 38)
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: null,
+              icon: const Icon(Icons.hourglass_top_rounded, size: 18),
+              label: const Text('Aguardando entrega do cliente'),
+            ),
           )
         else if (item.fkStatus == 4 || statusTxt.contains('andamento'))
           Expanded(

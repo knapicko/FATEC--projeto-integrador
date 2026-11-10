@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'meus_pedidos.dart';
 import 'acompanhar_deslocamento.dart';
+import 'tela_deslocamento_cliente.dart';
 import 'pagamento_pedido.dart';
 import 'models/stripe_pagamento.dart';
 import 'qrcode_pix.dart';
@@ -3771,6 +3772,8 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
     final aceito = status == 'aceito';
     final pago = _fkStatus == 3 || status == 'pago';
     final atendimentoDomicilio = _tipoExecucao.toLowerCase().contains('domic');
+    final recebaEmCasa = _tipoExecucao.toLowerCase().contains('receba');
+    final iniciarDeslocamentoCliente = recebaEmCasa && _fkStatus == 3;
     final acompanhar =
         atendimentoDomicilio &&
         !pago &&
@@ -3824,6 +3827,8 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                     ? (_confirmandoConclusao ? null : _confirmarConclusao)
                     : aguardandoPagamento
                     ? _abrirQrcodePix
+                    : iniciarDeslocamentoCliente
+                    ? _iniciarDeslocamentoCliente
                     : acompanhar
                     ? () => Navigator.of(context).push(
                         MaterialPageRoute(
@@ -3849,6 +3854,8 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                     : Icon(
                         aguardandoCliente
                             ? Icons.check_circle_outline
+                            : iniciarDeslocamentoCliente
+                            ? Icons.navigation_outlined
                             : acompanhar
                             ? Icons.navigation_outlined
                             : (aguardandoPagamento || aceito)
@@ -3865,6 +3872,8 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                       ? 'Confirmar entrega/final'
                       : aguardandoPagamento
                       ? 'Terminar Pagamento'
+                      : iniciarDeslocamentoCliente
+                      ? 'Iniciar Deslocamento'
                       : acompanhar
                       ? 'Acompanhar deslocamento'
                       : aceito
@@ -3891,6 +3900,41 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
         ],
       ),
     );
+  }
+
+  Future<void> _iniciarDeslocamentoCliente() async {
+    try {
+      final codigo = await _db
+          .from('solicitacoes')
+          .select('codigo_rec_dev')
+          .eq('id_solicitacao', _idSolicitacao)
+          .maybeSingle();
+      final existente = codigo?['codigo_rec_dev']?.toString().trim() ?? '';
+      final valor = existente.length == 4
+          ? existente
+          : (1000 + DateTime.now().millisecond % 9000).toString();
+      await _db
+          .from('solicitacoes')
+          .update({
+            'fk_status': 38,
+            'etapa_solicitacao': 2,
+            'codigo_rec_dev': valor,
+          })
+          .eq('id_solicitacao', _idSolicitacao);
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) =>
+              TelaDeslocamentoClientePage(idSolicitacao: _idSolicitacao),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao iniciar deslocamento: $e')),
+        );
+      }
+    }
   }
 
   void _iniciarTimerAndamento() {

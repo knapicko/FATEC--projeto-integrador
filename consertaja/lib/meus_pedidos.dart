@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'detalhes_pedido.dart';
 import 'acompanhar_deslocamento.dart';
 import 'atendimento_no_local_cliente.dart';
+import 'tela_deslocamento_cliente.dart';
 import 'pagamento_pedido.dart';
 import 'qrcode_pix.dart';
 import 'widgets/skeleton_loading.dart';
@@ -1144,6 +1145,18 @@ class MeusPedidosState extends State<MeusPedidosPage>
             MaterialPageRoute(
               builder: (_) =>
                   AtendimentoNoLocalClientePage(idSolicitacao: p.id),
+            ),
+          )
+          .then((_) => carregar(loading: false));
+      return;
+    }
+    if (st == 38 &&
+        p.tipoExecucao.toLowerCase().contains('receba')) {
+      Navigator.of(context)
+          .push(
+            MaterialPageRoute(
+              builder: (_) =>
+                  TelaDeslocamentoClientePage(idSolicitacao: p.id),
             ),
           )
           .then((_) => carregar(loading: false));
