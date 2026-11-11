@@ -11,6 +11,7 @@ import 'termos_de_uso.dart';
 import 'politica_de_privacidade.dart';
 import 'sobre_conserta_ja.dart';
 import 'tela_inicial.dart';
+import 'tela_configuracoes_cliente.dart';
 import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/iniciais.dart';
 import 'utils/app_navigation_util.dart';
@@ -608,6 +609,15 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                           _buildProfileItem(
                             label: 'Configurações',
                             fallbackIcon: Icons.settings_outlined,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const TelaConfiguracoesClientePage(),
+                                ),
+                              );
+                            },
                           ),
                           _buildProfileItem(
                             label: 'Termos de Uso',
