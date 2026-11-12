@@ -249,6 +249,11 @@ class _ProfissionalNoLocalAtendimentoPresencialPageState
             'data_inicio_andamento': _inicio!.toUtc().toIso8601String(),
             'duracao_atendimento': 0,
             'andamento_pausado': false,
+            // Domicílio: o status 34 permanece durante todo o atendimento,
+            // sempre na etapa 3 ("No Local"). A conclusão (6 / etapa 4)
+            // acontece quando o cliente confirma.
+            'fk_status': 34,
+            'etapa_solicitacao': 3,
           })
           .eq('id_solicitacao', widget.idSolicitacao);
       _iniciarRelogios();
