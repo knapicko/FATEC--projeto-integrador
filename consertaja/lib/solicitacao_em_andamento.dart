@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:async';
 import 'dart:io';
 
@@ -9,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'gestao_equipe.dart';
 import 'meus_servicos_solicitados.dart';
 import 'solicitacao_estado.dart';
+import 'utils/fluxo_solicitacao.dart';
 import 'tela_chat_profissional.dart';
 import 'tela_deslocamento_profissional.dart';
 import 'tela_meu_perfil_profissional.dart';
@@ -728,20 +730,37 @@ class _SolicitacaoEmAndamentoPageState
     setState(() => _salvando = true);
 
     try {
-      // Salva duração final e atualiza etapa
+      // A modalidade vem do banco: o parâmetro da tela pode ter recebido a
+      // categoria do serviço em caminhos antigos.
+      final solicitacao = await _supabase
+          .from('solicitacoes')
+          .select('tipo_execucao')
+          .eq('id_solicitacao', widget.idSolicitacao)
+          .maybeSingle();
+      final modalidade = ModalidadeExecucao.fromString(
+        solicitacao?['tipo_execucao']?.toString() ?? widget.modalidade,
+      );
+      final retiradaNoLocal = modalidade.clienteRetiraNoLocal;
+
+      // Etapa 3 → 4. Status 35 é exibido como "Aguardando Devolução"
+      // (Leva e Traz / Receba em Casa) ou "Aguardando retirada pelo cliente"
+      // (Retirado no Local). Na retirada é gerado o código do balcão que o
+      // cliente informa para confirmar.
       await _supabase
           .from('solicitacoes')
           .update({
             'duracao_servico': _segundosAndamento,
             'andamento_pausado': true,
-            'fk_status': 35, // Aguardando Devolução
+            'fk_status': 35,
             'etapa_solicitacao': 4,
+            if (retiradaNoLocal)
+              'codigo_rec_dev': (1000 + Random().nextInt(9000)).toString(),
           })
           .eq('id_solicitacao', widget.idSolicitacao);
 
       if (!mounted) return;
 
-      final recebaEmCasa = widget.modalidade.toLowerCase().contains('receba');
+      final recebaEmCasa = modalidade == ModalidadeExecucao.recebaEmCasa;
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -777,8 +796,10 @@ class _SolicitacaoEmAndamentoPageState
                 ),
               ),
               const SizedBox(height: 10),
-              const Text(
-                'O diagnóstico e as evidências foram registradas com sucesso. O aparelho está pronto para devolução/entrega.',
+              Text(
+                retiradaNoLocal
+                    ? 'O diagnóstico e as evidências foram registradas. O produto aguarda a retirada pelo cliente no balcão — informe o código de retirada quando ele chegar.'
+                    : 'O diagnóstico e as evidências foram registradas com sucesso. O aparelho está pronto para devolução/entrega.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 13, color: _textoMuted, height: 1.4),
               ),
