@@ -1,11 +1,15 @@
 // ignore_for_file: deprecated_member_use, unnecessary_underscores
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'meus_pedidos.dart';
 import 'acompanhar_deslocamento.dart';
 import 'tela_deslocamento_cliente.dart';
+import 'atendimento_no_local_cliente.dart';
+import 'confirmar_retirada_cliente.dart';
+import 'utils/fluxo_solicitacao.dart';
 import 'pagamento_pedido.dart';
 import 'models/stripe_pagamento.dart';
 import 'qrcode_pix.dart';
@@ -126,6 +130,14 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
   Timer? _timerAndamento;
   List<String> _imagensRecebimento = [];
   List<String> _imagensEmAndamento = [];
+
+  /// Regras centrais (modalidade + status + etapa) deste pedido.
+  FluxoSolicitacao get _fluxo => FluxoSolicitacao(
+    tipoExecucao: _tipoExecucao,
+    fkStatus: _fkStatus,
+    etapa: _etapaSolicitacao,
+    statusTexto: _statusTexto,
+  );
 
   bool get _podeCancelar {
     final s = _statusTexto.trim().toLowerCase();
@@ -622,6 +634,45 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
   ({String titulo, String subtitulo}) _obterSituacaoPedido() {
     final s = _statusTexto.trim().toLowerCase();
     final st = _fkStatus;
+    final fluxo = _fluxo;
+
+    // Status compartilhados entre modalidades: texto específico do fluxo.
+    if (!fluxo.estaConcluido) {
+      if (fluxo.aguardandoRetirada) {
+        return (
+          titulo: 'Aguardando retirada pelo cliente',
+          subtitulo:
+              'Seu produto está pronto. Vá até o estabelecimento e confirme a retirada com o código do balcão.',
+        );
+      }
+      if (fluxo.clienteDeslocando) {
+        return (
+          titulo: 'Levando o produto',
+          subtitulo:
+              'No estabelecimento, informe o código do balcão e registre a foto do produto.',
+        );
+      }
+      if (fluxo.estaPago && fluxo.modalidade.clienteLevaProduto) {
+        return (
+          titulo: 'Pedido pago',
+          subtitulo:
+              'Agora é só levar o produto até o profissional. Toque em "Iniciar Deslocamento".',
+        );
+      }
+      if (fluxo.devolucaoChegou) {
+        return (
+          titulo: 'Profissional no local',
+          subtitulo:
+              'O profissional chegou para devolver o produto. Confirme com o código e as fotos.',
+        );
+      }
+      if (fluxo.profissionalChegou && fluxo.modalidade.ehDomicilio) {
+        return (
+          titulo: 'Atendimento no local',
+          subtitulo: 'O profissional está realizando o serviço no seu endereço.',
+        );
+      }
+    }
     if (st == 35 || s.contains('aguardando devolu')) {
       return (
         titulo: 'Aguardando devolução',
@@ -732,716 +783,108 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
   // ===========================================================================
   // Regras das Etapas por Modalidade de Execução
   // ===========================================================================
+  /// Linha do tempo gerada a partir da modalidade e de `etapa_solicitacao`
+  /// (as regras ficam em utils/fluxo_solicitacao.dart):
+  /// - Leva e Traz: Aceito, Busca, Processo, Entrega, Concluído
+  /// - Domicílio: Aceito, A caminho, No Local, Concluído
+  /// - Retirado no Local: Aceito, Cliente, Processo, Retirada, Concluído
+  /// - Receba em Casa: Aceito, Cliente, Processo, Entrega, Concluído
   List<_EtapaVisualConfig> _gerarEtapas() {
-    if (_etapaSolicitacao == 4 &&
-        (_fkStatus == 35 || _fkStatus == 36 || _fkStatus == 37)) {
-      return _gerarEtapasDevolucao();
+    final fluxo = _fluxo;
+    final titulos = fluxo.modalidade.titulosEtapas;
+    final etapa = fluxo.etapaEfetiva;
+    final concluido = fluxo.estaConcluido;
+    // Etapas com movimento (sonar): alguém está se deslocando.
+    final emMovimento =
+        fluxo.profissionalDeslocando ||
+        fluxo.devolucaoDeslocando ||
+        fluxo.clienteDeslocando;
+    // Etapas em que se aguarda uma ação (laranja).
+    final aguardando =
+        fluxo.aguardandoRetirada ||
+        fluxo.aguardandoDevolucao ||
+        fluxo.devolucaoChegou ||
+        (fluxo.profissionalChegou && !fluxo.modalidade.ehDomicilio);
+
+    IconData iconePara(int numero) {
+      final titulo = titulos[numero - 1];
+      switch (titulo) {
+        case 'Busca':
+        case 'A caminho':
+          return Icons.two_wheeler;
+        case 'Cliente':
+          return Icons.directions_walk;
+        case 'Processo':
+          return Icons.handyman_outlined;
+        case 'No Local':
+          return Icons.place_outlined;
+        case 'Entrega':
+          return Icons.local_shipping_outlined;
+        case 'Retirada':
+          return Icons.storefront_outlined;
+        case 'Concluído':
+          return Icons.check_circle_outline;
+        default:
+          return Icons.check;
+      }
     }
 
-    final mod = _tipoExecucao.trim().toLowerCase();
-
-    if (mod.contains('domic')) {
-      return _gerarEtapasDomicilio();
-    } else if (mod.contains('receba') && mod.contains('casa')) {
-      return _gerarEtapasRecebaEmCasa();
-    } else if (mod.contains('retirad') ||
-        (mod.contains('retirada') && mod.contains('local'))) {
-      return _gerarEtapasRetiradaNoLocal();
-    } else {
-      return _gerarEtapasLevaETraz();
-    }
-  }
-
-  List<_EtapaVisualConfig> _gerarEtapasDevolucao() {
-    final devolucaoEmDeslocamento = _fkStatus == 36;
-    final devolucaoNoLocal = _fkStatus == 37;
-    const concluida = _EtapaVisualConfig(
-      titulo: 'Concluído',
-      icone: Icons.check_circle_outline,
-      corFundo: Color(0xFFF1F5F9),
-      corIcone: Color(0xFF94A3B8),
-      corTexto: Color(0xFF64748B),
-      concluida: false,
+    const pendente = (
+      fundo: Color(0xFFF1F5F9),
+      icone: Color(0xFF94A3B8),
+      texto: Color(0xFF64748B),
     );
 
-    return [
-      const _EtapaVisualConfig(
-        titulo: 'Aceito',
-        icone: Icons.check,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        concluida: true,
-      ),
-      const _EtapaVisualConfig(
-        titulo: 'Recebimento',
-        icone: Icons.inventory_2_outlined,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        concluida: true,
-      ),
-      const _EtapaVisualConfig(
-        titulo: 'Manutenção',
-        icone: Icons.handyman_outlined,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        concluida: true,
-      ),
-      _EtapaVisualConfig(
-        titulo: 'Devolução',
-        icone: devolucaoNoLocal
-            ? Icons.place_rounded
-            : Icons.local_shipping_outlined,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        temSonar: devolucaoEmDeslocamento,
-        concluida: false,
-      ),
-      concluida,
-    ];
-  }
-
-  /// 1. Atendimento em Domicílio (4 etapas)
-  List<_EtapaVisualConfig> _gerarEtapasDomicilio() {
-    final e = _etapaSolicitacao;
-    final st = _fkStatus;
-
-    late _EtapaVisualConfig etapa1;
-    if (e >= 1 || st >= 31 || (e == 0 && (st == 2 || st == 3))) {
-      etapa1 = const _EtapaVisualConfig(
-        titulo: 'Aceito',
-        icone: Icons.check,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        concluida: true,
+    return List.generate(titulos.length, (i) {
+      final numero = i + 1;
+      final feito = concluido || numero < etapa || (numero == 1 && etapa >= 1);
+      if (feito) {
+        return _EtapaVisualConfig(
+          titulo: titulos[i],
+          icone: Icons.check,
+          corFundo: azulPrincipal,
+          corIcone: Colors.white,
+          corTexto: azulPrincipal,
+          concluida: true,
+        );
+      }
+      if (etapa == 0 && numero == 1) {
+        return const _EtapaVisualConfig(
+          titulo: 'Solicitado',
+          icone: Icons.hourglass_top_outlined,
+          corFundo: laranjaEspera,
+          corIcone: Colors.white,
+          corTexto: laranjaEspera,
+        );
+      }
+      if (numero == etapa) {
+        return _EtapaVisualConfig(
+          titulo: titulos[i],
+          icone: aguardando ? Icons.hourglass_top_outlined : iconePara(numero),
+          corFundo: aguardando ? laranjaEspera : azulPrincipal,
+          corIcone: Colors.white,
+          corTexto: aguardando ? laranjaEspera : azulPrincipal,
+          temSonar: emMovimento || (!aguardando && fluxo.emAndamento),
+        );
+      }
+      // Etapa 1 paga: a próxima etapa aguarda o início do deslocamento.
+      if (etapa == 1 && numero == 2 && fluxo.estaPago) {
+        return _EtapaVisualConfig(
+          titulo: titulos[i],
+          icone: Icons.hourglass_top_outlined,
+          corFundo: laranjaEspera,
+          corIcone: Colors.white,
+          corTexto: laranjaEspera,
+        );
+      }
+      return _EtapaVisualConfig(
+        titulo: titulos[i],
+        icone: iconePara(numero),
+        corFundo: pendente.fundo,
+        corIcone: pendente.icone,
+        corTexto: pendente.texto,
       );
-    } else {
-      etapa1 = const _EtapaVisualConfig(
-        titulo: 'Aceito',
-        icone: Icons.hourglass_top_outlined,
-        corFundo: laranjaEspera,
-        corIcone: Colors.white,
-        corTexto: laranjaEspera,
-        concluida: false,
-      );
-    }
-
-    late _EtapaVisualConfig etapa2;
-    if (e >= 3 || st == 34 || st == 4 || st == 6) {
-      etapa2 = const _EtapaVisualConfig(
-        titulo: 'A caminho',
-        icone: Icons.check,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        concluida: true,
-      );
-    } else if (e == 2 && st == 33) {
-      etapa2 = const _EtapaVisualConfig(
-        titulo: 'A caminho',
-        icone: Icons.two_wheeler,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        temSonar: true,
-        concluida: false,
-      );
-    } else if (e == 1 && st == 32) {
-      etapa2 = const _EtapaVisualConfig(
-        titulo: 'A caminho',
-        icone: Icons.hourglass_top_outlined,
-        corFundo: laranjaEspera,
-        corIcone: Colors.white,
-        corTexto: laranjaEspera,
-        concluida: false,
-      );
-    } else {
-      etapa2 = const _EtapaVisualConfig(
-        titulo: 'A caminho',
-        icone: Icons.two_wheeler,
-        corFundo: Color(0xFFF1F5F9),
-        corIcone: Color(0xFF94A3B8),
-        corTexto: Color(0xFF64748B),
-        concluida: false,
-      );
-    }
-
-    late _EtapaVisualConfig etapa3;
-    if (e >= 4 && st == 6) {
-      etapa3 = const _EtapaVisualConfig(
-        titulo: 'No Local',
-        icone: Icons.check,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        concluida: true,
-      );
-    } else if (e == 3 && st == 4) {
-      etapa3 = const _EtapaVisualConfig(
-        titulo: 'No Local',
-        icone: Icons.place_outlined,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        temSonar: true,
-        concluida: false,
-      );
-    } else if (e == 3 && st == 34) {
-      etapa3 = const _EtapaVisualConfig(
-        titulo: 'No Local',
-        icone: Icons.hourglass_top_outlined,
-        corFundo: laranjaEspera,
-        corIcone: Colors.white,
-        corTexto: laranjaEspera,
-        concluida: false,
-      );
-    } else {
-      etapa3 = const _EtapaVisualConfig(
-        titulo: 'No Local',
-        icone: Icons.place_outlined,
-        corFundo: Color(0xFFF1F5F9),
-        corIcone: Color(0xFF94A3B8),
-        corTexto: Color(0xFF64748B),
-        concluida: false,
-      );
-    }
-
-    late _EtapaVisualConfig etapa4;
-    if (e >= 4 && st == 6) {
-      etapa4 = const _EtapaVisualConfig(
-        titulo: 'Concluído',
-        icone: Icons.check,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        concluida: true,
-      );
-    } else {
-      etapa4 = const _EtapaVisualConfig(
-        titulo: 'Concluído',
-        icone: Icons.check_circle_outline,
-        corFundo: Color(0xFFF1F5F9),
-        corIcone: Color(0xFF94A3B8),
-        corTexto: Color(0xFF64748B),
-        concluida: false,
-      );
-    }
-
-    return [etapa1, etapa2, etapa3, etapa4];
-  }
-
-  /// 2. Leva e Traz (5 etapas)
-  List<_EtapaVisualConfig> _gerarEtapasLevaETraz() {
-    final e = _etapaSolicitacao;
-    final st = _fkStatus;
-
-    late _EtapaVisualConfig etapa1;
-    if (e >= 1 || st >= 31 || (e == 0 && (st == 2 || st == 3))) {
-      etapa1 = const _EtapaVisualConfig(
-        titulo: 'Aceito',
-        icone: Icons.check,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        concluida: true,
-      );
-    } else {
-      etapa1 = const _EtapaVisualConfig(
-        titulo: 'Solicitado',
-        icone: Icons.hourglass_top_outlined,
-        corFundo: laranjaEspera,
-        corIcone: Colors.white,
-        corTexto: laranjaEspera,
-        concluida: false,
-      );
-    }
-
-    late _EtapaVisualConfig etapa2;
-    if (e > 2 || (e == 2 && st == 34) || (e >= 3)) {
-      etapa2 = const _EtapaVisualConfig(
-        titulo: 'No local',
-        icone: Icons.check,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        concluida: true,
-      );
-    } else if (e == 2 && st == 33) {
-      etapa2 = const _EtapaVisualConfig(
-        titulo: 'Deslocamento',
-        icone: Icons.two_wheeler,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        temSonar: true,
-        concluida: false,
-      );
-    } else if (e == 1 && st == 32) {
-      etapa2 = const _EtapaVisualConfig(
-        titulo: 'Busca',
-        icone: Icons.hourglass_top_outlined,
-        corFundo: laranjaEspera,
-        corIcone: Colors.white,
-        corTexto: laranjaEspera,
-        concluida: false,
-      );
-    } else {
-      etapa2 = const _EtapaVisualConfig(
-        titulo: 'Busca',
-        icone: Icons.two_wheeler,
-        corFundo: Color(0xFFF1F5F9),
-        corIcone: Color(0xFF94A3B8),
-        corTexto: Color(0xFF64748B),
-        concluida: false,
-      );
-    }
-
-    late _EtapaVisualConfig etapa3;
-    if (e > 3 || (e == 3 && st == 32) || e >= 4) {
-      etapa3 = const _EtapaVisualConfig(
-        titulo: 'Serviço completo',
-        icone: Icons.check,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        concluida: true,
-      );
-    } else if (e == 3 && st == 4) {
-      etapa3 = const _EtapaVisualConfig(
-        titulo: 'Manutenção',
-        icone: Icons.handyman_outlined,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        temSonar: true,
-        concluida: false,
-      );
-    } else if (e == 3 && st == 34) {
-      etapa3 = const _EtapaVisualConfig(
-        titulo: 'Manutenção',
-        icone: Icons.hourglass_top_outlined,
-        corFundo: laranjaEspera,
-        corIcone: Colors.white,
-        corTexto: laranjaEspera,
-        concluida: false,
-      );
-    } else {
-      etapa3 = const _EtapaVisualConfig(
-        titulo: 'Manutenção',
-        icone: Icons.handyman_outlined,
-        corFundo: Color(0xFFF1F5F9),
-        corIcone: Color(0xFF94A3B8),
-        corTexto: Color(0xFF64748B),
-        concluida: false,
-      );
-    }
-
-    late _EtapaVisualConfig etapa4;
-    if (e > 4 || (e == 4 && st == 34) || (e == 5 && st == 6)) {
-      etapa4 = const _EtapaVisualConfig(
-        titulo: 'No local',
-        icone: Icons.person_outline,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        concluida: true,
-      );
-    } else if (e == 4 && st == 33) {
-      etapa4 = const _EtapaVisualConfig(
-        titulo: 'Deslocamento',
-        icone: Icons.local_shipping_outlined,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        temSonar: true,
-        concluida: false,
-      );
-    } else if (e == 4 && st == 32) {
-      etapa4 = const _EtapaVisualConfig(
-        titulo: 'Entrega',
-        icone: Icons.hourglass_top_outlined,
-        corFundo: laranjaEspera,
-        corIcone: Colors.white,
-        corTexto: laranjaEspera,
-        concluida: false,
-      );
-    } else {
-      etapa4 = const _EtapaVisualConfig(
-        titulo: 'Entrega',
-        icone: Icons.local_shipping_outlined,
-        corFundo: Color(0xFFF1F5F9),
-        corIcone: Color(0xFF94A3B8),
-        corTexto: Color(0xFF64748B),
-        concluida: false,
-      );
-    }
-
-    late _EtapaVisualConfig etapa5;
-    if (e >= 5 && st == 6) {
-      etapa5 = const _EtapaVisualConfig(
-        titulo: 'Concluído',
-        icone: Icons.check,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        concluida: true,
-      );
-    } else {
-      etapa5 = const _EtapaVisualConfig(
-        titulo: 'Concluído',
-        icone: Icons.check_circle_outline,
-        corFundo: Color(0xFFF1F5F9),
-        corIcone: Color(0xFF94A3B8),
-        corTexto: Color(0xFF64748B),
-        concluida: false,
-      );
-    }
-
-    return [etapa1, etapa2, etapa3, etapa4, etapa5];
-  }
-
-  /// 3. Receba em Casa (5 etapas)
-  List<_EtapaVisualConfig> _gerarEtapasRecebaEmCasa() {
-    final e = _etapaSolicitacao;
-    final st = _fkStatus;
-
-    late _EtapaVisualConfig etapa1;
-    if (e >= 1 || st >= 31 || (e == 0 && (st == 2 || st == 3))) {
-      etapa1 = const _EtapaVisualConfig(
-        titulo: 'Aceito',
-        icone: Icons.check,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        concluida: true,
-      );
-    } else {
-      etapa1 = const _EtapaVisualConfig(
-        titulo: 'Solicitado',
-        icone: Icons.hourglass_top_outlined,
-        corFundo: laranjaEspera,
-        corIcone: Colors.white,
-        corTexto: laranjaEspera,
-        concluida: false,
-      );
-    }
-
-    late _EtapaVisualConfig etapa2;
-    if (e > 2 || (e == 2 && st == 34) || e >= 3) {
-      etapa2 = const _EtapaVisualConfig(
-        titulo: 'Produto recebido',
-        icone: Icons.check,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        concluida: true,
-      );
-    } else if (e == 2 && st == 33) {
-      etapa2 = const _EtapaVisualConfig(
-        titulo: 'Deslocamento',
-        icone: Icons.two_wheeler,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        temSonar: true,
-        concluida: false,
-      );
-    } else if (e == 1 && st == 32) {
-      etapa2 = const _EtapaVisualConfig(
-        titulo: 'Recebimento',
-        icone: Icons.hourglass_top_outlined,
-        corFundo: laranjaEspera,
-        corIcone: Colors.white,
-        corTexto: laranjaEspera,
-        concluida: false,
-      );
-    } else {
-      etapa2 = const _EtapaVisualConfig(
-        titulo: 'Recebimento',
-        icone: Icons.two_wheeler,
-        corFundo: Color(0xFFF1F5F9),
-        corIcone: Color(0xFF94A3B8),
-        corTexto: Color(0xFF64748B),
-        concluida: false,
-      );
-    }
-
-    late _EtapaVisualConfig etapa3;
-    if (e > 3 || (e == 3 && st == 6) || e >= 4) {
-      etapa3 = const _EtapaVisualConfig(
-        titulo: 'Serviço completo',
-        icone: Icons.check,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        concluida: true,
-      );
-    } else if (e == 3 && st == 4) {
-      etapa3 = const _EtapaVisualConfig(
-        titulo: 'Manutenção',
-        icone: Icons.handyman_outlined,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        temSonar: true,
-        concluida: false,
-      );
-    } else if (e == 3 && st == 34) {
-      etapa3 = const _EtapaVisualConfig(
-        titulo: 'Manutenção',
-        icone: Icons.hourglass_top_outlined,
-        corFundo: laranjaEspera,
-        corIcone: Colors.white,
-        corTexto: laranjaEspera,
-        concluida: false,
-      );
-    } else {
-      etapa3 = const _EtapaVisualConfig(
-        titulo: 'Manutenção',
-        icone: Icons.handyman_outlined,
-        corFundo: Color(0xFFF1F5F9),
-        corIcone: Color(0xFF94A3B8),
-        corTexto: Color(0xFF64748B),
-        concluida: false,
-      );
-    }
-
-    late _EtapaVisualConfig etapa4;
-    if (e > 4 || (e == 4 && st == 34) || (e == 5 && st == 6)) {
-      etapa4 = const _EtapaVisualConfig(
-        titulo: 'No local',
-        icone: Icons.person_outline,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        concluida: true,
-      );
-    } else if (e == 4 && st == 33) {
-      etapa4 = const _EtapaVisualConfig(
-        titulo: 'Deslocamento',
-        icone: Icons.local_shipping_outlined,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        temSonar: true,
-        concluida: false,
-      );
-    } else if (e == 4 && st == 32) {
-      etapa4 = const _EtapaVisualConfig(
-        titulo: 'Entrega',
-        icone: Icons.hourglass_top_outlined,
-        corFundo: laranjaEspera,
-        corIcone: Colors.white,
-        corTexto: laranjaEspera,
-        concluida: false,
-      );
-    } else {
-      etapa4 = const _EtapaVisualConfig(
-        titulo: 'Entrega',
-        icone: Icons.local_shipping_outlined,
-        corFundo: Color(0xFFF1F5F9),
-        corIcone: Color(0xFF94A3B8),
-        corTexto: Color(0xFF64748B),
-        concluida: false,
-      );
-    }
-
-    late _EtapaVisualConfig etapa5;
-    if (e >= 5 && st == 6) {
-      etapa5 = const _EtapaVisualConfig(
-        titulo: 'Concluído',
-        icone: Icons.check,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        concluida: true,
-      );
-    } else {
-      etapa5 = const _EtapaVisualConfig(
-        titulo: 'Concluído',
-        icone: Icons.check_circle_outline,
-        corFundo: Color(0xFFF1F5F9),
-        corIcone: Color(0xFF94A3B8),
-        corTexto: Color(0xFF64748B),
-        concluida: false,
-      );
-    }
-
-    return [etapa1, etapa2, etapa3, etapa4, etapa5];
-  }
-
-  /// 4. Retirada no Local (5 etapas)
-  List<_EtapaVisualConfig> _gerarEtapasRetiradaNoLocal() {
-    final e = _etapaSolicitacao;
-    final st = _fkStatus;
-
-    late _EtapaVisualConfig etapa1;
-    if (e >= 1 || st >= 31 || (e == 0 && (st == 2 || st == 3))) {
-      etapa1 = const _EtapaVisualConfig(
-        titulo: 'Aceito',
-        icone: Icons.check,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        concluida: true,
-      );
-    } else {
-      etapa1 = const _EtapaVisualConfig(
-        titulo: 'Solicitado',
-        icone: Icons.hourglass_top_outlined,
-        corFundo: laranjaEspera,
-        corIcone: Colors.white,
-        corTexto: laranjaEspera,
-        concluida: false,
-      );
-    }
-
-    late _EtapaVisualConfig etapa2;
-    if (e > 2 || (e == 2 && st == 34) || e >= 3) {
-      etapa2 = const _EtapaVisualConfig(
-        titulo: 'Produto recebido',
-        icone: Icons.check,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        concluida: true,
-      );
-    } else if (e == 2 && st == 33) {
-      etapa2 = const _EtapaVisualConfig(
-        titulo: 'A caminho',
-        icone: Icons.directions_walk,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        temSonar: true,
-        concluida: false,
-      );
-    } else if (e == 1 && st == 32) {
-      etapa2 = const _EtapaVisualConfig(
-        titulo: 'Entrega do produto',
-        icone: Icons.hourglass_top_outlined,
-        corFundo: laranjaEspera,
-        corIcone: Colors.white,
-        corTexto: laranjaEspera,
-        concluida: false,
-      );
-    } else {
-      etapa2 = const _EtapaVisualConfig(
-        titulo: 'Entrega do produto',
-        icone: Icons.directions_walk,
-        corFundo: Color(0xFFF1F5F9),
-        corIcone: Color(0xFF94A3B8),
-        corTexto: Color(0xFF64748B),
-        concluida: false,
-      );
-    }
-
-    late _EtapaVisualConfig etapa3;
-    if (e > 3 || (e == 3 && st == 6) || e >= 4) {
-      etapa3 = const _EtapaVisualConfig(
-        titulo: 'Serviço completo',
-        icone: Icons.check,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        concluida: true,
-      );
-    } else if (e == 3 && st == 4) {
-      etapa3 = const _EtapaVisualConfig(
-        titulo: 'Manutenção',
-        icone: Icons.handyman_outlined,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        temSonar: true,
-        concluida: false,
-      );
-    } else if (e == 3 && st == 34) {
-      etapa3 = const _EtapaVisualConfig(
-        titulo: 'Manutenção',
-        icone: Icons.hourglass_top_outlined,
-        corFundo: laranjaEspera,
-        corIcone: Colors.white,
-        corTexto: laranjaEspera,
-        concluida: false,
-      );
-    } else {
-      etapa3 = const _EtapaVisualConfig(
-        titulo: 'Em andamento',
-        icone: Icons.handyman_outlined,
-        corFundo: Color(0xFFF1F5F9),
-        corIcone: Color(0xFF94A3B8),
-        corTexto: Color(0xFF64748B),
-        concluida: false,
-      );
-    }
-
-    late _EtapaVisualConfig etapa4;
-    if (e > 4 || (e == 4 && st == 34) || (e == 5 && st == 6)) {
-      etapa4 = const _EtapaVisualConfig(
-        titulo: 'No local',
-        icone: Icons.person_outline,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        concluida: true,
-      );
-    } else if (e == 4 && st == 33) {
-      etapa4 = const _EtapaVisualConfig(
-        titulo: 'A caminho',
-        icone: Icons.directions_walk,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        temSonar: true,
-        concluida: false,
-      );
-    } else if (e == 4 && st == 32) {
-      etapa4 = const _EtapaVisualConfig(
-        titulo: 'Retirada',
-        icone: Icons.hourglass_top_outlined,
-        corFundo: laranjaEspera,
-        corIcone: Colors.white,
-        corTexto: laranjaEspera,
-        concluida: false,
-      );
-    } else {
-      etapa4 = const _EtapaVisualConfig(
-        titulo: 'Retirada',
-        icone: Icons.directions_walk,
-        corFundo: Color(0xFFF1F5F9),
-        corIcone: Color(0xFF94A3B8),
-        corTexto: Color(0xFF64748B),
-        concluida: false,
-      );
-    }
-
-    late _EtapaVisualConfig etapa5;
-    if (e >= 5 && st == 6) {
-      etapa5 = const _EtapaVisualConfig(
-        titulo: 'Concluído',
-        icone: Icons.check,
-        corFundo: azulPrincipal,
-        corIcone: Colors.white,
-        corTexto: azulPrincipal,
-        concluida: true,
-      );
-    } else {
-      etapa5 = const _EtapaVisualConfig(
-        titulo: 'Concluído',
-        icone: Icons.check_circle_outline,
-        corFundo: Color(0xFFF1F5F9),
-        corIcone: Color(0xFF94A3B8),
-        corTexto: Color(0xFF64748B),
-        concluida: false,
-      );
-    }
-
-    return [etapa1, etapa2, etapa3, etapa4, etapa5];
+    });
   }
 
   // ===========================================================================
@@ -2375,7 +1818,12 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       fundo = const Color(0xFFFEF9C3);
       textoCor = const Color(0xFF854D0E);
       borda = const Color(0xFFFDE68A);
+    } else if (_fkStatus == StatusSolicitacao.aberto) {
+      texto = 'Aberto';
     }
+    // Status reaproveitado entre modalidades (34, 35, 38...).
+    final rotuloFluxo = _fluxo.rotuloPorModalidade;
+    if (rotuloFluxo != null && !_fluxo.estaConcluido) texto = rotuloFluxo;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -3770,14 +3218,31 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
     final aguardandoPagamento =
         _fkStatus == 2 || status.contains('aguardando pagamento');
     final aceito = status == 'aceito';
-    final pago = _fkStatus == 3 || status == 'pago';
-    final atendimentoDomicilio = _tipoExecucao.toLowerCase().contains('domic');
-    final recebaEmCasa = _tipoExecucao.toLowerCase().contains('receba');
-    final iniciarDeslocamentoCliente = recebaEmCasa && _fkStatus == 3;
-    final acompanhar =
-        atendimentoDomicilio &&
-        !pago &&
-        (_fkStatus == 32 || _fkStatus == 33 || _fkStatus == 34);
+    final fluxo = _fluxo;
+    // Retirado no Local / Receba em Casa: após o pagamento o cliente leva o
+    // produto até o estabelecimento.
+    final iniciarDeslocamentoCliente = fluxo.clientePodeIniciarDeslocamento;
+    final destino = fluxo.destinoCliente;
+    final acompanhar = destino != DestinoCliente.detalhes;
+    final (String rotuloAcompanhar, IconData iconeAcompanhar) = switch (
+      destino) {
+      DestinoCliente.atendimentoNoLocal => (
+        'Atendimento no local',
+        Icons.home_repair_service_outlined,
+      ),
+      DestinoCliente.deslocamentoCliente => (
+        'Registrar entrada no balcão',
+        Icons.storefront_outlined,
+      ),
+      DestinoCliente.confirmarRetirada => (
+        'Retirar produto',
+        Icons.inventory_2_outlined,
+      ),
+      _ => (
+        fluxo.devolucaoChegou ? 'Confirmar recebimento' : 'Acompanhar deslocamento',
+        Icons.navigation_outlined,
+      ),
+    };
     final precisaAvaliarCliente =
         status.contains('conclu') && !_avaliadoCliente;
     return Container(
@@ -3830,13 +3295,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                     : iniciarDeslocamentoCliente
                     ? _iniciarDeslocamentoCliente
                     : acompanhar
-                    ? () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => AcompanharDeslocamentoPage(
-                            idSolicitacao: _idSolicitacao,
-                          ),
-                        ),
-                      )
+                    ? () => _abrirDestino(destino)
                     : aceito
                     ? _abrirPagamento
                     : precisaAvaliarCliente
@@ -3857,7 +3316,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                             : iniciarDeslocamentoCliente
                             ? Icons.navigation_outlined
                             : acompanhar
-                            ? Icons.navigation_outlined
+                            ? iconeAcompanhar
                             : (aguardandoPagamento || aceito)
                             ? Icons.payments_outlined
                             : precisaAvaliarCliente
@@ -3875,7 +3334,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                       : iniciarDeslocamentoCliente
                       ? 'Iniciar Deslocamento'
                       : acompanhar
-                      ? 'Acompanhar deslocamento'
+                      ? rotuloAcompanhar
                       : aceito
                       ? 'Realizar pagamento'
                       : precisaAvaliarCliente
@@ -3902,7 +3361,32 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
     );
   }
 
+  /// Abre a tela do fluxo correspondente ao estado atual do pedido.
+  Future<void> _abrirDestino(DestinoCliente destino) async {
+    final Widget? pagina = switch (destino) {
+      DestinoCliente.acompanharDeslocamento => AcompanharDeslocamentoPage(
+        idSolicitacao: _idSolicitacao,
+      ),
+      DestinoCliente.deslocamentoCliente => TelaDeslocamentoClientePage(
+        idSolicitacao: _idSolicitacao,
+      ),
+      DestinoCliente.atendimentoNoLocal => AtendimentoNoLocalClientePage(
+        idSolicitacao: _idSolicitacao,
+      ),
+      DestinoCliente.confirmarRetirada => ConfirmarRetiradaClientePage(
+        idSolicitacao: _idSolicitacao,
+      ),
+      DestinoCliente.detalhes => null,
+    };
+    if (pagina == null) return;
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => pagina));
+    if (mounted) await _carregarDadosCompletos();
+  }
+
+  /// Etapa 1 → 2 (Retirado no Local / Receba em Casa): o cliente inicia o
+  /// trajeto até o estabelecimento (status 38).
   Future<void> _iniciarDeslocamentoCliente() async {
+    if (!_fluxo.clientePodeIniciarDeslocamento) return;
     try {
       final codigo = await _db
           .from('solicitacoes')
@@ -3912,7 +3396,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       final existente = codigo?['codigo_rec_dev']?.toString().trim() ?? '';
       final valor = existente.length == 4
           ? existente
-          : (1000 + DateTime.now().millisecond % 9000).toString();
+          : (1000 + Random().nextInt(9000)).toString();
       await _db
           .from('solicitacoes')
           .update({
@@ -3922,12 +3406,13 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
           })
           .eq('id_solicitacao', _idSolicitacao);
       if (!mounted) return;
-      Navigator.of(context).push(
+      await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) =>
               TelaDeslocamentoClientePage(idSolicitacao: _idSolicitacao),
         ),
       );
+      if (mounted) await _carregarDadosCompletos();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
