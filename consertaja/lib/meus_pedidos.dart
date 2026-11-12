@@ -4,6 +4,8 @@ import 'detalhes_pedido.dart';
 import 'acompanhar_deslocamento.dart';
 import 'atendimento_no_local_cliente.dart';
 import 'tela_deslocamento_cliente.dart';
+import 'confirmar_retirada_cliente.dart';
+import 'utils/fluxo_solicitacao.dart';
 import 'pagamento_pedido.dart';
 import 'qrcode_pix.dart';
 import 'widgets/skeleton_loading.dart';
@@ -1132,66 +1134,57 @@ class MeusPedidosState extends State<MeusPedidosPage>
     );
   }
 
-  void _aoClicarPedido(PedidoCliente p) {
-    final st = p.fkStatus ?? 0;
-    final s = p.status.trim().toLowerCase();
-    final domicilio =
-        p.tipoExecucao.toLowerCase().contains('domic') &&
-        st == 34 &&
-        p.etapaSolicitacao == 3;
-    if (domicilio) {
-      Navigator.of(context)
-          .push(
-            MaterialPageRoute(
-              builder: (_) =>
-                  AtendimentoNoLocalClientePage(idSolicitacao: p.id),
-            ),
-          )
-          .then((_) => carregar(loading: false));
-      return;
-    }
-    if (st == 38 &&
-        p.tipoExecucao.toLowerCase().contains('receba')) {
-      Navigator.of(context)
-          .push(
-            MaterialPageRoute(
-              builder: (_) =>
-                  TelaDeslocamentoClientePage(idSolicitacao: p.id),
-            ),
-          )
-          .then((_) => carregar(loading: false));
-      return;
-    }
-    if (st == 36 ||
-        st == 37 ||
-        (st != 4 &&
-            (st == 33 ||
-                st == 34 ||
-                s.contains('deslocando') ||
-                s.contains('a caminho') ||
-                s.contains('chegou')))) {
-      Navigator.of(context)
-          .push(
-            MaterialPageRoute(
-              builder: (_) => AcompanharDeslocamentoPage(idSolicitacao: p.id),
-            ),
-          )
-          .then((_) => carregar(loading: false));
-      return;
-    }
+  FluxoSolicitacao _fluxo(PedidoCliente p) => FluxoSolicitacao(
+    tipoExecucao: p.tipoExecucao,
+    fkStatus: p.fkStatus,
+    etapa: p.etapaSolicitacao,
+    statusTexto: p.status,
+  );
 
+  /// Decide a tela do cliente por modalidade + status + etapa, para que um
+  /// status compartilhado (ex.: 34, 35, 38) não abra a tela de outro fluxo.
+  void _aoClicarPedido(PedidoCliente p) {
+    late final Widget destino;
+    switch (_fluxo(p).destinoCliente) {
+      case DestinoCliente.atendimentoNoLocal:
+        destino = AtendimentoNoLocalClientePage(idSolicitacao: p.id);
+        break;
+      case DestinoCliente.deslocamentoCliente:
+        destino = TelaDeslocamentoClientePage(idSolicitacao: p.id);
+        break;
+      case DestinoCliente.acompanharDeslocamento:
+        destino = AcompanharDeslocamentoPage(idSolicitacao: p.id);
+        break;
+      case DestinoCliente.confirmarRetirada:
+        destino = ConfirmarRetiradaClientePage(idSolicitacao: p.id);
+        break;
+      case DestinoCliente.detalhes:
+        destino = DetalhesPedidoPage(idSolicitacao: p.id, pedidoResumo: p);
+        break;
+    }
     Navigator.of(context)
-        .push(
-          MaterialPageRoute(
-            builder: (_) =>
-                DetalhesPedidoPage(idSolicitacao: p.id, pedidoResumo: p),
-          ),
-        )
+        .push(MaterialPageRoute(builder: (_) => destino))
         .then((_) => carregar(loading: false));
   }
 
+  /// Texto do botão principal do card, coerente com a tela que será aberta.
+  String _rotuloBotaoCard(PedidoCliente p) {
+    switch (_fluxo(p).destinoCliente) {
+      case DestinoCliente.atendimentoNoLocal:
+        return 'Atendimento no local';
+      case DestinoCliente.deslocamentoCliente:
+        return 'Meu trajeto';
+      case DestinoCliente.acompanharDeslocamento:
+        return 'Acompanhar';
+      case DestinoCliente.confirmarRetirada:
+        return 'Retirar produto';
+      case DestinoCliente.detalhes:
+        return 'Ver Detalhes';
+    }
+  }
+
   Widget card(PedidoCliente p) {
-    final e = estiloStatus(p.status, p.fkStatus);
+    final e = estiloStatus(p.status, p.fkStatus, _fluxo(p));
     final ag = textoSolicitado(p);
     return InkWell(
       onTap: () => _aoClicarPedido(p),
@@ -1355,20 +1348,7 @@ class MeusPedidosState extends State<MeusPedidosPage>
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  child: Text(
-                    (p.fkStatus == 33 ||
-                            p.fkStatus == 34 ||
-                            p.fkStatus == 36 ||
-                            p.fkStatus == 37)
-                        ? (p.fkStatus == 34 &&
-                                  p.tipoExecucao.toLowerCase().contains(
-                                    'domic',
-                                  ) &&
-                                  p.etapaSolicitacao == 3
-                              ? 'Atendimento no local'
-                              : 'Acompanhar')
-                        : 'Ver Detalhes',
-                  ),
+                  child: Text(_rotuloBotaoCard(p)),
                 ),
               ],
             ),
@@ -1570,9 +1550,63 @@ class MeusPedidosState extends State<MeusPedidosPage>
     );
   }
 
-  StatusEstilo estiloStatus(String status, [int? fkStatus]) {
+  StatusEstilo estiloStatus(
+    String status, [
+    int? fkStatus,
+    FluxoSolicitacao? fluxo,
+  ]) {
     final s = status.trim().toLowerCase();
     final st = fkStatus ?? 0;
+
+    // Status reaproveitados entre modalidades: o texto depende do fluxo.
+    if (fluxo != null && st != 6) {
+      if (fluxo.aguardandoRetirada) {
+        return const StatusEstilo(
+          rotulo: 'Pronto para retirada',
+          fundo: Color(0xFFDCFCE7),
+          texto: Color(0xFF15803D),
+          borda: Color(0xFFBBF7D0),
+          icone: Icons.storefront_outlined,
+        );
+      }
+      if (fluxo.clienteDeslocando) {
+        return const StatusEstilo(
+          rotulo: 'Levando ao profissional',
+          fundo: azul,
+          texto: Colors.white,
+          borda: azul,
+          icone: Icons.directions_walk,
+          piscar: true,
+        );
+      }
+      if (fluxo.devolucaoChegou) {
+        return const StatusEstilo(
+          rotulo: 'Devolução no local',
+          fundo: azul,
+          texto: Colors.white,
+          borda: azul,
+          icone: Icons.place_rounded,
+        );
+      }
+      if (fluxo.profissionalChegou && fluxo.modalidade.ehDomicilio) {
+        return const StatusEstilo(
+          rotulo: 'Atendimento no local',
+          fundo: azul,
+          texto: Colors.white,
+          borda: azul,
+          icone: Icons.home_repair_service_outlined,
+        );
+      }
+      if (fluxo.estaPago && fluxo.modalidade.clienteLevaProduto) {
+        return const StatusEstilo(
+          rotulo: 'Pago • leve o produto',
+          fundo: Color(0xFFFEF9C3),
+          texto: Color(0xFF854D0E),
+          borda: Color(0xFFFDE68A),
+          icone: Icons.storefront_outlined,
+        );
+      }
+    }
 
     if (st == 6) {
       return const StatusEstilo(
@@ -1645,9 +1679,13 @@ class MeusPedidosState extends State<MeusPedidosPage>
       );
     }
 
-    if (s == 'aberto' || s == 'pendente' || s == 'novo') {
+    if (st == 1 ||
+        s == 'aberto' ||
+        s == 'pendente' ||
+        s == 'novo' ||
+        s == 'aguardando profissional') {
       return const StatusEstilo(
-        rotulo: 'Aguardando profissional',
+        rotulo: 'Aberto',
         fundo: Color(0xFFE0F2FE),
         texto: Color(0xFF0284C7),
         borda: Color(0xFFBAE6FD),
