@@ -13,49 +13,21 @@ import 'solicitacao_em_andamento.dart';
 import 'tela_chat_profissional.dart';
 import 'services/solicitacoes_service.dart';
 import 'tela_deslocamento_profissional.dart';
+import 'profissional_no_local_atendimento_presencial.dart';
+import 'tela_recebe_devolucao_profissional.dart';
 import 'tela_meu_perfil_profissional.dart';
 import 'utils/app_navigation_util.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
 import 'utils/cor_oficio.dart';
+import 'utils/fluxo_solicitacao.dart';
 import 'utils/icone_oficio.dart';
 import 'utils/iniciais.dart';
 import 'widgets/avaliacao_bottom_sheet.dart';
 import 'widgets/skeleton_loading.dart';
 
-/// Modalidades suportadas de acordo com o design
-enum ModalidadeExecucao {
-  levaETraz,
-  atendimentoDomicilio,
-  retiradaNoLocal,
-  recebaEmCasa;
-
-  static ModalidadeExecucao fromString(String? raw) {
-    final s = (raw ?? '')
-        .trim()
-        .toLowerCase()
-        .replaceAll('á', 'a')
-        .replaceAll('ã', 'a')
-        .replaceAll('â', 'a')
-        .replaceAll('é', 'e')
-        .replaceAll('í', 'i')
-        .replaceAll('ó', 'o')
-        .replaceAll('õ', 'o');
-
-    if (s.contains('leva') && s.contains('traz')) {
-      return ModalidadeExecucao.levaETraz;
-    }
-
-    if (s.contains('retirad') ||
-        (s.contains('retirada') && s.contains('local'))) {
-      return ModalidadeExecucao.retiradaNoLocal;
-    }
-    if (s.contains('receba') || (s.contains('receba') && s.contains('casa'))) {
-      return ModalidadeExecucao.recebaEmCasa;
-    }
-    // Domicílio / Presencial / Local / Execução padrão
-    return ModalidadeExecucao.atendimentoDomicilio;
-  }
-}
+// A enum ModalidadeExecucao agora vive em utils/fluxo_solicitacao.dart e é
+// reexportada aqui para manter compatibilidade com os imports existentes.
+export 'utils/fluxo_solicitacao.dart' show ModalidadeExecucao;
 
 class ItemChecklist {
   final String titulo;
@@ -151,13 +123,33 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
   String _codigoRecDev = '';
   final List<TextEditingController> _codigoRecebimentoControllers =
       List.generate(4, (_) => TextEditingController());
-  bool _codigoRecebimentoValido = false;
 
   bool get _ehDevolucao =>
+      _modalidade.profissionalDevolveNoCliente &&
       _etapaSolicitacao == 4 &&
       (_idStatusSolicitacao == 35 ||
           _idStatusSolicitacao == 36 ||
           _idStatusSolicitacao == 37);
+
+  /// Regras centrais de fluxo aplicadas a esta solicitação.
+  FluxoSolicitacao get _fluxo => FluxoSolicitacao(
+    tipoExecucao: _tipoExecucaoOriginal,
+    fkStatus: _idStatusSolicitacao,
+    etapa: _etapaSolicitacao,
+    statusTexto: _statusTexto,
+  );
+
+  /// Índice (0-based) da etapa atual na linha do tempo do topo.
+  /// Etapa 0 → "Aceito" pendente; etapa 1 → aceite concluído;
+  /// etapa N (N ≥ 2) → item N-1 em andamento; concluído → todos marcados.
+  int _indiceEtapaAtual(int totalEtapas) {
+    final fluxo = _fluxo;
+    if (fluxo.estaConcluido) return totalEtapas;
+    final etapa = fluxo.etapaEfetiva;
+    if (etapa <= 0) return 0;
+    if (etapa == 1) return 1;
+    return (etapa - 1).clamp(1, totalEtapas);
+  }
 
   String _dataExibicao = '15 de Outubro';
   String _periodoExibicao = 'Hoje à tarde';
@@ -475,7 +467,8 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
             'data_agendada, hora_agendada, hora_agendada_fim, tipo_execucao, fk_grupo_empresa, '
             'fk_status, etapa_solicitacao, fk_profissional, fk_usuario, fk_endereco, fk_servico_prof, fk_servico_temp, '
             'duracao_atendimento, imagens_atendimento_antes, imagens_atendimento_depois, '
-            'imagens_recebimento, imagens_em_andamento, imagens_devolucao',
+            'imagens_recebimento, imagens_em_andamento, imagens_devolucao, '
+            'codigo_rec_dev',
           )
           .eq('id_solicitacao', _idSolicitacao)
           .maybeSingle();
@@ -826,7 +819,8 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
   }
 
   Future<void> _iniciarServico() async {
-    if (_iniciandoServico || _statusTexto.trim().toLowerCase() != 'pago') {
+    // Só Leva e Traz / Domicílio iniciam deslocamento do profissional.
+    if (_iniciandoServico || !_fluxo.profissionalPodeIniciarBusca) {
       return;
     }
     setState(() => _iniciandoServico = true);
@@ -879,6 +873,53 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
     } finally {
       if (mounted) setState(() => _iniciandoServico = false);
     }
+  }
+
+  void _abrirAtendimentoNoLocal() {
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => ProfissionalNoLocalAtendimentoPresencialPage(
+              idSolicitacao: _idSolicitacao,
+              codigoPedido: _codigoPedido,
+              nomeCliente: _nomeCliente,
+              fotoCliente: _fotoCliente,
+              nomeServico: _tituloServico,
+              enderecoPrincipal: _enderecoLinha1,
+              enderecoComplementar: _enderecoLinha2,
+              isEmpresa: _fkGrupoEmpresa != null,
+              idGrupoEmpresa: _fkGrupoEmpresa,
+            ),
+          ),
+        )
+        .then((_) => _carregarDadosCompletos());
+  }
+
+  /// Leva e Traz (status 34, etapa 2): conferir código e registrar a coleta.
+  void _abrirRecebimentoNoCliente() => _abrirTelaRecebeDevolucao();
+
+  /// Leva e Traz / Receba em Casa (status 37): entrega ao cliente.
+  void _abrirDevolucaoNoLocal() => _abrirTelaRecebeDevolucao();
+
+  void _abrirTelaRecebeDevolucao() {
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => TelaRecebeDevolucaoProfissionalPage(
+              idSolicitacao: _idSolicitacao,
+              codigoPedido: _codigoPedido,
+              nomeCliente: _nomeCliente,
+              fotoCliente: _fotoCliente,
+              nomeServico: _tituloServico,
+              modalidade: _tipoExecucaoOriginal,
+              enderecoPrincipal: _enderecoLinha1,
+              enderecoComplementar: _enderecoLinha2,
+              isEmpresa: _fkGrupoEmpresa != null,
+              idGrupoEmpresa: _fkGrupoEmpresa,
+            ),
+          ),
+        )
+        .then((_) => _carregarDadosCompletos());
   }
 
   void _abrirTelaDeslocamento() {
@@ -1314,9 +1355,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                                   const SizedBox(height: 14),
                                   _buildCardChecklistEspecialista(),
                                 ],
-                                if (_modalidade ==
-                                        ModalidadeExecucao.recebaEmCasa &&
-                                    _idStatusSolicitacao == 38) ...[
+                                if ((_fluxo.clienteDeslocando &&
+                                        _modalidade.clienteLevaProduto) ||
+                                    _fluxo.aguardandoRetirada) ...[
                                   const SizedBox(height: 14),
                                   _buildCardCodigoRecebimento(),
                                 ],
@@ -1687,7 +1728,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
           ];
           break;
         case ModalidadeExecucao.retiradaNoLocal:
-          etapas = ['Aceito', 'Cliente', 'Processo', 'Cliente', 'Concluído'];
+          etapas = ['Aceito', 'Cliente', 'Processo', 'Retirada', 'Concluído'];
           icones = [
             Icons.check,
             Icons.radio_button_checked,
@@ -1709,35 +1750,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
       }
     }
 
-    final status = _statusTexto.trim().toLowerCase();
-    final etapaAtual = _ehDevolucao
-        ? 3
-        : _modalidade == ModalidadeExecucao.levaETraz && _etapaSolicitacao == 0
-        ? 0
-        : _modalidade == ModalidadeExecucao.atendimentoDomicilio
-        ? (_idStatusSolicitacao == 34 || _etapaSolicitacao >= 3
-              ? 2
-              : _idStatusSolicitacao == 33 || _etapaSolicitacao >= 2
-              ? 1
-              : 0)
-        : _idStatusSolicitacao == 33 && _etapaSolicitacao >= 2
-        ? 2
-        : _idStatusSolicitacao == 32 && _etapaSolicitacao >= 1
-        ? 1
-        : (_idStatusSolicitacao == 34 ||
-              _idStatusSolicitacao == 35 ||
-              _idStatusSolicitacao == 36 ||
-              _idStatusSolicitacao == 37)
-        ? 2
-        : status.contains('conclu')
-        ? etapas.length
-        : status.contains('aguardando cliente')
-        ? etapas.length - 1
-        : status.contains('andamento')
-        ? (etapas.length > 2 ? 2 : etapas.length - 1)
-        : status == 'pago' || status.contains('aceito')
-        ? (etapas.length > 1 ? 1 : 0)
-        : 0;
+    final etapaAtual = _indiceEtapaAtual(etapas.length);
 
     return Material(
       color: Colors.white,
@@ -1874,7 +1887,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         break;
 
       case ModalidadeExecucao.retiradaNoLocal:
-        etapas = ['Aceito', 'Cliente', 'Processo', 'Cliente', 'Concluído'];
+        etapas = ['Aceito', 'Cliente', 'Processo', 'Retirada', 'Concluído'];
         icones = [
           Icons.check,
           Icons.radio_button_checked,
@@ -1900,25 +1913,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         break;
     }
 
-    final status = _statusTexto.trim().toLowerCase();
-    final etapaAtual =
-        _modalidade == ModalidadeExecucao.levaETraz && _etapaSolicitacao == 0
-        ? 0
-        : _idStatusSolicitacao == 33 && _etapaSolicitacao >= 2
-        ? 2
-        : _idStatusSolicitacao == 32 && _etapaSolicitacao >= 1
-        ? 1
-        : _idStatusSolicitacao == 34
-        ? 2
-        : status.contains('conclu')
-        ? etapas.length
-        : status.contains('aguardando cliente')
-        ? etapas.length - 1
-        : status.contains('andamento')
-        ? (etapas.length > 2 ? 2 : etapas.length - 1)
-        : status == 'pago' || status.contains('aceito')
-        ? (etapas.length > 1 ? 1 : 0)
-        : 0;
+    final etapaAtual = _indiceEtapaAtual(etapas.length);
 
     return Container(
       width: double.infinity,
@@ -3298,7 +3293,12 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
     );
   }
 
+  /// Código de balcão exibido ao profissional para que o CLIENTE o digite
+  /// no app dele: na entrada do produto (status 38, Receba em Casa / Retirado
+  /// no Local) e na retirada final (Retirado no Local, etapa 4).
   Widget _buildCardCodigoRecebimento() {
+    final retiradaFinal = _fluxo.aguardandoRetirada;
+    final digitos = _codigoRecDev.padRight(4, '-').split('');
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -3308,9 +3308,11 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
       ),
       child: Column(
         children: [
-          const Text(
-            'CÓDIGO DE ENTREGA NO BALCÃO',
-            style: TextStyle(
+          Text(
+            retiradaFinal
+                ? 'CÓDIGO DE RETIRADA NO BALCÃO'
+                : 'CÓDIGO DE ENTREGA NO BALCÃO',
+            style: const TextStyle(
               color: Color(0xFF475569),
               fontWeight: FontWeight.w800,
               letterSpacing: .5,
@@ -3318,66 +3320,51 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
           ),
           const SizedBox(height: 6),
           Text(
-            'Informe os 4 dígitos de $_nomeCliente',
+            retiradaFinal
+                ? 'Informe este código a $_nomeCliente quando ele vier buscar o produto. A conclusão acontece quando o cliente confirmar a retirada no app.'
+                : 'Informe este código a $_nomeCliente no balcão. O cliente registra a entrada do produto no app dele.',
+            textAlign: TextAlign.center,
             style: const TextStyle(color: _textoMuted),
           ),
           const SizedBox(height: 16),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: List.generate(
-              4,
-              (index) => SizedBox(
-                width: 58,
-                child: TextField(
-                  controller: _codigoRecebimentoControllers[index],
-                  textAlign: TextAlign.center,
-                  keyboardType: TextInputType.number,
-                  maxLength: 1,
-                  decoration: const InputDecoration(
-                    counterText: '',
-                    filled: true,
-                    fillColor: Color(0xFFF8FAFC),
-                    border: OutlineInputBorder(
-                      borderSide: BorderSide.none,
-                      borderRadius: BorderRadius.all(Radius.circular(12)),
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              for (int i = 0; i < 4; i++) ...[
+                Container(
+                  width: 58,
+                  height: 58,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE0F2FE),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: const Color(0xFFBAE6FD),
+                      width: 2,
                     ),
                   ),
-                  onChanged: (value) {
-                    if (value.isNotEmpty && index < 3) {
-                      FocusScope.of(context).nextFocus();
-                    }
-                    final informado = _codigoRecebimentoControllers
-                        .map((item) => item.text)
-                        .join();
-                    setState(
-                      () => _codigoRecebimentoValido =
-                          informado.length == 4 && informado == _codigoRecDev,
-                    );
-                  },
+                  child: Text(
+                    i < digitos.length ? digitos[i] : '-',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      color: _azul,
+                    ),
+                  ),
                 ),
-              ),
-            ),
+                if (i < 3) const SizedBox(width: 8),
+              ],
+            ],
           ),
-          if (_codigoRecebimentoValido) ...[
-            const SizedBox(height: 14),
-            FilledButton.icon(
-              onPressed: _confirmarRecebimentoCliente,
-              icon: const Icon(Icons.check),
-              label: const Text('Confirmar entrega'),
-            ),
-          ],
+          const SizedBox(height: 12),
+          TextButton.icon(
+            onPressed: _carregarDadosCompletos,
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: const Text('Atualizar status'),
+          ),
         ],
       ),
     );
-  }
-
-  Future<void> _confirmarRecebimentoCliente() async {
-    if (!_codigoRecebimentoValido) return;
-    await _supabase
-        .from('solicitacoes')
-        .update({'fk_status': 4, 'etapa_solicitacao': 3})
-        .eq('id_solicitacao', _idSolicitacao);
-    await _carregarDadosCompletos();
   }
 
   void _abrirAndamento() {
@@ -3462,21 +3449,46 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
       );
     }
 
-    if (_idStatusSolicitacao == 35 ||
-        _idStatusSolicitacao == 36 ||
-        _idStatusSolicitacao == 37) {
+    final fluxo = _fluxo;
+
+    // Retirado no Local: serviço pronto, o cliente vem buscar no balcão.
+    if (fluxo.aguardandoRetirada) {
+      return _buildBotaoAguardar(
+        'Aguardando retirada pelo cliente',
+        Icons.storefront_outlined,
+      );
+    }
+
+    // Leva e Traz / Receba em Casa: devolução no endereço do cliente.
+    if (fluxo.devolucaoChegou) {
       return SizedBox(
         width: double.infinity,
         height: 52,
         child: FilledButton.icon(
-          onPressed: _idStatusSolicitacao == 37
-              ? null
-              : () => _abrirTelaDeslocamento(),
+          onPressed: _abrirDevolucaoNoLocal,
+          icon: const Icon(Icons.assignment_turned_in_outlined, size: 20),
+          label: const Text('Aguardando confirmação do cliente'),
+          style: FilledButton.styleFrom(
+            backgroundColor: _azul,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(26),
+            ),
+          ),
+        ),
+      );
+    }
+    if (fluxo.aguardandoDevolucao || fluxo.devolucaoDeslocando) {
+      return SizedBox(
+        width: double.infinity,
+        height: 52,
+        child: FilledButton.icon(
+          onPressed: () => _abrirTelaDeslocamento(),
           icon: const Icon(Icons.navigation_rounded, size: 20),
           label: Text(
-            _idStatusSolicitacao == 35
-                ? 'Iniciar Deslocamento'
-                : 'Continuar deslocamento',
+            fluxo.aguardandoDevolucao
+                ? 'Iniciar Devolução'
+                : 'Continuar devolução',
           ),
           style: FilledButton.styleFrom(
             backgroundColor: _azul,
@@ -3490,23 +3502,23 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
       );
     }
 
-    if (_modalidade == ModalidadeExecucao.recebaEmCasa &&
-        _idStatusSolicitacao == 3) {
+    // Retirado no Local / Receba em Casa: o cliente leva o produto.
+    if (_modalidade.clienteLevaProduto && fluxo.estaPago) {
       return _buildBotaoAguardar(
         'Aguarde o cliente iniciar o trajeto',
         Icons.hourglass_top_rounded,
       );
     }
-
-    if (_modalidade == ModalidadeExecucao.recebaEmCasa &&
-        _idStatusSolicitacao == 38) {
+    if (_modalidade.clienteLevaProduto && fluxo.clienteDeslocando) {
       return _buildBotaoAguardar(
-        'Aguarde a entrega do cliente',
+        'Aguarde a entrega do cliente no balcão',
         Icons.inventory_2_outlined,
       );
     }
 
-    if (_idStatusSolicitacao == 32 || _idStatusSolicitacao == 33) {
+    // Leva e Traz / Domicílio: deslocamento do profissional até o cliente.
+    if (_modalidade.profissionalBuscaNoCliente &&
+        fluxo.profissionalDeslocando) {
       return SizedBox(
         width: double.infinity,
         height: 52,
@@ -3528,8 +3540,34 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         ),
       );
     }
+    if (fluxo.profissionalChegou) {
+      final domicilio = _modalidade.ehDomicilio;
+      return SizedBox(
+        width: double.infinity,
+        height: 52,
+        child: FilledButton.icon(
+          onPressed: domicilio
+              ? _abrirAtendimentoNoLocal
+              : _abrirRecebimentoNoCliente,
+          icon: Icon(
+            domicilio ? Icons.home_repair_service_outlined : Icons.inventory_2,
+            size: 20,
+          ),
+          label: Text(
+            domicilio ? 'Abrir atendimento no local' : 'Registrar recebimento',
+          ),
+          style: FilledButton.styleFrom(
+            backgroundColor: _azul,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(26),
+            ),
+          ),
+        ),
+      );
+    }
 
-    if (status == 'em andamento') {
+    if (status == 'em andamento' || _idStatusSolicitacao == 4) {
       return SizedBox(
         width: double.infinity,
         height: 52,
@@ -3562,6 +3600,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
 
     final bool estaAceito =
         _idStatusSolicitacao == 31 ||
+        _idStatusSolicitacao == 2 ||
         (status.contains('aceito') && _idStatusSolicitacao != 3);
 
     late final Widget botaoPrincipal;
@@ -3633,6 +3672,13 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         break;
 
       case ModalidadeExecucao.retiradaNoLocal:
+        if (estaAceito) {
+          botaoPrincipal = _buildBotaoAguardar(
+            'Aguardando Pagamento',
+            Icons.payment_rounded,
+          );
+          break;
+        }
         botaoPrincipal = SizedBox(
           width: double.infinity,
           height: 52,
@@ -3669,6 +3715,13 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         break;
 
       case ModalidadeExecucao.recebaEmCasa:
+        if (estaAceito) {
+          botaoPrincipal = _buildBotaoAguardar(
+            'Aguardando Pagamento',
+            Icons.payment_rounded,
+          );
+          break;
+        }
         botaoPrincipal = SizedBox(
           width: double.infinity,
           height: 52,
