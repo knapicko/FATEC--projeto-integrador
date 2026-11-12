@@ -10,7 +10,9 @@ import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'atendimento_no_local_cliente.dart';
 import 'detalhes_pedido.dart';
+import 'utils/fluxo_solicitacao.dart';
 import 'tela_chat_profissional.dart';
 import 'tela_meu_perfil_cliente.dart';
 import 'utils/iniciais.dart';
@@ -43,7 +45,23 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
   RealtimeChannel? _canalRealtimeSolicitacao;
   late AnimationController _sonarController;
   int? _fkStatus;
+  int _etapaSolicitacao = 0;
+  String _tipoExecucao = 'Leva e Traz';
   bool _redirecionandoEmAndamento = false;
+
+  FluxoSolicitacao get _fluxo => FluxoSolicitacao(
+    tipoExecucao: _tipoExecucao,
+    fkStatus: _fkStatus,
+    etapa: _etapaSolicitacao,
+  );
+
+  /// Profissional no endereço do cliente (busca ou devolução).
+  bool get _profissionalNoLocal =>
+      _fluxo.profissionalChegou || _fluxo.devolucaoChegou;
+
+  /// Chegada da devolução: o cliente confirma com código + fotos.
+  /// Considera também registros antigos de "Receba em Casa" (34 / etapa 4).
+  bool get _devolucaoNoLocal => _fluxo.devolucaoChegou;
   final List<TextEditingController> _codigoControllers = List.generate(
     4,
     (_) => TextEditingController(),
@@ -57,7 +75,31 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
   bool _confirmandoDevolucao = false;
 
   void _verificarRedirecionamentoEmAndamento(int? status) {
-    if (status == 4 && !_redirecionandoEmAndamento && mounted) {
+    if (_redirecionandoEmAndamento || !mounted) return;
+    // Atendimento em Domicílio: ao chegar (34 / etapa 3) o acompanhamento
+    // passa a ser feito na tela de atendimento no local.
+    if (_fluxo.destinoCliente == DestinoCliente.atendimentoNoLocal) {
+      _redirecionandoEmAndamento = true;
+      _timerPolling?.cancel();
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) =>
+              AtendimentoNoLocalClientePage(idSolicitacao: widget.idSolicitacao),
+        ),
+      );
+      return;
+    }
+    if (status == 6) {
+      _redirecionandoEmAndamento = true;
+      _timerPolling?.cancel();
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => DetalhesPedidoPage(idSolicitacao: widget.idSolicitacao),
+        ),
+      );
+      return;
+    }
+    if (status == 4) {
       _redirecionandoEmAndamento = true;
       _timerPolling?.cancel();
       Navigator.of(context).pushReplacement(
@@ -174,13 +216,17 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
           .select(
             'id_solicitacao, valor_final, detalhes, data_agendada, hora_agendada, '
             'tipo_execucao, fk_grupo_empresa, fk_profissional, fk_usuario, '
-            'fk_endereco, fk_servico_prof, fk_servico_temp, codigo_rec_dev, fk_status',
+            'fk_endereco, fk_servico_prof, fk_servico_temp, codigo_rec_dev, fk_status, '
+            'etapa_solicitacao',
           )
           .eq('id_solicitacao', widget.idSolicitacao)
           .maybeSingle();
 
       if (row == null) return;
 
+      _tipoExecucao = row['tipo_execucao']?.toString().trim() ?? _tipoExecucao;
+      _etapaSolicitacao =
+          (row['etapa_solicitacao'] as num?)?.toInt() ?? _etapaSolicitacao;
       _fkStatus = (row['fk_status'] as num?)?.toInt();
       _verificarRedirecionamentoEmAndamento(_fkStatus);
       final codigoBanco = row['codigo_rec_dev']?.toString().trim() ?? '';
@@ -311,10 +357,13 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
     try {
       final solCheck = await supabase
           .from('solicitacoes')
-          .select('fk_status, codigo_rec_dev')
+          .select('fk_status, codigo_rec_dev, etapa_solicitacao')
           .eq('id_solicitacao', widget.idSolicitacao)
           .maybeSingle();
       if (solCheck != null) {
+        _etapaSolicitacao =
+            (solCheck['etapa_solicitacao'] as num?)?.toInt() ??
+            _etapaSolicitacao;
         final st = (solCheck['fk_status'] as num?)?.toInt();
         if (st != null && st != _fkStatus && mounted) {
           setState(() {
@@ -447,6 +496,11 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
             callback: (payload) {
               final newRec = payload.newRecord;
               if (newRec.isNotEmpty) {
+                _etapaSolicitacao =
+                    (newRec['etapa_solicitacao'] as num?)?.toInt() ??
+                    _etapaSolicitacao;
+                final cod = newRec['codigo_rec_dev']?.toString().trim();
+                if (cod != null && cod.isNotEmpty) _codigoRecDev = cod;
                 final st = (newRec['fk_status'] as num?)?.toInt();
                 if (st != null && mounted) {
                   setState(() {
@@ -617,7 +671,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                       const SizedBox(height: 4),
                       _buildPillGpsStatusBar(),
                       const SizedBox(height: 10),
-                      if (_fkStatus == 34) ...[
+                      if (_profissionalNoLocal) ...[
                         _buildAvisoProfissionalChegou(),
                       ] else ...[
                         _buildCardPrevisaoChegada(),
@@ -629,7 +683,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                       const SizedBox(height: 14),
                       _buildCardInfoProfissional(),
                       const SizedBox(height: 14),
-                      _fkStatus == 37
+                      _devolucaoNoLocal
                           ? Column(
                               children: [
                                 _buildCardCodigoDevolucao(),
@@ -669,7 +723,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
           const SizedBox(width: 2),
           Expanded(
             child: Text(
-              _fkStatus == 34
+              _profissionalNoLocal
                   ? 'Profissional Chegou'
                   : 'Profissional A Caminho',
               style: const TextStyle(
@@ -753,7 +807,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
           ),
           const SizedBox(width: 8),
           Text(
-            _fkStatus == 34
+            _profissionalNoLocal
                 ? 'Profissional no local - Conectado'
                 : 'GPS em tempo real - Conectado',
             style: const TextStyle(
@@ -925,7 +979,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
 
   /// 4. Timeline de Progresso com Etapas e Barra Linear
   Widget _buildTimelineProgresso() {
-    final bool chegou = _fkStatus == 34;
+    final bool chegou = _profissionalNoLocal;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1064,7 +1118,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                   userAgentPackageName: 'br.com.consertaja',
                   maxZoom: 19,
                 ),
-                if (_fkStatus != 34 && _rota.isNotEmpty)
+                if (!_profissionalNoLocal && _rota.isNotEmpty)
                   PolylineLayer(
                     polylines: [
                       Polyline(
@@ -1078,7 +1132,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                 MarkerLayer(
                   markers: [
                     // Marcador de Destino do Cliente (some ao chegar)
-                    if (_fkStatus != 34)
+                    if (!_profissionalNoLocal)
                       Marker(
                         point: _destino,
                         width: 100,
@@ -1089,8 +1143,8 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                     // Marcador do Profissional
                     Marker(
                       point: posProf,
-                      width: _fkStatus == 34 ? 170 : 150,
-                      height: _fkStatus == 34 ? 130 : 90,
+                      width: _profissionalNoLocal ? 170 : 150,
+                      height: _profissionalNoLocal ? 130 : 90,
                       alignment: Alignment.center,
                       child: _marcadorProfissional(),
                     ),
@@ -1123,7 +1177,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
               ),
             ),
             // Pill com Endereço Flutuante Inferior (some ao chegar)
-            if (_fkStatus != 34)
+            if (!_profissionalNoLocal)
               Positioned(
                 bottom: 12,
                 left: 14,
@@ -1248,7 +1302,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
   }
 
   Widget _marcadorProfissional() {
-    final bool chegou = _fkStatus == 34;
+    final bool chegou = _profissionalNoLocal;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
