@@ -18,6 +18,7 @@ import 'tela_meu_perfil_profissional.dart';
 import 'tela_recebe_devolucao_profissional.dart';
 import 'profissional_no_local_atendimento_presencial.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
+import 'utils/fluxo_solicitacao.dart';
 import 'utils/iniciais.dart';
 import 'widgets/skeleton_loading.dart';
 
@@ -704,38 +705,31 @@ class _TelaDeslocamentoProfissionalPageState
   }
 
   Future<void> _aoClicarEstouNoLocal() async {
+    final modalidade = ModalidadeExecucao.fromString(_tipoExecucao);
     if (_ehDevolucao && _fkStatus == 36) {
-      final recebaEmCasa = _tipoExecucao
-          .toLowerCase()
-          .replaceAll('í', 'i')
-          .replaceAll('ã', 'a')
-          .contains('receba');
+      // Devolução (Leva e Traz / Receba em Casa): chegada = 37, etapa 4.
+      // O cliente confirma o recebimento com código + fotos em
+      // AcompanharDeslocamentoPage.
       try {
         await supabase
             .from('solicitacoes')
-            .update({
-              'fk_status': recebaEmCasa ? 34 : 37,
-              'etapa_solicitacao': 4,
-            })
+            .update({'fk_status': 37, 'etapa_solicitacao': 4})
             .eq('id_solicitacao', widget.idSolicitacao);
-        _fkStatus = recebaEmCasa ? 34 : 37;
+        _fkStatus = 37;
       } catch (e) {
         debugPrint('Erro ao atualizar status 37 na devolução: $e');
       }
     } else if (!_ehDevolucao) {
-      final atendimentoDomicilio = _tipoExecucao
-          .toLowerCase()
-          .replaceAll('í', 'i')
-          .replaceAll('ã', 'a')
-          .contains('domicilio');
+      // Busca (Leva e Traz → etapa 2) ou atendimento (Domicílio → etapa 3).
       try {
         await supabase
             .from('solicitacoes')
             .update({
               'fk_status': 34,
-              'etapa_solicitacao': atendimentoDomicilio ? 3 : 2,
+              'etapa_solicitacao': modalidade.ehDomicilio ? 3 : 2,
             })
             .eq('id_solicitacao', widget.idSolicitacao);
+        _fkStatus = 34;
       } catch (e) {
         debugPrint('Erro ao atualizar status 34 na solicitacao: $e');
       }
@@ -743,11 +737,7 @@ class _TelaDeslocamentoProfissionalPageState
 
     if (!mounted) return;
 
-    final atendimentoDomicilio = _tipoExecucao
-        .toLowerCase()
-        .replaceAll('í', 'i')
-        .replaceAll('ã', 'a')
-        .contains('domicilio');
+    final atendimentoDomicilio = modalidade.ehDomicilio;
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => atendimentoDomicilio
@@ -772,9 +762,9 @@ class _TelaDeslocamentoProfissionalPageState
                 nomeServico: _tituloServico.isNotEmpty
                     ? _tituloServico
                     : widget.categoria,
-                modalidade: widget.categoria.isNotEmpty
-                    ? widget.categoria
-                    : 'Leva e Traz',
+                // Usa o tipo_execucao real (antes era passada a categoria do
+                // serviço, o que impedia reconhecer "Receba em Casa").
+                modalidade: _tipoExecucao,
                 enderecoPrincipal: _enderecoPrincipal,
                 enderecoComplementar: _enderecoComplementar,
                 isEmpresa: _isEmpresa,
@@ -787,6 +777,17 @@ class _TelaDeslocamentoProfissionalPageState
   }
 
   Future<void> _iniciarDeslocamentoDevolucao() async {
+    // Retirado no Local não tem devolução: o cliente busca no balcão.
+    if (!ModalidadeExecucao.fromString(
+      _tipoExecucao,
+    ).profissionalDevolveNoCliente) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Nesta modalidade o cliente retira o produto no local.'),
+        ),
+      );
+      return;
+    }
     try {
       final codigo = (1000 + Random().nextInt(9000)).toString();
       await supabase
