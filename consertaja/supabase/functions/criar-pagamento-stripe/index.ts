@@ -188,11 +188,18 @@ Deno.serve(async (request) => {
     }, { onConflict: 'fk_solicitacao' });
     if (insertError) throw new Error(`Não foi possível salvar o pagamento: ${insertError.message}`);
 
-    const { error: statusError } = await admin
-      .from('solicitacoes')
-      .update({ fk_status: 2 })
-      .eq('id_solicitacao', idSolicitacao);
-    if (statusError) throw new Error(`Não foi possível atualizar o status: ${statusError.message}`);
+    // Só marca "Aguardando Pagamento" (2) quando o pagamento ainda não foi
+    // aprovado. Antes, um cartão aprovado na hora era marcado como Pago (3)
+    // e logo em seguida voltava para 2. O filtro neq(3) também evita
+    // sobrescrever um "Pago" gravado pelo webhook em paralelo.
+    if (intent.status !== 'succeeded') {
+      const { error: statusError } = await admin
+        .from('solicitacoes')
+        .update({ fk_status: 2 })
+        .eq('id_solicitacao', idSolicitacao)
+        .neq('fk_status', 3);
+      if (statusError) throw new Error(`Não foi possível atualizar o status: ${statusError.message}`);
+    }
 
     return json({
       id_solicitacao: idSolicitacao,
