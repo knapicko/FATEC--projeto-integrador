@@ -56,10 +56,29 @@ class SolicitacoesService {
         'p_id_profissional': idProfissional,
       },
     );
+    Map<String, dynamic>? pedido;
     if (resposta is List && resposta.isNotEmpty) {
-      return Map<String, dynamic>.from(resposta.first);
+      pedido = Map<String, dynamic>.from(resposta.first);
+    } else if (resposta is Map) {
+      pedido = Map<String, dynamic>.from(resposta);
     }
-    if (resposta is Map) return Map<String, dynamic>.from(resposta);
-    throw Exception('A solicitação já foi aceita ou não está disponível.');
+    if (pedido == null) {
+      throw Exception('A solicitação já foi aceita ou não está disponível.');
+    }
+
+    // A RPC grava o status "Aceito", mas não avança a etapa. Pelo fluxo,
+    // o aceite leva a solicitação da etapa 0 para a etapa 1 (pagamento).
+    await marcarEtapaAceite(idSolicitacao);
+    pedido['etapa_solicitacao'] = 1;
+    return pedido;
+  }
+
+  /// Garante `etapa_solicitacao = 1` após o aceite (sem retroceder etapas).
+  static Future<void> marcarEtapaAceite(int idSolicitacao) async {
+    await _supabase
+        .from('solicitacoes')
+        .update({'etapa_solicitacao': 1})
+        .eq('id_solicitacao', idSolicitacao)
+        .lt('etapa_solicitacao', 1);
   }
 }
