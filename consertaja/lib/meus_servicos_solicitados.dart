@@ -9,6 +9,7 @@ import 'gestao_equipe.dart';
 import 'services/solicitacoes_service.dart';
 import 'solicitacao_em_andamento.dart';
 import 'solicitacao_estado.dart';
+import 'utils/fluxo_solicitacao.dart';
 import 'tela_deslocamento_profissional.dart';
 import 'tela_recebe_devolucao_profissional.dart';
 import 'profissional_no_local_atendimento_presencial.dart';
@@ -40,6 +41,7 @@ class SolicitacaoRecebida {
   final int? fkEndereco;
   final String? statusTexto;
   final int? fkStatus;
+  final int etapaSolicitacao;
   final double? latitude;
   final double? longitude;
   final String? enderecoPrincipal;
@@ -71,6 +73,7 @@ class SolicitacaoRecebida {
     this.fkEndereco,
     this.statusTexto,
     this.fkStatus,
+    this.etapaSolicitacao = 0,
     this.latitude,
     this.longitude,
     this.enderecoPrincipal,
@@ -106,6 +109,7 @@ enum FiltroSolicitacao {
       return FiltroSolicitacao.novos;
     }
     if (s.contains('aceito')) return FiltroSolicitacao.aceitos;
+    if (s.contains('aguardando pagamento')) return FiltroSolicitacao.aceitos;
     if (s == 'pago') return FiltroSolicitacao.aceitos;
     if (s.contains('recus') || s.contains('cancel')) {
       return FiltroSolicitacao.recusados;
@@ -235,7 +239,7 @@ class _MeusServicosSolicitadosPageState
           .select(
             'id_solicitacao, data_solicitacao, valor_final, detalhes, '
             'data_agendada, hora_agendada, tipo_execucao, fk_grupo_empresa, '
-            'fk_status, fk_profissional, fk_usuario, fk_endereco, fk_servico_prof, fk_servico_temp, '
+            'fk_status, etapa_solicitacao, fk_profissional, fk_usuario, fk_endereco, fk_servico_prof, fk_servico_temp, '
             'status!solicitacoes_fk_status_fkey(status)',
           );
       if (_contaEmpresaAtiva) {
@@ -295,6 +299,7 @@ class _MeusServicosSolicitadosPageState
             fkEndereco: solicitacao.fkEndereco,
             statusTexto: solicitacao.statusTexto,
             fkStatus: solicitacao.fkStatus,
+            etapaSolicitacao: solicitacao.etapaSolicitacao,
             latitude: solicitacao.latitude,
             longitude: solicitacao.longitude,
             enderecoPrincipal: solicitacao.enderecoPrincipal,
@@ -492,6 +497,7 @@ class _MeusServicosSolicitadosPageState
       fkEndereco: (row['fk_endereco'] as num?)?.toInt(),
       statusTexto: statusTexto,
       fkStatus: (row['fk_status'] as num?)?.toInt(),
+      etapaSolicitacao: (row['etapa_solicitacao'] as num?)?.toInt() ?? 0,
       latitude: latitude,
       longitude: longitude,
       enderecoPrincipal: enderecoPrincipal,
@@ -569,17 +575,14 @@ class _MeusServicosSolicitadosPageState
         .length;
   }
 
-  bool _podeIniciarDeslocamento(SolicitacaoRecebida item) {
-    final tipo = item.tipoExecucao
-        .toLowerCase()
-        .replaceAll('á', 'a')
-        .replaceAll('ã', 'a')
-        .replaceAll('â', 'a')
-        .replaceAll('í', 'i')
-        .replaceAll('ú', 'u');
-    return (tipo.contains('leva') && tipo.contains('traz')) ||
-        tipo.contains('domicilio');
-  }
+  /// Regras de fluxo (modalidade + status + etapa) da solicitação.
+  FluxoSolicitacao _fluxo(SolicitacaoRecebida item) => FluxoSolicitacao(
+    tipoExecucao: item.tipoExecucao,
+    fkStatus: item.fkStatus,
+    etapa: item.etapaSolicitacao,
+    statusTexto: item.statusTexto,
+  );
+
 
   void _abrirChat(SolicitacaoRecebida item) {
     Navigator.of(context).push(
@@ -605,8 +608,26 @@ class _MeusServicosSolicitadosPageState
         .eq('id_solicitacao', item.idSolicitacao)
         .maybeSingle();
     final statusAtual = (solicitacao?['fk_status'] as num?)?.toInt();
+    final fluxo = _fluxo(item);
 
-    if (statusAtual == 3 || statusAtual == 32) {
+    // Retirado no Local / Receba em Casa: o profissional não vai até o
+    // cliente na fase de busca (só na devolução do Receba em Casa).
+    final ehDevolucao = fluxo.aguardandoDevolucao || fluxo.devolucaoDeslocando;
+    if (!fluxo.modalidade.profissionalBuscaNoCliente && !ehDevolucao) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Nesta modalidade o cliente leva o produto até você.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    if (fluxo.modalidade.profissionalBuscaNoCliente &&
+        (statusAtual == 3 || statusAtual == 32)) {
       final codigo = (1000 + Random().nextInt(9000)).toString();
       await _supabase
           .from('solicitacoes')
@@ -682,23 +703,25 @@ class _MeusServicosSolicitadosPageState
         .then((_) => _carregar());
   }
 
+  /// Decide a tela do profissional a partir de modalidade + status + etapa.
   void _abrirPorStatus(SolicitacaoRecebida item) {
-    if (item.fkStatus == 35 || item.fkStatus == 36) {
-      _abrirTelaDeslocamento(item);
-    } else if (item.fkStatus == 37) {
-      _abrirTelaRecebeDevolucao(item);
-    } else if (item.fkStatus == 34 &&
-        item.tipoExecucao.toLowerCase().contains('receba')) {
-      _abrirTelaRecebeDevolucao(item);
-    } else if (item.fkStatus == 34 &&
-        item.tipoExecucao.toLowerCase().contains('domic')) {
-      _abrirAtendimentoNoLocal(item);
-    } else if (item.fkStatus == 32 ||
-        item.fkStatus == 33 ||
-        item.fkStatus == 34) {
-      _abrirTelaDeslocamento(item);
-    } else {
-      _abrirSolicitacaoEstado(item);
+    switch (_fluxo(item).destinoProfissional) {
+      case DestinoProfissional.deslocamento:
+        _abrirTelaDeslocamento(item);
+        break;
+      case DestinoProfissional.recebimento:
+      case DestinoProfissional.devolucaoNoLocal:
+        _abrirTelaRecebeDevolucao(item);
+        break;
+      case DestinoProfissional.atendimentoNoLocal:
+        _abrirAtendimentoNoLocal(item);
+        break;
+      case DestinoProfissional.emAndamento:
+        _abrirSolicitacaoEmAndamento(item);
+        break;
+      case DestinoProfissional.estado:
+        _abrirSolicitacaoEstado(item);
+        break;
     }
   }
 
@@ -984,8 +1007,9 @@ class _MeusServicosSolicitadosPageState
   }
 
   Future<void> _iniciarServico(SolicitacaoRecebida item) async {
-    final stTexto = item.statusTexto?.trim().toLowerCase() ?? '';
-    if ((stTexto != 'pago' && item.fkStatus != 32 && item.fkStatus != 3) ||
+    final fluxo = _fluxo(item);
+    if (!fluxo.modalidade.profissionalBuscaNoCliente ||
+        (!fluxo.estaPago && item.fkStatus != 32) ||
         !_iniciandoSolicitacoes.add(item.idSolicitacao)) {
       return;
     }
@@ -1281,7 +1305,7 @@ class _MeusServicosSolicitadosPageState
     }
     await _supabase
         .from('solicitacoes')
-        .update({'fk_status': idStatus})
+        .update({'fk_status': idStatus, 'etapa_solicitacao': 1})
         .eq('id_solicitacao', idSolicitacao);
   }
 
@@ -1560,7 +1584,6 @@ class _MeusServicosSolicitadosPageState
 
   Widget _buildCard(SolicitacaoRecebida item) {
     final status = FiltroSolicitacao.porStatus(item.statusTexto);
-    final statusTxt = item.statusTexto?.trim().toLowerCase() ?? '';
     if (_ehAceita(item) ||
         status == FiltroSolicitacao.emAndamento ||
         item.fkStatus == 4) {
@@ -1730,19 +1753,7 @@ class _MeusServicosSolicitadosPageState
       ),
     );
     return GestureDetector(
-      onTap: () {
-        if (item.fkStatus != null &&
-            item.fkStatus! >= 32 &&
-            item.fkStatus! <= 37) {
-          _abrirPorStatus(item);
-        } else if (item.fkStatus == 4 ||
-            statusTxt.contains('andamento') ||
-            statusTxt.contains('devolu')) {
-          _abrirSolicitacaoEmAndamento(item);
-        } else {
-          _abrirSolicitacaoEstado(item);
-        }
-      },
+      onTap: () => _abrirPorStatus(item),
       child: card,
     );
   }
@@ -1755,11 +1766,11 @@ class _MeusServicosSolicitadosPageState
         status == 'em andamento' ||
         status.contains('andamento');
     final aguardandoCliente = status == 'aguardando cliente';
-    final profissionalChegou = item.fkStatus == 34 || status.contains('chegou');
+    final profissionalChegou = _fluxo(item).profissionalChegou;
     final emDeslocamento = item.fkStatus == 32 || item.fkStatus == 33;
-    final aguardandoDevolucao = item.fkStatus == 35;
-    final devolucaoEmAndamento = item.fkStatus == 36;
-    final devolucaoChegou = item.fkStatus == 37;
+    final aguardandoDevolucao = _fluxo(item).aguardandoDevolucao;
+    final devolucaoEmAndamento = _fluxo(item).devolucaoDeslocando;
+    final devolucaoChegou = _fluxo(item).devolucaoChegou;
     final descricao = item.detalhes?.isNotEmpty == true
         ? item.detalhes!
         : (item.descricaoServico ?? 'Detalhes não informados.');
@@ -1797,7 +1808,11 @@ class _MeusServicosSolicitadosPageState
                 child: child,
               ),
               child: Text(
-                aguardandoDevolucao
+                _fluxo(item).aguardandoRetirada
+                    ? '●  AGUARDANDO RETIRADA PELO CLIENTE'
+                    : _fluxo(item).clienteDeslocando
+                    ? '●  CLIENTE A CAMINHO DO ESTABELECIMENTO'
+                    : aguardandoDevolucao
                     ? '●  AGUARDANDO DESLOCAMENTO'
                     : devolucaoEmAndamento
                     ? '●  DEVOLUÇÃO EM ANDAMENTO'
@@ -1953,148 +1968,10 @@ class _MeusServicosSolicitadosPageState
           const SizedBox(height: 14),
           Row(
             children: [
-              if (profissionalChegou)
-                Expanded(
-                  child: FilledButton(
-                    onPressed: () => _abrirTelaDeslocamento(item),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _azul,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 12,
-                        horizontal: 8,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.near_me_outlined, size: 16),
-                        SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            'Abrir detalhes',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              else if (emDeslocamento)
-                Expanded(
-                  child: FilledButton(
-                    onPressed: () => _abrirTelaDeslocamento(item),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _azul,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 12,
-                        horizontal: 8,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.navigation_rounded, size: 16),
-                        SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            'Continuar Trajeto',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              else if (item.fkStatus == 31 || (status == 'aceito' && !estaPago))
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: null,
-                    icon: const Icon(Icons.payment_rounded, size: 18),
-                    label: const Text('Aguardando pagamento'),
-                    style: FilledButton.styleFrom(
-                      disabledBackgroundColor: const Color(0xFFE2E8F0),
-                      disabledForegroundColor: const Color(0xFF94A3B8),
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                    ),
-                  ),
-                )
-              else if (estaPago)
-                Expanded(
-                  child: _podeIniciarDeslocamento(item)
-                      ? FilledButton.icon(
-                          onPressed: () => _iniciarServico(item),
-                          icon: const Icon(Icons.near_me_outlined, size: 18),
-                          label: const Text('Iniciar deslocamento'),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: _azul,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 13),
-                          ),
-                        )
-                      : _botaoIniciarServico(item, verticalPadding: 13),
-                )
-              else if (item.fkStatus == 38)
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: null,
-                    icon: const Icon(Icons.hourglass_top_rounded, size: 18),
-                    label: const Text('Aguardando entrega do cliente'),
-                  ),
-                )
-              else if (emAndamento || item.fkStatus == 4)
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: () => _abrirSolicitacaoEmAndamento(item),
-                    icon: const Icon(Icons.handyman_outlined, size: 18),
-                    label: const Text('Bancada Técnica'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _azul,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                    ),
-                  ),
-                )
-              else if (!aguardandoCliente && _podeIniciarDeslocamento(item))
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: () => _abrirSolicitacaoEstado(item),
-                    icon: const Icon(Icons.near_me_outlined, size: 18),
-                    label: const Text('Iniciar deslocamento'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _azul,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                    ),
-                  ),
-                ),
-              if (profissionalChegou ||
-                  emDeslocamento ||
-                  item.fkStatus == 31 ||
-                  (status == 'aceito' && !estaPago) ||
-                  estaPago ||
-                  emAndamento ||
-                  (!aguardandoCliente && _podeIniciarDeslocamento(item)))
+              if (_botaoPrincipalAceito(item, 13) case final principal?) ...[
+                Expanded(child: principal),
                 const SizedBox(width: 8),
+              ],
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () => _abrirChat(item),
@@ -2113,17 +1990,7 @@ class _MeusServicosSolicitadosPageState
       ),
     );
     return GestureDetector(
-      onTap: () {
-        if (item.fkStatus == 35 || item.fkStatus == 36 || item.fkStatus == 37) {
-          _abrirPorStatus(item);
-        } else if (item.fkStatus == 4 ||
-            status.contains('andamento') ||
-            status.contains('devolu')) {
-          _abrirSolicitacaoEmAndamento(item);
-        } else {
-          _abrirSolicitacaoEstado(item);
-        }
-      },
+      onTap: () => _abrirPorStatus(item),
       child: cardAceito,
     );
   }
@@ -2214,208 +2081,12 @@ class _MeusServicosSolicitadosPageState
   }
 
   Widget _buildBotoesAceito(SolicitacaoRecebida item) {
-    final podeDeslocar = _podeIniciarDeslocamento(item);
-    final statusTxt = item.statusTexto?.trim().toLowerCase() ?? '';
-    final estaPago = item.fkStatus == 3 || statusTxt == 'pago';
-    final estaAceito =
-        item.fkStatus == 31 || (statusTxt == 'aceito' && !estaPago);
-    final profissionalChegou =
-        item.fkStatus == 34 || statusTxt.contains('chegou');
-    final emDeslocamento = item.fkStatus == 32 || item.fkStatus == 33;
-    final aguardandoDevolucao = item.fkStatus == 35;
-    final devolucaoEmDeslocamento = item.fkStatus == 36;
-    final devolucaoChegou = item.fkStatus == 37;
     return Row(
       children: [
-        if (aguardandoDevolucao)
-          Expanded(
-            child: FilledButton.icon(
-              onPressed: () => _abrirTelaDeslocamento(item),
-              icon: const Icon(Icons.local_shipping_outlined, size: 18),
-              label: const Text('Iniciar Devolução'),
-              style: FilledButton.styleFrom(
-                backgroundColor: _azul,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-            ),
-          )
-        else if (devolucaoChegou)
-          Expanded(
-            child: FilledButton.icon(
-              onPressed: () => _abrirTelaRecebeDevolucao(item),
-              icon: const Icon(Icons.assignment_turned_in_outlined, size: 18),
-              label: const Text('Realizar Devolução'),
-              style: FilledButton.styleFrom(
-                backgroundColor: _azul,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-            ),
-          )
-        else if (devolucaoEmDeslocamento)
-          Expanded(
-            child: FilledButton.icon(
-              onPressed: () => _abrirTelaDeslocamento(item),
-              icon: const Icon(Icons.navigation_rounded, size: 18),
-              label: const Text('Continuar Devolução'),
-              style: FilledButton.styleFrom(
-                backgroundColor: _azul,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-            ),
-          )
-        else if (profissionalChegou)
-          Expanded(
-            child: FilledButton(
-              onPressed: () => item.tipoExecucao.toLowerCase().contains('domic')
-                  ? _abrirAtendimentoNoLocal(item)
-                  : _abrirTelaDeslocamento(item),
-              style: FilledButton.styleFrom(
-                backgroundColor: _azul,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  vertical: 12,
-                  horizontal: 8,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.near_me_outlined, size: 16),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      item.tipoExecucao.toLowerCase().contains('domic')
-                          ? 'No local'
-                          : 'Abrir detalhes',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          )
-        else if (emDeslocamento)
-          Expanded(
-            child: FilledButton(
-              onPressed: () => _abrirTelaDeslocamento(item),
-              style: FilledButton.styleFrom(
-                backgroundColor: _azul,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  vertical: 12,
-                  horizontal: 8,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.navigation_rounded, size: 16),
-                  SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      'Continuar Trajeto',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          )
-        else if (estaAceito)
-          Expanded(
-            child: FilledButton.icon(
-              onPressed: null,
-              icon: const Icon(Icons.payment_rounded, size: 18),
-              label: const Text('Aguardando pagamento'),
-              style: FilledButton.styleFrom(
-                disabledBackgroundColor: const Color(0xFFE2E8F0),
-                disabledForegroundColor: const Color(0xFF94A3B8),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-            ),
-          )
-        else if (estaPago)
-          Expanded(
-            child: podeDeslocar
-                ? FilledButton.icon(
-                    onPressed: () => _iniciarServico(item),
-                    icon: const Icon(Icons.near_me_outlined, size: 18),
-                    label: const Text('Iniciar deslocamento'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _azul,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                  )
-                : _botaoIniciarServico(item, verticalPadding: 12),
-          )
-        else if (item.fkStatus == 38)
-          Expanded(
-            child: FilledButton.icon(
-              onPressed: null,
-              icon: const Icon(Icons.hourglass_top_rounded, size: 18),
-              label: const Text('Aguardando entrega do cliente'),
-            ),
-          )
-        else if (item.fkStatus == 4 || statusTxt.contains('andamento'))
-          Expanded(
-            child: FilledButton.icon(
-              onPressed: () => _abrirSolicitacaoEmAndamento(item),
-              icon: const Icon(Icons.handyman_outlined, size: 18),
-              label: const Text('Bancada Técnica'),
-              style: FilledButton.styleFrom(
-                backgroundColor: _azul,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-            ),
-          )
-        else if (podeDeslocar)
-          Expanded(
-            child: ElevatedButton.icon(
-              onPressed: () => _abrirSolicitacaoEstado(item),
-              icon: const Icon(Icons.near_me_outlined, size: 18),
-              label: const Text('Iniciar deslocamento'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _azul,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-            ),
-          ),
-        if (aguardandoDevolucao ||
-            profissionalChegou ||
-            devolucaoChegou ||
-            devolucaoEmDeslocamento ||
-            emDeslocamento ||
-            estaAceito ||
-            estaPago ||
-            podeDeslocar ||
-            item.fkStatus == 4 ||
-            statusTxt.contains('andamento'))
+        if (_botaoPrincipalAceito(item, 12) case final principal?) ...[
+          Expanded(child: principal),
           const SizedBox(width: 8),
+        ],
         Expanded(
           child: OutlinedButton.icon(
             onPressed: () => _abrirChat(item),
@@ -2431,30 +2102,113 @@ class _MeusServicosSolicitadosPageState
     );
   }
 
-  Widget _botaoIniciarServico(
-    SolicitacaoRecebida item, {
-    required double verticalPadding,
-  }) {
-    final iniciando = _iniciandoSolicitacoes.contains(item.idSolicitacao);
-    return FilledButton.icon(
-      onPressed: iniciando ? null : () => _iniciarServico(item),
-      icon: iniciando
-          ? const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Colors.white,
-              ),
-            )
-          : const Icon(Icons.handyman_outlined, size: 18),
-      label: Text(iniciando ? 'Iniciando...' : 'Iniciar serviço'),
+  /// Botão principal do card de um pedido aceito, de acordo com a modalidade.
+  /// Retorna `null` quando não há ação para o profissional.
+  Widget? _botaoPrincipalAceito(SolicitacaoRecebida item, double vp) {
+    final fluxo = _fluxo(item);
+    Widget acao(String texto, IconData icone, VoidCallback onPressed) =>
+        FilledButton.icon(
+          onPressed: onPressed,
+          icon: Icon(icone, size: 18),
+          label: Text(texto, maxLines: 1, overflow: TextOverflow.ellipsis),
+          style: FilledButton.styleFrom(
+            backgroundColor: _azul,
+            foregroundColor: Colors.white,
+            padding: EdgeInsets.symmetric(vertical: vp, horizontal: 8),
+          ),
+        );
+    Widget aguardando(String texto, IconData icone) => FilledButton.icon(
+      onPressed: null,
+      icon: Icon(icone, size: 18),
+      label: Text(texto, maxLines: 1, overflow: TextOverflow.ellipsis),
       style: FilledButton.styleFrom(
-        backgroundColor: _azul,
-        foregroundColor: Colors.white,
-        padding: EdgeInsets.symmetric(vertical: verticalPadding),
+        disabledBackgroundColor: const Color(0xFFE2E8F0),
+        disabledForegroundColor: const Color(0xFF94A3B8),
+        padding: EdgeInsets.symmetric(vertical: vp, horizontal: 8),
       ),
     );
+
+    if (fluxo.estaConcluido || fluxo.estaAberto) return null;
+    if (fluxo.aguardandoRetirada) {
+      return acao(
+        'Código de retirada',
+        Icons.storefront_outlined,
+        () => _abrirSolicitacaoEstado(item),
+      );
+    }
+    if (fluxo.devolucaoChegou) {
+      return acao(
+        'Realizar Devolução',
+        Icons.assignment_turned_in_outlined,
+        () => _abrirTelaRecebeDevolucao(item),
+      );
+    }
+    if (fluxo.devolucaoDeslocando) {
+      return acao(
+        'Continuar Devolução',
+        Icons.navigation_rounded,
+        () => _abrirTelaDeslocamento(item),
+      );
+    }
+    if (fluxo.aguardandoDevolucao) {
+      return acao(
+        'Iniciar Devolução',
+        Icons.local_shipping_outlined,
+        () => _abrirTelaDeslocamento(item),
+      );
+    }
+    if (fluxo.profissionalChegou) {
+      return fluxo.modalidade.ehDomicilio
+          ? acao(
+              'No local',
+              Icons.home_repair_service_outlined,
+              () => _abrirAtendimentoNoLocal(item),
+            )
+          : acao(
+              'Registrar coleta',
+              Icons.inventory_2_outlined,
+              () => _abrirTelaRecebeDevolucao(item),
+            );
+    }
+    if (fluxo.profissionalDeslocando) {
+      return acao(
+        'Continuar Trajeto',
+        Icons.navigation_rounded,
+        () => _abrirTelaDeslocamento(item),
+      );
+    }
+    if (fluxo.emAndamento) {
+      return acao(
+        'Bancada Técnica',
+        Icons.handyman_outlined,
+        () => _abrirSolicitacaoEmAndamento(item),
+      );
+    }
+    if (fluxo.clienteDeslocando) {
+      return acao(
+        'Código do balcão',
+        Icons.hourglass_top_rounded,
+        () => _abrirSolicitacaoEstado(item),
+      );
+    }
+    if (fluxo.estaPago) {
+      if (fluxo.profissionalPodeIniciarBusca) {
+        final iniciando = _iniciandoSolicitacoes.contains(item.idSolicitacao);
+        return acao(
+          iniciando ? 'Iniciando...' : 'Iniciar deslocamento',
+          Icons.near_me_outlined,
+          iniciando ? () {} : () => _iniciarServico(item),
+        );
+      }
+      return aguardando(
+        'Aguardando o cliente levar',
+        Icons.hourglass_top_rounded,
+      );
+    }
+    if (fluxo.aguardandoPagamento) {
+      return aguardando('Aguardando pagamento', Icons.payment_rounded);
+    }
+    return null;
   }
 
   Widget _botaoConcluirServico(

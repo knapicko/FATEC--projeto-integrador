@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -37,6 +39,8 @@ class _AtendimentoNoLocalClientePageState
   int _duracao = 0;
   DateTime? _inicio;
   bool _profissionalFinalizou = false;
+  String _codigoRecDev = '';
+  Timer? _polling;
   List<String> _antes = [];
   List<String> _depois = [];
 
@@ -44,6 +48,54 @@ class _AtendimentoNoLocalClientePageState
   void initState() {
     super.initState();
     _carregar();
+    // Mantém a tela sincronizada com o profissional: início do atendimento
+    // (código validado) e finalização (profissional_finalizado_atendimento).
+    _polling = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => _atualizarEstado(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _polling?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _atualizarEstado() async {
+    if (!mounted || _confirmando) return;
+    try {
+      final row = await _db
+          .from('solicitacoes')
+          .select(
+            'fk_status, profissional_finalizado_atendimento, '
+            'data_inicio_andamento, duracao_atendimento, '
+            'imagens_atendimento_antes, imagens_atendimento_depois',
+          )
+          .eq('id_solicitacao', widget.idSolicitacao)
+          .maybeSingle();
+      if (row == null || !mounted) return;
+      if ((row['fk_status'] as num?)?.toInt() == 6) {
+        _polling?.cancel();
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) =>
+                DetalhesPedidoPage(idSolicitacao: widget.idSolicitacao),
+          ),
+        );
+        return;
+      }
+      setState(() {
+        _profissionalFinalizou =
+            row['profissional_finalizado_atendimento'] == true;
+        _inicio = DateTime.tryParse(
+          row['data_inicio_andamento']?.toString() ?? '',
+        );
+        _duracao = (row['duracao_atendimento'] as num?)?.toInt() ?? _duracao;
+        _antes = _lista(row['imagens_atendimento_antes']);
+        _depois = _lista(row['imagens_atendimento_depois']);
+      });
+    } catch (_) {}
   }
 
   List<String> _lista(dynamic value) => value is List
@@ -66,6 +118,7 @@ class _AtendimentoNoLocalClientePageState
       );
       _profissionalFinalizou =
           row['profissional_finalizado_atendimento'] == true;
+      _codigoRecDev = row['codigo_rec_dev']?.toString().trim() ?? '';
       _antes = _lista(row['imagens_atendimento_antes']);
       _depois = _lista(row['imagens_atendimento_depois']);
       final fkGrupo = (row['fk_grupo_empresa'] as num?)?.toInt();
@@ -234,6 +287,7 @@ class _AtendimentoNoLocalClientePageState
         padding: const EdgeInsets.all(10),
         children: [
           _etapas(),
+          if (_inicio == null && _codigoRecDev.isNotEmpty) _codigoCard(),
           _enderecoCard(),
           _profissionalCard(),
           _duracaoCard(),
@@ -245,27 +299,90 @@ class _AtendimentoNoLocalClientePageState
     );
   }
 
-  Widget _etapas() => _card(
-    Row(
-      children: [
-        for (final etapa in ['Aceito', 'A caminho', 'No Local', 'Concluído'])
-          Expanded(
-            child: Column(
-              children: [
-                const CircleAvatar(
-                  radius: 13,
-                  backgroundColor: _azul,
-                  child: Icon(Icons.check, color: Colors.white, size: 15),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  etapa,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 9, color: _azul),
-                ),
-              ],
+  Widget _etapas() {
+    const etapas = ['Aceito', 'A caminho', 'No Local', 'Concluído'];
+    // Esta tela só é aberta com status 34 / etapa 3: as duas primeiras
+    // etapas já foram cumpridas, "No Local" está em andamento.
+    return _card(
+      Row(
+        children: [
+          for (var i = 0; i < etapas.length; i++)
+            Expanded(
+              child: Column(
+                children: [
+                  CircleAvatar(
+                    radius: 13,
+                    backgroundColor: i < 2
+                        ? _azul
+                        : i == 2
+                        ? const Color(0xFFFB9263)
+                        : const Color(0xFFE2E8F0),
+                    child: Icon(
+                      i < 2
+                          ? Icons.check
+                          : i == 2
+                          ? Icons.place_outlined
+                          : Icons.check_circle_outline,
+                      color: i < 3 ? Colors.white : const Color(0xFF94A3B8),
+                      size: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    etapas[i],
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: i < 3 ? _azul : _muted,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+        ],
+      ),
+    );
+  }
+
+  /// Código que o cliente mostra ao profissional para iniciar o atendimento.
+  Widget _codigoCard() => _card(
+    Column(
+      children: [
+        const Text(
+          'Código de início do atendimento',
+          style: TextStyle(fontWeight: FontWeight.w800, color: _texto),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Informe este código ao profissional para ele iniciar o atendimento.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 11, color: _muted),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            for (final d in _codigoRecDev.padRight(4, '-').split('').take(4))
+              Container(
+                width: 48,
+                height: 48,
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE0F2FE),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  d,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    color: _azul,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ],
     ),
   );

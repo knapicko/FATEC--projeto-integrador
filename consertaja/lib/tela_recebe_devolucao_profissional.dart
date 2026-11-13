@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
@@ -71,6 +72,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
 
   bool _carregando = true;
   bool _enviando = false;
+  Timer? _pollingDevolucao;
   int? _fkStatus;
   int _etapaSolicitacao = 0;
 
@@ -141,11 +143,42 @@ class _TelaRecebeDevolucaoProfissionalPageState
       end: 10.0,
     ).chain(CurveTween(curve: Curves.elasticIn)).animate(_shakeController);
 
-    _carregarDados();
+    _carregarDados().then((_) => _iniciarPollingDevolucao());
+  }
+
+  /// Na devolução quem conclui é o cliente (código + fotos em
+  /// AcompanharDeslocamentoPage). O profissional aguarda aqui até o status 6.
+  void _iniciarPollingDevolucao() {
+    if (!mounted || !_ehDevolucao) return;
+    _pollingDevolucao?.cancel();
+    _pollingDevolucao = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => _verificarConclusaoDevolucao(),
+    );
+  }
+
+  Future<void> _verificarConclusaoDevolucao() async {
+    try {
+      final row = await _supabase
+          .from('solicitacoes')
+          .select('fk_status')
+          .eq('id_solicitacao', widget.idSolicitacao)
+          .maybeSingle();
+      final st = (row?['fk_status'] as num?)?.toInt();
+      if (!mounted || st != 6) return;
+      _pollingDevolucao?.cancel();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('O cliente confirmou o recebimento. Serviço concluído!'),
+        ),
+      );
+      Navigator.of(context).pop(true);
+    } catch (_) {}
   }
 
   @override
   void dispose() {
+    _pollingDevolucao?.cancel();
     _scrollController.removeListener(_aoRolar);
     _sonarController.dispose();
     _shakeController.dispose();
@@ -656,7 +689,9 @@ class _TelaRecebeDevolucaoProfissionalPageState
                 ],
               ),
       ),
-      bottomSheet: _ehDevolucao ? null : _buildBottomConfirmButton(),
+      bottomSheet: _ehDevolucao
+          ? _buildBottomAguardandoCliente()
+          : _buildBottomConfirmButton(),
     );
   }
 
@@ -1793,7 +1828,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
           const SizedBox(height: 6),
           Text(
             _ehDevolucao
-                ? 'Confira o código exibido pelo cliente para confirmar a devolução.'
+                ? 'Informe este código a ${widget.nomeCliente}. O cliente digita o código e registra as fotos no app para confirmar o recebimento.'
                 : 'Solicite à cliente ${widget.nomeCliente} os 4 dígitos exibidos no app dela para autorizar a custódia do aparelho.',
             textAlign: TextAlign.center,
             style: const TextStyle(
@@ -2002,6 +2037,42 @@ class _TelaRecebeDevolucaoProfissionalPageState
   // ==========================================
   // 7. BOTÃO INFERIOR FIXO COM CÓDIGO DOCKADO
   // ==========================================
+  /// Rodapé da devolução: o profissional entrega o produto e aguarda a
+  /// confirmação do cliente (status 37 → 6, etapa 4 → 5).
+  Widget _buildBottomAguardandoCliente() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: _cinzaBorda, width: 1)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+          child: SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: FilledButton.icon(
+              onPressed: _verificarConclusaoDevolucao,
+              icon: const Icon(Icons.hourglass_top_rounded, size: 20),
+              label: const Text(
+                'Aguardando confirmação do cliente',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+              ),
+              style: FilledButton.styleFrom(
+                backgroundColor: _azul,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(26),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildBottomConfirmButton() {
     final habilitado = _podeConfirmar && !_enviando;
 
