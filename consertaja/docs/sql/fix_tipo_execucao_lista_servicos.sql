@@ -38,16 +38,17 @@ END;
 $$;
 
 -- 2) Corrige os itens que já estão nas listas dos clientes.
+--    Valores com vírgula (lista de vários métodos) não são tocados.
 UPDATE public.ass_servicos_lista
 SET tipo_execucao_escolhido = public.normalizar_tipo_execucao(tipo_execucao_escolhido)
-WHERE tipo_execucao_escolhido IS DISTINCT FROM
+WHERE tipo_execucao_escolhido NOT LIKE '%,%'
+  AND tipo_execucao_escolhido IS DISTINCT FROM
       public.normalizar_tipo_execucao(tipo_execucao_escolhido)
   AND public.normalizar_tipo_execucao(tipo_execucao_escolhido) IS NOT NULL;
 
--- 3) Corrige solicitações antigas (se houver alguma fora do padrão).
-UPDATE public.solicitacoes
-SET tipo_execucao = public.normalizar_tipo_execucao(tipo_execucao)
-WHERE tipo_execucao IS DISTINCT FROM public.normalizar_tipo_execucao(tipo_execucao);
+-- 3) (Removido) Não mexemos nas solicitações já existentes: a constraint já
+--    garante que todas estão num formato válido, e o UPDATE poderia reduzir
+--    valores como "Leva e Traz, Retirado no Local" para um só método.
 
 -- 4) Garante que a constraint é a versão nova (aceita os 4 métodos).
 ALTER TABLE public.solicitacoes
@@ -86,7 +87,8 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  IF NEW.tipo_execucao_escolhido IS NOT NULL THEN
+  IF NEW.tipo_execucao_escolhido IS NOT NULL
+     AND NEW.tipo_execucao_escolhido NOT LIKE '%,%' THEN
     NEW.tipo_execucao_escolhido :=
       coalesce(public.normalizar_tipo_execucao(NEW.tipo_execucao_escolhido),
                NEW.tipo_execucao_escolhido);
