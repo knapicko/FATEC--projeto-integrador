@@ -393,91 +393,34 @@ class _CompletarCadastroClientePageState
     final supabase = Supabase.instance.client;
 
     try {
-      final emailResponse = await supabase
-          .from('emails')
-          .insert({'endereco_email': widget.emailGoogle, 'fk_status': 1})
-          .select()
-          .single();
-      final emailId = emailResponse['id_email'];
-
       final telefoneLimpo = _telefoneController.text.replaceAll(
         RegExp(r'\D'),
         '',
       );
-      final ddd = telefoneLimpo.length >= 2
-          ? telefoneLimpo.substring(0, 2)
-          : '';
-      final numero = telefoneLimpo.length > 2
-          ? telefoneLimpo.substring(2)
-          : telefoneLimpo;
-
-      final telefoneResponse = await supabase
-          .from('telefones')
-          .insert({'ddd': ddd, 'numero': numero, 'fk_status': 1})
-          .select()
-          .single();
-      final telefoneId = telefoneResponse['id_telefone'];
-
-      int assTipoPessoaId;
-      if (_isPessoaFisica) {
-        final cpfLimpo = _somenteDigitos(_cpfController.text);
-        final pfResponse = await supabase
-            .from('pessoa_fisica')
-            .insert({'cpf': cpfLimpo})
-            .select()
-            .single();
-        final assResponse = await supabase
-            .from('ass_tipo_pessoa')
-            .insert({
-              'tipo': 'Física',
-              'fk_pessoa_fisica': pfResponse['id_pessoa_fisica'],
-              'fk_pessoa_juridica': null,
-            })
-            .select()
-            .single();
-        assTipoPessoaId = assResponse['id_tipo_pessoa'];
-      } else {
-        final cnpjLimpo = _somenteDigitos(_cnpjController.text);
-        final pjResponse = await supabase
-            .from('pessoa_juridica')
-            .insert({
-              'cnpj': cnpjLimpo,
-              'razao_social': _razaoSocialController.text.trim(),
-              'nome_fantasia': _nomeFantasiaController.text.trim(),
-              'tem_imovel': !_cnpjDeEmpresa,
-              'data_fundacao': _dataFundacaoController.text.trim().isNotEmpty
-                  ? converterDataParaIso(_dataFundacaoController.text.trim())
-                  : null,
-            })
-            .select()
-            .single();
-        final assResponse = await supabase
-            .from('ass_tipo_pessoa')
-            .insert({
-              'tipo': 'Jurídica',
-              'fk_pessoa_fisica': null,
-              'fk_pessoa_juridica': pjResponse['id_pessoa_juridica'],
-            })
-            .select()
-            .single();
-        assTipoPessoaId = assResponse['id_tipo_pessoa'];
-      }
-
-      await supabase.from('usuarios').insert({
-        'nome': _isPessoaFisica
+      final dataNasc = _dataNascimentoController.text.trim();
+      final dataFund = _dataFundacaoController.text.trim();
+      await completarCadastroGoogleRpc(
+        supabase,
+        tipoConta: 'Cliente',
+        nome: _isPessoaFisica
             ? _nomeController.text.trim()
             : _nomeFantasiaController.text.trim(),
-        'data_nascimento': _dataNascimentoController.text.trim().isNotEmpty
-            ? converterDataParaIso(_dataNascimentoController.text.trim())
+        email: widget.emailGoogle,
+        telefoneDigitos: telefoneLimpo,
+        isPessoaFisica: _isPessoaFisica,
+        cpf: _isPessoaFisica ? _somenteDigitos(_cpfController.text) : null,
+        cnpj: _isPessoaFisica ? null : _somenteDigitos(_cnpjController.text),
+        razaoSocial: _razaoSocialController.text.trim(),
+        nomeFantasia: _nomeFantasiaController.text.trim(),
+        temImovel: !_cnpjDeEmpresa,
+        dataNascimentoIso: dataNasc.isNotEmpty
+            ? converterDataParaIso(dataNasc)
             : null,
-        'data_criacao': DateTime.now().toUtc().toIso8601String(),
-        'tipo_conta': 'Cliente',
-        'fk_email': emailId,
-        'fk_telefone': telefoneId,
-        'fk_tipo_pessoa': assTipoPessoaId,
-        'foto_perfil_url': widget.fotoUrlGoogle ?? 'null',
-        'auth_id': widget.authId,
-      });
+        dataFundacaoIso: dataFund.isNotEmpty
+            ? converterDataParaIso(dataFund)
+            : null,
+        fotoUrl: widget.fotoUrlGoogle,
+      );
 
       if (mounted) {
         Navigator.pushAndRemoveUntil(
@@ -1361,119 +1304,40 @@ class _CompletarCadastroProfissionalDocumentosPageState
       return;
     }
 
+    if (!_cadastroFacialConcluido) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Faça o cadastro facial antes de finalizar.'),
+        ),
+      );
+      return;
+    }
+
     setState(() => _carregando = true);
     final supabase = Supabase.instance.client;
 
     try {
-      final emailResponse = await supabase
-          .from('emails')
-          .insert({'endereco_email': widget.emailGoogle, 'fk_status': 1})
-          .select()
-          .single();
-      final emailId = emailResponse['id_email'];
-
-      final telefoneLimpo = widget.telefone.replaceAll(RegExp(r'\D'), '');
-      final ddd = telefoneLimpo.length >= 2
-          ? telefoneLimpo.substring(0, 2)
-          : '';
-      final numero = telefoneLimpo.length > 2
-          ? telefoneLimpo.substring(2)
-          : telefoneLimpo;
-
-      final telefoneResponse = await supabase
-          .from('telefones')
-          .insert({'ddd': ddd, 'numero': numero, 'fk_status': 1})
-          .select()
-          .single();
-      final telefoneId = telefoneResponse['id_telefone'];
-
-      int assTipoPessoaId;
-      if (widget.isPessoaFisica) {
-        final cpfLimpo = widget.cpf?.replaceAll(RegExp(r'\D'), '') ?? '';
-        final pfResponse = await supabase
-            .from('pessoa_fisica')
-            .insert({'cpf': cpfLimpo})
-            .select()
-            .single();
-        final assResponse = await supabase
-            .from('ass_tipo_pessoa')
-            .insert({
-              'tipo': 'Física',
-              'fk_pessoa_fisica': pfResponse['id_pessoa_fisica'],
-              'fk_pessoa_juridica': null,
-            })
-            .select()
-            .single();
-        assTipoPessoaId = assResponse['id_tipo_pessoa'];
-      } else {
-        final cnpjLimpo = widget.cnpj?.replaceAll(RegExp(r'\D'), '') ?? '';
-        final pjResponse = await supabase
-            .from('pessoa_juridica')
-            .insert({
-              'cnpj': cnpjLimpo,
-              'razao_social': widget.razaoSocial,
-              'nome_fantasia': widget.nome,
-              'tem_imovel': !widget.cnpjDeEmpresa,
-              'data_fundacao': widget.dataFundacao.isNotEmpty
-                  ? widget.dataFundacao
-                  : null,
-            })
-            .select()
-            .single();
-        final assResponse = await supabase
-            .from('ass_tipo_pessoa')
-            .insert({
-              'tipo': 'Jurídica',
-              'fk_pessoa_fisica': null,
-              'fk_pessoa_juridica': pjResponse['id_pessoa_juridica'],
-            })
-            .select()
-            .single();
-        assTipoPessoaId = assResponse['id_tipo_pessoa'];
+      final resultado = await completarCadastroGoogleRpc(
+        supabase,
+        tipoConta: 'Profissional',
+        nome: widget.nome,
+        email: widget.emailGoogle,
+        telefoneDigitos: widget.telefone.replaceAll(RegExp(r'\D'), ''),
+        isPessoaFisica: widget.isPessoaFisica,
+        cpf: widget.cpf,
+        cnpj: widget.cnpj,
+        razaoSocial: widget.razaoSocial,
+        nomeFantasia: widget.nome,
+        temImovel: !widget.cnpjDeEmpresa,
+        dataNascimentoIso: widget.dataNascimento,
+        dataFundacaoIso: widget.dataFundacao,
+        fotoUrl: widget.fotoUrlGoogle,
+        idFacial: _idFacial,
+      );
+      final profissionalId = resultado['id_profissional'];
+      if (profissionalId == null) {
+        throw Exception('Não foi possível criar os dados profissionais.');
       }
-
-      final usuarioResponse = await supabase
-          .from('usuarios')
-          .insert({
-            'nome': widget.nome,
-            'data_nascimento': widget.dataNascimento.isNotEmpty
-                ? widget.dataNascimento
-                : null,
-            'data_criacao': DateTime.now().toUtc().toIso8601String(),
-            'tipo_conta': 'Profissional',
-            'fk_email': emailId,
-            'fk_telefone': telefoneId,
-            'fk_tipo_pessoa': assTipoPessoaId,
-            'foto_perfil_url': widget.fotoUrlGoogle ?? 'null',
-            'auth_id': widget.authId,
-          })
-          .select()
-          .single();
-      final usuarioId = usuarioResponse['id_usuario'];
-
-      if (!_cadastroFacialConcluido) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Faça o cadastro facial antes de finalizar.'),
-            ),
-          );
-        }
-        setState(() => _carregando = false);
-        return;
-      }
-
-      final dadosProfResponse = await supabase
-          .from('dados_profissionais')
-          .insert({
-            'fk_usuario': usuarioId,
-            'id_facial': _idFacial,
-            'rosto_validado': true,
-            'data_admissao': DateTime.now().toIso8601String().split('T').first,
-          })
-          .select()
-          .single();
-      final profissionalId = dadosProfResponse['id_profissional'];
 
       // Salvar associações de ofícios selecionados (se houver)
       if (widget.oficiosSelecionados.isNotEmpty) {
@@ -1872,5 +1736,62 @@ class _MaskedInputFormatter extends TextInputFormatter {
       text: formatted,
       selection: TextSelection.collapsed(offset: formatted.length),
     );
+  }
+}
+
+/// Cria (numa única transação no banco) todos os registros do cadastro feito
+/// com Google: e-mail, telefone, pessoa física/jurídica, usuário e — se for
+/// profissional — dados_profissionais. Ver docs/sql/rpc_completar_cadastro_google.sql.
+Future<Map<String, dynamic>> completarCadastroGoogleRpc(
+  SupabaseClient supabase, {
+  required String tipoConta,
+  required String nome,
+  required String email,
+  required String telefoneDigitos,
+  required bool isPessoaFisica,
+  String? cpf,
+  String? cnpj,
+  String? razaoSocial,
+  String? nomeFantasia,
+  bool temImovel = false,
+  String? dataNascimentoIso,
+  String? dataFundacaoIso,
+  String? fotoUrl,
+  String? idFacial,
+}) async {
+  String? vazioParaNull(String? v) =>
+      (v == null || v.trim().isEmpty) ? null : v.trim();
+  final tel = telefoneDigitos.replaceAll(RegExp(r'\D'), '');
+  try {
+    final res = await supabase.rpc(
+      'completar_cadastro_google',
+      params: {
+        'p_tipo_conta': tipoConta,
+        'p_nome': nome.trim(),
+        'p_email': vazioParaNull(email),
+        'p_ddd': tel.length > 2 ? tel.substring(0, 2) : null,
+        'p_numero': tel.length > 2 ? tel.substring(2) : null,
+        'p_pessoa_fisica': isPessoaFisica,
+        'p_cpf': isPessoaFisica ? vazioParaNull(cpf) : null,
+        'p_cnpj': isPessoaFisica ? null : vazioParaNull(cnpj),
+        'p_razao_social': vazioParaNull(razaoSocial),
+        'p_nome_fantasia': vazioParaNull(nomeFantasia),
+        'p_tem_imovel': temImovel,
+        'p_data_nascimento': vazioParaNull(dataNascimentoIso),
+        'p_data_fundacao': vazioParaNull(dataFundacaoIso),
+        'p_foto_perfil_url': vazioParaNull(fotoUrl),
+        'p_id_facial': vazioParaNull(idFacial),
+      },
+    );
+    return Map<String, dynamic>.from(res as Map);
+  } on PostgrestException catch (e) {
+    if (e.code == 'PGRST202' ||
+        e.message.contains('completar_cadastro_google')) {
+      throw Exception(
+        'Função completar_cadastro_google ausente no banco. '
+        'Rode docs/sql/rpc_completar_cadastro_google.sql no Supabase.',
+      );
+    }
+    throw Exception(e.message);
   }
 }

@@ -7,6 +7,7 @@ import 'perfil_profissional.dart';
 import 'services/lista_servicos_service.dart';
 import 'services/servicos_profissional_service.dart';
 import 'meus_enderecos.dart';
+import 'utils/fluxo_solicitacao.dart';
 import 'widgets/skeleton_loading.dart';
 
 class EnderecoItemLista {
@@ -171,8 +172,9 @@ class _ListaServicosState extends State<ListaServicos> {
         final fkServicoProf = (row['fk_servico_prof'] as num).toInt();
         final valorFinal =
             double.tryParse(row['valor_final']?.toString() ?? '0') ?? 0.0;
-        final tipoExecucao =
-            row['tipo_execucao_escolhido']?.toString() ?? 'Retirada';
+        final tipoExecucao = normalizarTipoExecucao(
+          row['tipo_execucao_escolhido']?.toString(),
+        );
         final fkEndereco = (row['fk_endereco_escolhido'] as num?)?.toInt();
         final detalhes = row['detalhes']?.toString();
         final imagensAnexadasCliente = row['imagens_anexadas_cliente'] is List
@@ -914,7 +916,7 @@ class _ListaServicosState extends State<ListaServicos> {
           'fk_servico_prof': item.fkServicoProf,
           'fk_endereco': item.fkEnderecoEscolhido,
           'fk_grupo_empresa': item.idGrupoEmpresa,
-          'tipo_execucao': item.tipoExecucao,
+          'tipo_execucao': normalizarTipoExecucao(item.tipoExecucao),
           'detalhes': item.detalhes,
           'data_agendada': item.dataAgendada.isNotEmpty
               ? item.dataAgendada

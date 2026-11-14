@@ -158,6 +158,12 @@ String normalizarTexto(String? raw) => (raw ?? '')
     .replaceAll('ú', 'u')
     .replaceAll('ç', 'c');
 
+/// Converte qualquer variação de método de atendimento (com espaços sobrando,
+/// "Retirada no Local", "retirada", etc.) para o texto canônico aceito pela
+/// constraint `solicitacoes_tipo_execucao_check`.
+String normalizarTipoExecucao(String? raw) =>
+    ModalidadeExecucao.fromString(raw).valorBanco;
+
 /// Regras de fluxo aplicadas a uma solicitação específica.
 class FluxoSolicitacao {
   FluxoSolicitacao({
@@ -319,8 +325,7 @@ class FluxoSolicitacao {
             modalidade == ModalidadeExecucao.levaETraz) {
           return DestinoProfissional.deslocamento;
         }
-        if (profissionalChegou &&
-            modalidade == ModalidadeExecucao.levaETraz) {
+        if (profissionalChegou && modalidade == ModalidadeExecucao.levaETraz) {
           return DestinoProfissional.recebimento;
         }
         if (aguardandoDevolucao || devolucaoDeslocando) {

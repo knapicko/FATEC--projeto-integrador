@@ -57,6 +57,7 @@ class _DadosCartao {
   final int anoExpiracao;
   final String cvc;
   final String ultimosDigitos;
+  final String nomeImpresso;
 
   const _DadosCartao({
     required this.numero,
@@ -64,6 +65,7 @@ class _DadosCartao {
     required this.anoExpiracao,
     required this.cvc,
     required this.ultimosDigitos,
+    this.nomeImpresso = '',
   });
 }
 
@@ -132,8 +134,12 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage> {
   bool get _metodoRequerCartao =>
       _metodo == 'Cartão de Crédito' || _metodo == 'Cartão de Débito';
 
+  // Os dados do cartão só existem em memória até a tentativa de pagamento;
+  // depois disso o usuário precisa adicioná-lo de novo.
   bool get _cartaoCadastrado =>
-      _finalCartao != null && _finalCartao!.trim().isNotEmpty;
+      _dadosCartao != null &&
+      _finalCartao != null &&
+      _finalCartao!.trim().isNotEmpty;
 
   bool get _podePagar {
     if (_salvando || _confirmado || _carregando) return false;
@@ -674,12 +680,14 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage> {
     ).push(MaterialPageRoute(builder: (_) => const TelaMeuPerfilClientePage()));
   }
 
+  /// Abre o bottom sheet do cartão. Se já existe um cartão adicionado, abre
+  /// no modo edição com os dados preenchidos.
   Future<void> _abrirNovoCartao() async {
     final resultado = await showModalBottomSheet<_DadosCartao>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (ctx) => const _BottomSheetNovoCartao(),
+      builder: (ctx) => _BottomSheetNovoCartao(inicial: _dadosCartao),
     );
     if (resultado != null && mounted) {
       setState(() {
@@ -785,7 +793,7 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage> {
           _buildSeletorParcelas(),
           const SizedBox(height: 8),
         ],
-        if (_metodoRequerCartao) _buildAdicionarCartao(),
+        if (_metodoRequerCartao && !_cartaoCadastrado) _buildAdicionarCartao(),
         if (_erro != null) ...[
           const SizedBox(height: 12),
           Text(_erro!, style: const TextStyle(color: Color(0xFFB42318))),
@@ -1032,9 +1040,10 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage> {
   Widget _metodoTile(_MetodoPagamento metodo) {
     final selecionado = metodo.disponivel && _metodo == metodo.id;
     final bloqueado = !metodo.disponivel;
-    final subtitulo =
-        (metodo.id == 'Cartão de Crédito' || metodo.id == 'Cartão de Débito') &&
-            _finalCartao != null
+    final ehCartao =
+        metodo.id == 'Cartão de Crédito' || metodo.id == 'Cartão de Débito';
+    final mostrarEditar = ehCartao && _cartaoCadastrado && !bloqueado;
+    final subtitulo = ehCartao && _cartaoCadastrado
         ? '**** **** **** $_finalCartao'
         : metodo.subtitulo;
 
@@ -1098,6 +1107,29 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage> {
                     ],
                   ),
                 ),
+                if (mostrarEditar) ...[
+                  TextButton.icon(
+                    onPressed: () {
+                      setState(() => _metodo = metodo.id);
+                      _abrirNovoCartao();
+                    },
+                    style: TextButton.styleFrom(
+                      foregroundColor: _azul,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: const Size(0, 32),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    label: const Text(
+                      'Editar',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                ],
                 Icon(
                   selecionado
                       ? Icons.check_circle
@@ -1606,7 +1638,10 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage> {
 }
 
 class _BottomSheetNovoCartao extends StatefulWidget {
-  const _BottomSheetNovoCartao();
+  const _BottomSheetNovoCartao({this.inicial});
+
+  /// Cartão já adicionado. Quando informado, o sheet abre em modo edição.
+  final _DadosCartao? inicial;
 
   @override
   State<_BottomSheetNovoCartao> createState() => _BottomSheetNovoCartaoState();
@@ -1622,6 +1657,24 @@ class _BottomSheetNovoCartaoState extends State<_BottomSheetNovoCartao> {
   final _nome = TextEditingController();
   final _validade = TextEditingController();
   final _cvv = TextEditingController();
+
+  bool get _editando => widget.inicial != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final c = widget.inicial;
+    if (c != null) {
+      _numero.text = c.numero
+          .replaceAllMapped(RegExp(r'.{1,4}'), (m) => '${m.group(0)} ')
+          .trim();
+      _nome.text = c.nomeImpresso;
+      final mes = c.mesExpiracao.toString().padLeft(2, '0');
+      final ano = (c.anoExpiracao % 100).toString().padLeft(2, '0');
+      _validade.text = '$mes/$ano';
+      _cvv.text = c.cvc;
+    }
+  }
 
   @override
   void dispose() {
@@ -1672,6 +1725,7 @@ class _BottomSheetNovoCartaoState extends State<_BottomSheetNovoCartao> {
         anoExpiracao: ano < 100 ? 2000 + ano : ano,
         cvc: _cvv.text.trim(),
         ultimosDigitos: finalCartao,
+        nomeImpresso: _nome.text.trim(),
       ),
     );
   }
@@ -1718,9 +1772,9 @@ class _BottomSheetNovoCartaoState extends State<_BottomSheetNovoCartao> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  const Text(
-                    'Adicionar cartão',
-                    style: TextStyle(
+                  Text(
+                    _editando ? 'Editar cartão' : 'Adicionar cartão',
+                    style: const TextStyle(
                       color: _texto,
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
@@ -1820,9 +1874,9 @@ class _BottomSheetNovoCartaoState extends State<_BottomSheetNovoCartao> {
                           borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      child: const Text(
-                        'Usar este cartão',
-                        style: TextStyle(fontWeight: FontWeight.w800),
+                      child: Text(
+                        _editando ? 'Salvar alterações' : 'Usar este cartão',
+                        style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
                     ),
                   ),

@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'tela_home.dart';
 import 'tela_home_profissional.dart';
 import 'atualizar_senha.dart';
+import 'services/app_settings_controller.dart';
 import 'services/google_auth_service.dart';
 import 'onboarding/onboarding_controller.dart';
 import 'tela_inicial.dart';
@@ -38,6 +39,10 @@ void main() async {
       });
     }
   });
+
+  // Lê o arquivo de configurações do cliente antes de desenhar o app, para que
+  // fonte/tema/filtros já abram aplicados em todas as telas.
+  await AppSettingsController.instance.iniciar();
 
   runApp(const MyApp());
 }
@@ -133,27 +138,29 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      navigatorKey: _navigatorKey,
-      navigatorObservers: [
-        AppRouteObserver.instance,
-      ],
-      debugShowCheckedModeBanner: false,
-      title: 'ConsertaJá',
-      theme: ThemeData(
-        primaryColor: const Color(0xFF00A3FF),
-        scaffoldBackgroundColor: const Color(0xFFF8F9FA),
+    final settings = AppSettingsController.instance;
+    return ListenableBuilder(
+      listenable: settings,
+      builder: (context, _) => MaterialApp(
+        navigatorKey: _navigatorKey,
+        navigatorObservers: [AppRouteObserver.instance],
+        debugShowCheckedModeBanner: false,
+        title: 'ConsertaJá',
+        theme: settings.tema,
+        // Aplica as configurações do cliente (fonte, negrito, contraste,
+        // daltonismo, modo escuro, animações) em todas as rotas.
+        builder: settings.envolverApp,
+
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [Locale('pt', 'BR')],
+        locale: const Locale('pt', 'BR'),
+
+        home: _carregando ? const _StartupSplash() : _homeWidget,
       ),
-
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: const [Locale('pt', 'BR')],
-      locale: const Locale('pt', 'BR'),
-
-      home: _carregando ? const _StartupSplash() : _homeWidget,
     );
   }
 }

@@ -12,6 +12,7 @@ import 'services/lista_servicos_service.dart';
 import 'services/servicos_profissional_service.dart';
 import 'tela_chat_profissional.dart';
 import 'utils/cor_oficio.dart';
+import 'utils/fluxo_solicitacao.dart';
 import 'utils/icone_oficio.dart';
 import 'utils/iniciais.dart';
 import 'widgets/skeleton_loading.dart';
@@ -1933,7 +1934,14 @@ class _TelaServicoState extends State<TelaServico> {
 
       if (mounted) {
         setState(() {
-          _sheetMetodosDisponiveis = metodos;
+          // Normaliza ("Leva e Traz, Retirado no Local" -> sem espaço extra,
+          // "Retirada no Local" -> "Retirado no Local") e remove duplicados,
+          // pois o valor vai direto para solicitacoes.tipo_execucao.
+          _sheetMetodosDisponiveis = metodos
+              .where((item) => item.trim().isNotEmpty)
+              .map(normalizarTipoExecucao)
+              .toSet()
+              .toList();
           _sheetPagamentosDisponiveis = pagamentos
               .map((item) => item.trim())
               .where((item) => item.isNotEmpty)
@@ -3488,7 +3496,7 @@ class _TelaServicoState extends State<TelaServico> {
         'fk_lista': idLista,
         'fk_servico_prof': servico.id,
         'valor_final': valorFinal,
-        'tipo_execucao_escolhido': tipoExecucao,
+        'tipo_execucao_escolhido': normalizarTipoExecucao(tipoExecucao),
         'fk_endereco_escolhido': _sheetEnderecoClienteSelecionado?.id,
         'detalhes': detalhesTexto,
         'data_agendada': dataAgendadaSql,
