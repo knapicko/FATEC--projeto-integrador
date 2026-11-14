@@ -8,7 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'editar_informacoes.dart';
 import 'perguntas_frequentes.dart';
-import 'services/cliente_settings_storage.dart';
+import 'services/app_settings_controller.dart';
 import 'tela_inicial.dart';
 import 'utils/iniciais.dart';
 
@@ -46,13 +46,13 @@ class _TelaConfiguracoesClientePageState
     'Extra',
   ];
 
-  final ClienteSettingsStorage _storage = ClienteSettingsStorage();
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
 
-  Future<void> _pendingSave = Future<void>.value();
-  Map<String, dynamic> _settings = _defaultSettings();
-  String _userId = 'anonymous';
+  // As configurações vivem no AppSettingsController (lido do arquivo de
+  // sistema consertaja_settings_cliente.json) para valerem no app inteiro.
+  AppSettingsController get _controller => AppSettingsController.instance;
+  Map<String, dynamic> get _settings => _controller.settings;
   String _name = 'Cliente';
   String _email = 'E-mail não informado';
   String? _photoUrl;
@@ -61,42 +61,9 @@ class _TelaConfiguracoesClientePageState
   bool _isLoading = true;
   bool _cacheCleared = false;
 
-  static Map<String, dynamic> _defaultSettings() => {
-    'notifications.enabled': true,
-    'notifications.orders': true,
-    'notifications.messages': true,
-    'notifications.payments': true,
-    'notifications.reminders': true,
-    'notifications.promotions': false,
-    'notifications.sound': true,
-    'notifications.vibration': true,
-    'accessibility.fontSize': 1,
-    'accessibility.boldText': false,
-    'accessibility.highContrast': false,
-    'accessibility.colorFilter': 'Desativado',
-    'accessibility.reduceMotion': false,
-    'accessibility.reduceTransparency': false,
-    'accessibility.readability': true,
-    'appearance.theme': 'Claro',
-    'privacy.personalizedOffers': true,
-    'privacy.analytics': false,
-    'security.biometrics': true,
-    'security.requireAuthentication': true,
-    'security.autoLock': 'Imediatamente',
-    'security.showNotificationContent': false,
-    'preferences.useCurrentLocation': true,
-    'preferences.confirmRequest': true,
-    'preferences.confirmCancel': true,
-    'preferences.showTips': false,
-    'network.dataSaver': false,
-    'network.imageLoading': 'Somente Wi-Fi',
-    'network.videoAutoplay': true,
-  };
-
-  bool get _isDark =>
-      _settings['appearance.theme'] == 'Escuro' ||
-      (_settings['appearance.theme'] == 'Sistema' &&
-          MediaQuery.platformBrightnessOf(context) == Brightness.dark);
+  // O modo escuro agora é aplicado globalmente (filtro no MaterialApp), então
+  // esta tela é desenhada no tema claro e escurece junto com o resto do app.
+  bool get _isDark => false;
   Color get _cardColor => _isDark ? const Color(0xFF202124) : Colors.white;
   Color get _primaryText =>
       _isDark ? const Color(0xFFF5F5F5) : const Color(0xFF202124);
@@ -109,11 +76,17 @@ class _TelaConfiguracoesClientePageState
   @override
   void initState() {
     super.initState();
+    _controller.addListener(_onSettingsChanged);
     unawaited(_loadSettingsAndProfile());
+  }
+
+  void _onSettingsChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_onSettingsChanged);
     _searchController.dispose();
     _searchFocus.dispose();
     super.dispose();
@@ -121,19 +94,13 @@ class _TelaConfiguracoesClientePageState
 
   Future<void> _loadSettingsAndProfile() async {
     final user = Supabase.instance.client.auth.currentUser;
-    _userId = user?.id ?? 'anonymous';
     final metadata = user?.userMetadata ?? const <String, dynamic>{};
     var name = (metadata['full_name'] ?? metadata['name'] ?? metadata['nome'])
         ?.toString();
     var photo = (metadata['avatar_url'] ?? metadata['picture'])?.toString();
 
     try {
-      final saved = await _storage.load(_userId);
-      if (mounted) {
-        setState(() {
-          _settings = {..._defaultSettings(), ...saved};
-        });
-      }
+      await _controller.recarregar();
     } catch (error) {
       _showMessage('Não foi possível carregar as configurações locais: $error');
     }
@@ -175,19 +142,21 @@ class _TelaConfiguracoesClientePageState
   }
 
   Future<void> _saveSettings() {
-    final snapshot = Map<String, dynamic>.from(_settings);
-    final write = _pendingSave.then((_) => _storage.save(_userId, snapshot));
-    _pendingSave = write.catchError((Object error) {
+    return _controller.salvarAgora().catchError((Object error) {
       _showMessage(
         'Não foi possível salvar a configuração no dispositivo: $error',
       );
     });
-    return _pendingSave;
   }
 
   void _updateSetting(String key, Object value) {
-    setState(() => _settings[key] = value);
-    unawaited(_saveSettings());
+    unawaited(
+      _controller.atualizar(key, value).catchError((Object error) {
+        _showMessage(
+          'Não foi possível salvar a configuração no dispositivo: $error',
+        );
+      }),
+    );
   }
 
   bool _matches(String text) =>
@@ -728,8 +697,10 @@ class _TelaConfiguracoesClientePageState
               inactiveColor: _isDark
                   ? const Color(0xFF52565B)
                   : const Color(0xFFD9D9D9),
-              onChanged: (newValue) => setState(
-                () => _settings['accessibility.fontSize'] = newValue.round(),
+              onChanged: (newValue) => _controller.atualizar(
+                'accessibility.fontSize',
+                newValue.round(),
+                salvar: false,
               ),
               onChangeEnd: (_) => unawaited(_saveSettings()),
             ),
@@ -912,21 +883,18 @@ class _TelaConfiguracoesClientePageState
 
     if (submitted == null) return;
     final reports = (_settings['local.supportReports'] as List?) ?? [];
-    _settings = {
-      ..._settings,
-      'local.supportReports': [
-        ...reports,
-        {
-          'kind': complaint
-              ? 'denuncia'
-              : report
-              ? 'problema'
-              : 'suporte',
-          'message': submitted,
-          'createdAt': DateTime.now().toIso8601String(),
-        },
-      ],
-    };
+    await _controller.atualizar('local.supportReports', [
+      ...reports,
+      {
+        'kind': complaint
+            ? 'denuncia'
+            : report
+            ? 'problema'
+            : 'suporte',
+        'message': submitted,
+        'createdAt': DateTime.now().toIso8601String(),
+      },
+    ], salvar: false);
     await _saveSettings();
   }
 
@@ -1388,11 +1356,6 @@ class _TelaConfiguracoesClientePageState
   }
 
   Widget _settingsBody() {
-    final fontSize =
-        ((_settings['accessibility.fontSize'] as num?)?.toInt() ?? 1)
-            .clamp(0, 4)
-            .toInt();
-    const textScales = [0.9, 1.0, 1.1, 1.2, 1.3];
     final sections = [
       _section(
         title: '1. Notificações',
@@ -1495,47 +1458,36 @@ class _TelaConfiguracoesClientePageState
     ];
     final hasResults = sections.any((section) => section is! SizedBox);
 
-    return MediaQuery(
-      data: MediaQuery.of(
-        context,
-      ).copyWith(textScaler: TextScaler.linear(textScales[fontSize])),
-      child: Scaffold(
-        backgroundColor: _isDark ? const Color(0xFF151619) : _background,
-        body: SafeArea(
-          child: Column(
-            children: [
-              _header(),
-              Expanded(
-                child: _isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(color: _blue),
-                      )
-                    : ListView(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        children: [
-                          _profileCard(),
-                          _searchBar(),
-                          if (_search.isNotEmpty && !hasResults)
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(
-                                24,
-                                18,
-                                24,
-                                28,
-                              ),
-                              child: Text(
-                                'Nenhuma configuração encontrada.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(color: _secondaryText),
-                              ),
+    // Fonte/negrito/contraste já vêm do MaterialApp (AppSettingsController).
+    return Scaffold(
+      backgroundColor: _isDark ? const Color(0xFF151619) : _background,
+      body: SafeArea(
+        child: Column(
+          children: [
+            _header(),
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator(color: _blue))
+                  : ListView(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      children: [
+                        _profileCard(),
+                        _searchBar(),
+                        if (_search.isNotEmpty && !hasResults)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 18, 24, 28),
+                            child: Text(
+                              'Nenhuma configuração encontrada.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: _secondaryText),
                             ),
-                          ...sections,
-                          _footer(),
-                        ],
-                      ),
-              ),
-            ],
-          ),
+                          ),
+                        ...sections,
+                        _footer(),
+                      ],
+                    ),
+            ),
+          ],
         ),
       ),
     );
