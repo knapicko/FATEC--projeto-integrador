@@ -152,11 +152,15 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
     return (etapa - 1).clamp(1, totalEtapas);
   }
 
-  String _dataExibicao = '15 de Outubro';
-  String _periodoExibicao = 'Hoje à tarde';
-  String _horaExibicao = '14:00';
-  String _janelaExibicao = 'Janela: 14h - 16h';
-  String _horaFimExibicao = '16:00';
+  // Vazios quando a solicitação não tem data/hora (ex.: Radar geográfico):
+  // nesse caso os cards de agendamento não aparecem.
+  String _dataExibicao = '';
+  String _periodoExibicao = '';
+  String _horaExibicao = '';
+  String _janelaExibicao = '';
+  String _horaFimExibicao = '';
+  bool get _temDataAgendada => _dataExibicao.isNotEmpty;
+  bool get _temHoraAgendada => _horaExibicao.isNotEmpty;
   String? _funcaoOficio;
   String? _corOficio;
 
@@ -354,6 +358,12 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
       'Novembro',
       'Dezembro',
     ];
+
+    _dataExibicao = '';
+    _periodoExibicao = '';
+    _horaExibicao = '';
+    _horaFimExibicao = '';
+    _janelaExibicao = '';
 
     if (data != null && data.isNotEmpty) {
       try {
@@ -1346,8 +1356,11 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                                 const SizedBox(height: 14),
                                 _buildCardModalidadeAtendimento(),
                                 const SizedBox(height: 14),
-                                _buildCardsAgendamento(),
-                                const SizedBox(height: 14),
+                                if (_temDataAgendada ||
+                                    _temHoraAgendada) ...[
+                                  _buildCardsAgendamento(),
+                                  const SizedBox(height: 14),
+                                ],
                                 _buildCardLocalizacao(),
                                 const SizedBox(height: 14),
                                 _buildCardEstimativaCombinada(),
@@ -2719,6 +2732,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
     return Row(
       children: [
         // Bloco de Data
+        if (_temDataAgendada)
         Expanded(
           child: Container(
             padding: const EdgeInsets.all(16),
@@ -2778,8 +2792,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        if (_temDataAgendada && _temHoraAgendada) const SizedBox(width: 12),
         // Bloco de Horário
+        if (_temHoraAgendada)
         Expanded(
           child: Container(
             padding: const EdgeInsets.all(16),
@@ -3765,6 +3780,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         const SizedBox(height: 12),
         Row(
           children: [
+            if (_temDataAgendada)
             Expanded(
               child: SizedBox(
                 height: 48,
@@ -3793,7 +3809,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                 ),
               ),
             ),
-            const SizedBox(width: 10),
+            if (_temDataAgendada) const SizedBox(width: 10),
             Expanded(
               child: SizedBox(
                 height: 48,

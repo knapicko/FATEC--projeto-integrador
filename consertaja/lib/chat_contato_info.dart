@@ -202,11 +202,11 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
     try {
       final assOficios = await _supabase
           .from('ass_oficio_profissional')
-          .select('fk_oficio')
+          .select('fk_funcao')
           .eq('fk_profissional', idProfissional);
 
       final idsOficios = assOficios
-          .map((e) => e['fk_oficio'])
+          .map((e) => e['fk_funcao'])
           .whereType<num>()
           .map((e) => e.toInt())
           .toList();
@@ -215,7 +215,7 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
         final oficiosData = await _supabase
             .from('funcoes')
             .select(kColunasFuncaoComoOficio)
-            .inFilter('fk_oficio', idsOficios);
+            .inFilter('id_funcao', idsOficios);
 
         final oficios = <OficioInfo>[];
         for (final row in oficiosData) {

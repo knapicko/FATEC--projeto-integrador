@@ -389,11 +389,11 @@ class _PerfilLojaState extends State<PerfilLoja> {
         try {
           final assOficios = await supabase
               .from('ass_oficio_grupo_empresa')
-              .select('fk_oficio')
+              .select('fk_funcao')
               .eq('fk_grupo_empresa', idGrupo);
 
           final idsOficios = assOficios
-              .map((e) => e['fk_oficio'])
+              .map((e) => e['fk_funcao'])
               .whereType<num>()
               .map((e) => e.toInt())
               .toList();
@@ -402,7 +402,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
             final oficiosData = await supabase
                 .from('funcoes')
                 .select(kColunasFuncaoComoOficio)
-                .inFilter('fk_oficio', idsOficios);
+                .inFilter('id_funcao', idsOficios);
 
             for (final row in oficiosData) {
               final info = OficioInfo.fromMap(row);

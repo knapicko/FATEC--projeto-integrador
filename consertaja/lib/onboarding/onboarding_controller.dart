@@ -1077,7 +1077,7 @@ class OnboardingController extends ChangeNotifier {
               .from('ass_oficio_profissional')
               .insert({
                 'fk_profissional': profissionalId,
-                'fk_oficio': oficio['id_oficio'],
+                'fk_funcao': oficio['id_oficio'],
               })
               .select()
               .maybeSingle();

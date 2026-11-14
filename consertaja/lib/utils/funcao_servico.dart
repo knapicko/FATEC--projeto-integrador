@@ -23,8 +23,15 @@ const String kSelectFuncao =
 /// Colunas para consultar a tabela `funcoes` diretamente devolvendo o mesmo
 /// formato que `oficios` tinha antes (`id_oficio`, `funcao`, `descricao`,
 /// `categoria`, `cor`, `cod_cor`) + `id_funcao` e `img_funcao`.
+///
+/// ATENÇÃO: aqui `id_oficio` é o **id da função** (era igual quando havia um
+/// ofício por função). Desde migration_oficios_por_categoria.sql o ofício é a
+/// CATEGORIA (vários `funcoes` com o mesmo `fk_oficio`), então o que identifica
+/// a escolha do profissional é a função. O id da categoria vem em `fk_oficio`.
+/// As associações (`ass_oficio_profissional`, `ass_oficio_grupo_empresa`) são
+/// lidas/gravadas por `fk_funcao` e filtradas em `funcoes` por `id_funcao`.
 const String kColunasFuncaoComoOficio =
-    'id_funcao, id_oficio:fk_oficio, funcao, descricao, img_funcao, '
+    'id_funcao, id_oficio:id_funcao, fk_oficio, funcao, descricao, img_funcao, '
     '...oficios(categoria, cor, cod_cor)';
 
 /// Lê o embed [kSelectFuncao] de uma linha de serviço (aceita Map ou List).

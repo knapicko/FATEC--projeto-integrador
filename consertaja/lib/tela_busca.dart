@@ -276,12 +276,12 @@ class _TelaBuscaState extends State<TelaBusca> {
         // Busca todas as associações desses ofícios
         final associacoes = await supabase
             .from('ass_oficio_profissional')
-            .select('fk_profissional, fk_oficio')
-            .inFilter('fk_oficio', idsOficios);
+            .select('fk_profissional, fk_funcao')
+            .inFilter('fk_funcao', idsOficios);
 
         for (final ass in associacoes) {
           final idProf = (ass['fk_profissional'] as num?)?.toInt();
-          final idOf = (ass['fk_oficio'] as num?)?.toInt();
+          final idOf = (ass['fk_funcao'] as num?)?.toInt();
           if (idProf != null && idOf != null) {
             oficiosPorProfissional.putIfAbsent(idProf, () => []).add(idOf);
           }
@@ -290,7 +290,7 @@ class _TelaBuscaState extends State<TelaBusca> {
         final associacoesEmpresas = await supabase
             .from('ass_oficio_grupo_empresa')
             .select('fk_grupo_empresa')
-            .inFilter('fk_oficio', idsOficios);
+            .inFilter('fk_funcao', idsOficios);
         for (final associacao in associacoesEmpresas) {
           final idGrupo = (associacao['fk_grupo_empresa'] as num?)?.toInt();
           if (idGrupo != null) gruposPorOficio.add(idGrupo);
@@ -399,21 +399,21 @@ class _TelaBuscaState extends State<TelaBusca> {
           if (idsProfissional.isNotEmpty) {
             final associacoesProfissionais = await supabase
                 .from('ass_oficio_profissional')
-                .select('fk_oficio')
+                .select('fk_funcao')
                 .inFilter('fk_profissional', idsProfissional.toList());
             idsOficiosEmpresa.addAll(
               associacoesProfissionais
-                  .map((row) => (row['fk_oficio'] as num?)?.toInt())
+                  .map((row) => (row['fk_funcao'] as num?)?.toInt())
                   .whereType<int>(),
             );
           }
           final associacoesEmpresa = await supabase
               .from('ass_oficio_grupo_empresa')
-              .select('fk_oficio')
+              .select('fk_funcao')
               .eq('fk_grupo_empresa', idGrupo);
           idsOficiosEmpresa.addAll(
             associacoesEmpresa
-                .map((row) => (row['fk_oficio'] as num?)?.toInt())
+                .map((row) => (row['fk_funcao'] as num?)?.toInt())
                 .whereType<int>(),
           );
 
@@ -421,7 +421,7 @@ class _TelaBuscaState extends State<TelaBusca> {
             final oficiosData = await supabase
                 .from('funcoes')
                 .select(kColunasFuncaoComoOficio)
-                .inFilter('fk_oficio', idsOficiosEmpresa.toList());
+                .inFilter('id_funcao', idsOficiosEmpresa.toList());
             final funcoesVistas = <String>{};
             for (final row in oficiosData) {
               final info = OficioInfo.fromMap(row);
@@ -664,11 +664,11 @@ class _TelaBuscaState extends State<TelaBusca> {
           if (oficiosDoProf.isEmpty) {
             final assPorProf = await supabase
                 .from('ass_oficio_profissional')
-                .select('fk_oficio')
+                .select('fk_funcao')
                 .eq('fk_profissional', idProfissional);
 
             for (final ass in assPorProf) {
-              final idOf = (ass['fk_oficio'] as num?)?.toInt();
+              final idOf = (ass['fk_funcao'] as num?)?.toInt();
               if (idOf != null) oficiosDoProf.add(idOf);
             }
           }
@@ -678,7 +678,7 @@ class _TelaBuscaState extends State<TelaBusca> {
             final oficiosData = await supabase
                 .from('funcoes')
                 .select(kColunasFuncaoComoOficio)
-                .inFilter('fk_oficio', oficiosDoProf);
+                .inFilter('id_funcao', oficiosDoProf);
 
             for (final of in oficiosData) {
               final info = OficioInfo.fromMap(of);

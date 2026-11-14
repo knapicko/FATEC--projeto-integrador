@@ -576,17 +576,17 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
         try {
           final idsOficios = await supabase
               .from('ass_oficio_grupo_empresa')
-              .select('fk_oficio')
+              .select('fk_funcao')
               .eq('fk_grupo_empresa', _idGrupoEmpresa!);
           final ids = idsOficios
-              .map((row) => (row['fk_oficio'] as num?)?.toInt())
+              .map((row) => (row['fk_funcao'] as num?)?.toInt())
               .whereType<int>()
               .toList();
           if (ids.isNotEmpty) {
             final oficiosData = await supabase
                 .from('funcoes')
                 .select(kColunasFuncaoComoOficio)
-                .inFilter('fk_oficio', ids);
+                .inFilter('id_funcao', ids);
             oficiosEquipe = oficiosData
                 .map<OficioInfo>(OficioInfo.fromMap)
                 .where((oficio) => oficio.funcao.isNotEmpty)

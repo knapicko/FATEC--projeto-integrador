@@ -171,7 +171,7 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage> {
     final dataRaw = (_dataAgendada ?? widget.dataAgendada)?.trim() ?? '';
     final hora = _horaFormatada;
     final dataFmt = _formatarDataCurta(dataRaw);
-    if (dataFmt.isEmpty && hora.isEmpty) return 'Data a combinar';
+    if (dataFmt.isEmpty && hora.isEmpty) return '';
     if (dataFmt.isEmpty) return hora;
     if (hora.isEmpty) return dataFmt;
     return '$dataFmt, $hora';
@@ -858,23 +858,26 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage> {
                     height: 1.2,
                   ),
                 ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.calendar_today_outlined,
-                      size: 13,
-                      color: _muted,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        _dataHoraExibida,
-                        style: const TextStyle(color: _muted, fontSize: 12.5),
+                // Sem data/hora agendada (ex.: Radar) a linha não aparece.
+                if (_dataHoraExibida.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.calendar_today_outlined,
+                        size: 13,
+                        color: _muted,
                       ),
-                    ),
-                  ],
-                ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          _dataHoraExibida,
+                          style: const TextStyle(color: _muted, fontSize: 12.5),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 6),
                 Row(
                   children: [

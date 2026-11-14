@@ -1311,6 +1311,10 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
     }
   }
 
+  // Solicitações do Radar não têm data/hora: os cards somem.
+  bool get _temDataAgendada => (_dataAgendada ?? '').trim().isNotEmpty;
+  bool get _temHoraAgendada => (_horaAgendada ?? '').trim().isNotEmpty;
+
   String _formatarDataAgendada() {
     if (_dataAgendada == null || _dataAgendada!.isEmpty) return 'A combinar';
     try {
@@ -2615,112 +2619,117 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9).withOpacity(0.7),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE0F2FE),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          Icons.calendar_month_outlined,
-                          color: azulPrincipal,
-                          size: 18,
-                        ),
+          if (_temDataAgendada || _temHoraAgendada) ...[
+            Row(
+              children: [
+                if (_temDataAgendada)
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9).withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'DATA DO SERVIÇO',
-                              style: TextStyle(
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w700,
-                                color: textoMuted,
-                              ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE0F2FE),
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              _formatarDataAgendada(),
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                color: textoEscuro,
-                              ),
+                            child: const Icon(
+                              Icons.calendar_month_outlined,
+                              color: azulPrincipal,
+                              size: 18,
                             ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'DATA DO SERVIÇO',
+                                  style: TextStyle(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: textoMuted,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  _formatarDataAgendada(),
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    color: textoEscuro,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9).withOpacity(0.7),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE0F2FE),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          Icons.access_time_outlined,
-                          color: azulPrincipal,
-                          size: 18,
-                        ),
+                if (_temDataAgendada && _temHoraAgendada)
+                  const SizedBox(width: 10),
+                if (_temHoraAgendada)
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9).withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'JANELA HORÁRIA',
-                              style: TextStyle(
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w700,
-                                color: textoMuted,
-                              ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE0F2FE),
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              _formatarJanelaHoraria(),
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                color: textoEscuro,
-                              ),
+                            child: const Icon(
+                              Icons.access_time_outlined,
+                              color: azulPrincipal,
+                              size: 18,
                             ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'JANELA HORÁRIA',
+                                  style: TextStyle(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: textoMuted,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  _formatarJanelaHoraria(),
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    color: textoEscuro,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
+              ],
+            ),
+            const SizedBox(height: 10),
+          ],
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(

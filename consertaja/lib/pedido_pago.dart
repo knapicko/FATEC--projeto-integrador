@@ -24,7 +24,7 @@ class _PedidoPagoPageState extends State<PedidoPagoPage> {
   String _servico = 'Serviço';
   String _profissional = 'Profissional';
   String? _fotoProfissional;
-  String _dataHora = 'Agora';
+  String _dataHora = '';
   double _valor = 0;
 
   @override
@@ -51,12 +51,14 @@ class _PedidoPagoPageState extends State<PedidoPagoPage> {
       _valor = _numero(sol['valor_final']);
       final data = sol['data_agendada']?.toString() ?? '';
       final hora = sol['hora_agendada']?.toString() ?? '';
-      if (data.isNotEmpty && hora.isNotEmpty) {
+      if (data.isNotEmpty) {
         final partes = data.split('-');
         final dataBr = partes.length == 3
             ? '${partes[2]}/${partes[1]}/${partes[0]}'
             : data;
-        _dataHora = '$dataBr, ${hora.substring(0, hora.length.clamp(0, 5))}';
+        _dataHora = hora.isNotEmpty
+            ? '$dataBr, ${hora.substring(0, hora.length.clamp(0, 5))}'
+            : dataBr;
       }
 
       final fkServico = (sol['fk_servico_prof'] as num?)?.toInt();
@@ -71,7 +73,7 @@ class _PedidoPagoPageState extends State<PedidoPagoPage> {
         if (_valor <= 0) _valor = _numero(servico?['valor']);
       } else if (fkTemporario != null) {
         final servico = await _db
-            .from('servicos_chat_temporario')
+            .from('servicos_chat_temporarios')
             .select('titulo, valor')
             .eq('id_servico_temp', fkTemporario)
             .maybeSingle();
@@ -285,7 +287,8 @@ class _PedidoPagoPageState extends State<PedidoPagoPage> {
                     ),
                   ),
           ),
-          _linha('Data e Hora', _dataHora),
+          // Sem data/hora agendada (ex.: Radar) a linha não aparece.
+          if (_dataHora.isNotEmpty) _linha('Data e Hora', _dataHora),
           Container(
             margin: const EdgeInsets.only(top: 12),
             padding: const EdgeInsets.symmetric(vertical: 16),
