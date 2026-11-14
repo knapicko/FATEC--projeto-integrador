@@ -36,6 +36,7 @@ import 'services/verificacao_online.dart';
 import 'solicitacao_estado.dart';
 import 'utils/iniciais.dart';
 import 'widgets/bottom_sheet_servico_personalizado.dart';
+import 'utils/funcao_servico.dart';
 
 class TelaChatProfissional extends StatefulWidget {
   final String nomeProfissional;
@@ -876,7 +877,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
               required String titulo,
               String? descricao,
               required double valor,
-              int? fkOficio,
+              int? fkFuncao,
               String? nomeOficio,
               required String tipoExecucao,
               XFile? imagemLocal,
@@ -887,7 +888,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                 titulo: titulo,
                 descricao: descricao,
                 valor: valor,
-                fkOficio: fkOficio,
+                fkFuncao: fkFuncao,
                 nomeOficio: nomeOficio,
                 tipoExecucao: tipoExecucao,
                 imagemLocal: imagemLocal,
@@ -912,7 +913,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                 required String titulo,
                 String? descricao,
                 required double valor,
-                int? fkOficio,
+                int? fkFuncao,
                 String? nomeOficio,
                 required String tipoExecucao,
                 XFile? imagemLocal,
@@ -923,7 +924,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                   titulo: titulo,
                   descricao: descricao,
                   valor: valor,
-                  fkOficio: fkOficio,
+                  fkFuncao: fkFuncao,
                   nomeOficio: nomeOficio,
                   tipoExecucao: tipoExecucao,
                   imagemLocal: imagemLocal,
@@ -1152,7 +1153,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     required String titulo,
     String? descricao,
     required double valor,
-    int? fkOficio,
+    int? fkFuncao,
     String? nomeOficio,
     required String tipoExecucao,
     XFile? imagemLocal,
@@ -1178,6 +1179,12 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       throw Exception('Perfil profissional não encontrado.');
     }
 
+    // Ofício da função escolhida (fk_oficios continua sendo gravado para
+    // categoria/cor; a função em si vai em fk_funcao).
+    final int? fkOficio = fkFuncao == null
+        ? null
+        : await ServicosProfissionalService.buscarOficioDaFuncao(fkFuncao);
+
     // 1. Cria o serviço temporário na tabela servicos_chat_temporarios
     final servicoTemp = await _supabase
         .from('servicos_chat_temporarios')
@@ -1190,6 +1197,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
           'fk_profissional': idProf,
           'fk_grupo_empresa': _idGrupoEmpresaConversa ?? widget.idGrupoEmpresa,
           'fk_oficios': fkOficio,
+          'fk_funcao': fkFuncao,
           'tipo_execucao': tipoExecucao,
           'carga_servico': 'Médio',
           'data_criacao': DateTime.now().toUtc().toIso8601String(),
@@ -1211,6 +1219,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       'tipo_execucao': tipoExecucao,
       'imagem_url': urlImagem,
       'fk_oficios': fkOficio,
+      'fk_funcao': fkFuncao,
       'nome_oficio': nomeOficio,
       'codigo_proposta': codigoProposta,
       'status_proposta': 'Aberto',
@@ -3015,9 +3024,9 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       if (idOficio == null) return;
 
       final oficio = await _supabase
-          .from('oficios')
-          .select('funcao')
-          .eq('id_oficio', idOficio)
+          .from('funcoes')
+          .select(kColunasFuncaoComoOficio)
+          .eq('fk_oficio', idOficio)
           .maybeSingle();
       final funcao = oficio?['funcao']?.toString().trim() ?? '';
       if (funcao.isNotEmpty && mounted) {

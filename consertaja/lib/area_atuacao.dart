@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/icone_oficio.dart';
+import 'utils/funcao_servico.dart';
 
 class AreaAtuacaoPage extends StatefulWidget {
   const AreaAtuacaoPage({super.key});
@@ -61,8 +62,8 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
       }
 
       final oficiosResponse = await _supabase
-          .from('oficios')
-          .select('id_oficio, funcao, categoria, descricao')
+          .from('funcoes')
+          .select(kColunasFuncaoComoOficio)
           .order('funcao');
 
       _oficiosDisponiveis = List<Map<String, dynamic>>.from(oficiosResponse);
@@ -73,10 +74,13 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
         return;
       }
 
+      // limit(1): não quebra se o usuário tiver mais de um registro.
       final dadosProf = await _supabase
           .from('dados_profissionais')
           .select('id_profissional')
           .eq('fk_usuario', usuarioId)
+          .order('id_profissional')
+          .limit(1)
           .maybeSingle();
 
       if (dadosProf != null) {
@@ -258,18 +262,36 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
     setState(() => _salvando = true);
 
     try {
-      await _supabase
+      // Salva só a diferença: antes apagava tudo e reinseria um por um, e
+      // uma falha no meio deixava o profissional sem nenhuma área.
+      final atuais = await _supabase
           .from('ass_oficio_profissional')
-          .delete()
+          .select('fk_oficio')
           .eq('fk_profissional', _idProfissional!);
+      final idsAtuais = atuais
+          .map((e) => (e['fk_oficio'] as num?)?.toInt())
+          .whereType<int>()
+          .toSet();
+      final idsNovos = _oficiosSelecionados
+          .map((o) => (o['id_oficio'] as num?)?.toInt())
+          .whereType<int>()
+          .toSet();
 
-      for (final oficio in _oficiosSelecionados) {
-        final idOficio = (oficio['id_oficio'] as num?)?.toInt();
-        if (idOficio == null) continue;
-        await _supabase.from('ass_oficio_profissional').insert({
-          'fk_profissional': _idProfissional,
-          'fk_oficio': idOficio,
-        });
+      final adicionar = idsNovos.difference(idsAtuais);
+      final remover = idsAtuais.difference(idsNovos);
+
+      if (adicionar.isNotEmpty) {
+        await _supabase.from('ass_oficio_profissional').insert([
+          for (final id in adicionar)
+            {'fk_profissional': _idProfissional, 'fk_oficio': id},
+        ]);
+      }
+      if (remover.isNotEmpty) {
+        await _supabase
+            .from('ass_oficio_profissional')
+            .delete()
+            .eq('fk_profissional', _idProfissional!)
+            .inFilter('fk_oficio', remover.toList());
       }
 
       if (!mounted) return;

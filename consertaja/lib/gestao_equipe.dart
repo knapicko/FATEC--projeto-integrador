@@ -22,6 +22,8 @@ import 'utils/app_navigation_util.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
 import 'utils/cor_oficio.dart';
 import 'widgets/tag_oficio.dart';
+import 'utils/funcao_servico.dart';
+import 'solicitacao_geografica_profissional.dart';
 
 class GestaoEquipePage extends StatefulWidget {
   const GestaoEquipePage({super.key});
@@ -582,9 +584,9 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
               .toList();
           if (ids.isNotEmpty) {
             final oficiosData = await supabase
-                .from('oficios')
-                .select('funcao, categoria, cor')
-                .inFilter('id_oficio', ids);
+                .from('funcoes')
+                .select(kColunasFuncaoComoOficio)
+                .inFilter('fk_oficio', ids);
             oficiosEquipe = oficiosData
                 .map<OficioInfo>(OficioInfo.fromMap)
                 .where((oficio) => oficio.funcao.isNotEmpty)
@@ -2617,12 +2619,12 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
             );
             return;
           }
-          // Radar (1): volta para a Home e deixa a home decidir a aba,
-          // mantendo a barra consistente.
-          AppNavigationUtil.navegarAba(
-            context,
-            const TelaHomeProfissional(isVisitante: false),
-            isHome: true,
+          // Radar (1): solicitações geográficas da área.
+          Navigator.of(context).push(
+            AppNavigationUtil.rotaSemAnimacao(
+              SolicitacaoGeograficaProfissionalPage(isVisitante: false),
+              nome: 'SolicitacaoGeograficaProfissionalPage',
+            ),
           );
         },
       ),
@@ -2766,7 +2768,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
   }
 
   Widget _buildServicoEmpresaCard(ServicoProfissional servico) {
-    final cor = _corFromHex(servico.cor);
+    final cor = CorOficio.parse(servico.cor);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(16),

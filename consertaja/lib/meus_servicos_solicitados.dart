@@ -24,6 +24,8 @@ import 'utils/iniciais.dart';
 import 'widgets/avaliacao_bottom_sheet.dart';
 import 'widgets/imagem_servico.dart';
 import 'widgets/skeleton_loading.dart';
+import 'utils/funcao_servico.dart';
+import 'solicitacao_geografica_profissional.dart';
 
 /// Solicitação de serviço recebida pelo profissional (conta independente ou
 /// conta empresa). Cada linha de `solicitacoes` vira um card.
@@ -434,7 +436,7 @@ class _MeusServicosSolicitadosPageState
       if (idServ != null) {
         final s = await _supabase
             .from('servicos_profissional')
-            .select('titulo, descricao, imagem_url, oficios(funcao, cor)')
+            .select('titulo, descricao, imagem_url, $kSelectFuncao')
             .eq('id_servico_prof', idServ)
             .maybeSingle();
         if (s != null) {
@@ -444,7 +446,7 @@ class _MeusServicosSolicitadosPageState
           if (d.isNotEmpty) descricao = d;
           final img = s['imagem_url']?.toString().trim() ?? '';
           if (img.isNotEmpty) imagemUrl = img;
-          final dynamic ofRaw = s['oficios'];
+          final dynamic ofRaw = s['funcoes'];
           final Map<String, dynamic>? ofMap = ofRaw is Map<String, dynamic>
               ? ofRaw
               : (ofRaw is List && ofRaw.isNotEmpty
@@ -459,7 +461,7 @@ class _MeusServicosSolicitadosPageState
       } else if (idServTemp != null) {
         final s = await _supabase
             .from('servicos_chat_temporarios')
-            .select('titulo, descricao, imagem_url, oficios(funcao, cor)')
+            .select('titulo, descricao, imagem_url, $kSelectFuncao')
             .eq('id_servico_temp', idServTemp)
             .maybeSingle();
         if (s != null) {
@@ -469,7 +471,7 @@ class _MeusServicosSolicitadosPageState
           if (d.isNotEmpty) descricao = d;
           final img = s['imagem_url']?.toString().trim() ?? '';
           if (img.isNotEmpty) imagemUrl = img;
-          final dynamic ofRaw = s['oficios'];
+          final dynamic ofRaw = s['funcoes'];
           final Map<String, dynamic>? ofMap = ofRaw is Map<String, dynamic>
               ? ofRaw
               : (ofRaw is List && ofRaw.isNotEmpty
@@ -1417,11 +1419,12 @@ class _MeusServicosSolicitadosPageState
               }
               return;
             }
-            // Radar (1): volta para a home.
-            AppNavigationUtil.navegarAba(
-              context,
-              const TelaHomeProfissional(isVisitante: false),
-              isHome: true,
+            // Radar (1): solicitações geográficas da área.
+            Navigator.of(context).push(
+              AppNavigationUtil.rotaSemAnimacao(
+                SolicitacaoGeograficaProfissionalPage(isVisitante: false),
+                nome: 'SolicitacaoGeograficaProfissionalPage',
+              ),
             );
           },
         ),

@@ -6,7 +6,7 @@ import 'meus_pedidos.dart';
 import 'perfil_profissional.dart';
 import 'perfil_loja.dart';
 import 'tela_meu_perfil_cliente.dart';
-import 'seguindo_cliente.dart';
+import 'solicitacao_geografica_cliente.dart';
 import 'services/servicos_profissional_service.dart';
 import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/cor_oficio.dart';
@@ -16,6 +16,7 @@ import 'tela_home.dart';
 import 'models/servico_profissional.dart';
 import 'tela_servico.dart';
 import 'utils/app_navigation_util.dart';
+import 'utils/funcao_servico.dart';
 
 enum _AbaResultado { todos, servicos, profissionais }
 
@@ -249,8 +250,8 @@ class _TelaBuscaState extends State<TelaBusca> {
 
       // 2) Busca ofícios (profissão) equivalentes ao termo
       final todosOficios = await supabase
-          .from('oficios')
-          .select('id_oficio, funcao, categoria, cor')
+          .from('funcoes')
+          .select(kColunasFuncaoComoOficio)
           .order('funcao');
       final oficiosEncontrados = todosOficios.where((oficio) {
         return _correspondeBusca([
@@ -418,9 +419,9 @@ class _TelaBuscaState extends State<TelaBusca> {
 
           if (idsOficiosEmpresa.isNotEmpty) {
             final oficiosData = await supabase
-                .from('oficios')
-                .select('funcao, cor')
-                .inFilter('id_oficio', idsOficiosEmpresa.toList());
+                .from('funcoes')
+                .select(kColunasFuncaoComoOficio)
+                .inFilter('fk_oficio', idsOficiosEmpresa.toList());
             final funcoesVistas = <String>{};
             for (final row in oficiosData) {
               final info = OficioInfo.fromMap(row);
@@ -675,9 +676,9 @@ class _TelaBuscaState extends State<TelaBusca> {
           // Busca funções e cores desses ofícios
           if (oficiosDoProf.isNotEmpty) {
             final oficiosData = await supabase
-                .from('oficios')
-                .select('funcao, cor')
-                .inFilter('id_oficio', oficiosDoProf);
+                .from('funcoes')
+                .select(kColunasFuncaoComoOficio)
+                .inFilter('fk_oficio', oficiosDoProf);
 
             for (final of in oficiosData) {
               final info = OficioInfo.fromMap(of);
@@ -1253,7 +1254,10 @@ class _TelaBuscaState extends State<TelaBusca> {
                       ],
                       Builder(
                         builder: (context) {
-                          final corBase = CorOficio.parse(servico.categoriaTag);
+                          // Cor do ofício da função do serviço (não do nome).
+                          final corBase = CorOficio.parse(
+                            servico.servicoOriginal.cor,
+                          );
                           return _buildTag(
                             servico.categoriaTag,
                             CorOficio.corFundo(corBase),
@@ -1830,7 +1834,7 @@ class _TelaBuscaState extends State<TelaBusca> {
                   } else if (index == 1) {
                     AppNavigationUtil.navegarAba(
                       context,
-                      SeguindoClientePage(isVisitante: widget.isVisitante),
+                      SolicitacaoGeograficaClientePage(isVisitante: widget.isVisitante),
                       isHome: false,
                     );
                   } else if (index == 3) {

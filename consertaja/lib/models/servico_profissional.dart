@@ -1,3 +1,5 @@
+import '../utils/funcao_servico.dart';
+
 class ServicoProfissional {
   const ServicoProfissional({
     required this.id,
@@ -5,6 +7,7 @@ class ServicoProfissional {
     required this.descricao,
     required this.valor,
     required this.fkOficio,
+    this.fkFuncao,
     this.funcao,
     this.cor,
     this.imagemUrl,
@@ -21,13 +24,16 @@ class ServicoProfissional {
   final String descricao;
   final double valor;
 
-  /// Referência ao ofício (categoria) na tabela `oficios`.
+  /// Referência ao ofício (categoria/cor) na tabela `oficios`.
   final int fkOficio;
 
-  /// Função (nome do ofício) preenchida via join com `oficios`.
+  /// Referência à função do serviço na tabela `funcoes`.
+  final int? fkFuncao;
+
+  /// Nome da função, preenchido via join com `funcoes` (kSelectFuncao).
   final String? funcao;
 
-  /// Cor (cod_cor) do ofício preenchida via join com `oficios`.
+  /// Cor (cod_cor) do ofício da função, vinda do mesmo join.
   final String? cor;
 
   final String? imagemUrl;
@@ -41,26 +47,22 @@ class ServicoProfissional {
   final DateTime dataCriacao;
 
   factory ServicoProfissional.fromMap(Map<String, dynamic> map) {
-    // Se veio com join da tabela oficios (pode ser Map ou List)
-    final dynamic oficioRaw = map['oficios'];
-    final Map<String, dynamic>? oficioMap = oficioRaw is Map<String, dynamic>
-        ? oficioRaw
-        : (oficioRaw is List && oficioRaw.isNotEmpty
-              ? oficioRaw.first as Map<String, dynamic>
-              : null);
-    final funcao = oficioMap is Map<String, dynamic>
-        ? oficioMap['funcao']?.toString()
-        : null;
-    final cor = oficioMap is Map<String, dynamic>
-        ? (oficioMap['cod_cor'] ?? oficioMap['cor'])?.toString()
-        : null;
+    // Join com `funcoes` (kSelectFuncao): traz funcao + cor do ofício.
+    final funcaoMap = extrairFuncao(map);
+    final funcao = funcaoMap?['funcao']?.toString();
+    // `cor` (nome) é a fonte oficial; CorOficio.parse também aceita o hex.
+    final cor = (funcaoMap?['cor'] ?? funcaoMap?['cod_cor'])?.toString();
 
     return ServicoProfissional(
       id: (map['id_servico_prof'] as num).toInt(),
       titulo: map['titulo']?.toString() ?? '',
       descricao: map['descricao']?.toString() ?? '',
       valor: (map['valor'] as num?)?.toDouble() ?? 0,
-      fkOficio: (map['fk_oficios'] as num?)?.toInt() ?? 0,
+      fkOficio:
+          (map['fk_oficios'] as num?)?.toInt() ??
+          (funcaoMap?['fk_oficio'] as num?)?.toInt() ??
+          0,
+      fkFuncao: (map['fk_funcao'] as num?)?.toInt(),
       funcao: funcao,
       cor: cor,
       imagemUrl: map['imagem_url']?.toString(),
@@ -81,6 +83,7 @@ class ServicoProfissional {
       'descricao': descricao,
       'valor': valor,
       'fk_oficios': fkOficio,
+      'fk_funcao': fkFuncao,
       'imagem_url': imagemUrl,
       'ativo': ativo,
       'fk_profissional': fkProfissional,

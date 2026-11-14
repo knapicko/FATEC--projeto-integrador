@@ -10,6 +10,7 @@ import 'tela_meu_perfil_cliente.dart';
 import 'utils/iniciais.dart';
 import 'widgets/imagem_servico.dart';
 import 'widgets/skeleton_loading.dart';
+import 'utils/funcao_servico.dart';
 
 class PagamentoPedidoPage extends StatefulWidget {
   final int idSolicitacao;
@@ -268,13 +269,13 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage> {
       if (fkServProf != null) {
         servico = await _db
             .from('servicos_profissional')
-            .select('titulo, valor, imagem_url, oficios(funcao, cor)')
+            .select('titulo, valor, imagem_url, $kSelectFuncao')
             .eq('id_servico_prof', fkServProf)
             .maybeSingle();
       } else if (fkServTemp != null) {
         servico = await _db
-            .from('servicos_chat_temporario')
-            .select('titulo, valor, imagem_url, oficios(funcao, cor)')
+            .from('servicos_chat_temporarios')
+            .select('titulo, valor, imagem_url, $kSelectFuncao')
             .eq('id_servico_temp', fkServTemp)
             .maybeSingle();
       }
@@ -287,7 +288,7 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage> {
             .maybeSingle();
       } else if (fkServTemp != null) {
         servico = await _db
-            .from('servicos_chat_temporario')
+            .from('servicos_chat_temporarios')
             .select('titulo, valor, imagem_url')
             .eq('id_servico_temp', fkServTemp)
             .maybeSingle();
@@ -302,7 +303,7 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage> {
     final valor = (servico['valor'] as num?)?.toDouble();
     if ((_subtotal <= 0) && valor != null && valor > 0) _subtotal = valor;
 
-    final oficios = _comoMapa(servico['oficios']);
+    final oficios = _comoMapa(servico['funcoes']);
     if (oficios != null) {
       _funcaoOficio = oficios['funcao']?.toString();
       final cor = oficios['cor']?.toString().trim();

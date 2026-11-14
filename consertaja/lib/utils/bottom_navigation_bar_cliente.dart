@@ -21,7 +21,8 @@ class BottomNavigationBarCliente extends StatelessWidget {
 
   static const _items = [
     BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: 'Home'),
-    BottomNavigationBarItem(icon: Icon(Icons.star_outline), label: 'Seguindo'),
+    // Mesmo ícone do Radar do profissional.
+    BottomNavigationBarItem(icon: Icon(Icons.sensors), label: 'Radar'),
     BottomNavigationBarItem(
       icon: Icon(Icons.message_outlined),
       label: 'Mensagens',

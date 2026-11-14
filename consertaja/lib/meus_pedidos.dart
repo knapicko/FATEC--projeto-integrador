@@ -9,7 +9,7 @@ import 'utils/fluxo_solicitacao.dart';
 import 'pagamento_pedido.dart';
 import 'qrcode_pix.dart';
 import 'widgets/skeleton_loading.dart';
-import 'seguindo_cliente.dart';
+import 'solicitacao_geografica_cliente.dart';
 import 'tela_chat_profissional.dart';
 import 'tela_home.dart';
 import 'tela_mensagens.dart';
@@ -21,6 +21,7 @@ import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/iniciais.dart';
 import 'widgets/avaliacao_bottom_sheet.dart';
+import 'utils/funcao_servico.dart';
 
 class PedidoCliente {
   final int id;
@@ -205,7 +206,7 @@ class MeusPedidosState extends State<MeusPedidosPage>
       final vRows = await db
           .from('servicos_profissional')
           .select(
-            'id_servico_prof, titulo, valor, imagem_url, fk_profissional, fk_grupo_empresa, fk_oficios',
+            'id_servico_prof, titulo, valor, imagem_url, fk_profissional, fk_grupo_empresa, fk_oficios, fk_funcao',
           )
           .inFilter('id_servico_prof', idsServ.toList());
       for (final v in vRows) {
@@ -217,7 +218,7 @@ class MeusPedidosState extends State<MeusPedidosPage>
       final tRows = await db
           .from('servicos_chat_temporarios')
           .select(
-            'id_servico_temp, titulo, valor, imagem_url, fk_profissional, fk_grupo_empresa, fk_oficios',
+            'id_servico_temp, titulo, valor, imagem_url, fk_profissional, fk_grupo_empresa, fk_oficios, fk_funcao',
           )
           .inFilter('id_servico_temp', idsServTemp.toList());
       for (final v in tRows) {
@@ -268,8 +269,8 @@ class MeusPedidosState extends State<MeusPedidosPage>
       final idS = ((r['fk_servico_prof'] ?? r['fk_servico_temp']) as num?)
           ?.toInt();
       final sv = idS == null ? null : servMap[idS];
-      final idOf = (sv?['fk_oficios'] as num?)?.toInt();
-      if (idOf != null) idsOf.add(idOf);
+      final idFn = (sv?['fk_funcao'] as num?)?.toInt();
+      if (idFn != null) idsOf.add(idFn);
       final g = (r['fk_grupo_empresa'] as num?)?.toInt();
       final p = (r['fk_profissional'] as num?)?.toInt();
       if (g != null) idsGrupo.add(g);
@@ -279,18 +280,19 @@ class MeusPedidosState extends State<MeusPedidosPage>
       if (gs != null) idsGrupo.add(gs);
       if (ps != null) idsProf.add(ps);
     }
+    // funcMap/corMap são indexados por id_funcao (servico.fk_funcao).
     final Map<int, String> funcMap = {};
     final Map<int, String> corMap = {};
     if (idsOf.isNotEmpty) {
       final oRows = await db
-          .from('oficios')
-          .select('id_oficio, funcao, cod_cor')
-          .inFilter('id_oficio', idsOf.toList());
+          .from('funcoes')
+          .select(kColunasFuncaoComoOficio)
+          .inFilter('id_funcao', idsOf.toList());
       for (final o in oRows) {
-        final id = (o['id_oficio'] as num?)?.toInt();
+        final id = (o['id_funcao'] as num?)?.toInt();
         if (id == null) continue;
         funcMap[id] = (o['funcao'] ?? '').toString();
-        corMap[id] = (o['cod_cor'] ?? '').toString();
+        corMap[id] = (o['cor'] ?? o['cod_cor'] ?? '').toString();
       }
     }
     final Map<int, Map<String, dynamic>> grupos = {};
@@ -389,10 +391,10 @@ class MeusPedidosState extends State<MeusPedidosPage>
       final vServ = (sv?['valor'] as num?)?.toDouble();
       var func = '';
       String? corOf;
-      final idOf = (sv?['fk_oficios'] as num?)?.toInt();
-      if (idOf != null) {
-        func = funcMap[idOf] ?? '';
-        corOf = corMap[idOf];
+      final idFn = (sv?['fk_funcao'] as num?)?.toInt();
+      if (idFn != null) {
+        func = funcMap[idFn] ?? '';
+        corOf = corMap[idFn];
       }
       final idG =
           (r['fk_grupo_empresa'] as num?)?.toInt() ??
@@ -561,7 +563,7 @@ class MeusPedidosState extends State<MeusPedidosPage>
     } else if (index == 1) {
       AppNavigationUtil.navegarAba(
         context,
-        SeguindoClientePage(isVisitante: widget.isVisitante),
+        SolicitacaoGeograficaClientePage(isVisitante: widget.isVisitante),
         isHome: false,
       );
     } else if (index == 2) {

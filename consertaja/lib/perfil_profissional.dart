@@ -15,6 +15,7 @@ import 'utils/cor_oficio.dart';
 import 'utils/icone_oficio.dart';
 import 'utils/iniciais.dart';
 import 'widgets/skeleton_loading.dart';
+import 'utils/funcao_servico.dart';
 
 class _DadosEnderecoProfissional {
   final String apelido;
@@ -1893,9 +1894,9 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
       }
 
       final oficiosData = await supabase
-          .from('oficios')
-          .select('funcao, cor, categoria')
-          .inFilter('id_oficio', idsOficios);
+          .from('funcoes')
+          .select(kColunasFuncaoComoOficio)
+          .inFilter('fk_oficio', idsOficios);
 
       final oficios = <OficioInfo>[];
       for (final row in oficiosData) {
@@ -4621,9 +4622,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   Widget _buildCardServicoVisual(ServicoProfissional servico) {
     final corTag = servico.cor != null && servico.cor!.isNotEmpty
         ? CorOficio.parse(servico.cor)
-        : (servico.funcao != null && servico.funcao!.isNotEmpty
-              ? CorOficio.parse(servico.funcao!)
-              : _primaryBlue);
+        : _primaryBlue;
 
     return GestureDetector(
       onTap: () {

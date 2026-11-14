@@ -35,6 +35,7 @@ import 'termos_de_uso.dart';
 import 'politica_de_privacidade.dart';
 import 'completar_cadastro.dart';
 import 'tela_home.dart';
+import 'utils/funcao_servico.dart';
 
 // ================= TELA 01: CADASTRO DO PROFISSIONAL (ETAPA 1) =================
 class CadastroProfissionalPage extends StatefulWidget {
@@ -1145,8 +1146,8 @@ class _CadastroProfissionalEtapa2PageState
     try {
       final supabase = Supabase.instance.client;
       final response = await supabase
-          .from('oficios')
-          .select('id_oficio, funcao')
+          .from('funcoes')
+          .select(kColunasFuncaoComoOficio)
           .order('funcao');
       if (mounted) {
         setState(() {

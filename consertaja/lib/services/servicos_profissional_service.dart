@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/servico_catalogo.dart';
 import '../models/servico_profissional.dart';
+import '../utils/funcao_servico.dart';
 
 class ServicosProfissionalService {
   static SupabaseClient get _supabase => Supabase.instance.client;
@@ -201,7 +202,7 @@ class ServicosProfissionalService {
 
       final rows = await _supabase
           .from('servicos_profissional')
-          .select('*, oficios(funcao, cod_cor)')
+          .select('*, $kSelectFuncao')
           .eq('fk_profissional', idProf)
           .eq('ativo', true)
           .order('data_criacao', ascending: false);
@@ -220,7 +221,7 @@ class ServicosProfissionalService {
     required String titulo,
     required String descricao,
     required double valor,
-    required int fkOficio,
+    required int fkFuncao,
     String? imagemUrl,
     XFile? imagemLocal,
     int? fkGrupoEmpresa,
@@ -251,6 +252,7 @@ class ServicosProfissionalService {
         urlFinal = await uploadImagemServico(imagemLocal);
       }
 
+      final fkOficio = await buscarOficioDaFuncao(fkFuncao);
       final response = await _supabase
           .from('servicos_profissional')
           .insert({
@@ -258,6 +260,7 @@ class ServicosProfissionalService {
             'descricao': descricao.trim(),
             'valor': valor,
             'fk_oficios': fkOficio,
+            'fk_funcao': fkFuncao,
             'imagem_url': urlFinal,
             'ativo': true,
             'fk_profissional': idProf,
@@ -283,7 +286,7 @@ class ServicosProfissionalService {
     required String titulo,
     required String descricao,
     required double valor,
-    required int fkOficio,
+    required int fkFuncao,
     String? imagemUrl,
     XFile? imagemLocal,
     int? fkGrupoEmpresa,
@@ -304,6 +307,7 @@ class ServicosProfissionalService {
         urlFinal = await uploadImagemServico(imagemLocal);
       }
 
+      final fkOficio = await buscarOficioDaFuncao(fkFuncao);
       await _supabase
           .from('servicos_profissional')
           .update({
@@ -311,6 +315,7 @@ class ServicosProfissionalService {
             'descricao': descricao.trim(),
             'valor': valor,
             'fk_oficios': fkOficio,
+            'fk_funcao': fkFuncao,
             'imagem_url': urlFinal,
             'fk_grupo_empresa': fkGrupoEmpresa,
             'tipo_execucao': tipoExecucao,
@@ -333,7 +338,7 @@ class ServicosProfissionalService {
     try {
       final rows = await _supabase
           .from('servicos_profissional')
-          .select('*, oficios(funcao, cod_cor)')
+          .select('*, $kSelectFuncao')
           .eq('fk_grupo_empresa', idGrupoEmpresa)
           .eq('ativo', true)
           .order('data_criacao', ascending: false);
@@ -377,7 +382,7 @@ class ServicosProfissionalService {
       if (profIds.isNotEmpty) {
         final rowsProf = await _supabase
             .from('servicos_profissional')
-            .select('*, oficios(funcao, cod_cor)')
+            .select('*, $kSelectFuncao')
             .filter('fk_profissional', 'in', profIds)
             .eq('ativo', true)
             .order('data_criacao', ascending: false);
@@ -404,7 +409,7 @@ class ServicosProfissionalService {
     try {
       final row = await _supabase
           .from('servicos_profissional')
-          .select('*, oficios(funcao, cod_cor)')
+          .select('*, $kSelectFuncao')
           .eq('id_servico_prof', idServico)
           .eq('ativo', true)
           .maybeSingle();
@@ -565,7 +570,7 @@ class ServicosProfissionalService {
     try {
       final rows = await _supabase
           .from('servicos_profissional')
-          .select('*, oficios(funcao, cod_cor)')
+          .select('*, $kSelectFuncao')
           .eq('ativo', true)
           .order('data_criacao', ascending: false);
 
@@ -1056,9 +1061,11 @@ class ServicosProfissionalService {
     }
   }
 
-  // ── Ofícios (categorias) ──────────────────────────────────────────────────
+  // ── Funções (tabela `funcoes`) ────────────────────────────────────────────
 
-  /// Busca todos os ofícios (categorias/funções) disponíveis, incluindo id_oficio.
+  /// Funções que o profissional logado pode escolher ao criar um serviço:
+  /// somente as que pertencem (`funcoes.fk_oficio`) aos ofícios marcados na
+  /// conta dele (`ass_oficio_profissional`). `id` é o `id_funcao`.
   static Future<List<({int id, String funcao, String cor})>>
   buscarFuncoesDoProfissional() async {
     try {
@@ -1074,46 +1081,44 @@ class ServicosProfissionalService {
           .whereType<int>()
           .toSet()
           .toList();
-      if (ids.isEmpty) return [];
-
-      // O profissional pode estar associado a um ofício específico, mas o
-      // seletor deve mostrar todas as funções da mesma categoria desse ofício.
-      final oficiosAssociados = await _supabase
-          .from('oficios')
-          .select('id_oficio, funcao, categoria, cod_cor')
-          .inFilter('id_oficio', ids);
-      final categorias = oficiosAssociados
-          .map((row) => row['categoria']?.toString().trim().toLowerCase())
-          .whereType<String>()
-          .where((categoria) => categoria.isNotEmpty)
-          .toSet();
-      if (categorias.isEmpty) return [];
-
-      final todosOficios = await _supabase
-          .from('oficios')
-          .select('id_oficio, funcao, categoria, cod_cor')
-          .order('funcao', ascending: true);
-
-      return todosOficios
-          .where((row) {
-            final categoria = row['categoria']?.toString().trim().toLowerCase();
-            return categoria != null && categorias.contains(categoria);
-          })
-          .map((row) {
-            final id = (row['id_oficio'] as num?)?.toInt() ?? 0;
-            final categoria = row['categoria']?.toString().trim();
-            final funcao = row['funcao']?.toString().trim() ?? 'GERAL';
-            final cor = row['cod_cor']?.toString().trim() ?? '#1D2430';
-            debugPrint(
-              '✅ [ServicosSvc] Ofício associado: fk_oficio=$id, categoria=$categoria, funcao=$funcao',
-            );
-            return (id: id, funcao: funcao, cor: cor);
-          })
-          .toList();
+      return _funcoesDosOficios(ids);
     } catch (e) {
       debugPrint('❌ [ServicosSvc] buscarFuncoesDoProfissional ERROR: $e');
       return [];
     }
+  }
+
+  /// Busca em `funcoes` as funções dos ofícios informados.
+  static Future<List<({int id, String funcao, String cor})>> _funcoesDosOficios(
+    List<int> idsOficios,
+  ) async {
+    if (idsOficios.isEmpty) return [];
+    final rows = await _supabase
+        .from('funcoes')
+        .select('id_funcao, funcao, fk_oficio, ...oficios(cor, cod_cor)')
+        .inFilter('fk_oficio', idsOficios)
+        .order('funcao', ascending: true);
+    return rows
+        .map((row) {
+          final id = (row['id_funcao'] as num?)?.toInt() ?? 0;
+          final funcao = row['funcao']?.toString().trim() ?? '';
+          final cor =
+              (row['cor'] ?? row['cod_cor'])?.toString().trim() ?? '#1D2430';
+          return (id: id, funcao: funcao, cor: cor);
+        })
+        .where((item) => item.id != 0 && item.funcao.isNotEmpty)
+        .toList();
+  }
+
+  /// Ofício (`fk_oficio`) da função — gravado junto em `fk_oficios` para
+  /// manter categoria/cor e as telas que ainda filtram por ofício.
+  static Future<int?> buscarOficioDaFuncao(int idFuncao) async {
+    final row = await _supabase
+        .from('funcoes')
+        .select('fk_oficio')
+        .eq('id_funcao', idFuncao)
+        .maybeSingle();
+    return (row?['fk_oficio'] as num?)?.toInt();
   }
 
   // ── Catálogo de serviços padrão ────────────────────────────────────────────
@@ -1124,7 +1129,7 @@ class ServicosProfissionalService {
     try {
       final rows = await _supabase
           .from('servicos_catalogo')
-          .select('*, oficios(funcao, cod_cor)') // join para pegar funcao/cor
+          .select('*, $kSelectFuncao') // join para pegar funcao/cor
           .eq('ativo', true)
           .order('titulo', ascending: true);
 
@@ -1135,6 +1140,8 @@ class ServicosProfissionalService {
     }
   }
 
+  /// Funções que a empresa pode escolher: as dos ofícios marcados na conta
+  /// da empresa (`ass_oficio_grupo_empresa`). `id` é o `id_funcao`.
   static Future<List<({int id, String funcao, String cor})>>
   buscarFuncoesDaEmpresa(int idGrupoEmpresa) async {
     try {
@@ -1147,44 +1154,7 @@ class ServicosProfissionalService {
           .whereType<int>()
           .toSet()
           .toList();
-      if (ids.isEmpty) return [];
-      // A empresa pode estar associada a um ofício específico, mas o
-      // seletor deve mostrar todas as funções (coluna `funcao`) da mesma
-      // categoria (`categoria` = ofício, ex: "Reparos domésticos" ->
-      // "Encanador") desse ofício — mesma lógica do profissional.
-      final oficiosAssociados = await _supabase
-          .from('oficios')
-          .select('id_oficio, funcao, categoria, cod_cor')
-          .inFilter('id_oficio', ids);
-      final categorias = oficiosAssociados
-          .map((row) => row['categoria']?.toString().trim().toLowerCase())
-          .whereType<String>()
-          .where((categoria) => categoria.isNotEmpty)
-          .toSet();
-      if (categorias.isEmpty) return [];
-
-      final todosOficios = await _supabase
-          .from('oficios')
-          .select('id_oficio, funcao, categoria, cod_cor')
-          .order('funcao', ascending: true);
-
-      return todosOficios
-          .where((row) {
-            final categoria = row['categoria']?.toString().trim().toLowerCase();
-            return categoria != null && categorias.contains(categoria);
-          })
-          .map((row) {
-            final id = (row['id_oficio'] as num?)?.toInt() ?? 0;
-            final categoria = row['categoria']?.toString().trim();
-            final funcao = row['funcao']?.toString().trim() ?? '';
-            final cor = row['cod_cor']?.toString().trim() ?? '#1D2430';
-            debugPrint(
-              '✅ [ServicosSvc] Ofício empresa: fk_oficio=$id, categoria=$categoria, funcao=$funcao',
-            );
-            return (id: id, funcao: funcao, cor: cor);
-          })
-          .where((item) => item.funcao.isNotEmpty)
-          .toList();
+      return _funcoesDosOficios(ids);
     } catch (e) {
       debugPrint('❌ [ServicosSvc] buscarFuncoesDaEmpresa ERROR: $e');
       return [];

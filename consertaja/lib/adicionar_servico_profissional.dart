@@ -13,15 +13,11 @@ import 'utils/bottom_navigation_bar_profissional.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'widgets/skeleton_loading.dart';
+import 'utils/cor_oficio.dart';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
-Color _hexToColor(String hex) {
-  try {
-    return Color(int.parse('FF${hex.replaceAll('#', '')}', radix: 16));
-  } catch (_) {
-    return const Color(0xFF1D2430);
-  }
-}
+// Cor do ofício: mesma regra do app inteiro (nome `cor` ou hex `cod_cor`).
+Color _hexToColor(String? valor) => CorOficio.parse(valor);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Tela Principal: Adicionar/Gerenciar Serviços
@@ -131,7 +127,8 @@ class _AdicionarServicoProfissionalPageState
               .toList()
         : todosServicos.where((s) => s.fkGrupoEmpresa == null).toList();
 
-    // Ofícios da conta ativa (para filtrar as sugestões pelo mesmo ofício).
+    // Funções permitidas para a conta ativa (as dos ofícios dela), para
+    // filtrar as sugestões do catálogo.
     Set<int> oficiosConta = {};
     if (contaEmpresa) {
       if (idGrupo != null) {
@@ -155,7 +152,9 @@ class _AdicionarServicoProfissionalPageState
         // (evita tela vazia) — ajuste aqui para [] se preferir esconder.
         _catalogoFiltrado = oficiosConta.isEmpty
             ? catalogo
-            : catalogo.where((c) => oficiosConta.contains(c.fkOficio)).toList();
+            : catalogo
+                  .where((c) => oficiosConta.contains(c.fkFuncao ?? c.fkOficio))
+                  .toList();
         _carregando = false;
       });
     }
@@ -792,7 +791,8 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
   String _categoriaCor = '#1D2430';
   final Set<String> _tiposExecucaoSelecionados = <String>{};
   String _cargaServico = 'Médio';
-  int? _fkOficioSelecionado;
+  /// `id_funcao` escolhido (tabela `funcoes`).
+  int? _fkFuncaoSelecionada;
   bool _salvando = false;
   late bool _associacaoEmpresa;
   int? _fkGrupoEmpresa;
@@ -835,7 +835,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
       _valorNumericoCtrl.text = s.valor.toStringAsFixed(2);
       _categoriaSelecionada = s.funcao ?? '';
       _categoriaCor = s.cor ?? '#1D2430';
-      _fkOficioSelecionado = s.fkOficio;
+      _fkFuncaoSelecionada = s.fkFuncao ?? s.fkOficio;
       _imagemUrlExistente = s.imagemUrl;
       _cargaServico = s.cargaServico;
       _fkGrupoEmpresa = s.fkGrupoEmpresa;
@@ -846,7 +846,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
       _descricaoCtrl.text = sug.descricao;
       _categoriaSelecionada = sug.funcao ?? '';
       _categoriaCor = sug.cor ?? '#1D2430';
-      _fkOficioSelecionado = sug.fkOficio;
+      _fkFuncaoSelecionada = sug.fkFuncao ?? sug.fkOficio;
       _imagemUrlExistente = sug.imagemUrl;
     }
     // Carrega as funções da associação inicialmente selecionada.
@@ -1076,7 +1076,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
       return;
     }
     final oficioPermitido = _oficios.any(
-      (oficio) => oficio.id == _fkOficioSelecionado,
+      (funcao) => funcao.id == _fkFuncaoSelecionada,
     );
     if (!oficioPermitido) {
       setState(() => _tentouSalvar = false);
@@ -1102,7 +1102,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
         titulo: _tituloCtrl.text,
         descricao: _descricaoCtrl.text,
         valor: valorNum ?? 0,
-        fkOficio: _fkOficioSelecionado ?? 0,
+        fkFuncao: _fkFuncaoSelecionada ?? 0,
         imagemUrl: _imagemUrlExistente,
         imagemLocal: _imagemLocalNova,
         fkGrupoEmpresa: _associacaoEmpresa ? _fkGrupoEmpresa : null,
@@ -1114,7 +1114,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
         titulo: _tituloCtrl.text,
         descricao: _descricaoCtrl.text,
         valor: valorNum ?? 0,
-        fkOficio: _fkOficioSelecionado ?? 0,
+        fkFuncao: _fkFuncaoSelecionada ?? 0,
         imagemUrl: _imagemUrlExistente,
         imagemLocal: _imagemLocalNova,
         fkGrupoEmpresa: _associacaoEmpresa ? _fkGrupoEmpresa : null,
@@ -1347,7 +1347,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
                           setState(() {
                             _categoriaSelecionada = cat.funcao;
                             _categoriaCor = cat.cor;
-                            _fkOficioSelecionado = cat.id;
+                            _fkFuncaoSelecionada = cat.id;
                           });
                           Navigator.of(ctx).pop();
                         },

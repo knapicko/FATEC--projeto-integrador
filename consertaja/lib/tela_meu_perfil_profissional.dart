@@ -18,6 +18,7 @@ import 'tela_inicial.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
 import 'utils/iniciais.dart';
 import 'utils/app_navigation_util.dart';
+import 'solicitacao_geografica_profissional.dart';
 
 class TelaMeuPerfilProfissionalPage extends StatefulWidget {
   final bool isVisitante;
@@ -493,6 +494,13 @@ class _TelaMeuPerfilProfissionalPageState
             context,
             TelaHomeProfissional(isVisitante: widget.isVisitante),
             isHome: true,
+          );
+        } else if (index == 1) {
+          Navigator.of(context).push(
+            AppNavigationUtil.rotaSemAnimacao(
+              SolicitacaoGeograficaProfissionalPage(isVisitante: widget.isVisitante),
+              nome: 'SolicitacaoGeograficaProfissionalPage',
+            ),
           );
         } else if (index == 2) {
           AppNavigationUtil.navegarAba(

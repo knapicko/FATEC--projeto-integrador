@@ -32,6 +32,8 @@ import 'utils/iniciais.dart';
 import 'widgets/skeleton_loading.dart';
 import 'widgets/tag_oficio.dart';
 import 'utils/app_navigation_util.dart';
+import 'utils/funcao_servico.dart';
+import 'solicitacao_geografica_profissional.dart';
 
 class TelaHomeProfissional extends StatefulWidget {
   final bool isVisitante;
@@ -1015,9 +1017,9 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
         }
 
         final oficiosData = await supabase
-            .from('oficios')
-            .select('funcao, cor')
-            .inFilter('id_oficio', idsOficios);
+            .from('funcoes')
+            .select(kColunasFuncaoComoOficio)
+            .inFilter('fk_oficio', idsOficios);
 
         final oficios = <OficioInfo>[];
         for (final row in oficiosData) {
@@ -1089,9 +1091,9 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
 
       // 4. Busca os nomes e cores dos ofícios
       final oficiosData = await supabase
-          .from('oficios')
-          .select('funcao, cor')
-          .inFilter('id_oficio', idsOficios);
+          .from('funcoes')
+          .select(kColunasFuncaoComoOficio)
+          .inFilter('fk_oficio', idsOficios);
 
       final oficios = <OficioInfo>[];
       for (final row in oficiosData) {
@@ -3025,7 +3027,17 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                 ],
               ),
               const SizedBox(height: 10),
-              Container(
+              // Tocar no card abre o Radar (mesmo destino da aba).
+              GestureDetector(
+                onTap: () => Navigator.of(context).push(
+                  AppNavigationUtil.rotaSemAnimacao(
+                    SolicitacaoGeograficaProfissionalPage(
+                      isVisitante: widget.isVisitante,
+                    ),
+                    nome: 'SolicitacaoGeograficaProfissionalPage',
+                  ),
+                ),
+                child: Container(
                 height: 120,
                 decoration: BoxDecoration(
                   color: const Color(0xFFF0F4F8),
@@ -3078,6 +3090,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                     ],
                   ),
                 ),
+              ),
               ),
               const SizedBox(height: 8),
               RichText(
@@ -3392,6 +3405,18 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           // Tocar na aba atual (Home) recarrega os dados da página.
           onReselecionarAbaAtual: (_) => _recarregarPaginaAtual(),
           onTap: (index) {
+            if (index == 1) {
+              // Aba Radar: solicitações geográficas da área do profissional.
+              Navigator.of(context).push(
+              AppNavigationUtil.rotaSemAnimacao(
+                SolicitacaoGeograficaProfissionalPage(
+                  isVisitante: widget.isVisitante,
+                ),
+                nome: 'SolicitacaoGeograficaProfissionalPage',
+              ),
+            );
+              return;
+            }
             if (index == 2) {
               // Aba Mensagens: push direto com nome de rota estável, igual
               // às demais telas (evita o navegarAba reaproveitar a rota

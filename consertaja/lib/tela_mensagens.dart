@@ -8,7 +8,7 @@ import 'widgets/skeleton_loading.dart';
 
 import 'gestao_equipe.dart';
 import 'meus_pedidos.dart';
-import 'seguindo_cliente.dart';
+import 'solicitacao_geografica_cliente.dart';
 import 'services/chat_anexos_service.dart';
 import 'services/verificacao_online.dart';
 import 'tela_chat_profissional.dart';
@@ -21,6 +21,8 @@ import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
 import 'utils/iniciais.dart';
 import 'utils/app_navigation_util.dart';
+import 'utils/funcao_servico.dart';
+import 'solicitacao_geografica_profissional.dart';
 
 /// Tela "Mensagens": lista de conversas do usuário logado (cliente ou profissional),
 /// com visual moderno, atualização em tempo real, indicador de presença online,
@@ -525,9 +527,9 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
                 .toList();
             if (idsOficio.isNotEmpty) {
               final oficios = await _supabase
-                  .from('oficios')
-                  .select('id_oficio, funcao')
-                  .inFilter('id_oficio', idsOficio);
+                  .from('funcoes')
+                  .select(kColunasFuncaoComoOficio)
+                  .inFilter('fk_oficio', idsOficio);
               final funcaoPorId = <int, String>{
                 for (final row in oficios)
                   if ((row['id_oficio'] as num?) != null)
@@ -1027,8 +1029,15 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
     } else if (index == 1 && !_isProfissional) {
       AppNavigationUtil.navegarAba(
         context,
-        SeguindoClientePage(isVisitante: widget.isVisitante),
+        SolicitacaoGeograficaClientePage(isVisitante: widget.isVisitante),
         isHome: false,
+      );
+    } else if (index == 1 && _isProfissional) {
+      Navigator.of(context).push(
+        AppNavigationUtil.rotaSemAnimacao(
+          SolicitacaoGeograficaProfissionalPage(isVisitante: widget.isVisitante),
+          nome: 'SolicitacaoGeograficaProfissionalPage',
+        ),
       );
     } else if (index == 3 && !_isProfissional) {
       AppNavigationUtil.navegarAba(

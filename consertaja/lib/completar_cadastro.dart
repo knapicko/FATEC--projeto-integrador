@@ -15,6 +15,7 @@ import 'widgets/foto_perfil_google.dart';
 import 'widgets/dialogo_documento.dart';
 import 'termos_de_uso.dart';
 import 'politica_de_privacidade.dart';
+import 'utils/funcao_servico.dart';
 
 // Reaproveita as telas de documento/facial que já existem no fluxo normal
 // do profissional (não duplicamos essa lógica).
@@ -791,8 +792,8 @@ class _CompletarCadastroProfissionalPageState
   Future<void> _carregarOficios() async {
     try {
       final response = await Supabase.instance.client
-          .from('oficios')
-          .select('id_oficio, funcao')
+          .from('funcoes')
+          .select(kColunasFuncaoComoOficio)
           .order('funcao');
       if (mounted) {
         setState(() {

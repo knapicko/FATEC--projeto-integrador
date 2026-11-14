@@ -24,6 +24,7 @@ import 'utils/icone_oficio.dart';
 import 'utils/iniciais.dart';
 import 'widgets/avaliacao_bottom_sheet.dart';
 import 'widgets/skeleton_loading.dart';
+import 'utils/funcao_servico.dart';
 
 // A enum ModalidadeExecucao agora vive em utils/fluxo_solicitacao.dart e é
 // reexportada aqui para manter compatibilidade com os imports existentes.
@@ -575,7 +576,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         try {
           final s = await _supabase
               .from('servicos_profissional')
-              .select('titulo, descricao, imagem_url, oficios(funcao, cor)')
+              .select('titulo, descricao, imagem_url, $kSelectFuncao')
               .eq('id_servico_prof', idServico)
               .maybeSingle();
           if (s != null) {
@@ -592,7 +593,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
             if (img.isNotEmpty && _imagemAnexoUrl == null) {
               _imagemAnexoUrl = img;
             }
-            final dynamic ofRaw = s['oficios'];
+            final dynamic ofRaw = s['funcoes'];
             final Map<String, dynamic>? ofMap = ofRaw is Map<String, dynamic>
                 ? ofRaw
                 : (ofRaw is List && ofRaw.isNotEmpty
@@ -612,7 +613,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         try {
           final s = await _supabase
               .from('servicos_chat_temporarios')
-              .select('titulo, descricao, imagem_url, oficios(funcao, cor)')
+              .select('titulo, descricao, imagem_url, $kSelectFuncao')
               .eq('id_servico_temp', idServicoTemp)
               .maybeSingle();
           if (s != null) {
@@ -629,7 +630,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
             if (img.isNotEmpty && _imagemAnexoUrl == null) {
               _imagemAnexoUrl = img;
             }
-            final dynamic ofRaw = s['oficios'];
+            final dynamic ofRaw = s['funcoes'];
             final Map<String, dynamic>? ofMap = ofRaw is Map<String, dynamic>
                 ? ofRaw
                 : (ofRaw is List && ofRaw.isNotEmpty
