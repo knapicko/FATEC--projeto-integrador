@@ -10,7 +10,7 @@ import 'tela_busca.dart';
 import 'tela_inicial.dart';
 import 'tela_mensagens.dart';
 import 'tela_servico.dart';
-import 'seguindo_cliente.dart';
+import 'solicitacao_geografica_cliente.dart';
 import 'services/google_auth_service.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/bottom_navigation_bar_cliente.dart';
@@ -19,6 +19,7 @@ import 'widgets/imagem_servico.dart';
 import 'widgets/tag_oficio.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/app_navigation_util.dart';
+import 'utils/funcao_servico.dart';
 
 class ServicoPopular {
   final int? idServicoProf;
@@ -217,7 +218,7 @@ class _TelaHomeState extends State<TelaHome> {
   }
 
   /// Carrega TODOS os servicos ativos de `servicos_profissional`.
-  /// Tenta o join com `oficios(funcao)`; se a FK/RLS falhar, cai para
+  /// Tenta o join com `funcoes` (kSelectFuncao); se a FK/RLS falhar, cai para
   /// select simples sem join para nao quebrar a home.
   Future<void> _carregarServicosPopulares() async {
     try {
@@ -226,7 +227,7 @@ class _TelaHomeState extends State<TelaHome> {
       try {
         rows = await supabase
             .from('servicos_profissional')
-            .select('*, oficios(funcao, cor)')
+            .select('*, $kSelectFuncao')
             .eq('ativo', true)
             .order('data_criacao', ascending: false);
       } catch (_) {
@@ -394,7 +395,7 @@ class _TelaHomeState extends State<TelaHome> {
         final titulo = r['titulo']?.toString().trim().isNotEmpty == true
             ? r['titulo'].toString().trim()
             : 'Serviço';
-        final dynamic ofRaw = r['oficios'];
+        final dynamic ofRaw = r['funcoes'];
         final Map<String, dynamic>? ofMap = ofRaw is Map<String, dynamic>
             ? ofRaw
             : (ofRaw is List && ofRaw.isNotEmpty
@@ -896,9 +897,9 @@ class _TelaHomeState extends State<TelaHome> {
         final oficios = <OficioInfo>[];
         if (idsOficios.isNotEmpty) {
           final oficiosData = await supabase
-              .from('oficios')
-              .select('funcao, cor')
-              .inFilter('id_oficio', idsOficios);
+              .from('funcoes')
+              .select(kColunasFuncaoComoOficio)
+              .inFilter('fk_oficio', idsOficios);
 
           for (final row in oficiosData) {
             final info = OficioInfo.fromMap(row);
@@ -990,9 +991,9 @@ class _TelaHomeState extends State<TelaHome> {
 
           if (idsOficios.isNotEmpty) {
             final oficiosData = await supabase
-                .from('oficios')
-                .select('funcao, categoria, cor')
-                .inFilter('id_oficio', idsOficios);
+                .from('funcoes')
+                .select(kColunasFuncaoComoOficio)
+                .inFilter('fk_oficio', idsOficios);
 
             final Set<String> funcoesVistas = {};
             for (final row in oficiosData) {
@@ -2002,7 +2003,7 @@ class _TelaHomeState extends State<TelaHome> {
             if (index == 1) {
               AppNavigationUtil.navegarAba(
                 context,
-                SeguindoClientePage(isVisitante: widget.isVisitante),
+                SolicitacaoGeograficaClientePage(isVisitante: widget.isVisitante),
                 isHome: false,
               );
             } else if (index == 2) {

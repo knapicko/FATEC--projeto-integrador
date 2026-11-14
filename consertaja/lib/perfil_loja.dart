@@ -15,6 +15,7 @@ import 'utils/cor_oficio.dart';
 import 'utils/icone_oficio.dart';
 import 'utils/iniciais.dart';
 import 'widgets/skeleton_loading.dart';
+import 'utils/funcao_servico.dart';
 
 // Cores temáticas fiéis ao design
 const Color _kPrimaryCyan = Color(0xFF0FB3FF);
@@ -399,9 +400,9 @@ class _PerfilLojaState extends State<PerfilLoja> {
 
           if (idsOficios.isNotEmpty) {
             final oficiosData = await supabase
-                .from('oficios')
-                .select('id_oficio, funcao, categoria, cor')
-                .inFilter('id_oficio', idsOficios);
+                .from('funcoes')
+                .select(kColunasFuncaoComoOficio)
+                .inFilter('fk_oficio', idsOficios);
 
             for (final row in oficiosData) {
               final info = OficioInfo.fromMap(row);

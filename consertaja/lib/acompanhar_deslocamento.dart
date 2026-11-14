@@ -17,6 +17,7 @@ import 'tela_chat_profissional.dart';
 import 'tela_meu_perfil_cliente.dart';
 import 'utils/iniciais.dart';
 import 'widgets/skeleton_loading.dart';
+import 'utils/funcao_servico.dart';
 
 class AcompanharDeslocamentoPage extends StatefulWidget {
   final int idSolicitacao;
@@ -285,14 +286,14 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
       if (idServico != null) {
         final serv = await supabase
             .from('servicos_profissional')
-            .select('titulo, oficios(funcao)')
+            .select('titulo, $kSelectFuncao')
             .eq('id_servico_prof', idServico)
             .maybeSingle();
 
         if (serv != null) {
           final t = serv['titulo']?.toString().trim() ?? '';
           if (t.isNotEmpty) _tituloServico = t;
-          final dynamic of = serv['oficios'];
+          final dynamic of = serv['funcoes'];
           if (of is Map && of['funcao'] != null) {
             _categoriaPrestador = of['funcao'].toString().trim();
           } else if (of is List && of.isNotEmpty && of.first is Map) {
@@ -302,14 +303,14 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
       } else if (idServicoTemp != null) {
         final serv = await supabase
             .from('servicos_chat_temporarios')
-            .select('titulo, oficios(funcao)')
+            .select('titulo, $kSelectFuncao')
             .eq('id_servico_temp', idServicoTemp)
             .maybeSingle();
 
         if (serv != null) {
           final t = serv['titulo']?.toString().trim() ?? '';
           if (t.isNotEmpty) _tituloServico = t;
-          final dynamic of = serv['oficios'];
+          final dynamic of = serv['funcoes'];
           if (of is Map && of['funcao'] != null) {
             _categoriaPrestador = of['funcao'].toString().trim();
           } else if (of is List && of.isNotEmpty && of.first is Map) {

@@ -7,15 +7,11 @@ import 'models/servico_profissional.dart';
 import 'services/servicos_profissional_service.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
 import 'widgets/skeleton_loading.dart';
+import 'utils/cor_oficio.dart';
 
 // ── Helper ──────────────────────────────────────────────────────────────────
-Color _hexToColorMSP(String hex) {
-  try {
-    return Color(int.parse('FF${hex.replaceAll('#', '')}', radix: 16));
-  } catch (_) {
-    return const Color(0xFF1D2430);
-  }
-}
+// Cor do ofício: mesma regra do app inteiro (nome `cor` ou hex `cod_cor`).
+Color _hexToColorMSP(String? valor) => CorOficio.parse(valor);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Meus Serviços do Profissional

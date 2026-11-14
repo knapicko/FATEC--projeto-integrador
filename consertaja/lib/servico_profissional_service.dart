@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/servico_catalogo.dart';
 import '../models/servico_profissional.dart';
+import 'utils/funcao_servico.dart';
 
 class ServicosProfissionalService {
   static SupabaseClient get _supabase => Supabase.instance.client;
@@ -158,9 +159,9 @@ class ServicosProfissionalService {
       if (idsOficios.isNotEmpty) {
         try {
           final oficios = await _supabase
-              .from('oficios')
-              .select('id_oficio, funcao, cor')
-              .inFilter('id_oficio', idsOficios);
+              .from('funcoes')
+              .select(kColunasFuncaoComoOficio)
+              .inFilter('fk_oficio', idsOficios);
           final oficiosPorId = <int, Map<String, dynamic>>{
             for (final oficio in oficios)
               (oficio['id_oficio'] as num).toInt(): Map<String, dynamic>.from(
@@ -171,7 +172,7 @@ class ServicosProfissionalService {
           for (final row in rows) {
             final idOficio = (row['fk_oficios'] as num?)?.toInt();
             final oficio = idOficio == null ? null : oficiosPorId[idOficio];
-            if (oficio != null) row['oficios'] = oficio;
+            if (oficio != null) row['funcoes'] = oficio;
           }
         } catch (e) {
           debugPrint(
@@ -330,8 +331,8 @@ class ServicosProfissionalService {
   buscarOficios() async {
     try {
       final rows = await _supabase
-          .from('oficios')
-          .select('id_oficio, funcao, cor')
+          .from('funcoes')
+          .select(kColunasFuncaoComoOficio)
           .order('funcao', ascending: true);
       return rows.map((row) {
         final id = (row['id_oficio'] as num?)?.toInt() ?? 0;
@@ -353,7 +354,7 @@ class ServicosProfissionalService {
     try {
       final rows = await _supabase
           .from('servicos_catalogo')
-          .select('*, oficios(funcao, cor)') // join para pegar funcao/cor
+          .select('*, $kSelectFuncao') // join para pegar funcao/cor
           .eq('ativo', true)
           .order('titulo', ascending: true);
 

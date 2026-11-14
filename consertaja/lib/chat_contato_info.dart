@@ -11,6 +11,7 @@ import 'utils/iniciais.dart';
 import 'alterar_tema_chat.dart';
 import 'tela_midia_chat.dart';
 import 'widgets/skeleton_loading.dart';
+import 'utils/funcao_servico.dart';
 
 class ChatContatoInfo extends StatefulWidget {
   final int? idConversa;
@@ -212,9 +213,9 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
 
       if (idsOficios.isNotEmpty) {
         final oficiosData = await _supabase
-            .from('oficios')
-            .select('funcao, cor, categoria')
-            .inFilter('id_oficio', idsOficios);
+            .from('funcoes')
+            .select(kColunasFuncaoComoOficio)
+            .inFilter('fk_oficio', idsOficios);
 
         final oficios = <OficioInfo>[];
         for (final row in oficiosData) {

@@ -7,9 +7,11 @@ import 'perfil_profissional.dart';
 import 'tela_home.dart';
 import 'tela_mensagens.dart';
 import 'tela_meu_perfil_cliente.dart';
+import 'solicitacao_geografica_cliente.dart';
 import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/iniciais.dart';
 import 'utils/app_navigation_util.dart';
+import 'utils/funcao_servico.dart';
 
 class SeguindoClientePage extends StatefulWidget {
   final bool isVisitante;
@@ -112,9 +114,9 @@ class _SeguindoClientePageState extends State<SeguindoClientePage> {
       final nomesOficios = idsOficio.isEmpty
           ? <String>[]
           : (await _supabase
-                    .from('oficios')
-                    .select('funcao')
-                    .inFilter('id_oficio', idsOficio))
+                    .from('funcoes')
+                    .select(kColunasFuncaoComoOficio)
+                    .inFilter('fk_oficio', idsOficio))
                 .map((row) => row['funcao']?.toString() ?? '')
                 .where((nome) => nome.isNotEmpty)
                 .take(2)
@@ -138,6 +140,12 @@ class _SeguindoClientePageState extends State<SeguindoClientePage> {
         context,
         TelaHome(isVisitante: widget.isVisitante),
         isHome: true,
+      );
+    } else if (index == 1) {
+      AppNavigationUtil.navegarAba(
+        context,
+        SolicitacaoGeograficaClientePage(isVisitante: widget.isVisitante),
+        isHome: false,
       );
     } else if (index == 2) {
       AppNavigationUtil.navegarAba(
@@ -233,15 +241,10 @@ class _SeguindoClientePageState extends State<SeguindoClientePage> {
           ],
         ),
         bottomNavigationBar: BottomNavigationBarCliente(
-          currentIndex: 1,
-          // Tocar em Seguindo estando em Seguindo recarrega a lista.
-          onReselecionarAbaAtual: (_) {
-            if (mounted) {
-              setState(() {
-                _profissionaisFuture = _carregarProfissionais();
-              });
-            }
-          },
+          // Aberta pelo Meu Perfil: a aba ativa é "Perfil".
+          // Tocar em Perfil volta para o perfil.
+          currentIndex: 4,
+          onReselecionarAbaAtual: (_) => Navigator.of(context).maybePop(),
           onTap: _navegar,
         ),
       ),

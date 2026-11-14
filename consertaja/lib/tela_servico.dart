@@ -569,9 +569,7 @@ class _TelaServicoState extends State<TelaServico> {
     final corOficioBase =
         detalhe.servico.cor != null && detalhe.servico.cor!.isNotEmpty
         ? CorOficio.parse(detalhe.servico.cor!)
-        : (categoria != null
-              ? CorOficio.parse(categoria)
-              : const Color(0xFF64748B));
+        : const Color(0xFF64748B);
     final Color corFundoOficio = CorOficio.corFundo(corOficioBase);
     final Color corTextoOficio = CorOficio.corTexto(corOficioBase);
 
@@ -2125,9 +2123,7 @@ class _TelaServicoState extends State<TelaServico> {
   Widget _buildPasso1Servico(ServicoProfissional servico) {
     final corOficio = servico.cor != null && servico.cor!.isNotEmpty
         ? CorOficio.parse(servico.cor!)
-        : (servico.funcao != null
-              ? CorOficio.parse(servico.funcao!)
-              : const Color(0xFF0FB3FF));
+        : const Color(0xFF0FB3FF);
 
     return Container(
       width: double.infinity,

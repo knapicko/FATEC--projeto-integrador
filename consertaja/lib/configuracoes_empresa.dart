@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/icone_oficio.dart';
+import 'utils/funcao_servico.dart';
 
 class ConfiguracoesEmpresaPage extends StatefulWidget {
   const ConfiguracoesEmpresaPage({super.key});
@@ -224,8 +225,8 @@ class _ConfiguracoesEmpresaPageState extends State<ConfiguracoesEmpresaPage> {
 
       // 4. Carrega ofícios disponíveis
       final oficiosResponse = await _supabase
-          .from('oficios')
-          .select('id_oficio, funcao, categoria, descricao')
+          .from('funcoes')
+          .select(kColunasFuncaoComoOficio)
           .order('funcao');
 
       _oficiosDisponiveis = List<Map<String, dynamic>>.from(oficiosResponse);

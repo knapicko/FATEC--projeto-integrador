@@ -4,6 +4,7 @@ import 'meus_pedidos.dart';
 import 'tela_home.dart';
 import 'tela_mensagens.dart';
 import 'seguindo_cliente.dart';
+import 'solicitacao_geografica_cliente.dart';
 import 'editar_informacoes.dart';
 import 'meus_enderecos.dart';
 import 'perguntas_frequentes.dart';
@@ -481,7 +482,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
         } else if (index == 1) {
           AppNavigationUtil.navegarAba(
             context,
-            SeguindoClientePage(isVisitante: widget.isVisitante),
+            SolicitacaoGeograficaClientePage(isVisitante: widget.isVisitante),
             isHome: false,
           );
         } else if (index == 2) {
@@ -537,6 +538,22 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) => MeusEnderecosPage(
+                                    isVisitante: widget.isVisitante,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          // Antes era a aba "Seguindo" do bottom nav (agora Radar).
+                          _buildProfileItem(
+                            label: 'Profissionais Seguidos',
+                            fallbackIcon: Icons.star_outline_rounded,
+                            useRoundedIcon: true,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => SeguindoClientePage(
                                     isVisitante: widget.isVisitante,
                                   ),
                                 ),

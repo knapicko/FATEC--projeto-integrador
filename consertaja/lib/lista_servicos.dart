@@ -9,6 +9,7 @@ import 'services/servicos_profissional_service.dart';
 import 'meus_enderecos.dart';
 import 'utils/fluxo_solicitacao.dart';
 import 'widgets/skeleton_loading.dart';
+import 'utils/funcao_servico.dart';
 
 class EnderecoItemLista {
   final int idEndereco;
@@ -161,7 +162,7 @@ class _ListaServicosState extends State<ListaServicos> {
       // 3. Busca serviços adicionados em ass_servicos_lista
       final assRows = await _supabase
           .from('ass_servicos_lista')
-          .select('*, servicos_profissional(*, oficios(funcao, cod_cor))')
+          .select('*, servicos_profissional(*, $kSelectFuncao)')
           .eq('fk_lista', _idLista!)
           .order('data_criacao', ascending: false);
 
@@ -199,7 +200,7 @@ class _ListaServicosState extends State<ListaServicos> {
 
         // Ofício / Função
         String? funcao;
-        final oficioMap = servicoMap?['oficios'] as Map<String, dynamic>?;
+        final oficioMap = servicoMap?['funcoes'] as Map<String, dynamic>?;
         if (oficioMap != null && oficioMap['funcao'] != null) {
           funcao = oficioMap['funcao']?.toString();
         }

@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/servico_profissional.dart';
 import '../services/servicos_profissional_service.dart';
 import '../utils/iniciais.dart';
+import '../utils/funcao_servico.dart';
 
 /// Bottom Sheet moderno e detalhado para envio de Serviço Personalizado no Chat.
 class BottomSheetServicoPersonalizado extends StatefulWidget {
@@ -26,7 +27,7 @@ class BottomSheetServicoPersonalizado extends StatefulWidget {
     required String titulo,
     String? descricao,
     required double valor,
-    int? fkOficio,
+    int? fkFuncao,
     String? nomeOficio,
     required String tipoExecucao,
     XFile? imagemLocal,
@@ -65,7 +66,7 @@ class BottomSheetServicoPersonalizado extends StatefulWidget {
       required String titulo,
       String? descricao,
       required double valor,
-      int? fkOficio,
+      int? fkFuncao,
       String? nomeOficio,
       required String tipoExecucao,
       XFile? imagemLocal,
@@ -174,7 +175,8 @@ class _BottomSheetServicoPersonalizadoState
     _nomeController.text = s.titulo;
     _descricaoController.text = s.descricao;
     _valorController.text = NumberFormat('#,##0.00', 'pt_BR').format(s.valor);
-    _oficioSelecionadoId = s.fkOficio;
+    // Os itens do seletor usam id_funcao (tabela funcoes).
+    _oficioSelecionadoId = s.fkFuncao ?? s.fkOficio;
     _imagemUrlExistente = s.imagemUrl;
     _imagemSelecionada = null;
 
@@ -250,7 +252,7 @@ class _BottomSheetServicoPersonalizadoState
       try {
         dynamic query = _supabase
             .from('servicos_profissional')
-            .select('*, oficios(funcao, cod_cor)')
+            .select('*, $kSelectFuncao')
             .eq('ativo', true);
 
         if (widget.idGrupoEmpresa != null) {
@@ -288,7 +290,7 @@ class _BottomSheetServicoPersonalizadoState
             try {
               final row = await _supabase
                   .from('servicos_profissional')
-                  .select('*, oficios(funcao, cod_cor)')
+                  .select('*, $kSelectFuncao')
                   .eq('id_servico_prof', widget.idServicoProfInicial!)
                   .maybeSingle();
               if (row != null) {
@@ -421,7 +423,7 @@ class _BottomSheetServicoPersonalizadoState
             ? _descricaoController.text.trim()
             : null,
         valor: valor,
-        fkOficio: _oficioSelecionadoId,
+        fkFuncao: _oficioSelecionadoId,
         nomeOficio: nomeOficio,
         tipoExecucao: _tipoAtendimentoSelecionado,
         imagemLocal: _imagemSelecionada,

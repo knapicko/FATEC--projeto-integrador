@@ -4,6 +4,7 @@ import 'widgets/skeleton_loading.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/icone_oficio.dart';
 import 'utils/iniciais.dart';
+import 'utils/funcao_servico.dart';
 
 class EmpresaAssociadaPage extends StatefulWidget {
   const EmpresaAssociadaPage({super.key});
@@ -112,9 +113,9 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
         final oficios = oficioIds.isEmpty
             ? <OficioInfo>[]
             : (await client
-                      .from('oficios')
-                      .select('funcao, categoria, cor')
-                      .inFilter('id_oficio', oficioIds))
+                      .from('funcoes')
+                      .select(kColunasFuncaoComoOficio)
+                      .inFilter('fk_oficio', oficioIds))
                   .map<OficioInfo>(OficioInfo.fromMap)
                   .where((item) => item.funcao.isNotEmpty)
                   .toList();

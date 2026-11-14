@@ -21,6 +21,7 @@ import 'tela_chat_profissional.dart';
 import 'utils/iniciais.dart';
 import 'widgets/avaliacao_bottom_sheet.dart';
 import 'widgets/skeleton_loading.dart';
+import 'utils/funcao_servico.dart';
 
 class DetalhesPedidoPage extends StatefulWidget {
   final int idSolicitacao;
@@ -386,44 +387,40 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       final fkServProf = (sol['fk_servico_prof'] as num?)?.toInt();
       final fkServTemp = (sol['fk_servico_temp'] as num?)?.toInt();
 
+      // A função vem direto do serviço via fk_funcao (tabela funcoes).
+      void aplicarFuncao(Map<String, dynamic> sRow) {
+        final f = extrairFuncao(sRow);
+        final nome = f?['funcao']?.toString().trim();
+        if (nome != null && nome.isNotEmpty) _oficioFuncao = nome;
+        _categoriaPrestador ??= f?['categoria']?.toString() ?? nome;
+      }
+
       if (fkServProf != null) {
         try {
           final sRow = await _db
               .from('servicos_profissional')
-              .select('titulo, descricao, valor, imagem_url, fk_oficios')
+              .select('titulo, descricao, valor, imagem_url, $kSelectFuncao')
               .eq('id_servico_prof', fkServProf)
               .maybeSingle();
           if (sRow != null) {
             _tituloServico = (sRow['titulo'] ?? 'Serviço').toString();
             _imagemServico = sRow['imagem_url']?.toString();
             _valorServico = (sRow['valor'] as num?)?.toDouble() ?? _valorFinal;
-            final fkOf = (sRow['fk_oficios'] as num?)?.toInt();
-            if (fkOf != null) {
-              final ofRow = await _db
-                  .from('oficios')
-                  .select('funcao, categoria, cod_cor')
-                  .eq('id_oficio', fkOf)
-                  .maybeSingle();
-              if (ofRow != null) {
-                _oficioFuncao = ofRow['funcao']?.toString();
-                _categoriaPrestador ??=
-                    ofRow['categoria']?.toString() ??
-                    ofRow['funcao']?.toString();
-              }
-            }
+            aplicarFuncao(sRow);
           }
         } catch (_) {}
       } else if (fkServTemp != null) {
         try {
           final sRow = await _db
-              .from('servicos_chat_temporario')
-              .select('titulo, descricao, valor, imagem_url, fk_oficios')
+              .from('servicos_chat_temporarios')
+              .select('titulo, descricao, valor, imagem_url, $kSelectFuncao')
               .eq('id_servico_temp', fkServTemp)
               .maybeSingle();
           if (sRow != null) {
             _tituloServico = (sRow['titulo'] ?? 'Serviço').toString();
             _imagemServico = sRow['imagem_url']?.toString();
             _valorServico = (sRow['valor'] as num?)?.toDouble() ?? _valorFinal;
+            aplicarFuncao(sRow);
           }
         } catch (_) {}
       }

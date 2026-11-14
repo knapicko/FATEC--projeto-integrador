@@ -19,6 +19,7 @@ import '../tela_home.dart';
 import '../tela_home_profissional.dart';
 import 'onboarding_step.dart';
 import 'onboarding_theme.dart';
+import '../utils/funcao_servico.dart';
 
 class OnboardingController extends ChangeNotifier {
   OnboardingController._();
@@ -772,8 +773,8 @@ class OnboardingController extends ChangeNotifier {
     try {
       final supabase = Supabase.instance.client;
       final response = await supabase
-          .from('oficios')
-          .select('id_oficio, funcao')
+          .from('funcoes')
+          .select(kColunasFuncaoComoOficio)
           .order('funcao');
       oficios = List<Map<String, dynamic>>.from(response);
     } catch (_) {}

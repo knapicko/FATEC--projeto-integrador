@@ -14,13 +14,14 @@ import 'tela_home_profissional.dart';
 import 'meus_pedidos.dart';
 import 'meus_servicos_solicitados.dart';
 import 'tela_meu_perfil_cliente.dart';
-import 'seguindo_cliente.dart';
+import 'solicitacao_geografica_cliente.dart';
 import 'tela_meu_perfil_profissional.dart';
 import 'tela_mensagens.dart';
 import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
 import 'utils/app_navigation_util.dart';
 import 'widgets/skeleton_loading.dart';
+import 'solicitacao_geografica_profissional.dart';
 
 /// Constantes dos nomes das tabelas no Supabase
 const String _tabelaEndereco = 'enderecos';
@@ -1364,7 +1365,14 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
 
   void _onBottomNavigationTap(int index) {
     if (widget.isProfissional) {
-      if (index == 0 || index == 1) {
+      if (index == 1) {
+        Navigator.of(context).push(
+          AppNavigationUtil.rotaSemAnimacao(
+            SolicitacaoGeograficaProfissionalPage(isVisitante: widget.isVisitante),
+            nome: 'SolicitacaoGeograficaProfissionalPage',
+          ),
+        );
+      } else if (index == 0) {
         AppNavigationUtil.navegarAba(
           context,
           TelaHomeProfissional(isVisitante: widget.isVisitante),
@@ -1414,7 +1422,7 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
     } else if (index == 1) {
       AppNavigationUtil.navegarAba(
         context,
-        SeguindoClientePage(isVisitante: widget.isVisitante),
+        SolicitacaoGeograficaClientePage(isVisitante: widget.isVisitante),
         isHome: false,
       );
     } else if (index == 2) {
