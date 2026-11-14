@@ -235,11 +235,11 @@ class _ConfiguracoesEmpresaPageState extends State<ConfiguracoesEmpresaPage> {
       if (_idGrupoEmpresa != null) {
         final associacoes = await _supabase
             .from('ass_oficio_grupo_empresa')
-            .select('fk_oficio')
+            .select('fk_funcao')
             .eq('fk_grupo_empresa', _idGrupoEmpresa!);
 
         final idsOficios = associacoes
-            .map((e) => (e['fk_oficio'] as num?)?.toInt())
+            .map((e) => (e['fk_funcao'] as num?)?.toInt())
             .whereType<int>()
             .toList();
 
@@ -362,7 +362,7 @@ class _ConfiguracoesEmpresaPageState extends State<ConfiguracoesEmpresaPage> {
           if (idOficio == null) continue;
           await _supabase.from('ass_oficio_grupo_empresa').insert({
             'fk_grupo_empresa': _idGrupoEmpresa,
-            'fk_oficio': idOficio,
+            'fk_funcao': idOficio,
           });
         }
       }

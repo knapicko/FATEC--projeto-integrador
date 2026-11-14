@@ -53,6 +53,9 @@ class TelaChatProfissional extends StatefulWidget {
   final int? idConversa;
   final bool somenteAbrirConversaExistente;
 
+  /// Texto já digitado no campo ao abrir (ex.: "Notificar" do Radar).
+  final String? mensagemInicial;
+
   const TelaChatProfissional({
     super.key,
     required this.nomeProfissional,
@@ -63,6 +66,7 @@ class TelaChatProfissional extends StatefulWidget {
     this.idSolicitacao,
     this.idConversa,
     this.somenteAbrirConversaExistente = false,
+    this.mensagemInicial,
   });
 
   @override
@@ -149,6 +153,8 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     _idProfissionalConversa = widget.idProfissional;
     _idGrupoEmpresaConversa = widget.idGrupoEmpresa;
     _mensagemController.addListener(_atualizarEstadoTexto);
+    final inicial = widget.mensagemInicial?.trim() ?? '';
+    if (inicial.isNotEmpty) _mensagemController.text = inicial;
     _configurarPlayer();
     _inicializarChat();
   }
@@ -3015,18 +3021,18 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
 
       final assocs = await _supabase
           .from('ass_oficio_profissional')
-          .select('fk_oficio')
+          .select('fk_funcao')
           .eq('fk_profissional', idProf)
           .limit(1);
       if (assocs.isEmpty) return;
 
-      final idOficio = (assocs.first['fk_oficio'] as num?)?.toInt();
+      final idOficio = (assocs.first['fk_funcao'] as num?)?.toInt();
       if (idOficio == null) return;
 
       final oficio = await _supabase
           .from('funcoes')
           .select(kColunasFuncaoComoOficio)
-          .eq('fk_oficio', idOficio)
+          .eq('id_funcao', idOficio)
           .maybeSingle();
       final funcao = oficio?['funcao']?.toString().trim() ?? '';
       if (funcao.isNotEmpty && mounted) {

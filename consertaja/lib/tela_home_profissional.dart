@@ -999,11 +999,11 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
 
         final assOficios = await supabase
             .from('ass_oficio_grupo_empresa')
-            .select('fk_oficio')
+            .select('fk_funcao')
             .eq('fk_grupo_empresa', idGrupoEmpresa);
 
         final idsOficios = assOficios
-            .map((e) => e['fk_oficio'])
+            .map((e) => e['fk_funcao'])
             .whereType<num>()
             .map((e) => e.toInt())
             .toList();
@@ -1019,7 +1019,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
         final oficiosData = await supabase
             .from('funcoes')
             .select(kColunasFuncaoComoOficio)
-            .inFilter('fk_oficio', idsOficios);
+            .inFilter('id_funcao', idsOficios);
 
         final oficios = <OficioInfo>[];
         for (final row in oficiosData) {
@@ -1072,11 +1072,11 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
       // 3. Busca os ofícios associados ao profissional
       final assOficios = await supabase
           .from('ass_oficio_profissional')
-          .select('fk_oficio')
+          .select('fk_funcao')
           .eq('fk_profissional', idProfissional);
 
       final idsOficios = assOficios
-          .map((e) => e['fk_oficio'])
+          .map((e) => e['fk_funcao'])
           .whereType<num>()
           .map((e) => e.toInt())
           .toList();
@@ -1093,7 +1093,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
       final oficiosData = await supabase
           .from('funcoes')
           .select(kColunasFuncaoComoOficio)
-          .inFilter('fk_oficio', idsOficios);
+          .inFilter('id_funcao', idsOficios);
 
       final oficios = <OficioInfo>[];
       for (final row in oficiosData) {

@@ -1047,8 +1047,8 @@ class _TelaDeslocamentoProfissionalPageState
       return '${(h - 2) % 24}h - $fim';
     }
 
-    final now = DateTime.now();
-    return '${now.hour}h - ${(now.hour + 2) % 24}h';
+    // Sem horário agendado (ex.: Radar geográfico) a janela não aparece.
+    return '';
   }
 
   @override
@@ -1994,6 +1994,7 @@ class _TelaDeslocamentoProfissionalPageState
                   ),
                 ],
               ),
+              if (_janelaHorarioTexto().isNotEmpty)
               Text(
                 'Janela: ${_janelaHorarioTexto()}',
                 style: const TextStyle(
@@ -2102,6 +2103,7 @@ class _TelaDeslocamentoProfissionalPageState
                       ),
                     ],
                   ),
+                  if (_janelaHorarioTexto().isNotEmpty)
                   Text(
                     'Janela: ${_janelaHorarioTexto()}',
                     style: const TextStyle(

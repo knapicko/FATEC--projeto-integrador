@@ -90,11 +90,11 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
       if (_idProfissional != null) {
         final associacoes = await _supabase
             .from('ass_oficio_profissional')
-            .select('fk_oficio')
+            .select('fk_funcao')
             .eq('fk_profissional', _idProfissional!);
 
         final idsOficios = associacoes
-            .map((e) => (e['fk_oficio'] as num?)?.toInt())
+            .map((e) => (e['fk_funcao'] as num?)?.toInt())
             .whereType<int>()
             .toList();
 
@@ -266,10 +266,10 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
       // uma falha no meio deixava o profissional sem nenhuma área.
       final atuais = await _supabase
           .from('ass_oficio_profissional')
-          .select('fk_oficio')
+          .select('fk_funcao')
           .eq('fk_profissional', _idProfissional!);
       final idsAtuais = atuais
-          .map((e) => (e['fk_oficio'] as num?)?.toInt())
+          .map((e) => (e['fk_funcao'] as num?)?.toInt())
           .whereType<int>()
           .toSet();
       final idsNovos = _oficiosSelecionados
@@ -283,7 +283,7 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
       if (adicionar.isNotEmpty) {
         await _supabase.from('ass_oficio_profissional').insert([
           for (final id in adicionar)
-            {'fk_profissional': _idProfissional, 'fk_oficio': id},
+            {'fk_profissional': _idProfissional, 'fk_funcao': id},
         ]);
       }
       if (remover.isNotEmpty) {
@@ -291,7 +291,7 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
             .from('ass_oficio_profissional')
             .delete()
             .eq('fk_profissional', _idProfissional!)
-            .inFilter('fk_oficio', remover.toList());
+            .inFilter('fk_funcao', remover.toList());
       }
 
       if (!mounted) return;

@@ -105,10 +105,10 @@ class _SeguindoClientePageState extends State<SeguindoClientePage> {
 
       final oficios = await _supabase
           .from('ass_oficio_profissional')
-          .select('fk_oficio')
+          .select('fk_funcao')
           .eq('fk_profissional', profissional?['id_profissional']);
       final idsOficio = oficios
-          .map((row) => (row['fk_oficio'] as num?)?.toInt())
+          .map((row) => (row['fk_funcao'] as num?)?.toInt())
           .whereType<int>()
           .toList();
       final nomesOficios = idsOficio.isEmpty
@@ -116,7 +116,7 @@ class _SeguindoClientePageState extends State<SeguindoClientePage> {
           : (await _supabase
                     .from('funcoes')
                     .select(kColunasFuncaoComoOficio)
-                    .inFilter('fk_oficio', idsOficio))
+                    .inFilter('id_funcao', idsOficio))
                 .map((row) => row['funcao']?.toString() ?? '')
                 .where((nome) => nome.isNotEmpty)
                 .take(2)

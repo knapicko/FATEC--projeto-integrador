@@ -104,10 +104,10 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
             : <String, dynamic>{};
         final ids = await client
             .from('ass_oficio_profissional')
-            .select('fk_oficio')
+            .select('fk_funcao')
             .eq('fk_profissional', id);
         final oficioIds = ids
-            .map((item) => (item['fk_oficio'] as num?)?.toInt())
+            .map((item) => (item['fk_funcao'] as num?)?.toInt())
             .whereType<int>()
             .toList();
         final oficios = oficioIds.isEmpty
@@ -115,7 +115,7 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
             : (await client
                       .from('funcoes')
                       .select(kColunasFuncaoComoOficio)
-                      .inFilter('fk_oficio', oficioIds))
+                      .inFilter('id_funcao', oficioIds))
                   .map<OficioInfo>(OficioInfo.fromMap)
                   .where((item) => item.funcao.isNotEmpty)
                   .toList();

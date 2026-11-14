@@ -518,10 +518,10 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
           if (idsProf.isNotEmpty) {
             final assocs = await _supabase
                 .from('ass_oficio_profissional')
-                .select('fk_profissional, fk_oficio')
+                .select('fk_profissional, fk_funcao')
                 .inFilter('fk_profissional', idsProf);
             final idsOficio = assocs
-                .map((r) => (r['fk_oficio'] as num?)?.toInt())
+                .map((r) => (r['fk_funcao'] as num?)?.toInt())
                 .whereType<int>()
                 .toSet()
                 .toList();
@@ -529,7 +529,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
               final oficios = await _supabase
                   .from('funcoes')
                   .select(kColunasFuncaoComoOficio)
-                  .inFilter('fk_oficio', idsOficio);
+                  .inFilter('id_funcao', idsOficio);
               final funcaoPorId = <int, String>{
                 for (final row in oficios)
                   if ((row['id_oficio'] as num?) != null)
@@ -538,7 +538,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
               };
               for (final row in assocs) {
                 final idP = (row['fk_profissional'] as num?)?.toInt();
-                final idO = (row['fk_oficio'] as num?)?.toInt();
+                final idO = (row['fk_funcao'] as num?)?.toInt();
                 if (idP != null &&
                     idO != null &&
                     !oficioPorProfissional.containsKey(idP)) {

@@ -2008,7 +2008,7 @@ class _CadastroProfissionalEtapa3PageState
                 .from('ass_oficio_profissional')
                 .insert({
                   'fk_profissional': profissionalIdCorreto,
-                  'fk_oficio': oficioId,
+                  'fk_funcao': oficioId,
                 })
                 .select()
                 .maybeSingle();

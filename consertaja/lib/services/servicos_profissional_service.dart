@@ -1064,8 +1064,8 @@ class ServicosProfissionalService {
   // ── Funções (tabela `funcoes`) ────────────────────────────────────────────
 
   /// Funções que o profissional logado pode escolher ao criar um serviço:
-  /// somente as que pertencem (`funcoes.fk_oficio`) aos ofícios marcados na
-  /// conta dele (`ass_oficio_profissional`). `id` é o `id_funcao`.
+  /// somente as funções marcadas na conta dele (`ass_oficio_profissional.fk_funcao`,
+  /// Área de Atuação). `id` é o `id_funcao`.
   static Future<List<({int id, String funcao, String cor})>>
   buscarFuncoesDoProfissional() async {
     try {
@@ -1074,29 +1074,29 @@ class ServicosProfissionalService {
 
       final vinculos = await _supabase
           .from('ass_oficio_profissional')
-          .select('fk_oficio')
+          .select('fk_funcao')
           .eq('fk_profissional', idProfissional);
       final ids = vinculos
-          .map((row) => (row['fk_oficio'] as num?)?.toInt())
+          .map((row) => (row['fk_funcao'] as num?)?.toInt())
           .whereType<int>()
           .toSet()
           .toList();
-      return _funcoesDosOficios(ids);
+      return _funcoesPorIds(ids);
     } catch (e) {
       debugPrint('❌ [ServicosSvc] buscarFuncoesDoProfissional ERROR: $e');
       return [];
     }
   }
 
-  /// Busca em `funcoes` as funções dos ofícios informados.
-  static Future<List<({int id, String funcao, String cor})>> _funcoesDosOficios(
+  /// Busca em `funcoes` as funções informadas (ids das associações).
+  static Future<List<({int id, String funcao, String cor})>> _funcoesPorIds(
     List<int> idsOficios,
   ) async {
     if (idsOficios.isEmpty) return [];
     final rows = await _supabase
         .from('funcoes')
         .select('id_funcao, funcao, fk_oficio, ...oficios(cor, cod_cor)')
-        .inFilter('fk_oficio', idsOficios)
+        .inFilter('id_funcao', idsOficios)
         .order('funcao', ascending: true);
     return rows
         .map((row) {
@@ -1140,21 +1140,21 @@ class ServicosProfissionalService {
     }
   }
 
-  /// Funções que a empresa pode escolher: as dos ofícios marcados na conta
-  /// da empresa (`ass_oficio_grupo_empresa`). `id` é o `id_funcao`.
+  /// Funções que a empresa pode escolher: as marcadas na conta
+  /// da empresa (`ass_oficio_grupo_empresa.fk_funcao`). `id` é o `id_funcao`.
   static Future<List<({int id, String funcao, String cor})>>
   buscarFuncoesDaEmpresa(int idGrupoEmpresa) async {
     try {
       final vinculos = await _supabase
           .from('ass_oficio_grupo_empresa')
-          .select('fk_oficio')
+          .select('fk_funcao')
           .eq('fk_grupo_empresa', idGrupoEmpresa);
       final ids = vinculos
-          .map((row) => (row['fk_oficio'] as num?)?.toInt())
+          .map((row) => (row['fk_funcao'] as num?)?.toInt())
           .whereType<int>()
           .toSet()
           .toList();
-      return _funcoesDosOficios(ids);
+      return _funcoesPorIds(ids);
     } catch (e) {
       debugPrint('❌ [ServicosSvc] buscarFuncoesDaEmpresa ERROR: $e');
       return [];

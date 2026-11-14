@@ -1348,7 +1348,7 @@ class _CompletarCadastroProfissionalDocumentosPageState
                 .from('ass_oficio_profissional')
                 .insert({
                   'fk_profissional': profissionalId,
-                  'fk_oficio': oficioId,
+                  'fk_funcao': oficioId,
                 })
                 .select()
                 .maybeSingle();

@@ -1940,21 +1940,23 @@ class _MeusServicosSolicitadosPageState
             ),
           ),
           const SizedBox(height: 13),
-          Row(
-            children: [
-              const Icon(Icons.calendar_month_outlined, color: _azul),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  agendada.isEmpty ? 'Agendamento não informado' : agendada,
-                  style: const TextStyle(
-                    color: _textoEscuro,
-                    fontWeight: FontWeight.w600,
+          // Sem data/hora (ex.: solicitação do Radar) a linha não aparece.
+          if (agendada.isNotEmpty)
+            Row(
+              children: [
+                const Icon(Icons.calendar_month_outlined, color: _azul),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    agendada,
+                    style: const TextStyle(
+                      color: _textoEscuro,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
           const SizedBox(height: 9),
           const Row(
             children: [

@@ -1879,11 +1879,11 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
       final supabase = Supabase.instance.client;
       final assOficios = await supabase
           .from('ass_oficio_profissional')
-          .select('fk_oficio')
+          .select('fk_funcao')
           .eq('fk_profissional', idProfissional);
 
       final idsOficios = assOficios
-          .map((e) => e['fk_oficio'])
+          .map((e) => e['fk_funcao'])
           .whereType<num>()
           .map((e) => e.toInt())
           .toList();
@@ -1896,7 +1896,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
       final oficiosData = await supabase
           .from('funcoes')
           .select(kColunasFuncaoComoOficio)
-          .inFilter('fk_oficio', idsOficios);
+          .inFilter('id_funcao', idsOficios);
 
       final oficios = <OficioInfo>[];
       for (final row in oficiosData) {
