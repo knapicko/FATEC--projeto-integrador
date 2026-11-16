@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,6 +11,7 @@ import 'services/auth_navigation.dart';
 import 'services/google_auth_service.dart';
 import 'tela_home.dart';
 import 'utils/app_navigation_util.dart';
+import 'widgets/caixa_flutuante.dart';
 
 class TelaInicial extends StatefulWidget {
   const TelaInicial({super.key});
@@ -18,12 +20,69 @@ class TelaInicial extends StatefulWidget {
   State<TelaInicial> createState() => _TelaInicialState();
 }
 
-class _TelaInicialState extends State<TelaInicial> {
+class _TelaInicialState extends State<TelaInicial>
+    with TickerProviderStateMixin {
   static const _blue = Color(0xFF12AEEC);
+
+  /// A abertura da caixa só roda na primeira vez que a tela aparece (nesta
+  /// execução do app). Ao voltar para cá, ela já está aberta e flutuando.
+  static bool _introJaExibida = false;
+
+  /// Tamanho da caixa no começo da intro (centro da tela) em relação ao final.
+  static const double _escalaInicial = 1.55;
 
   bool _transicionando = false;
   bool _autenticandoGoogle = false;
   bool _aquecido = false;
+
+  late final AnimationController _intro = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2400),
+    value: _introJaExibida ? 1 : 0,
+  );
+  late final AnimationController _flutuar = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 3200),
+  );
+
+  // Etapas da intro (frações de _intro).
+  late final _aparecer = CurvedAnimation(
+    parent: _intro,
+    curve: const Interval(0, 0.16, curve: Curves.easeOutBack),
+  );
+  late final _respirar = CurvedAnimation(
+    parent: _intro,
+    curve: const Interval(0.16, 0.30, curve: Curves.easeInOut),
+  );
+  late final _abrir = CurvedAnimation(
+    parent: _intro,
+    curve: const Interval(0.26, 0.36, curve: Curves.easeOutCubic),
+  );
+  late final _ferramentas = CurvedAnimation(
+    parent: _intro,
+    curve: const Interval(0.32, 0.60, curve: Curves.easeOutBack),
+  );
+  late final _mover = CurvedAnimation(
+    parent: _intro,
+    curve: const Interval(0.54, 0.80, curve: Curves.easeInOutCubic),
+  );
+  late final _flutuacaoEntra = CurvedAnimation(
+    parent: _intro,
+    curve: const Interval(0.40, 0.85, curve: Curves.easeInOut),
+  );
+  late final _titulo = CurvedAnimation(
+    parent: _intro,
+    curve: const Interval(0.76, 0.92, curve: Curves.easeOutCubic),
+  );
+  late final _botoes = CurvedAnimation(
+    parent: _intro,
+    curve: const Interval(0.82, 1, curve: Curves.easeOutCubic),
+  );
+
+  /// Lugar final da caixa e área da tela: medem o deslocamento até o centro.
+  final GlobalKey _chaveCaixa = GlobalKey();
+  final GlobalKey _chaveTela = GlobalKey();
+  Offset? _ateOCentro;
 
   @override
   void initState() {
@@ -31,7 +90,114 @@ class _TelaInicialState extends State<TelaInicial> {
     // Aquece em momento ocioso (após o primeiro frame) tudo que a primeira
     // transição precisa: imagens da caixa/logo e SharedPreferences.
     // Sem isso, esse custo cai no frame do toque e só a 1ª transição trava.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _aquecerTransicao());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _iniciarAnimacoes();
+      _aquecerTransicao();
+    });
+  }
+
+  Future<void> _iniciarAnimacoes() async {
+    final semMovimento = MediaQuery.of(context).disableAnimations;
+    if (!semMovimento) _flutuar.repeat();
+    if (_introJaExibida || semMovimento) {
+      _intro.value = 1;
+      _introJaExibida = true;
+      return;
+    }
+    // Camadas carregadas antes de começar: nada "pisca" no meio da intro.
+    for (final asset in CaixaAnimacaoAssets.todas) {
+      try {
+        if (!mounted) return;
+        await precacheImage(AssetImage(asset), context);
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    _medirCentro();
+    _introJaExibida = true;
+    await _intro.forward();
+  }
+
+  /// Distância do lugar final da caixa até o centro da tela.
+  void _medirCentro() {
+    final caixa = _chaveCaixa.currentContext?.findRenderObject() as RenderBox?;
+    final tela = _chaveTela.currentContext?.findRenderObject() as RenderBox?;
+    if (caixa == null || tela == null || !caixa.hasSize || !tela.hasSize) {
+      setState(() => _ateOCentro = Offset.zero);
+      return;
+    }
+    final centroCaixa = caixa.localToGlobal(caixa.size.center(Offset.zero));
+    final centroTela = tela.localToGlobal(tela.size.center(Offset.zero));
+    setState(() => _ateOCentro = centroTela - centroCaixa);
+  }
+
+  @override
+  void dispose() {
+    _intro.dispose();
+    _flutuar.dispose();
+    super.dispose();
+  }
+
+  /// Caixa animada: grande no centro → abre → ferramentas sobem → vai para
+  /// o lugar e segue flutuando.
+  Widget _caixaAnimada(double tamanho) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([_intro, _flutuar]),
+      builder: (context, _) {
+        final fase = _flutuar.value * 2 * math.pi;
+        final mover = _mover.value;
+        final centro = _ateOCentro ?? Offset.zero;
+        // Antes de medir o centro nada aparece (evita um quadro no lugar
+        // errado).
+        final visivel = _intro.value >= 1 || _ateOCentro != null;
+
+        final escala =
+            (0.7 + 0.3 * _aparecer.value) *
+            (_escalaInicial + (1 - _escalaInicial) * mover);
+        // "Respira" antes de abrir: achata e estica um pouco.
+        final respiro = math.sin(_respirar.value * math.pi);
+        final flutuacao = math.sin(fase) * 7 * _flutuacaoEntra.value;
+
+        return Opacity(
+          opacity: visivel ? _aparecer.value.clamp(0.0, 1.0) : 0,
+          child: Transform.translate(
+            offset: Offset(
+              centro.dx * (1 - mover),
+              centro.dy * (1 - mover) + flutuacao,
+            ),
+            child: Transform(
+              alignment: Alignment.bottomCenter,
+              transform: Matrix4.diagonal3Values(
+                escala * (1 + 0.05 * respiro),
+                escala * (1 - 0.07 * respiro),
+                1,
+              ),
+              child: CaixaFlutuante(
+                tamanho: tamanho,
+                corFundo: _blue,
+                abertura: _abrir.value,
+                ferramentas: _ferramentas.value,
+                fase: fase,
+                intensidadeFlutuacao: _flutuacaoEntra.value,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _surgir(Animation<double> a, Widget filho) {
+    return AnimatedBuilder(
+      animation: a,
+      builder: (context, child) => Opacity(
+        opacity: a.value.clamp(0.0, 1.0),
+        child: Transform.translate(
+          offset: Offset(0, 16 * (1 - a.value)),
+          child: child,
+        ),
+      ),
+      child: filho,
+    );
   }
 
   Future<void> _aquecerTransicao() async {
@@ -154,6 +320,7 @@ class _TelaInicialState extends State<TelaInicial> {
       child: Scaffold(
         backgroundColor: _blue,
         body: SafeArea(
+          key: _chaveTela,
           child: LayoutBuilder(
             builder: (context, constraints) {
               return Padding(
@@ -167,39 +334,38 @@ class _TelaInicialState extends State<TelaInicial> {
                           Hero(
                             tag: 'caixa-transicao-inicial',
                             child: SizedBox(
+                              key: _chaveCaixa,
                               width: caixaSize,
                               height: caixaSize,
-                              child: Image.asset(
-                                'assets/images/caixa/caixa_normal.png',
-                                width: caixaSize,
-                                height: caixaSize,
-                                fit: BoxFit.contain,
-                              ),
+                              child: _caixaAnimada(caixaSize),
                             ),
                           ),
-                          AnimatedOpacity(
-                            opacity: _transicionando || _autenticandoGoogle
-                                ? 0
-                                : 1,
-                            duration: const Duration(milliseconds: 280),
-                            child: const Padding(
-                              padding: EdgeInsets.only(top: 16),
-                              child: Text.rich(
-                                TextSpan(
-                                  text: 'Conserta',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 30,
-                                    fontWeight: FontWeight.w400,
-                                  ),
-                                  children: [
-                                    TextSpan(
-                                      text: 'Já',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w800,
-                                      ),
+                          _surgir(
+                            _titulo,
+                            AnimatedOpacity(
+                              opacity: _transicionando || _autenticandoGoogle
+                                  ? 0
+                                  : 1,
+                              duration: const Duration(milliseconds: 280),
+                              child: const Padding(
+                                padding: EdgeInsets.only(top: 16),
+                                child: Text.rich(
+                                  TextSpan(
+                                    text: 'Conserta',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 30,
+                                      fontWeight: FontWeight.w400,
                                     ),
-                                  ],
+                                    children: [
+                                      TextSpan(
+                                        text: 'Já',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
@@ -210,61 +376,78 @@ class _TelaInicialState extends State<TelaInicial> {
                     Center(
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 360),
-                        child: AnimatedOpacity(
-                          opacity: _transicionando || _autenticandoGoogle
-                              ? 0
-                              : 1,
-                          duration: const Duration(milliseconds: 280),
-                          child: IgnorePointer(
-                            ignoring: _transicionando || _autenticandoGoogle,
-                            child: Column(
-                              children: [
-                                _BotaoInicial(
-                                  label: 'INICIAR CADASTRO',
-                                  background: Colors.white,
-                                  foreground: _blue,
-                                  onPressed: () => _abrirFluxo(login: false),
-                                ),
-                                const SizedBox(height: 14),
-                                _BotaoInicial(
-                                  label: 'JÁ POSSUO UMA CONTA',
-                                  background: Colors.transparent,
-                                  foreground: Colors.white,
-                                  border: Colors.white,
-                                  onPressed: () => _abrirFluxo(login: true),
-                                ),
-                                const SizedBox(height: 14),
-                                _BotaoGoogle(
-                                  carregando: _autenticandoGoogle,
-                                  onPressed: _entrarComGoogle,
-                                ),
-                                const SizedBox(height: 10),
-                                TextButton(
-                                  onPressed: () {
-                                    Navigator.of(context).pushAndRemoveUntil(
-                                      _rotaComFade(
-                                        () => const TelaHome(isVisitante: true),
+                        child: _surgir(
+                          _botoes,
+                          AnimatedBuilder(
+                            animation: _intro,
+                            // Sem toque durante a intro.
+                            builder: (context, child) => IgnorePointer(
+                              ignoring: _intro.value < 0.9,
+                              child: child,
+                            ),
+                            child: AnimatedOpacity(
+                              opacity: _transicionando || _autenticandoGoogle
+                                  ? 0
+                                  : 1,
+                              duration: const Duration(milliseconds: 280),
+                              child: IgnorePointer(
+                                ignoring:
+                                    _transicionando || _autenticandoGoogle,
+                                child: Column(
+                                  children: [
+                                    _BotaoInicial(
+                                      label: 'INICIAR CADASTRO',
+                                      background: Colors.white,
+                                      foreground: _blue,
+                                      onPressed: () =>
+                                          _abrirFluxo(login: false),
+                                    ),
+                                    const SizedBox(height: 14),
+                                    _BotaoInicial(
+                                      label: 'JÁ POSSUO UMA CONTA',
+                                      background: Colors.transparent,
+                                      foreground: Colors.white,
+                                      border: Colors.white,
+                                      onPressed: () => _abrirFluxo(login: true),
+                                    ),
+                                    const SizedBox(height: 14),
+                                    _BotaoGoogle(
+                                      carregando: _autenticandoGoogle,
+                                      onPressed: _entrarComGoogle,
+                                    ),
+                                    const SizedBox(height: 10),
+                                    TextButton(
+                                      onPressed: () {
+                                        Navigator.of(
+                                          context,
+                                        ).pushAndRemoveUntil(
+                                          _rotaComFade(
+                                            () => const TelaHome(
+                                              isVisitante: true,
+                                            ),
+                                          ),
+                                          (route) => false,
+                                        );
+                                      },
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 20,
+                                          vertical: 4,
+                                        ),
                                       ),
-                                      (route) => false,
-                                    );
-                                  },
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 20,
-                                      vertical: 4,
+                                      child: const Text(
+                                        'Quero visitar ›',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                  child: const Text(
-                                    'Quero visitar ›',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
+                                  ],
                                 ),
-                              ],
+                              ),
                             ),
                           ),
                         ),

@@ -46,6 +46,9 @@ class OnboardingController extends ChangeNotifier {
   OnboardingStep step = OnboardingStep.splash;
   final List<OnboardingStep> _historico = [];
 
+  /// Há etapa anterior para onde voltar?
+  bool get podeVoltar => _historico.isNotEmpty;
+
   CaixaPose pose = CaixaPose.normal;
   String? historicoFala;
   String falaAtual = '';
@@ -360,16 +363,25 @@ class OnboardingController extends ChangeNotifier {
     if (empilhar && step != next) {
       _historico.add(step);
     }
-    contentVisible = false;
-    notifyListeners();
-    await Future.delayed(const Duration(milliseconds: 160));
+    // Troca na hora: as transições da tela já cuidam de tirar o conteúdo
+    // antigo antes de mostrar o novo. (A pausa que existia aqui não era
+    // usada pela tela e só deixava o toque "travado".)
     step = next;
     erroCampo = null;
     erroFala = null;
     _applyVisuals();
     contentVisible = true;
     notifyListeners();
-    await persist();
+    _persistirDepoisDaAnimacao();
+  }
+
+  Timer? _persistirTimer;
+
+  /// Salva o rascunho só depois que a animação da etapa termina, para o
+  /// trabalho de disco não disputar os primeiros quadros da transição.
+  void _persistirDepoisDaAnimacao() {
+    _persistirTimer?.cancel();
+    _persistirTimer = Timer(const Duration(milliseconds: 700), persist);
   }
 
   void _applyVisuals() {
@@ -613,16 +625,13 @@ class OnboardingController extends ChangeNotifier {
   Future<void> voltar() async {
     if (_historico.isEmpty) return;
     final anterior = _historico.removeLast();
-    contentVisible = false;
-    notifyListeners();
-    await Future.delayed(const Duration(milliseconds: 250));
     step = anterior;
     erroCampo = null;
     erroFala = null;
     _applyVisuals();
     contentVisible = true;
     notifyListeners();
-    await persist();
+    _persistirDepoisDaAnimacao();
   }
 
   Future<void> continuarDocumento() async {

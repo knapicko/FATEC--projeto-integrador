@@ -56,7 +56,13 @@ dependency_overrides:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/images/icone/icone_consertaja.png"
+  # Logo com fundo azul (opaco) para o ícone comum do Android e para o iOS.
+  # Gerada por: dart run tool/gerar_icone_app.dart
+  image_path: "assets/images/icone/icone_consertaja_fundo_azul.png"
+  remove_alpha_ios: true
+  # Android 8+: ícone adaptativo (fundo azul + logo transparente por cima).
+  adaptive_icon_background: "#0FB3FF"
+  adaptive_icon_foreground: "assets/images/icone/icone_consertaja.png"
   
 
 
@@ -67,6 +73,7 @@ flutter:
   assets:
     - assets/images/
     - assets/images/caixa/
+    - assets/images/caixa_animacao/transparente/
     - assets/images/icone/
     - assets/images/oficios/
     - assets/images/oficios/categorias/

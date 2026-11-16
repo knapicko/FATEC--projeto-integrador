@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -58,7 +60,9 @@ String identificarTipoLogin(String value) {
     final dddValido = ddd >= 11 && ddd <= 99 && (ddd % 10 != 0);
 
     if (terceiroDigito == '9' && dddValido) {
-      if (digits.length == 11 && validarCpf(digits) && !trimmed.startsWith('(')) {
+      if (digits.length == 11 &&
+          validarCpf(digits) &&
+          !trimmed.startsWith('(')) {
         return 'CPF:';
       }
       return 'Telefone:';
@@ -498,8 +502,12 @@ class PillButton extends StatelessWidget {
 
     // Remove qualquer seta textual "->" para exibir o ícone real
     final cleanLabel = label.replaceAll(RegExp(r'\s*->'), '').trim();
-    final hasArrow = label.contains('->') || cleanLabel == 'Continuar' || cleanLabel == 'Entrar';
-    final effectiveIcon = icon ?? (hasArrow ? Icons.arrow_forward_rounded : null);
+    final hasArrow =
+        label.contains('->') ||
+        cleanLabel == 'Continuar' ||
+        cleanLabel == 'Entrar';
+    final effectiveIcon =
+        icon ?? (hasArrow ? Icons.arrow_forward_rounded : null);
 
     return SizedBox(
       height: 52,
@@ -547,11 +555,7 @@ class PillButton extends StatelessWidget {
                   ),
                   if (effectiveIcon != null) ...[
                     const SizedBox(width: 8),
-                    Icon(
-                      effectiveIcon,
-                      size: 20,
-                      color: fg,
-                    ),
+                    Icon(effectiveIcon, size: 20, color: fg),
                   ],
                 ],
               ),
@@ -662,47 +666,8 @@ class SpeechBubble extends StatelessWidget {
     );
   }
 
-  Widget _renderBubbleText(String content, Color baseColor, double fontSize) {
-    if (content.contains('ConsertaJá')) {
-      final parts = content.split('ConsertaJá');
-      return RichText(
-        textAlign: TextAlign.center,
-        text: TextSpan(
-          style: TextStyle(color: baseColor, fontSize: fontSize, height: 1.3),
-          children: [
-            TextSpan(
-              text: parts[0],
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            const TextSpan(
-              text: 'Conserta',
-              style: TextStyle(fontWeight: FontWeight.w500),
-            ),
-            const TextSpan(
-              text: 'Já',
-              style: TextStyle(fontWeight: FontWeight.w900),
-            ),
-            if (parts.length > 1)
-              TextSpan(
-                text: parts[1],
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-          ],
-        ),
-      );
-    }
-
-    return Text(
-      content,
-      textAlign: TextAlign.center,
-      style: TextStyle(
-        color: baseColor,
-        fontWeight: FontWeight.w800,
-        fontSize: fontSize,
-        height: 1.3,
-      ),
-    );
-  }
+  Widget _renderBubbleText(String content, Color baseColor, double fontSize) =>
+      _textoDoBalao(content, baseColor, fontSize);
 }
 
 class TypingBubble extends StatefulWidget {
@@ -906,38 +871,424 @@ class ConversationContentTransition extends StatelessWidget {
     ).animate(curved);
     final content = SlideTransition(position: slide, child: child);
 
-    if (!isLeaving) return content;
+    if (!isLeaving) {
+      // Só aparece depois que o conteúdo anterior já sumiu: os dois nunca
+      // ficam visíveis um sobre o outro.
+      return FadeTransition(
+        opacity: CurvedAnimation(
+          parent: animation,
+          curve: const Interval(0.3, 1, curve: Curves.easeOut),
+        ),
+        child: content,
+      );
+    }
 
     final fade = Tween<double>(begin: 1, end: 0).animate(
       CurvedAnimation(
         parent: ReverseAnimation(animation),
-        curve: const Interval(0, 0.35, curve: Curves.easeIn),
+        curve: const Interval(0, 0.5, curve: Curves.easeIn),
       ),
     );
     return FadeTransition(opacity: fade, child: content);
   }
 }
 
-class AnimatedHistoricalBubble extends StatelessWidget {
-  final String text;
+/// Conversa da caixa: o balão atual e, acima dele, o anterior (cinza).
+///
+/// Os balões são itens estáveis (não são recriados a cada fala):
+///  * ao avançar, o balão atual SOBE e vira "anterior" (encolhe e fica
+///    cinza), o novo cresce embaixo empurrando-o, e o que já era anterior
+///    (o 2º anterior) esmaece antes de recolher;
+///  * ao voltar, o anterior desce e volta a ser o atual;
+///  * se a fala não tem relação com a anterior, os antigos somem primeiro e
+///    só então os novos entram — nada fica visualmente por cima de nada.
+class ConversationBubbles extends StatefulWidget {
+  const ConversationBubbles({
+    super.key,
+    required this.atual,
+    this.historico,
+    this.digitar = false,
+    this.comSeta = true,
+  });
 
-  const AnimatedHistoricalBubble({super.key, required this.text});
+  final String atual;
+  final String? historico;
+
+  /// Efeito de digitação no balão atual.
+  final bool digitar;
+
+  /// Seta do balão atual apontando para a caixa.
+  final bool comSeta;
+
+  @override
+  State<ConversationBubbles> createState() => _ConversationBubblesState();
+}
+
+class _FalaItem {
+  _FalaItem(
+    this.id,
+    this.texto, {
+    this.digitar = false,
+    this.atrasoEntrada = Duration.zero,
+    this.jaVisivel = false,
+  });
+
+  final int id;
+  final String texto;
+  final bool digitar;
+  final Duration atrasoEntrada;
+  final bool jaVisivel;
+  bool saindo = false;
+  bool historico = false;
+}
+
+class _ConversationBubblesState extends State<ConversationBubbles> {
+  final List<_FalaItem> _itens = [];
+  int _proximoId = 0;
+
+  _FalaItem _novo(
+    String texto, {
+    bool digitar = false,
+    Duration atraso = Duration.zero,
+    bool jaVisivel = false,
+  }) {
+    return _FalaItem(
+      _proximoId++,
+      texto,
+      digitar: digitar,
+      atrasoEntrada: atraso,
+      jaVisivel: jaVisivel,
+    );
+  }
+
+  List<_FalaItem> get _ativos => _itens.where((i) => !i.saindo).toList();
+
+  @override
+  void initState() {
+    super.initState();
+    final historico = widget.historico;
+    if (historico != null) _itens.add(_novo(historico, jaVisivel: true));
+    if (widget.atual.isNotEmpty) {
+      _itens.add(_novo(widget.atual, digitar: widget.digitar));
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant ConversationBubbles oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.atual == widget.atual &&
+        oldWidget.historico == widget.historico) {
+      return;
+    }
+    final ativos = _ativos;
+    final atual = ativos.isEmpty ? null : ativos.last;
+    final anterior = ativos.length >= 2 ? ativos[ativos.length - 2] : null;
+
+    // Avançou: o atual vira o anterior e o novo entra embaixo.
+    if (atual != null &&
+        widget.historico == atual.texto &&
+        widget.atual != atual.texto) {
+      for (final item in ativos) {
+        if (item != atual) item.saindo = true;
+      }
+      if (widget.atual.isNotEmpty) {
+        _itens.add(
+          _novo(
+            widget.atual,
+            digitar: widget.digitar,
+            atraso: const Duration(milliseconds: 90),
+          ),
+        );
+      }
+      return;
+    }
+
+    // Voltou: o anterior desce e volta a ser o atual.
+    if (anterior != null &&
+        widget.historico == null &&
+        widget.atual == anterior.texto) {
+      for (final item in ativos) {
+        if (item != anterior) item.saindo = true;
+      }
+      return;
+    }
+
+    // Sem relação: os antigos saem antes de os novos entrarem.
+    for (final item in ativos) {
+      item.saindo = true;
+    }
+    final atraso = ativos.isEmpty
+        ? Duration.zero
+        : const Duration(milliseconds: 200);
+    final historico = widget.historico;
+    if (historico != null) _itens.add(_novo(historico, atraso: atraso));
+    if (widget.atual.isNotEmpty) {
+      _itens.add(_novo(widget.atual, digitar: widget.digitar, atraso: atraso));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween<double>(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 520),
-      curve: Curves.easeInOutCubic,
-      builder: (context, val, child) {
-        return Transform.translate(
-          offset: Offset(0, (1.0 - val) * 18),
-          child: child,
-        );
-      },
-      child: SpeechBubble(text: text, historico: true, comSeta: false),
+    final ativos = _ativos;
+    for (var i = 0; i < ativos.length; i++) {
+      ativos[i].historico = i < ativos.length - 1;
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final item in _itens)
+          _FalaBalao(
+            key: ValueKey(item.id),
+            item: item,
+            historico: item.historico,
+            saindo: item.saindo,
+            comSeta: widget.comSeta,
+            aoSair: () {
+              if (mounted) setState(() => _itens.remove(item));
+            },
+          ),
+      ],
     );
   }
+}
+
+class _FalaBalao extends StatefulWidget {
+  const _FalaBalao({
+    super.key,
+    required this.item,
+    required this.historico,
+    required this.saindo,
+    required this.comSeta,
+    required this.aoSair,
+  });
+
+  final _FalaItem item;
+  final bool historico;
+  final bool saindo;
+  final bool comSeta;
+  final VoidCallback aoSair;
+
+  @override
+  State<_FalaBalao> createState() => _FalaBalaoState();
+}
+
+class _FalaBalaoState extends State<_FalaBalao> with TickerProviderStateMixin {
+  late final AnimationController _entrada = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 460),
+    value: widget.item.jaVisivel ? 1 : 0,
+  );
+  late final AnimationController _saida = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 380),
+  );
+  Timer? _atraso;
+  Timer? _digitacao;
+  late String _mostrado = widget.item.digitar ? '' : widget.item.texto;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_entrada.value < 1) {
+      final atraso = widget.item.atrasoEntrada;
+      if (atraso == Duration.zero) {
+        _entrar();
+      } else {
+        _atraso = Timer(atraso, _entrar);
+      }
+    }
+    if (widget.saindo) _sair();
+  }
+
+  void _entrar() {
+    if (!mounted || widget.saindo) return;
+    _entrada.forward();
+    if (widget.item.digitar) _digitar();
+  }
+
+  void _digitar() {
+    final texto = widget.item.texto;
+    var i = 0;
+    _digitacao = Timer.periodic(const Duration(milliseconds: 20), (timer) {
+      if (!mounted) return timer.cancel();
+      i++;
+      setState(() => _mostrado = texto.substring(0, i));
+      if (i >= texto.length) timer.cancel();
+    });
+  }
+
+  void _sair() {
+    _atraso?.cancel();
+    _saida.forward().whenComplete(() {
+      if (mounted) widget.aoSair();
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _FalaBalao oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.saindo && !oldWidget.saindo) _sair();
+    // Virou anterior antes de terminar de digitar: mostra o texto inteiro.
+    if (widget.historico && _mostrado != widget.item.texto) {
+      _digitacao?.cancel();
+      _mostrado = widget.item.texto;
+    }
+  }
+
+  @override
+  void dispose() {
+    _atraso?.cancel();
+    _digitacao?.cancel();
+    _entrada.dispose();
+    _saida.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([_entrada, _saida]),
+      builder: (context, child) {
+        final e = Curves.easeOutCubic.transform(_entrada.value);
+        final s = _saida.value;
+        // Entrada: abre espaço (empurrando os de cima) e depois aparece.
+        final opacidadeEntrada = Curves.easeOut.transform(
+          ((_entrada.value - 0.3) / 0.7).clamp(0.0, 1.0),
+        );
+        // Saída: primeiro esmaece, só depois recolhe o espaço.
+        final opacidadeSaida =
+            1 - Curves.easeIn.transform((s / 0.45).clamp(0.0, 1.0));
+        final alturaSaida =
+            1 -
+            Curves.easeInOutCubic.transform(
+              ((s - 0.35) / 0.65).clamp(0.0, 1.0),
+            );
+        final fator = e * alturaSaida;
+        final conteudo = Opacity(
+          opacity: (opacidadeEntrada * opacidadeSaida).clamp(0.0, 1.0),
+          child: Transform.translate(
+            offset: Offset(0, 12 * (1 - e) - 10 * s),
+            child: child,
+          ),
+        );
+        if (fator >= 1) return conteudo;
+        return ClipRect(
+          child: Align(
+            alignment: Alignment.topCenter,
+            heightFactor: fator.clamp(0.0, 1.0),
+            child: conteudo,
+          ),
+        );
+      },
+      child: TweenAnimationBuilder<double>(
+        tween: Tween<double>(end: widget.historico ? 1 : 0),
+        duration: const Duration(milliseconds: 480),
+        curve: Curves.easeInOutCubic,
+        builder: (context, h, _) => _BalaoMorph(
+          texto: _mostrado.isEmpty ? ' ' : _mostrado,
+          h: h,
+          comSeta: widget.comSeta,
+        ),
+      ),
+    );
+  }
+}
+
+/// Balão que interpola entre "atual" (h = 0) e "anterior" (h = 1).
+class _BalaoMorph extends StatelessWidget {
+  const _BalaoMorph({
+    required this.texto,
+    required this.h,
+    required this.comSeta,
+  });
+
+  final String texto;
+  final double h;
+  final bool comSeta;
+
+  double _lerp(double a, double b) => a + (b - a) * h;
+
+  @override
+  Widget build(BuildContext context) {
+    final fundo = Color.lerp(Colors.white, OnboardingColors.historyFill, h)!;
+    final cor = Color.lerp(
+      OnboardingColors.blue,
+      OnboardingColors.historyText,
+      h,
+    )!;
+    final seta = comSeta ? (1 - h).clamp(0.0, 1.0) : 0.0;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: double.infinity,
+          margin: EdgeInsets.symmetric(horizontal: _lerp(16, 28)),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+          decoration: BoxDecoration(
+            color: fundo,
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08 * (1 - h)),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: _textoDoBalao(texto, cor, _lerp(18, 14)),
+        ),
+        if (seta > 0)
+          CustomPaint(
+            size: Size(24, 14 * seta),
+            painter: _BubbleTailPainter(color: fundo),
+          ),
+        // A seta do atual vira o espaço entre o anterior e o novo.
+        SizedBox(height: 8 * h),
+      ],
+    );
+  }
+}
+
+Widget _textoDoBalao(String content, Color baseColor, double fontSize) {
+  if (content.contains('ConsertaJá')) {
+    final parts = content.split('ConsertaJá');
+    return RichText(
+      textAlign: TextAlign.center,
+      text: TextSpan(
+        style: TextStyle(color: baseColor, fontSize: fontSize, height: 1.3),
+        children: [
+          TextSpan(
+            text: parts[0],
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const TextSpan(
+            text: 'Conserta',
+            style: TextStyle(fontWeight: FontWeight.w500),
+          ),
+          const TextSpan(
+            text: 'Já',
+            style: TextStyle(fontWeight: FontWeight.w900),
+          ),
+          if (parts.length > 1)
+            TextSpan(
+              text: parts[1],
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+        ],
+      ),
+    );
+  }
+
+  return Text(
+    content,
+    textAlign: TextAlign.center,
+    style: TextStyle(
+      color: baseColor,
+      fontWeight: FontWeight.w800,
+      fontSize: fontSize,
+      height: 1.3,
+    ),
+  );
 }
 
 class AccountTypeCard extends StatelessWidget {

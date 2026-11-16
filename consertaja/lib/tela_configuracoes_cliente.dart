@@ -1207,8 +1207,10 @@ class _TelaConfiguracoesClientePageState
           Container(
             width: 42,
             height: 42,
-            decoration: BoxDecoration(
-              color: _surfaceColor,
+            // A logo agora é branca com fundo transparente: o círculo azul
+            // garante que ela apareça (em fundo claro ficaria invisível).
+            decoration: const BoxDecoration(
+              color: _blue,
               shape: BoxShape.circle,
             ),
             padding: const EdgeInsets.all(9),
