@@ -9,6 +9,7 @@ import 'gestao_equipe.dart';
 import 'servico_concluido.dart';
 import 'tela_chat_profissional.dart';
 import 'tela_meu_perfil_profissional.dart';
+import 'utils/voltar_fluxo_solicitacao.dart';
 
 class ProfissionalNoLocalAtendimentoPresencialPage extends StatefulWidget {
   final int idSolicitacao;
@@ -44,7 +45,12 @@ class ProfissionalNoLocalAtendimentoPresencialPage extends StatefulWidget {
 }
 
 class _ProfissionalNoLocalAtendimentoPresencialPageState
-    extends State<ProfissionalNoLocalAtendimentoPresencialPage> {
+    extends State<ProfissionalNoLocalAtendimentoPresencialPage>
+    with VoltarParaPedidosMixin {
+  /// Voltar (botão ou sistema) leva para meus_servicos_solicitados.dart.
+  @override
+  bool get voltarComoProfissional => true;
+
   static const _azul = Color(0xFF0FB3FF);
   static const _fundo = Color(0xFFF7F8FA);
   static const _texto = Color(0xFF253042);
@@ -482,7 +488,7 @@ class _ProfissionalNoLocalAtendimentoPresencialPageState
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: voltarParaPedidos,
           icon: const Icon(Icons.arrow_back_ios_new, color: _texto),
         ),
         title: Column(

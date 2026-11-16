@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'utils/iniciais.dart';
+import 'utils/voltar_fluxo_solicitacao.dart';
 
 class PedidoPagoPage extends StatefulWidget {
   final int idSolicitacao;
@@ -12,7 +13,13 @@ class PedidoPagoPage extends StatefulWidget {
   State<PedidoPagoPage> createState() => _PedidoPagoPageState();
 }
 
-class _PedidoPagoPageState extends State<PedidoPagoPage> {
+class _PedidoPagoPageState
+    extends State<PedidoPagoPage>
+    with VoltarParaPedidosMixin {
+  /// Voltar (botão ou sistema) leva para meus_pedidos.dart.
+  @override
+  bool get voltarComoProfissional => false;
+
   static const _azul = Color(0xFF12B5F5);
   static const _texto = Color(0xFF20242A);
   static const _muted = Color(0xFF626B76);
@@ -153,7 +160,7 @@ class _PedidoPagoPageState extends State<PedidoPagoPage> {
       child: Row(
         children: [
           IconButton(
-            onPressed: () => Navigator.of(context).maybePop(),
+            onPressed: voltarParaPedidos,
             icon: const Icon(Icons.close, color: _azul),
           ),
           const Expanded(
@@ -230,7 +237,7 @@ class _PedidoPagoPageState extends State<PedidoPagoPage> {
             width: double.infinity,
             height: 48,
             child: FilledButton.icon(
-              onPressed: () => Navigator.of(context).pop(true),
+              onPressed: voltarParaPedidos,
               icon: const Icon(Icons.arrow_forward, size: 20),
               label: const Text('Ver Meus Pedidos'),
               style: FilledButton.styleFrom(

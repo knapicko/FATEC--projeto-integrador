@@ -8,7 +8,6 @@ import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'gestao_equipe.dart';
-import 'meus_servicos_solicitados.dart';
 import 'solicitacao_estado.dart';
 import 'utils/fluxo_solicitacao.dart';
 import 'tela_chat_profissional.dart';
@@ -16,6 +15,7 @@ import 'tela_deslocamento_profissional.dart';
 import 'tela_meu_perfil_profissional.dart';
 import 'utils/iniciais.dart';
 import 'widgets/skeleton_loading.dart';
+import 'utils/voltar_fluxo_solicitacao.dart';
 
 class SolicitacaoEmAndamentoPage extends StatefulWidget {
   final int idSolicitacao;
@@ -61,7 +61,12 @@ class SolicitacaoEmAndamentoPage extends StatefulWidget {
 }
 
 class _SolicitacaoEmAndamentoPageState
-    extends State<SolicitacaoEmAndamentoPage> {
+    extends State<SolicitacaoEmAndamentoPage>
+    with VoltarParaPedidosMixin {
+  /// Voltar (botão ou sistema) leva para meus_servicos_solicitados.dart.
+  @override
+  bool get voltarComoProfissional => true;
+
   static const Color _azul = Color(0xFF0FB3FF);
   static const Color _fundo = Color(0xFFF8FAFC);
   static const Color _textoEscuro = Color(0xFF0F172A);
@@ -907,17 +912,7 @@ class _SolicitacaoEmAndamentoPageState
       scrolledUnderElevation: 0,
       leading: IconButton(
         icon: const Icon(Icons.arrow_back, color: _textoEscuro),
-        onPressed: () {
-          if (Navigator.of(context).canPop()) {
-            Navigator.of(context).pop();
-          } else {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(
-                builder: (_) => const MeusServicosSolicitadosPage(),
-              ),
-            );
-          }
-        },
+        onPressed: voltarParaPedidos,
       ),
       titleSpacing: 0,
       title: Column(

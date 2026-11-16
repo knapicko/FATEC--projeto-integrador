@@ -21,6 +21,7 @@ import 'utils/bottom_navigation_bar_profissional.dart';
 import 'utils/fluxo_solicitacao.dart';
 import 'utils/iniciais.dart';
 import 'widgets/skeleton_loading.dart';
+import 'utils/voltar_fluxo_solicitacao.dart';
 
 /// Configuração do Mapbox
 class MapboxConfig {
@@ -59,7 +60,12 @@ class TelaDeslocamentoProfissionalPage extends StatefulWidget {
 }
 
 class _TelaDeslocamentoProfissionalPageState
-    extends State<TelaDeslocamentoProfissionalPage> {
+    extends State<TelaDeslocamentoProfissionalPage>
+    with VoltarParaPedidosMixin {
+  /// Voltar (botão ou sistema) leva para meus_servicos_solicitados.dart.
+  @override
+  bool get voltarComoProfissional => true;
+
   static const Color azul = Color(0xFF0FB3FF);
   static const Color escuroTexto = Color(0xFF0F172A);
   static const Color cinzaTexto = Color(0xFF64748B);
@@ -1200,7 +1206,7 @@ class _TelaDeslocamentoProfissionalPageState
         children: [
           IconButton(
             icon: const Icon(Icons.arrow_back, color: escuroTexto),
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: voltarParaPedidos,
             tooltip: 'Voltar',
           ),
           const SizedBox(width: 4),

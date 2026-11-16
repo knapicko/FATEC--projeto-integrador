@@ -6,6 +6,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import 'services/stripe_pagamento_service.dart';
 import 'pedido_pago.dart';
+import 'utils/voltar_fluxo_solicitacao.dart';
 
 class QrcodePixPage extends StatefulWidget {
   final int idSolicitacao;
@@ -31,7 +32,13 @@ class QrcodePixPage extends StatefulWidget {
   State<QrcodePixPage> createState() => _QrcodePixPageState();
 }
 
-class _QrcodePixPageState extends State<QrcodePixPage> {
+class _QrcodePixPageState
+    extends State<QrcodePixPage>
+    with VoltarParaPedidosMixin {
+  /// Voltar (botão ou sistema) leva para meus_pedidos.dart.
+  @override
+  bool get voltarComoProfissional => false;
+
   static const Color _azul = Color(0xFF0FB3FF);
   static const Color _texto = Color(0xFF17212B);
   static const Color _muted = Color(0xFF667085);
@@ -257,7 +264,7 @@ class _QrcodePixPageState extends State<QrcodePixPage> {
       child: Row(
         children: [
           IconButton(
-            onPressed: () => Navigator.of(context).maybePop(),
+            onPressed: voltarParaPedidos,
             icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
             color: _azul,
           ),

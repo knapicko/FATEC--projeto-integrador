@@ -11,6 +11,7 @@ import 'utils/iniciais.dart';
 import 'widgets/imagem_servico.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/funcao_servico.dart';
+import 'utils/voltar_fluxo_solicitacao.dart';
 
 class PagamentoPedidoPage extends StatefulWidget {
   final int idSolicitacao;
@@ -70,7 +71,13 @@ class _DadosCartao {
   });
 }
 
-class _PagamentoPedidoPageState extends State<PagamentoPedidoPage> {
+class _PagamentoPedidoPageState
+    extends State<PagamentoPedidoPage>
+    with VoltarParaPedidosMixin {
+  /// Voltar (botão ou sistema) leva para meus_pedidos.dart.
+  @override
+  bool get voltarComoProfissional => false;
+
   static const Color _azul = Color(0xFF0FB3FF);
   static const Color _texto = Color(0xFF17212B);
   static const Color _muted = Color(0xFF667085);
@@ -735,7 +742,7 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage> {
       child: Row(
         children: [
           IconButton(
-            onPressed: () => Navigator.of(context).maybePop(),
+            onPressed: voltarParaPedidos,
             icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
             color: _azul,
           ),

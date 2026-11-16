@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'tela_home_profissional.dart';
+import 'utils/voltar_fluxo_solicitacao.dart';
 
 class ServicoConcluidoPage extends StatefulWidget {
   final int idSolicitacao;
@@ -12,7 +13,13 @@ class ServicoConcluidoPage extends StatefulWidget {
   State<ServicoConcluidoPage> createState() => _ServicoConcluidoPageState();
 }
 
-class _ServicoConcluidoPageState extends State<ServicoConcluidoPage> {
+class _ServicoConcluidoPageState
+    extends State<ServicoConcluidoPage>
+    with VoltarParaPedidosMixin {
+  /// Voltar (botão ou sistema) leva para meus_pedidos.dart.
+  @override
+  bool get voltarComoProfissional => false;
+
   final _db = Supabase.instance.client;
   Map<String, dynamic>? _solicitacao;
   String _nomeCliente = 'Cliente';
@@ -124,7 +131,7 @@ class _ServicoConcluidoPageState extends State<ServicoConcluidoPage> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: voltarParaPedidos,
           icon: const Icon(Icons.close),
         ),
         title: Column(

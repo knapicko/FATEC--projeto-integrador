@@ -14,6 +14,7 @@ import 'tela_chat_profissional.dart';
 import 'tela_meu_perfil_profissional.dart';
 import 'utils/iniciais.dart';
 import 'widgets/skeleton_loading.dart';
+import 'utils/voltar_fluxo_solicitacao.dart';
 
 class TelaRecebeDevolucaoProfissionalPage extends StatefulWidget {
   final int idSolicitacao;
@@ -52,7 +53,11 @@ class TelaRecebeDevolucaoProfissionalPage extends StatefulWidget {
 
 class _TelaRecebeDevolucaoProfissionalPageState
     extends State<TelaRecebeDevolucaoProfissionalPage>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, VoltarParaPedidosMixin {
+  /// Voltar (botão ou sistema) leva para meus_servicos_solicitados.dart.
+  @override
+  bool get voltarComoProfissional => true;
+
   static const Color _azul = Color(0xFF0FB3FF);
   static const Color _fundo = Color(0xFFF8FAFC);
   static const Color _textoEscuro = Color(0xFF0F172A);
@@ -708,7 +713,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
       child: Row(
         children: [
           IconButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: voltarParaPedidos,
             icon: const Icon(Icons.arrow_back, color: _textoEscuro),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 36, minHeight: 36),

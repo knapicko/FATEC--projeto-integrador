@@ -370,6 +370,38 @@ class ConsultaCadastroService {
     }
   }
 
+  static const String _mensagemContaInexistente =
+      'Essa conta não existe. Confira o e-mail, telefone, CPF ou CNPJ '
+      'digitado ou crie uma conta.';
+
+  /// O Supabase responde igual para "conta não existe" e "senha errada".
+  /// Depois da falha, confere se o e-mail está cadastrado para dizer qual
+  /// dos dois aconteceu (telefone/CPF/CNPJ já foram resolvidos para uma conta
+  /// existente antes, então ali a falha só pode ser a senha).
+  Future<String> _mensagemFalhaLogin(String? email) async {
+    final cadastrado = await _emailCadastrado(email);
+    if (cadastrado == false) return _mensagemContaInexistente;
+    if (cadastrado == true) return 'Senha incorreta. Tente novamente.';
+    return 'Identificador ou senha incorretos.';
+  }
+
+  /// true/false = existe ou não em `emails`; null = não deu para conferir.
+  Future<bool?> _emailCadastrado(String? email) async {
+    final limpo = email?.trim() ?? '';
+    if (limpo.isEmpty) return null;
+    try {
+      final lista = await _supabase
+          .from('emails')
+          .select('id_email')
+          .inFilter('endereco_email', {limpo, limpo.toLowerCase()}.toList())
+          .limit(1);
+      return lista.isNotEmpty;
+    } catch (e) {
+      debugPrint('Erro ao conferir e-mail no login: $e');
+      return null;
+    }
+  }
+
   /// Login de [LoginPage._fazerLogin], aceitando e-mail ou CPF/CNPJ no identificador.
   Future<ResultadoLogin> fazerLogin({
     required String identificador,
@@ -397,9 +429,7 @@ class ConsultaCadastroService {
       if (credencial == null || !credencial.existe) {
         return const ResultadoLogin(
           sucesso: false,
-            mensagem:
-              'Não foi possível localizar uma conta com esse identificador. '
-              'Use o e-mail, telefone, CPF ou CNPJ cadastrado.',
+          mensagem: _mensagemContaInexistente,
         );
       }
       email = credencial.email;
@@ -414,9 +444,9 @@ class ConsultaCadastroService {
       );
 
       if (response.user == null) {
-        return const ResultadoLogin(
+        return ResultadoLogin(
           sucesso: false,
-          mensagem: 'Identificador ou senha incorretos.',
+          mensagem: await _mensagemFalhaLogin(email),
         );
       }
 
@@ -433,11 +463,16 @@ class ConsultaCadastroService {
         perfilIncompleto: usuarioResponse == null,
       );
     } on AuthException catch (e) {
-      var mensagem = 'Identificador ou senha incorretos.';
       if (e.message.contains('Email not confirmed')) {
-        mensagem = 'Confirme seu email antes de fazer login.';
+        return const ResultadoLogin(
+          sucesso: false,
+          mensagem: 'Confirme seu email antes de fazer login.',
+        );
       }
-      return ResultadoLogin(sucesso: false, mensagem: mensagem);
+      return ResultadoLogin(
+        sucesso: false,
+        mensagem: await _mensagemFalhaLogin(email),
+      );
     } catch (e) {
       return ResultadoLogin(sucesso: false, mensagem: 'Erro ao fazer login: $e');
     }

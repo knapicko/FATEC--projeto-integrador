@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'detalhes_pedido.dart';
 import 'tela_chat_profissional.dart';
 import 'tela_meu_perfil_cliente.dart';
+import 'utils/voltar_fluxo_solicitacao.dart';
 
 class AtendimentoNoLocalClientePage extends StatefulWidget {
   final int idSolicitacao;
@@ -18,7 +19,12 @@ class AtendimentoNoLocalClientePage extends StatefulWidget {
 }
 
 class _AtendimentoNoLocalClientePageState
-    extends State<AtendimentoNoLocalClientePage> {
+    extends State<AtendimentoNoLocalClientePage>
+    with VoltarParaPedidosMixin {
+  /// Voltar (botão ou sistema) leva para meus_pedidos.dart.
+  @override
+  bool get voltarComoProfissional => false;
+
   static const _azul = Color(0xFF0FB3FF);
   static const _texto = Color(0xFF253042);
   static const _muted = Color(0xFF687386);
@@ -250,7 +256,7 @@ class _AtendimentoNoLocalClientePageState
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: voltarParaPedidos,
           icon: const Icon(Icons.arrow_back_ios_new, color: _texto),
         ),
         title: Column(
