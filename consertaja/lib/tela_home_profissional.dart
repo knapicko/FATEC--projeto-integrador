@@ -34,6 +34,9 @@ import 'widgets/tag_oficio.dart';
 import 'utils/app_navigation_util.dart';
 import 'utils/funcao_servico.dart';
 import 'solicitacao_geografica_profissional.dart';
+import 'widgets/previa_radar_profissional.dart';
+import 'minhas_notificacoes.dart';
+import 'widgets/contador_notificacoes.dart';
 
 class TelaHomeProfissional extends StatefulWidget {
   final bool isVisitante;
@@ -112,6 +115,9 @@ class _OficiosPerfil {
 }
 
 class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
+  /// Muda ao voltar do Radar para a prévia do mapa recarregar.
+  int _versaoPreviaRadar = 0;
+
   static const Color _primaryBlue = Color(0xFF0FB3FF);
   static const Color _background = Color(0xFFF8FAFC);
   static const Color _titleDark = Color(0xFF1A2B4A);
@@ -543,48 +549,28 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     }
   }
 
+  /// Sininho: notificações não lidas + convites de empresa pendentes. Abre a
+  /// central de notificações; os convites ficam num card no topo dela.
   Widget _buildBotaoNotificacao() {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: _convitesEmpresaFuture,
       builder: (context, snapshot) {
         final convites = snapshot.data ?? const <Map<String, dynamic>>[];
         final total = convites.length;
-        return Stack(
-          clipBehavior: Clip.none,
-          children: [
-            IconButton(
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-              icon: const Icon(
-                Icons.notifications_none_outlined,
-                color: _primaryBlue,
-                size: 26,
+        return SinoNotificacoes(
+          cor: _primaryBlue,
+          extra: total,
+          aoTocar: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (rotaContext) => MinhasNotificacoesPage(
+                totalConvites: total,
+                aoAbrirConvites: () {
+                  Navigator.of(rotaContext).pop();
+                  _abrirPainelConvites();
+                },
               ),
-              onPressed: _abrirPainelConvites,
             ),
-            if (total > 0)
-              Positioned(
-                right: -2,
-                top: -2,
-                child: Container(
-                  width: 18,
-                  height: 18,
-                  alignment: Alignment.center,
-                  decoration: const BoxDecoration(
-                    color: _primaryBlue,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    total > 9 ? '9+' : '$total',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-          ],
+          ),
         );
       },
     );
@@ -3027,88 +3013,21 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                 ],
               ),
               const SizedBox(height: 10),
-              // Tocar no card abre o Radar (mesmo destino da aba).
-              GestureDetector(
-                onTap: () => Navigator.of(context).push(
-                  AppNavigationUtil.rotaSemAnimacao(
-                    SolicitacaoGeograficaProfissionalPage(
-                      isVisitante: widget.isVisitante,
+              // Prévia do mapa do Radar (raio, você e os pedidos da área);
+              // tocar abre o Radar. Ao voltar, a prévia recarrega.
+              PreviaRadarProfissional(
+                key: ValueKey('previaRadar$_versaoPreviaRadar'),
+                aoTocar: () async {
+                  await Navigator.of(context).push(
+                    AppNavigationUtil.rotaSemAnimacao(
+                      SolicitacaoGeograficaProfissionalPage(
+                        isVisitante: widget.isVisitante,
+                      ),
+                      nome: 'SolicitacaoGeograficaProfissionalPage',
                     ),
-                    nome: 'SolicitacaoGeograficaProfissionalPage',
-                  ),
-                ),
-                child: Container(
-                height: 120,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF0F4F8),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE0E7EF)),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Stack(
-                    children: [
-                      CustomPaint(
-                        size: const Size(double.infinity, 120),
-                        painter: _MapPatternPainter(),
-                      ),
-                      Positioned(
-                        left: 110,
-                        top: -20,
-                        child: Container(
-                          width: 150,
-                          height: 150,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _primaryBlue.withValues(alpha: 0.12),
-                            border: Border.all(
-                              color: _primaryBlue.withValues(alpha: 0.25),
-                              width: 1.5,
-                            ),
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        left: 200,
-                        top: 58,
-                        child: Container(
-                          width: 12,
-                          height: 12,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _primaryBlue,
-                            border: Border.all(color: Colors.white, width: 2),
-                            boxShadow: [
-                              BoxShadow(
-                                color: _primaryBlue.withValues(alpha: 0.4),
-                                blurRadius: 6,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              ),
-              const SizedBox(height: 8),
-              RichText(
-                text: const TextSpan(
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: _titleDark,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  children: [
-                    TextSpan(text: 'Há '),
-                    TextSpan(
-                      text: '1',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    TextSpan(text: ' solicitação de pedido na sua área'),
-                  ],
-                ),
+                  );
+                  if (mounted) setState(() => _versaoPreviaRadar++);
+                },
               ),
               const SizedBox(height: 20),
 
@@ -3408,13 +3327,13 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
             if (index == 1) {
               // Aba Radar: solicitações geográficas da área do profissional.
               Navigator.of(context).push(
-              AppNavigationUtil.rotaSemAnimacao(
-                SolicitacaoGeograficaProfissionalPage(
-                  isVisitante: widget.isVisitante,
+                AppNavigationUtil.rotaSemAnimacao(
+                  SolicitacaoGeograficaProfissionalPage(
+                    isVisitante: widget.isVisitante,
+                  ),
+                  nome: 'SolicitacaoGeograficaProfissionalPage',
                 ),
-                nome: 'SolicitacaoGeograficaProfissionalPage',
-              ),
-            );
+              );
               return;
             }
             if (index == 2) {
@@ -4367,39 +4286,6 @@ class _PainelConvitesEmpresaState extends State<_PainelConvitesEmpresa> {
       ),
     );
   }
-}
-
-class _MapPatternPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final roadPaint = Paint()
-      ..color = const Color(0xFFDDE3EA)
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
-
-    final blockPaint = Paint()
-      ..color = const Color(0xFFE8EDF2)
-      ..style = PaintingStyle.fill;
-
-    canvas.drawRect(Rect.fromLTWH(20, 15, 60, 40), blockPaint);
-
-    canvas.drawRect(Rect.fromLTWH(100, 30, 80, 50), blockPaint);
-
-    canvas.drawRect(Rect.fromLTWH(200, 10, 70, 35), blockPaint);
-
-    canvas.drawLine(const Offset(0, 60), Offset(size.width, 60), roadPaint);
-
-    canvas.drawLine(const Offset(0, 90), Offset(size.width, 90), roadPaint);
-
-    canvas.drawLine(const Offset(80, 0), Offset(80, size.height), roadPaint);
-
-    canvas.drawLine(const Offset(180, 0), Offset(180, size.height), roadPaint);
-
-    canvas.drawLine(const Offset(260, 0), Offset(260, size.height), roadPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _IconeAreaAtuacaoPainter extends CustomPainter {

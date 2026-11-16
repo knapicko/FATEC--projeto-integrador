@@ -43,3 +43,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Firebase: a chave da conta de servico (usada so pela Edge Function) NUNCA
+# entra no repositorio - ela fica no secret FIREBASE_SERVICE_ACCOUNT do Supabase.
+*firebase-adminsdk*.json
+firebase-service-account*.json

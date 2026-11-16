@@ -14,6 +14,7 @@ import 'solicitacao_geografica_cliente.dart';
 import 'services/google_auth_service.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/bottom_navigation_bar_cliente.dart';
+import 'widgets/contador_notificacoes.dart';
 import 'utils/iniciais.dart';
 import 'widgets/imagem_servico.dart';
 import 'widgets/tag_oficio.dart';
@@ -1498,42 +1499,10 @@ class _TelaHomeState extends State<TelaHome> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(child: _buildEnderecoAtual()),
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      const Padding(
-                        padding: EdgeInsets.only(right: 12, top: 4),
-                        child: Icon(
-                          Icons.notifications_outlined,
-                          color: _primaryBlue,
-                          size: 26,
-                        ),
-                      ),
-                      Positioned(
-                        right: 4,
-                        top: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                            color: _primaryBlue,
-                            shape: BoxShape.circle,
-                          ),
-                          constraints: const BoxConstraints(
-                            minWidth: 18,
-                            minHeight: 18,
-                          ),
-                          child: const Text(
-                            '2',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                  // Sininho com as notificações não lidas (Realtime).
+                  const Padding(
+                    padding: EdgeInsets.only(right: 8),
+                    child: SinoNotificacoes(cor: _primaryBlue),
                   ),
                   GestureDetector(
                     onTap: () => _navegarParaPerfil(context),

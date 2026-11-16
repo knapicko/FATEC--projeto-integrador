@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -10,6 +11,7 @@ import 'meus_enderecos.dart';
 import 'utils/fluxo_solicitacao.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/funcao_servico.dart';
+import 'services/notificacoes/notificacao_feedback.dart';
 
 class EnderecoItemLista {
   final int idEndereco;
@@ -932,6 +934,12 @@ class _ListaServicosState extends State<ListaServicos> {
         };
       }).toList();
       await _supabase.from('solicitacoes').insert(solicitacoes);
+
+      // Feedback (notificação local): o pedido saiu e o profissional foi
+      // avisado — o aviso a ele é feito pelo servidor (trigger + FCM).
+      unawaited(
+        NotificacaoFeedback.solicitacaoEnviada(quantidade: solicitacoes.length),
+      );
 
       if (_idLista != null) {
         await _supabase

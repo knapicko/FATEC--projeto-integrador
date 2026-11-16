@@ -151,7 +151,9 @@ class _SolicitacaoGeograficaClientePageState
     try {
       final status = await SolicitacaoGeograficaService.statusDa(id);
       if (!mounted) return;
-      if (status == StatusSolicitacaoGeo.aceita) {
+      // 44 = chegou proposta de preço; 42 = proposta já aceita.
+      if (status == StatusSolicitacaoGeo.propostaEnviada ||
+          status == StatusSolicitacaoGeo.aceita) {
         await _atualizarAcompanhamento(forcar: true);
       } else if (status == StatusSolicitacaoGeo.concluida ||
           status == StatusSolicitacaoGeo.cancelada) {
@@ -172,7 +174,11 @@ class _SolicitacaoGeograficaClientePageState
     try {
       final acomp = await SolicitacaoGeograficaService.acompanhamento(id);
       if (!mounted) return;
-      if (acomp == null) return;
+      if (acomp == null) {
+        // Proposta sumiu (ex.: cancelada): volta a aguardar outras.
+        if (_etapa == _Etapa.encontrado) _voltarAAguardar();
+        return;
+      }
       final concluida =
           acomp.idStatus == StatusSolicitacaoVinculada.concluido ||
           acomp.idStatus == StatusSolicitacaoVinculada.cancelado;
@@ -198,6 +204,67 @@ class _SolicitacaoGeograficaClientePageState
       }
     } catch (e) {
       debugPrint('[SolicGeo] acompanhamento: $e');
+    }
+  }
+
+  /// Proposta recusada: o pedido continua no Radar, esperando outras.
+  void _voltarAAguardar() {
+    if (!mounted) return;
+    setState(() {
+      _acomp = null;
+      _etapa = _Etapa.aguardando;
+      _expandido = false;
+      _minimizado = false;
+    });
+    _enquadrarMapa();
+    _agendarConsulta();
+  }
+
+  bool _respondendoProposta = false;
+
+  Future<void> _aceitarProposta() async {
+    final a = _acomp;
+    if (a == null || _respondendoProposta) return;
+    setState(() => _respondendoProposta = true);
+    try {
+      await SolicitacaoGeograficaService.responderProposta(
+        idProposta: a.idProposta,
+        aceitar: true,
+      );
+      HapticFeedback.mediumImpact();
+      await _atualizarAcompanhamento(forcar: true);
+      _mensagem('Proposta aceita! Agora é só pagar para o serviço começar.');
+    } catch (e) {
+      _mensagem(e.toString().replaceFirst('Exception: ', ''));
+      await _atualizarAcompanhamento(forcar: true);
+    } finally {
+      if (mounted) setState(() => _respondendoProposta = false);
+    }
+  }
+
+  Future<void> _recusarProposta() async {
+    final a = _acomp;
+    if (a == null || _respondendoProposta) return;
+    final ok = await _confirmar(
+      titulo: 'Recusar proposta?',
+      texto:
+          'O pedido volta para o Radar e outros profissionais (ou o mesmo, '
+          'com outro valor) podem enviar novas propostas.',
+      botao: 'Recusar',
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _respondendoProposta = true);
+    try {
+      await SolicitacaoGeograficaService.responderProposta(
+        idProposta: a.idProposta,
+        aceitar: false,
+      );
+      _voltarAAguardar();
+      _mensagem('Proposta recusada. Seu pedido continua no Radar.');
+    } catch (e) {
+      _mensagem(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _respondendoProposta = false);
     }
   }
 
@@ -265,7 +332,8 @@ class _SolicitacaoGeograficaClientePageState
         _criacaoConcluida = true;
       });
       _enquadrarMapa();
-      if (minha.aceita) {
+      if (minha.aceita ||
+          minha.idStatus == StatusSolicitacaoGeo.propostaEnviada) {
         // Já aceita: abre direto no "Profissional Encontrado".
         await _atualizarAcompanhamento(forcar: true);
       } else {
@@ -1094,6 +1162,9 @@ class _SolicitacaoGeograficaClientePageState
   // ── Ações do "Profissional Encontrado" ──────────────────────────────────
 
   String _rotuloStatus(AcompanhamentoGeo? a) {
+    if (a?.propostaPendente == true) {
+      return 'Proposta: ${_formatarValor(a!.valor)}';
+    }
     switch (a?.idStatus) {
       case StatusSolicitacaoVinculada.aberto:
         return 'Aguardando confirmação';
@@ -1128,11 +1199,12 @@ class _SolicitacaoGeograficaClientePageState
 
   Future<void> _abrirPagamento() async {
     final a = _acomp;
-    if (a == null) return;
+    final idSolicitacao = a?.idSolicitacao;
+    if (a == null || idSolicitacao == null) return;
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => PagamentoPedidoPage(
-          idSolicitacao: a.idSolicitacao,
+          idSolicitacao: idSolicitacao,
           tituloServico: _titulo.text.trim().isNotEmpty
               ? _titulo.text.trim()
               : (_funcao?.funcao ?? 'Serviço'),
@@ -1145,11 +1217,11 @@ class _SolicitacaoGeograficaClientePageState
   }
 
   Future<void> _abrirAcompanhamento() async {
-    final a = _acomp;
-    if (a == null) return;
+    final idSolicitacao = _acomp?.idSolicitacao;
+    if (idSolicitacao == null) return;
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => DetalhesPedidoPage(idSolicitacao: a.idSolicitacao),
+        builder: (_) => DetalhesPedidoPage(idSolicitacao: idSolicitacao),
       ),
     );
     if (mounted) await _atualizarAcompanhamento();
@@ -1695,13 +1767,17 @@ class _SolicitacaoGeograficaClientePageState
         _Etapa.solicitando => _conteudoSolicitando(),
         _Etapa.aguardando =>
           _expandido ? _conteudoExpandido(altura) : _conteudoAguardando(),
-        _Etapa.encontrado => _conteudoEncontrado(altura),
+        _Etapa.encontrado =>
+          _acomp?.propostaPendente == true
+              ? _conteudoProposta(altura)
+              : _conteudoEncontrado(altura),
       };
       chave = switch (_etapa) {
         _Etapa.formulario => 'form',
         _Etapa.solicitando => 'solicitando',
         _Etapa.aguardando => _expandido ? 'expandido' : 'aguardando',
-        _Etapa.encontrado => 'encontrado',
+        _Etapa.encontrado =>
+          _acomp?.propostaPendente == true ? 'proposta' : 'encontrado',
       };
     }
 
@@ -1806,7 +1882,9 @@ class _SolicitacaoGeograficaClientePageState
                       children: [
                         Text(
                           encontrado
-                              ? 'Profissional Encontrado!'
+                              ? (_acomp?.propostaPendente == true
+                                    ? 'Proposta recebida!'
+                                    : 'Profissional Encontrado!')
                               : aguardando
                               ? 'Aguardando profissionais próximos'
                               : 'Novo pedido no Radar',
@@ -2718,6 +2796,190 @@ class _SolicitacaoGeograficaClientePageState
     );
   }
 
+  /// Proposta de preço do profissional: o cliente aceita ou recusa.
+  Widget _conteudoProposta(double altura) {
+    final a = _acomp;
+    if (a == null) return const SizedBox(height: 160);
+    const ambar = Color(0xFFF59E0B);
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: altura * 0.8),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _alcaArrastavel(),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: const BoxDecoration(
+                            color: _azulClaro,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.local_offer_outlined,
+                            color: _azul,
+                            size: 21,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Proposta recebida!',
+                                style: TextStyle(
+                                  color: _texto,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${a.nome} quer fazer o seu serviço',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: _textoSec,
+                                  fontSize: 12.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: ambar.withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Text(
+                            'Aguardando você',
+                            style: TextStyle(
+                              color: Color(0xFFB45309),
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 14),
+                      child: Divider(height: 1, color: _borda),
+                    ),
+                    _cardProfissionalEncontrado(a),
+                    const SizedBox(height: 12),
+                    _cardServicoEncontrado(a, rotuloValor: 'Valor proposto'),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0F9FF),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.info_outline_rounded,
+                            color: _azul,
+                            size: 18,
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Aceitando, o pedido vai para pagamento e o '
+                              'serviço segue o fluxo normal. Recusando, ele '
+                              'volta para o Radar e outros profissionais '
+                              'podem mandar propostas.',
+                              style: TextStyle(
+                                color: Color(0xFF0369A1),
+                                fontSize: 12.5,
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            height: 52,
+                            child: OutlinedButton.icon(
+                              onPressed: _respondendoProposta
+                                  ? null
+                                  : _recusarProposta,
+                              icon: const Icon(Icons.close_rounded, size: 19),
+                              label: const Text(
+                                'Recusar',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: _vermelho,
+                                side: const BorderSide(
+                                  color: Color(0xFFFCA5A5),
+                                  width: 1.4,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 2,
+                          child: _botaoCheio(
+                            icone: Icons.check_circle_outline_rounded,
+                            texto: _respondendoProposta
+                                ? 'Enviando...'
+                                : 'Aceitar proposta',
+                            aoTocar: _respondendoProposta
+                                ? null
+                                : _aceitarProposta,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Center(
+                      child: TextButton.icon(
+                        onPressed: _abrirChat,
+                        icon: const Icon(Icons.chat_outlined, size: 17),
+                        label: const Text('Tirar dúvidas no chat'),
+                        style: TextButton.styleFrom(foregroundColor: _azul),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _cabecalhoEncontrado(AcompanhamentoGeo a) {
     return Row(
       children: [
@@ -2956,7 +3218,10 @@ class _SolicitacaoGeograficaClientePageState
     );
   }
 
-  Widget _cardServicoEncontrado(AcompanhamentoGeo a) {
+  Widget _cardServicoEncontrado(
+    AcompanhamentoGeo a, {
+    String rotuloValor = 'Valor estimado',
+  }) {
     final area = _funcao?.funcao ?? 'Serviço';
     final titulo = _titulo.text.trim().isNotEmpty ? _titulo.text.trim() : area;
     final metodo = _metodo?.valor ?? a.tipoExecucao;
@@ -3019,9 +3284,9 @@ class _SolicitacaoGeograficaClientePageState
                 ),
               ),
               const SizedBox(height: 2),
-              const Text(
-                'Valor estimado',
-                style: TextStyle(color: _textoSec, fontSize: 11),
+              Text(
+                rotuloValor,
+                style: const TextStyle(color: _textoSec, fontSize: 11),
               ),
             ],
           ),

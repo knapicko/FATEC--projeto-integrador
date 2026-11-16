@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="splash_blue">#0FB3FF</color>
+    <!-- Cor das notificações (FCM / flutter_local_notifications). -->
+    <color name="notificacao_azul">#0FB3FF</color>
 </resources>
