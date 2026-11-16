@@ -3,4 +3,5 @@
     <color name="splash_blue">#0FB3FF</color>
     <!-- Cor das notificações (FCM / flutter_local_notifications). -->
     <color name="notificacao_azul">#0FB3FF</color>
+	<color name="ic_launcher_background">#0FB3FF</color>
 </resources>

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'onboarding_controller.dart';
 import 'onboarding_step.dart';
@@ -48,6 +49,21 @@ class _ConversationalOnboardingScreenState
     _controller.senha.addListener(_atualizarRequisitosSenha);
   }
 
+  bool _posesCarregadas = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Decodifica as poses da caixa antes de precisar delas: a troca de pose
+    // (ex.: balões -> campo de CPF/CNPJ) não espera a imagem no meio da
+    // animação.
+    if (_posesCarregadas) return;
+    _posesCarregadas = true;
+    for (final pose in CaixaPose.values) {
+      precacheImage(AssetImage(pose.asset), context).catchError((_) {});
+    }
+  }
+
   @override
   void dispose() {
     _controller.senha.removeListener(_atualizarRequisitosSenha);
@@ -66,23 +82,116 @@ class _ConversationalOnboardingScreenState
             _controller.step == OnboardingStep.welcome);
 
     if (deveVoltarInicio) {
-      if (_controller.googleAuthId != null) {
-        try {
-          await GoogleAuthService.cancelarCadastroGoogle();
-        } catch (e) {
-          _controller.mostrarErro(
-            'Não foi possível cancelar o cadastro Google: '
-            '${GoogleAuthService.mensagemErro(e)}',
-          );
-          return;
-        }
-        await _controller.limparRascunho();
-      }
-      if (context.mounted) widget.onVoltarInicio!(context);
+      await _voltarParaTelaInicial(context);
       return;
     }
 
     await _controller.voltar();
+  }
+
+  /// Volta para a tela que escolhe entre login e cadastro.
+  Future<void> _voltarParaTelaInicial(BuildContext context) async {
+    if (widget.onVoltarInicio == null) return;
+    if (_controller.googleAuthId != null) {
+      try {
+        await GoogleAuthService.cancelarCadastroGoogle();
+      } catch (e) {
+        _controller.mostrarErro(
+          'Não foi possível cancelar o cadastro Google: '
+          '${GoogleAuthService.mensagemErro(e)}',
+        );
+        return;
+      }
+      await _controller.limparRascunho();
+    }
+    if (context.mounted) widget.onVoltarInicio!(context);
+  }
+
+  /// Ao segurar o botão de voltar: etapa anterior ou tela inicial.
+  Future<void> _mostrarOpcoesVoltar(BuildContext context) async {
+    HapticFeedback.mediumImpact();
+    final podeVoltarEtapa =
+        _controller.podeVoltar && _controller.googleAuthId == null;
+    final podeIrInicio = widget.onVoltarInicio != null;
+    final escolha = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        Widget opcao({
+          required String valor,
+          required IconData icone,
+          required String titulo,
+          required String subtitulo,
+          required bool ativa,
+        }) {
+          return ListTile(
+            enabled: ativa,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 22),
+            leading: CircleAvatar(
+              backgroundColor: OnboardingColors.blue.withValues(
+                alpha: ativa ? 0.12 : 0.05,
+              ),
+              child: Icon(
+                icone,
+                color: ativa ? OnboardingColors.blue : Colors.black26,
+              ),
+            ),
+            title: Text(
+              titulo,
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: ativa ? const Color(0xFF1F2937) : Colors.black38,
+              ),
+            ),
+            subtitle: Text(subtitulo),
+            onTap: () => Navigator.of(sheetContext).pop(valor),
+          );
+        }
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 10, bottom: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.black12,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                opcao(
+                  valor: 'etapa',
+                  icone: Icons.undo_rounded,
+                  titulo: 'Voltar para a etapa anterior',
+                  subtitulo: 'Desfaz só o último passo',
+                  ativa: podeVoltarEtapa,
+                ),
+                opcao(
+                  valor: 'inicio',
+                  icone: Icons.home_rounded,
+                  titulo: 'Voltar para o início',
+                  subtitulo: 'Tela de escolher entre entrar ou cadastrar',
+                  ativa: podeIrInicio,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (!context.mounted || escolha == null) return;
+    if (escolha == 'inicio') {
+      await _voltarParaTelaInicial(context);
+    } else {
+      await _controller.voltar();
+    }
   }
 
   Future<void> _selecionarData(
@@ -314,8 +423,11 @@ class _ConversationalOnboardingScreenState
                                                 ? const SizedBox.shrink()
                                                 : isBubble
                                                 ? KeyedSubtree(
-                                                    key: ValueKey(
-                                                      'bubble-${step.name}-${_controller.falaAtual}',
+                                                    // Chave estável: a conversa
+                                                    // anima fala a fala por
+                                                    // dentro (ConversationBubbles).
+                                                    key: const ValueKey(
+                                                      'conversa',
                                                     ),
                                                     child: _buildUpperContent(
                                                       step,
@@ -419,14 +531,20 @@ class _ConversationalOnboardingScreenState
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          IconButton(
-            onPressed: () => _voltarParaInicioOuEtapaAnterior(context),
-            icon: const Icon(
-              Icons.arrow_back_rounded,
-              color: Colors.white,
-              size: 28,
+          // Toque: volta uma etapa. Segurar: escolhe entre etapa anterior e
+          // tela inicial.
+          InkResponse(
+            onTap: () => _voltarParaInicioOuEtapaAnterior(context),
+            onLongPress: () => _mostrarOpcoesVoltar(context),
+            radius: 24,
+            child: const Padding(
+              padding: EdgeInsets.all(10),
+              child: Icon(
+                Icons.arrow_back_rounded,
+                color: Colors.white,
+                size: 28,
+              ),
             ),
-            splashRadius: 24,
           ),
           if (mostraProgresso) ...[
             const SizedBox(width: 8),
@@ -529,33 +647,38 @@ class _ConversationalOnboardingScreenState
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Balão histórico (sobe suavemente e fica acima do balão atual)
-        if (_controller.historicoFala != null) ...[
-          AnimatedHistoricalBubble(
-            key: ValueKey('hist-${_controller.historicoFala}'),
-            text: _controller.historicoFala!,
-          ),
-          const SizedBox(height: 8),
-        ],
-
-        // Balão de fala ativo com engrandecer/encolher
-        BubbleTransitionSwitcher(
-          key: ValueKey('active-${_controller.falaAtual}'),
-          child: isWelcome
-              ? TypingBubble(
-                  key: ValueKey('typing-${_controller.falaAtual}'),
-                  text: _controller.falaAtual,
-                  comSeta: true,
-                )
-              : SpeechBubble(
-                  key: ValueKey('bubble-${_controller.falaAtual}'),
-                  text: _controller.falaAtual,
-                  historico: false,
-                  comSeta: temSeta,
-                ),
+        // Balão atual + anterior (cinza). O atual sobe e vira o anterior;
+        // o 2º anterior só some quando entra uma fala nova.
+        ConversationBubbles(
+          atual: _controller.falaAtual,
+          historico: _controller.historicoFala,
+          digitar: isWelcome,
+          comSeta: temSeta,
         ),
 
         // Botões que ficam logo abaixo do balão (Passo 7 e Passo 10)
+        AnimatedSize(
+          duration: const Duration(milliseconds: 420),
+          curve: Curves.easeInOutCubic,
+          alignment: Alignment.topCenter,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 320),
+            switchInCurve: const Interval(0.4, 1, curve: Curves.easeOut),
+            switchOutCurve: Curves.easeIn,
+            child: KeyedSubtree(
+              key: ValueKey('botoes-${step.name}'),
+              child: _buildBotoesDaConversa(step),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBotoesDaConversa(OnboardingStep step) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
         if (step == OnboardingStep.loginOrOther) ...[
           const SizedBox(height: 16),
           Row(
