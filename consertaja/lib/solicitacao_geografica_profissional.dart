@@ -69,7 +69,7 @@ class _SolicitacaoGeograficaProfissionalPageState
   _Aba _aba = _Aba.proximas;
   List<SolicitacaoGeoAceita> _aceitas = [];
 
-  /// Aceita aberta em detalhe (id da solicitação geográfica).
+  /// Proposta aberta em detalhe (id_proposta).
   int? _aceitaAberta;
   bool _aceitando = false;
   Timer? _atualizacao;
@@ -116,7 +116,7 @@ class _SolicitacaoGeograficaProfissionalPageState
       BottomNavigationBarProfissional.leituraSincronaContaEmpresa();
 
   SolicitacaoGeoAceita? get _aceitaDetalhe =>
-      _aceitas.where((a) => a.id == _aceitaAberta).firstOrNull;
+      _aceitas.where((a) => a.idProposta == _aceitaAberta).firstOrNull;
 
   @override
   void initState() {
@@ -144,7 +144,9 @@ class _SolicitacaoGeograficaProfissionalPageState
       if (!mounted) return;
       setState(() {
         _aceitas = lista;
-        if (!lista.any((a) => a.id == _aceitaAberta)) _aceitaAberta = null;
+        if (!lista.any((a) => a.idProposta == _aceitaAberta)) {
+          _aceitaAberta = null;
+        }
       });
     } catch (e) {
       debugPrint('[RadarProf] aceitas: $e');
@@ -239,7 +241,8 @@ class _SolicitacaoGeograficaProfissionalPageState
     });
   }
 
-  /// Sheet de confirmação com o valor; aceita pela RPC e abre a aceita.
+  /// Sheet com o valor; envia a proposta e abre ela na aba "Propostas".
+  /// O cliente ainda precisa aceitar (ou recusar) o preço.
   Future<void> _aceitar(SolicitacaoGeoProxima s) async {
     if (_aceitando) return;
     final valor = await showModalBottomSheet<double>(
@@ -252,7 +255,7 @@ class _SolicitacaoGeograficaProfissionalPageState
 
     setState(() => _aceitando = true);
     try {
-      await SolicitacaoGeograficaService.aceitar(
+      final idProposta = await SolicitacaoGeograficaService.enviarProposta(
         idSolicitacaoGeo: s.id,
         valor: valor,
         contaEmpresa: _contaEmpresa,
@@ -264,11 +267,11 @@ class _SolicitacaoGeograficaProfissionalPageState
         _solicitacoes.removeWhere((x) => x.id == s.id);
         _selecionada = null;
         _aba = _Aba.aceitas;
-        _aceitaAberta = s.id;
+        _aceitaAberta = idProposta;
       });
       _focarAceita(_aceitaDetalhe);
       _mensagem(
-        'Serviço aceito! Agora é só aguardar o pagamento do cliente.',
+        'Proposta enviada! Agora é só aguardar o cliente aceitar.',
         sucesso: true,
       );
     } catch (e) {
@@ -281,7 +284,7 @@ class _SolicitacaoGeograficaProfissionalPageState
 
   void _abrirAceita(SolicitacaoGeoAceita a) {
     HapticFeedback.selectionClick();
-    setState(() => _aceitaAberta = a.id);
+    setState(() => _aceitaAberta = a.idProposta);
     _focarAceita(a);
   }
 
@@ -303,10 +306,12 @@ class _SolicitacaoGeograficaProfissionalPageState
   /// Mesmo critério do cliente: até o pagamento (1/2) o botão mostra que está
   /// aguardando; depois vira "Acompanhar". Os dois abrem a solicitação.
   Future<void> _abrirSolicitacao(SolicitacaoGeoAceita a) async {
+    final idSolicitacao = a.idSolicitacao;
+    if (idSolicitacao == null) return;
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => SolicitacaoEstadoPage(
-          idSolicitacao: a.idSolicitacao,
+          idSolicitacao: idSolicitacao,
           nomeClienteInicial: a.nomeCliente,
           fotoClienteInicial: a.fotoCliente,
         ),
@@ -339,8 +344,14 @@ class _SolicitacaoGeograficaProfissionalPageState
     return 'R\$ $b,${partes[1]}';
   }
 
-  /// Rótulo e cor do status da solicitação vinculada.
+  /// Rótulo e cor: primeiro o status da proposta; aceita → o da solicitação.
   static (String, Color) statusAceita(SolicitacaoGeoAceita a) {
+    if (a.pendente) {
+      return ('Aguardando o cliente', const Color(0xFFF59E0B));
+    }
+    if (a.recusada) {
+      return ('Proposta recusada', const Color(0xFFDC2626));
+    }
     switch (a.idStatus) {
       case StatusSolicitacaoVinculada.aberto:
         return ('Aguardando confirmação', const Color(0xFFF59E0B));
@@ -498,10 +509,13 @@ class _SolicitacaoGeograficaProfissionalPageState
               for (final a in _aceitas)
                 Marker(
                   point: a.posicao,
-                  width: a.id == _aceitaAberta ? 200 : 150,
+                  width: a.idProposta == _aceitaAberta ? 200 : 150,
                   height: 70,
                   alignment: Alignment.topCenter,
-                  child: _marcadorAceita(a, aberta: a.id == _aceitaAberta),
+                  child: _marcadorAceita(
+                    a,
+                    aberta: a.idProposta == _aceitaAberta,
+                  ),
                 ),
             ],
           )
@@ -892,7 +906,7 @@ class _SolicitacaoGeograficaProfissionalPageState
             children: [
               Text(
                 _aba == _Aba.aceitas
-                    ? 'Solicitações Aceitas'
+                    ? 'Minhas Propostas'
                     : 'Solicitações Próximas',
                 style: const TextStyle(
                   color: _texto,
@@ -1002,7 +1016,7 @@ class _SolicitacaoGeograficaProfissionalPageState
         children: [
           aba(_Aba.proximas, 'Próximas', _solicitacoes.length),
           const SizedBox(width: 4),
-          aba(_Aba.aceitas, 'Aceitas', _aceitas.length),
+          aba(_Aba.aceitas, 'Propostas', _aceitas.length),
         ],
       ),
     );
@@ -1263,9 +1277,9 @@ class _SolicitacaoGeograficaProfissionalPageState
                             borderRadius: BorderRadius.circular(30),
                           ),
                         ),
-                        icon: const Icon(Icons.check_circle_outline, size: 19),
+                        icon: const Icon(Icons.local_offer_outlined, size: 19),
                         label: const Text(
-                          'Aceitar Serviço',
+                          'Enviar Proposta',
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
@@ -1330,8 +1344,8 @@ class _SolicitacaoGeograficaProfissionalPageState
         SliverToBoxAdapter(
           child: _aviso(
             Icons.task_alt_rounded,
-            'Você ainda não aceitou nenhuma solicitação do Radar. Aceite um '
-            'pedido na aba "Próximas" e ele aparece aqui até ser concluído.',
+            'Você ainda não enviou propostas no Radar. Escolha um pedido '
+            'na aba "Próximas", informe o seu preço e acompanhe a resposta aqui.',
           ),
         ),
       ];
@@ -1456,7 +1470,7 @@ class _SolicitacaoGeograficaProfissionalPageState
               padding: const EdgeInsets.symmetric(horizontal: 4),
             ),
             icon: const Icon(Icons.arrow_back_rounded, size: 18),
-            label: const Text('Todas as aceitas'),
+            label: const Text('Todas as propostas'),
           ),
           const SizedBox(height: 4),
           // Cabeçalho com gradiente: status + título + valor.
@@ -1535,8 +1549,8 @@ class _SolicitacaoGeograficaProfissionalPageState
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Valor do serviço',
+                        Text(
+                          a.aceita ? 'Valor do serviço' : 'Valor proposto',
                           style: TextStyle(
                             color: Colors.white70,
                             fontSize: 11.5,
@@ -1641,43 +1655,87 @@ class _SolicitacaoGeograficaProfissionalPageState
           ),
           const SizedBox(height: 12),
           _linhaData(Icons.event_note_outlined, 'Pedido criado', a.dataCriacao),
-          _linhaData(Icons.task_alt_rounded, 'Você aceitou', a.dataAceite),
-          if (aguardando) ...[
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF7E6),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Row(
-                children: [
-                  Icon(
-                    Icons.hourglass_top_rounded,
-                    color: Color(0xFFF59E0B),
-                    size: 18,
-                  ),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'O cliente precisa pagar para o serviço começar. Você '
-                      'será avisado aqui quando o pagamento cair.',
-                      style: TextStyle(
-                        color: Color(0xFF92400E),
-                        fontSize: 12.5,
-                        height: 1.35,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+          _linhaData(Icons.send_rounded, 'Proposta enviada', a.dataEnvio),
+          if (a.recusada)
+            _linhaData(Icons.close_rounded, 'Cliente recusou', a.dataResposta)
+          else if (a.aceita)
+            _linhaData(
+              Icons.task_alt_rounded,
+              'Cliente aceitou',
+              a.dataResposta ?? a.dataAceite,
             ),
-          ],
+          const SizedBox(height: 10),
+          if (a.pendente)
+            _caixaAviso(
+              icone: Icons.hourglass_top_rounded,
+              cor: const Color(0xFFF59E0B),
+              fundo: const Color(0xFFFFF7E6),
+              texto:
+                  'Proposta enviada. Aguardando o cliente aceitar ou recusar '
+                  'o valor — você é avisado aqui quando ele responder.',
+            )
+          else if (a.recusada)
+            _caixaAviso(
+              icone: Icons.info_outline_rounded,
+              cor: const Color(0xFFDC2626),
+              fundo: const Color(0xFFFEF2F2),
+              texto:
+                  'O cliente recusou este valor. O pedido voltou para a aba '
+                  '"Próximas": se ainda estiver aberto, você pode enviar uma '
+                  'nova proposta.',
+            )
+          else if (aguardando)
+            _caixaAviso(
+              icone: Icons.payments_outlined,
+              cor: const Color(0xFFF59E0B),
+              fundo: const Color(0xFFFFF7E6),
+              texto:
+                  'Proposta aceita! O cliente precisa pagar para o serviço '
+                  'começar. Você será avisado aqui quando o pagamento cair.',
+            ),
           const SizedBox(height: 14),
           SizedBox(
             width: double.infinity,
             height: 52,
-            child: aguardando
+            child: a.pendente
+                ? FilledButton.icon(
+                    onPressed: null,
+                    icon: const Icon(Icons.hourglass_top_rounded, size: 19),
+                    label: const Text(
+                      'Aguardando o cliente',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    style: FilledButton.styleFrom(
+                      disabledBackgroundColor: _azul.withValues(alpha: 0.45),
+                      disabledForegroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
+                  )
+                : a.recusada
+                ? OutlinedButton.icon(
+                    onPressed: () => _trocarAba(_Aba.proximas),
+                    icon: const Icon(Icons.sensors, size: 19),
+                    label: const Text(
+                      'Ver solicitações próximas',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _azul,
+                      side: const BorderSide(color: _azul, width: 1.5),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
+                  )
+                : aguardando
                 ? OutlinedButton.icon(
                     onPressed: () => _abrirSolicitacao(a),
                     icon: const Icon(Icons.payments_outlined, size: 19),
@@ -1713,6 +1771,37 @@ class _SolicitacaoGeograficaProfissionalPageState
                       ),
                     ),
                   ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _caixaAviso({
+    required IconData icone,
+    required Color cor,
+    required Color fundo,
+    required String texto,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: fundo,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(icone, color: cor, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              texto,
+              style: TextStyle(
+                color: Color.lerp(cor, Colors.black, 0.45),
+                fontSize: 12.5,
+                height: 1.35,
+              ),
+            ),
           ),
         ],
       ),
@@ -1899,7 +1988,7 @@ class _SheetAceitarState extends State<_SheetAceitar> {
                 ),
                 const SizedBox(height: 16),
                 const Text(
-                  'Aceitar serviço',
+                  'Enviar proposta',
                   style: TextStyle(
                     color: _texto,
                     fontSize: 18,
@@ -1908,8 +1997,9 @@ class _SheetAceitarState extends State<_SheetAceitar> {
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'Defina o valor. O cliente recebe o pedido para pagamento e '
-                  'o serviço segue o fluxo normal depois disso.',
+                  'Informe quanto você cobra. O cliente decide se aceita: '
+                  'aceitando, o pedido vai para pagamento e segue o fluxo '
+                  'normal; recusando, ele volta para o Radar.',
                   style: TextStyle(
                     color: _textoSec,
                     fontSize: 13,
@@ -2032,9 +2122,9 @@ class _SheetAceitarState extends State<_SheetAceitar> {
                   height: 52,
                   child: FilledButton.icon(
                     onPressed: _confirmar,
-                    icon: const Icon(Icons.check_circle_outline, size: 19),
+                    icon: const Icon(Icons.send_rounded, size: 19),
                     label: const Text(
-                      'Confirmar e aceitar',
+                      'Enviar proposta',
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,

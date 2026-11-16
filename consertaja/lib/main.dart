@@ -6,6 +6,7 @@ import 'tela_home_profissional.dart';
 import 'atualizar_senha.dart';
 import 'services/app_settings_controller.dart';
 import 'services/google_auth_service.dart';
+import 'services/notificacoes/notificacao_service.dart';
 import 'onboarding/onboarding_controller.dart';
 import 'tela_inicial.dart';
 import 'services/verificacao_online.dart';
@@ -43,6 +44,14 @@ void main() async {
   // Lê o arquivo de configurações do cliente antes de desenhar o app, para que
   // fonte/tema/filtros já abram aplicados em todas as telas.
   await AppSettingsController.instance.iniciar();
+
+  // Notificações: Firebase (só FCM), canais, permissão, token e Realtime.
+  // Sem o google-services.json o app abre normalmente, só sem push.
+  try {
+    await NotificacaoService.instance.inicializar(navegador: navigatorKey);
+  } catch (e) {
+    debugPrint('[Notificacoes] inicializar: $e');
+  }
 
   runApp(const MyApp());
 }
@@ -90,6 +99,15 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   Future<void> _determinarHome() async {
+    try {
+      await _escolherHome();
+    } finally {
+      // Home montada: abre a notificação que trouxe o usuário (app fechado).
+      NotificacaoService.instance.appPronto();
+    }
+  }
+
+  Future<void> _escolherHome() async {
     final session = Supabase.instance.client.auth.currentSession;
 
     if (session != null) {

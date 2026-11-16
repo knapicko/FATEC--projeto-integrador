@@ -14,10 +14,20 @@ class StatusSolicitacaoGeo {
   static const int solicitada = 39; // também = "Enviada" para o profissional
   static const int concluida = 40; // solicitação vinculada concluída/cancelada
   static const int visualizada = 41;
-  static const int respondida = 42; // aceita por um profissional
+  static const int respondida = 42; // proposta aceita pelo cliente
   static const int cancelada = 43;
+  static const int propostaEnviada = 44; // aguardando o cliente responder
 
   static const int aceita = respondida;
+}
+
+/// Status da proposta de preço (`propostas_geograficas.fk_status`).
+class StatusPropostaGeo {
+  StatusPropostaGeo._();
+
+  static const int pendente = 44; // "Proposta Enviada"
+  static const int recusada = 45;
+  static const int aceita = 46;
 }
 
 /// Status da `solicitacoes` vinculada.
@@ -247,10 +257,13 @@ class MinhaSolicitacaoGeo {
   bool get aceita => idStatus == StatusSolicitacaoGeo.aceita;
 }
 
-/// O que o cliente vê depois que um profissional aceitou.
+/// O que o cliente vê depois que um profissional mandou proposta (pendente)
+/// ou depois que ele aceitou a proposta (com a solicitação vinculada).
 class AcompanhamentoGeo {
   const AcompanhamentoGeo({
-    required this.idSolicitacao,
+    required this.idProposta,
+    required this.statusProposta,
+    this.idSolicitacao,
     required this.idStatus,
     this.status,
     required this.valor,
@@ -267,12 +280,19 @@ class AcompanhamentoGeo {
     this.posicao,
   });
 
-  final int idSolicitacao;
+  final int idProposta;
+  final int statusProposta;
+
+  /// Null enquanto a proposta não foi aceita.
+  final int? idSolicitacao;
   final int? idStatus;
   final String? status;
   final double valor;
   final String? tipoExecucao;
   final bool ehEmpresa;
+
+  /// Proposta esperando o cliente aceitar ou recusar.
+  bool get propostaPendente => statusProposta == StatusPropostaGeo.pendente;
   final int? idProfissional;
   final int? idGrupoEmpresa;
   final String nome;
@@ -295,7 +315,10 @@ class AcompanhamentoGeo {
     final lat = (m['latitude'] as num?)?.toDouble();
     final lng = (m['longitude'] as num?)?.toDouble();
     return AcompanhamentoGeo(
-      idSolicitacao: (m['id_solicitacao'] as num).toInt(),
+      idProposta: (m['id_proposta'] as num).toInt(),
+      statusProposta:
+          (m['status_proposta'] as num?)?.toInt() ?? StatusPropostaGeo.pendente,
+      idSolicitacao: (m['id_solicitacao'] as num?)?.toInt(),
       idStatus: (m['fk_status'] as num?)?.toInt(),
       status: m['status']?.toString(),
       valor: (m['valor_final'] as num?)?.toDouble() ?? 0,
@@ -316,9 +339,14 @@ class AcompanhamentoGeo {
   }
 }
 
-/// Solicitação geográfica que o profissional aceitou (ainda não concluída).
+/// Proposta do profissional no Radar: pendente, recusada (últimos 7 dias) ou
+/// aceita (com a solicitação vinculada ainda não concluída).
 class SolicitacaoGeoAceita {
   const SolicitacaoGeoAceita({
+    required this.idProposta,
+    required this.statusProposta,
+    this.dataEnvio,
+    this.dataResposta,
     required this.id,
     required this.titulo,
     required this.descricao,
@@ -328,7 +356,7 @@ class SolicitacaoGeoAceita {
     this.metodoEntrega,
     required this.posicao,
     this.dataCriacao,
-    required this.idSolicitacao,
+    this.idSolicitacao,
     this.idStatus,
     this.status,
     required this.valor,
@@ -338,6 +366,10 @@ class SolicitacaoGeoAceita {
     this.enderecoCliente,
   });
 
+  final int idProposta;
+  final int statusProposta;
+  final DateTime? dataEnvio;
+  final DateTime? dataResposta;
   final int id;
   final String titulo;
   final String descricao;
@@ -347,7 +379,9 @@ class SolicitacaoGeoAceita {
   final String? metodoEntrega;
   final LatLng posicao;
   final DateTime? dataCriacao;
-  final int idSolicitacao;
+
+  /// Null enquanto a proposta não foi aceita.
+  final int? idSolicitacao;
   final int? idStatus;
   final String? status;
   final double valor;
@@ -356,11 +390,20 @@ class SolicitacaoGeoAceita {
   final String? fotoCliente;
   final String? enderecoCliente;
 
+  bool get pendente => statusProposta == StatusPropostaGeo.pendente;
+  bool get recusada => statusProposta == StatusPropostaGeo.recusada;
+  bool get aceita => statusProposta == StatusPropostaGeo.aceita;
+
   factory SolicitacaoGeoAceita.fromMap(Map<String, dynamic> m) {
     double d(Object? v) => (v as num?)?.toDouble() ?? 0;
     DateTime? dt(Object? v) => v == null ? null : DateTime.tryParse('$v');
     final imgs = m['img_solicitacao'];
     return SolicitacaoGeoAceita(
+      idProposta: (m['id_proposta'] as num).toInt(),
+      statusProposta:
+          (m['status_proposta'] as num?)?.toInt() ?? StatusPropostaGeo.pendente,
+      dataEnvio: dt(m['data_envio']),
+      dataResposta: dt(m['data_resposta']),
       id: (m['id_solicitacao_geografica'] as num).toInt(),
       titulo: m['titulo']?.toString() ?? '',
       descricao: m['descricao']?.toString() ?? '',
@@ -372,10 +415,12 @@ class SolicitacaoGeoAceita {
       metodoEntrega: m['metodo_entrega']?.toString(),
       posicao: LatLng(d(m['latitude']), d(m['longitude'])),
       dataCriacao: dt(m['data_criacao']),
-      idSolicitacao: (m['id_solicitacao'] as num).toInt(),
+      idSolicitacao: (m['id_solicitacao'] as num?)?.toInt(),
       idStatus: (m['fk_status'] as num?)?.toInt(),
       status: m['status']?.toString(),
-      valor: d(m['valor_final']),
+      valor: m['valor_final'] != null
+          ? d(m['valor_final'])
+          : d(m['valor_proposta']),
       dataAceite: dt(m['data_aceite']),
       nomeCliente: m['nome_cliente']?.toString().trim().isNotEmpty == true
           ? m['nome_cliente'].toString().trim()
@@ -799,6 +844,7 @@ class SolicitacaoGeograficaService {
         .inFilter('fk_status', [
           StatusSolicitacaoGeo.solicitada,
           StatusSolicitacaoGeo.visualizada,
+          StatusSolicitacaoGeo.propostaEnviada,
           StatusSolicitacaoGeo.aceita,
         ])
         .order('data_criacao', ascending: false)
@@ -849,16 +895,16 @@ class SolicitacaoGeograficaService {
     }
   }
 
-  /// Profissional aceita: cria a `solicitacoes` (Aguardando Pagamento) e
-  /// devolve o id dela.
-  static Future<int> aceitar({
+  /// Profissional envia a proposta de preço. A solicitação geográfica fica
+  /// em "Proposta Enviada" (44) até o cliente responder. Devolve o id_proposta.
+  static Future<int> enviarProposta({
     required int idSolicitacaoGeo,
     required double valor,
     required bool contaEmpresa,
   }) async {
     try {
       final id = await _db.rpc(
-        'aceitar_solicitacao_geografica',
+        'enviar_proposta_geografica',
         params: {
           'p_id_solicitacao_geografica': idSolicitacaoGeo,
           'p_valor': valor,
@@ -871,13 +917,31 @@ class SolicitacaoGeograficaService {
     }
   }
 
-  /// Profissional: solicitações do Radar que ele aceitou (não concluídas).
+  /// Cliente aceita (cria a `solicitacoes` em Aguardando Pagamento e devolve
+  /// o id dela) ou recusa (o pedido volta para o Radar; devolve null).
+  static Future<int?> responderProposta({
+    required int idProposta,
+    required bool aceitar,
+  }) async {
+    try {
+      final id = await _db.rpc(
+        'responder_proposta_geografica',
+        params: {'p_id_proposta': idProposta, 'p_aceitar': aceitar},
+      );
+      return (id as num?)?.toInt();
+    } on PostgrestException catch (e) {
+      throw Exception(_mensagemRpc(e));
+    }
+  }
+
+  /// Profissional: propostas dele (pendentes, recusadas nos últimos 7 dias e
+  /// aceitas ainda não concluídas).
   static Future<List<SolicitacaoGeoAceita>> aceitas({
     required bool contaEmpresa,
   }) async {
     try {
       final rows = await _db.rpc(
-        'solicitacoes_geograficas_aceitas',
+        'minhas_propostas_geograficas',
         params: {'p_conta_empresa': contaEmpresa},
       );
       return (rows as List)
@@ -895,7 +959,7 @@ class SolicitacaoGeograficaService {
   static String _mensagemRpc(PostgrestException e) {
     if (e.code == 'PGRST202') {
       return 'Banco desatualizado. Rode '
-          'docs/sql/migration_solicitacoes_geograficas_v4.sql no Supabase.';
+          'docs/sql/migration_solicitacoes_geograficas_v5_propostas.sql no Supabase.';
     }
     return e.message;
   }

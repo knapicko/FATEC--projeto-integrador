@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../widgets/barra_lista_servicos.dart';
+import '../widgets/contador_notificacoes.dart';
 
 class BottomNavigationBarCliente extends StatelessWidget {
   final int currentIndex;
@@ -23,8 +24,9 @@ class BottomNavigationBarCliente extends StatelessWidget {
     BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: 'Home'),
     // Mesmo ícone do Radar do profissional.
     BottomNavigationBarItem(icon: Icon(Icons.sensors), label: 'Radar'),
+    // Bolinha com o número de mensagens não lidas (Realtime).
     BottomNavigationBarItem(
-      icon: Icon(Icons.message_outlined),
+      icon: IconeMensagensComContador(icone: Icons.message_outlined),
       label: 'Mensagens',
     ),
     BottomNavigationBarItem(

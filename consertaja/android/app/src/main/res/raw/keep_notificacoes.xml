@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mantém os ícones de notificação no build de release (shrinkResources). -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ic_notificacao,@drawable/notif_logo" />

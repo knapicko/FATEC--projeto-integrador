@@ -17,6 +17,8 @@ import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/iniciais.dart';
 import 'utils/app_navigation_util.dart';
 import 'widgets/skeleton_loading.dart';
+import 'minhas_notificacoes.dart';
+import 'widgets/contador_notificacoes.dart';
 
 class TelaMeuPerfilClientePage extends StatefulWidget {
   final bool isVisitante;
@@ -318,6 +320,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
     bool useRoundedIcon = false,
     bool semIcone = false,
     VoidCallback? onTap,
+    Widget? trailing,
   }) {
     if (semIcone) {
       return InkWell(
@@ -378,6 +381,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                 ),
               ),
             ),
+            if (trailing != null) ...[trailing, const SizedBox(width: 6)],
             const Icon(Icons.chevron_right, color: Color(0xFFB0B0B0), size: 20),
           ],
         ),
@@ -572,6 +576,16 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                           _buildProfileItem(
                             label: 'Notificações',
                             fallbackIcon: Icons.notifications_none_rounded,
+                            trailing: const ContadorNaoLidas(),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const MinhasNotificacoesPage(),
+                                ),
+                              );
+                            },
                           ),
                           _buildProfileItem(
                             label: 'Serviços Favoritados',

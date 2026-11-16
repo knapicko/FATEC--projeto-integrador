@@ -37,6 +37,8 @@ import 'solicitacao_estado.dart';
 import 'utils/iniciais.dart';
 import 'widgets/bottom_sheet_servico_personalizado.dart';
 import 'utils/funcao_servico.dart';
+import 'services/notificacoes/notificacao_exibicao.dart';
+import 'services/notificacoes/notificacao_service.dart';
 
 class TelaChatProfissional extends StatefulWidget {
   final String nomeProfissional;
@@ -2026,6 +2028,9 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
 
   @override
   void dispose() {
+    if (NotificacaoService.instance.conversaEmTela == _idConversa) {
+      NotificacaoService.instance.conversaEmTela = null;
+    }
     _pollingMensagens?.cancel();
     _pollingMensagens = null;
     _timerStatusContato?.cancel();
@@ -3103,6 +3108,10 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
 
   Future<void> _marcarRecebidasComoLidas() async {
     if (_idConversa == null || _idUsuarioLogado == null) return;
+    // Conversa na tela: o push dela não aparece e a notificação já mostrada
+    // some (as notificações viram "abertas" no servidor ao marcar lida).
+    NotificacaoService.instance.conversaEmTela = _idConversa;
+    NotificacaoExibicao.limparConversa(_idConversa!);
     try {
       await _supabase
           .from('mensagens')
@@ -3110,6 +3119,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
           .eq('fk_conversa', _idConversa!)
           .neq('fk_remitente_usuario', _idUsuarioLogado!)
           .eq('lida', false);
+      NotificacaoService.instance.atualizarContadores();
     } catch (e) {
       debugPrint('Erro ao marcar mensagens como lidas: $e');
     }

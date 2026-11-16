@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../widgets/contador_notificacoes.dart';
+import '../services/notificacoes/notificacao_service.dart';
 
 class BottomNavigationBarProfissional extends StatefulWidget {
   final int currentIndex;
@@ -59,11 +61,14 @@ class BottomNavigationBarProfissional extends StatefulWidget {
 
   /// Atualiza o cache na hora da troca (a UI reage sem esperar disco).
   static void notificarTrocaConta(bool isEmpresa) {
+    final mudou = leituraSincronaContaEmpresa() != isEmpresa;
     try {
       final user = Supabase.instance.client.auth.currentUser;
       if (user != null) _cacheContaEmpresa[user.id] = isEmpresa;
     } catch (_) {}
     _ultimoValorConhecido = isEmpresa;
+    // Notificações do "Sistema" seguem o perfil ativo (independente/empresa).
+    if (mudou) NotificacaoService.instance.atualizarPerfilAtivo();
   }
 
   static Future<void> salvarContaEmpresaAtiva(bool isEmpresa) async {
@@ -136,8 +141,9 @@ class _BottomNavigationBarProfissionalState
       label: 'Home',
     ),
     const BottomNavigationBarItem(icon: Icon(Icons.sensors), label: 'Radar'),
+    // Bolinha com o número de mensagens não lidas (Realtime).
     const BottomNavigationBarItem(
-      icon: Icon(Icons.chat_bubble_outline),
+      icon: IconeMensagensComContador(icone: Icons.chat_bubble_outline),
       label: 'Mensagens',
     ),
     const BottomNavigationBarItem(
