@@ -465,6 +465,9 @@ class PillButton extends StatelessWidget {
   final Color? foreground;
   final IconData? icon;
 
+  /// Requisitos não cumpridos: botão cinza com cadeado e sem clique.
+  final bool bloqueado;
+
   const PillButton({
     super.key,
     required this.label,
@@ -474,12 +477,24 @@ class PillButton extends StatelessWidget {
     this.background,
     this.foreground,
     this.icon,
+    this.bloqueado = false,
   });
+
+  static const Color _cinzaBloqueado = Color(0xFFCBD5E1);
+  static const Color _textoBloqueado = Color(0xFF64748B);
 
   @override
   Widget build(BuildContext context) {
-    final bg = outlined ? Colors.transparent : (background ?? Colors.white);
-    final fg = outlined ? Colors.white : (foreground ?? OnboardingColors.blue);
+    final bg = bloqueado
+        ? _cinzaBloqueado
+        : outlined
+        ? Colors.transparent
+        : (background ?? Colors.white);
+    final fg = bloqueado
+        ? _textoBloqueado
+        : outlined
+        ? Colors.white
+        : (foreground ?? OnboardingColors.blue);
 
     // Remove qualquer seta textual "->" para exibir o ícone real
     final cleanLabel = label.replaceAll(RegExp(r'\s*->'), '').trim();
@@ -489,13 +504,18 @@ class PillButton extends StatelessWidget {
     return SizedBox(
       height: 52,
       child: ElevatedButton(
-        onPressed: loading ? null : onTap,
+        onPressed: (loading || bloqueado) ? null : onTap,
         style: ElevatedButton.styleFrom(
           elevation: 0,
           backgroundColor: bg,
-          disabledBackgroundColor: bg.withValues(alpha: 0.5),
+          disabledBackgroundColor: bloqueado
+              ? _cinzaBloqueado
+              : bg.withValues(alpha: 0.5),
+          disabledForegroundColor: bloqueado ? _textoBloqueado : null,
           foregroundColor: fg,
-          side: outlined
+          side: bloqueado
+              ? BorderSide.none
+              : outlined
               ? const BorderSide(color: Colors.white, width: 2)
               : (background != null
                     ? const BorderSide(color: Colors.white, width: 2)
@@ -513,6 +533,10 @@ class PillButton extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  if (bloqueado) ...[
+                    Icon(Icons.lock_outline_rounded, size: 19, color: fg),
+                    const SizedBox(width: 8),
+                  ],
                   Text(
                     cleanLabel,
                     style: TextStyle(

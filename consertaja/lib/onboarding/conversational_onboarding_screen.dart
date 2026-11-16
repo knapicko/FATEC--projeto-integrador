@@ -32,7 +32,6 @@ class _ConversationalOnboardingScreenState
   bool _senhaOculta = true;
   bool _confirmarSenhaOculta = true;
   bool _senhaLoginOculta = true;
-  bool _tentouFinalizarCadastro = false;
 
   @override
   void initState() {
@@ -1468,28 +1467,39 @@ class _ConversationalOnboardingScreenState
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (_tentouFinalizarCadastro && !podeFinalizar) ...[
-                Text(
-                  '${requisitosPendentes.join(' e ')}.',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
+              // Enquanto faltar algo, mostra o que falta e o botão fica
+              // cinza/bloqueado (só libera com termos, facial e documento).
+              if (!podeFinalizar) ...[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.info_outline,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        '${requisitosPendentes.join(' e ')}.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 10),
               ],
               PillButton(
                 label: 'Finalizar Cadastro',
                 outlined: true,
+                bloqueado: !podeFinalizar,
                 loading: _controller.carregando,
-                onTap: () {
-                  if (!podeFinalizar) {
-                    setState(() => _tentouFinalizarCadastro = true);
-                  }
-                  _controller.finalizarCadastroProfissional(context);
-                },
+                onTap: () => _controller.finalizarCadastroProfissional(context),
               ),
             ],
           ),
