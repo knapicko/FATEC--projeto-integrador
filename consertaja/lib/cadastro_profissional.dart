@@ -36,6 +36,7 @@ import 'politica_de_privacidade.dart';
 import 'completar_cadastro.dart';
 import 'tela_home.dart';
 import 'utils/funcao_servico.dart';
+import 'widgets/check_animado.dart';
 
 // ================= TELA 01: CADASTRO DO PROFISSIONAL (ETAPA 1) =================
 class CadastroProfissionalPage extends StatefulWidget {
@@ -2732,7 +2733,7 @@ class _InstructionItem extends StatelessWidget {
             width: 8,
             height: 8,
             decoration: const BoxDecoration(
-              color: Color(0xFF0FB3FF),
+              color: Colors.white,
               shape: BoxShape.circle,
             ),
           ),
@@ -3182,74 +3183,156 @@ class _CadastroFacialPageState extends State<CadastroFacialPage> {
   }
 }
 
-class CadastroFacialSucessoPage extends StatelessWidget {
+class CadastroFacialSucessoPage extends StatefulWidget {
   final String idFacial;
 
   const CadastroFacialSucessoPage({super.key, required this.idFacial});
 
+  @override
+  State<CadastroFacialSucessoPage> createState() =>
+      _CadastroFacialSucessoPageState();
+}
+
+/// Fundo azul, check vetorial animado (círculo se traçando e depois o check)
+/// e o texto/botão surgindo quando o desenho termina.
+class _CadastroFacialSucessoPageState extends State<CadastroFacialSucessoPage>
+    with SingleTickerProviderStateMixin {
   static const Color _blue = Color(0xFF0FB3FF);
+
+  late final AnimationController _anim = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2300),
+  );
+
+  // O check ocupa ~65% da animação; o resto revela texto e botão.
+  late final Animation<double> _check = CurvedAnimation(
+    parent: _anim,
+    curve: const Interval(0, 0.68),
+  );
+  late final Animation<double> _texto = CurvedAnimation(
+    parent: _anim,
+    curve: const Interval(0.62, 0.86, curve: Curves.easeOutCubic),
+  );
+  late final Animation<double> _botao = CurvedAnimation(
+    parent: _anim,
+    curve: const Interval(0.76, 1, curve: Curves.easeOutCubic),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.of(context).disableAnimations) {
+      _anim.value = 1;
+    } else if (!_anim.isAnimating && _anim.value == 0) {
+      HapticFeedback.lightImpact();
+      _anim.forward().whenComplete(() {
+        if (mounted) HapticFeedback.mediumImpact();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _anim.dispose();
+    super.dispose();
+  }
+
+  Widget _surgir(Animation<double> a, Widget filho) {
+    return AnimatedBuilder(
+      animation: a,
+      builder: (context, child) => Opacity(
+        opacity: a.value,
+        child: Transform.translate(
+          offset: Offset(0, 18 * (1 - a.value)),
+          child: child,
+        ),
+      ),
+      child: filho,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: IconButton(
-                onPressed: () => Navigator.pop(context, idFacial),
-                icon: const Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  color: _blue,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: _blue,
+        body: SafeArea(
+          child: Column(
+            children: [
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  onPressed: () => Navigator.pop(context, widget.idFacial),
+                  icon: const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    color: Colors.white,
+                  ),
                 ),
               ),
-            ),
-            const Spacer(),
-            Center(
-              child: Image.asset(
-                'assets/images/certo_icone.png',
-                width: 260,
-                fit: BoxFit.contain,
+              const Spacer(),
+              Center(
+                child: CheckAnimado(tamanho: 210, progresso: _check),
               ),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Cadastro Facial concluído com sucesso',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: _blue,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+              const SizedBox(height: 32),
+              _surgir(
+                _texto,
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 32),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Cadastro Facial concluído!',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Seu rosto foi validado com sucesso.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white70, fontSize: 15),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-            const Spacer(),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _blue,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
+              const Spacer(),
+              _surgir(
+                _botao,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: _blue,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(28),
+                        ),
+                      ),
+                      onPressed: () => Navigator.pop(context, widget.idFacial),
+                      child: const Text(
+                        'Continuar',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ),
-                  onPressed: () => Navigator.pop(context, idFacial),
-                  child: const Text(
-                    'Voltar',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w500),
-                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 40),
-          ],
+              const SizedBox(height: 40),
+            ],
+          ),
         ),
       ),
     );
@@ -3911,10 +3994,43 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
               Center(
                 child: Column(
                   children: [
-                    Stack(
-                      alignment: Alignment.bottomRight,
-                      children: [
-                        Container(
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: 1),
+                      duration: const Duration(milliseconds: 1100),
+                      builder: (context, t, child) {
+                        final cartao = Curves.easeOutBack.transform(
+                          (t / 0.6).clamp(0.0, 1.0),
+                        );
+                        final selo = Curves.elasticOut.transform(
+                          ((t - 0.45) / 0.55).clamp(0.0, 1.0),
+                        );
+                        return Stack(
+                          alignment: Alignment.bottomRight,
+                          clipBehavior: Clip.none,
+                          children: [
+                            Opacity(
+                              opacity: cartao.clamp(0.0, 1.0),
+                              child: Transform.scale(
+                                scale: 0.6 + 0.4 * cartao,
+                                child: child,
+                              ),
+                            ),
+                            Transform.scale(
+                              scale: selo,
+                              child: const CircleAvatar(
+                                radius: 14,
+                                backgroundColor: Colors.white,
+                                child: Icon(
+                                  Icons.check_circle,
+                                  color: Color(0xFF0FB3FF),
+                                  size: 26,
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                      child: Container(
                           width: 100,
                           height: 70,
                           decoration: BoxDecoration(
@@ -3932,16 +4048,6 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
                             color: Color(0xFFFFFFFF),
                           ),
                         ),
-                        const CircleAvatar(
-                          radius: 14,
-                          backgroundColor: Colors.white,
-                          child: Icon(
-                            Icons.check_circle,
-                            color: Color(0xFF0FB3FF),
-                            size: 26,
-                          ),
-                        ),
-                      ],
                     ),
                     const SizedBox(height: 20),
                     const Text(
@@ -3973,7 +4079,77 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
               ),
               const SizedBox(height: 16),
 
-              ..._docTypes.map((doc) => _buildDocButton(doc)),
+              // Cartão de leitura enquanto o OCR roda.
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                transitionBuilder: (child, anim) => SizeTransition(
+                  sizeFactor: anim,
+                  child: FadeTransition(opacity: anim, child: child),
+                ),
+                child: _carregando
+                    ? Container(
+                        key: const ValueKey('lendo'),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.45),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(
+                                  Icons.document_scanner_outlined,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Analisando documento...',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: LinearProgressIndicator(
+                                minHeight: 6,
+                                color: Colors.white,
+                                backgroundColor: Colors.white.withValues(
+                                  alpha: 0.25,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : const SizedBox.shrink(key: ValueKey('parado')),
+              ),
+
+              // Itens entram em cascata.
+              for (final (i, doc) in _docTypes.indexed)
+                TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: 1),
+                  duration: Duration(milliseconds: 420 + i * 120),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, t, child) => Opacity(
+                    opacity: t,
+                    child: Transform.translate(
+                      offset: Offset(0, 26 * (1 - t)),
+                      child: child,
+                    ),
+                  ),
+                  child: _buildDocButton(doc),
+                ),
 
               const SizedBox(height: 40),
 
@@ -3984,29 +4160,38 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
                   onPressed: _podeEnviar() ? _enviarDocumentos : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFFFFFFF),
-                    foregroundColor: _podeEnviar()
-                        ? const Color(0xFF0FB3FF)
-                        : Colors.white,
-                    side: _podeEnviar()
-                        ? const BorderSide(color: Colors.white, width: 2)
-                        : BorderSide.none,
+                    foregroundColor: const Color(0xFF0FB3FF),
+                    disabledBackgroundColor: const Color(0xFFCBD5E1),
+                    disabledForegroundColor: const Color(0xFF64748B),
+                    elevation: _podeEnviar() ? 3 : 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(30),
                     ),
                   ),
                   child: _carregando
-                      ? const CircularProgressIndicator(
-                          color: Color(0xFF0FB3FF),
-                        )
-                      : Text(
-                          'Enviar Documentos',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: _podeEnviar()
-                                ? const Color(0xFF0FB3FF)
-                                : Colors.white,
+                      ? const SizedBox(
+                          width: 26,
+                          height: 26,
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF64748B),
+                            strokeWidth: 3,
                           ),
+                        )
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            if (!_podeEnviar()) ...[
+                              const Icon(Icons.lock_outline_rounded, size: 20),
+                              const SizedBox(width: 8),
+                            ],
+                            const Text(
+                              'Enviar Documentos',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
                 ),
               ),
@@ -4026,20 +4211,35 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
       children: [
         GestureDetector(
           onTap: () => _selecionarDocumento(doc),
-          child: Container(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 320),
+            curve: Curves.easeOutCubic,
             margin: EdgeInsets.only(bottom: doc.errorMessage != null ? 2 : 12),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: isValid ? Colors.white : Colors.transparent,
+              color: isValid
+                  ? Colors.white
+                  : isInvalid
+                  ? const Color(0x33DC2626)
+                  : Colors.transparent,
               border: Border.all(
                 color: isValid
                     ? const Color(0xFFFFFFFF)
                     : isInvalid
-                    ? Colors.red
+                    ? const Color(0xFFFECACA)
                     : Colors.white,
-                width: 1.5,
+                width: isInvalid ? 2 : 1.5,
               ),
               borderRadius: BorderRadius.circular(12),
+              boxShadow: isValid
+                  ? [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.10),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
+                  : null,
             ),
             child: Row(
               children: [
@@ -4049,40 +4249,74 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: isValid
-                          ? const Color(0xFF0FB3FF)
-                          : isInvalid
-                          ? Colors.red
-                          : Colors.white,
+                      color: isValid ? const Color(0xFF0FB3FF) : Colors.white,
                     ),
                   ),
                 ),
-                if (isValid)
-                  const Icon(
-                    Icons.check_circle,
-                    color: Color(0xFF0FB3FF),
-                    size: 28,
-                  )
-                else if (isInvalid)
-                  const Icon(Icons.error_outline, color: Colors.red, size: 28)
-                else
-                  const Icon(
-                    Icons.arrow_forward_ios,
-                    color: Colors.white,
-                    size: 20,
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 350),
+                  transitionBuilder: (child, anim) => ScaleTransition(
+                    scale: CurvedAnimation(
+                      parent: anim,
+                      curve: Curves.easeOutBack,
+                    ),
+                    child: FadeTransition(opacity: anim, child: child),
                   ),
+                  child: isValid
+                      ? const Icon(
+                          Icons.check_circle,
+                          key: ValueKey('valido'),
+                          color: Color(0xFF0FB3FF),
+                          size: 28,
+                        )
+                      : isInvalid
+                      ? const Icon(
+                          Icons.error_outline,
+                          key: ValueKey('invalido'),
+                          color: Color(0xFFFECACA),
+                          size: 28,
+                        )
+                      : const Icon(
+                          Icons.arrow_forward_ios,
+                          key: ValueKey('pendente'),
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                ),
               ],
             ),
           ),
         ),
-        if (doc.errorMessage != null)
-          Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 12),
-            child: Text(
-              doc.errorMessage!,
-              style: const TextStyle(color: Colors.red, fontSize: 12),
-            ),
-          ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+          child: doc.errorMessage == null
+              ? const SizedBox(width: double.infinity)
+              : Padding(
+                  padding: const EdgeInsets.only(left: 4, bottom: 12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.info_outline,
+                        color: Color(0xFFFFE4E6),
+                        size: 15,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          doc.errorMessage!,
+                          style: const TextStyle(
+                            color: Color(0xFFFFE4E6),
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+        ),
       ],
     );
   }
