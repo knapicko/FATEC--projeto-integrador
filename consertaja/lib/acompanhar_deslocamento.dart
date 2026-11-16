@@ -18,6 +18,7 @@ import 'tela_meu_perfil_cliente.dart';
 import 'utils/iniciais.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/funcao_servico.dart';
+import 'utils/voltar_fluxo_solicitacao.dart';
 
 class AcompanharDeslocamentoPage extends StatefulWidget {
   final int idSolicitacao;
@@ -29,8 +30,13 @@ class AcompanharDeslocamentoPage extends StatefulWidget {
       _AcompanharDeslocamentoPageState();
 }
 
-class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
-    with SingleTickerProviderStateMixin {
+class _AcompanharDeslocamentoPageState
+    extends State<AcompanharDeslocamentoPage>
+    with SingleTickerProviderStateMixin, VoltarParaPedidosMixin {
+  /// Voltar (botão ou sistema) leva para meus_pedidos.dart.
+  @override
+  bool get voltarComoProfissional => false;
+
   static const Color azul = Color(0xFF0FB3FF);
   static const Color escuro = Color(0xFF0F172A);
   static const Color cinzaTexto = Color(0xFF64748B);
@@ -718,7 +724,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
       child: Row(
         children: [
           IconButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: voltarParaPedidos,
             icon: const Icon(Icons.arrow_back, color: escuro, size: 24),
           ),
           const SizedBox(width: 2),

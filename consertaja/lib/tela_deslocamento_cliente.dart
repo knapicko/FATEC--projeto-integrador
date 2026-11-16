@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'detalhes_pedido.dart';
 import 'models/servico_profissional.dart';
 import 'services/servicos_profissional_service.dart';
+import 'utils/voltar_fluxo_solicitacao.dart';
 
 class TelaDeslocamentoClientePage extends StatefulWidget {
   const TelaDeslocamentoClientePage({super.key, required this.idSolicitacao});
@@ -22,7 +23,12 @@ class TelaDeslocamentoClientePage extends StatefulWidget {
 }
 
 class _TelaDeslocamentoClientePageState
-    extends State<TelaDeslocamentoClientePage> {
+    extends State<TelaDeslocamentoClientePage>
+    with VoltarParaPedidosMixin {
+  /// Voltar (botão ou sistema) leva para meus_pedidos.dart.
+  @override
+  bool get voltarComoProfissional => false;
+
   static const azul = Color(0xFF0FB3FF);
   static const texto = Color(0xFF0F172A);
   static const muted = Color(0xFF64748B);
@@ -239,7 +245,7 @@ class _TelaDeslocamentoClientePageState
                       elevation: 3,
                       child: ListTile(
                         leading: const Icon(Icons.arrow_back, color: texto),
-                        onTap: () => Navigator.pop(context),
+                        onTap: voltarParaPedidos,
                         title: Text(
                           'Deslocamento até $_nomeProfissional',
                           style: const TextStyle(

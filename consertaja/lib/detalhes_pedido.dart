@@ -22,6 +22,7 @@ import 'utils/iniciais.dart';
 import 'widgets/avaliacao_bottom_sheet.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/funcao_servico.dart';
+import 'utils/voltar_fluxo_solicitacao.dart';
 
 class DetalhesPedidoPage extends StatefulWidget {
   final int idSolicitacao;
@@ -59,8 +60,13 @@ class _EtapaVisualConfig {
   });
 }
 
-class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
-    with SingleTickerProviderStateMixin {
+class _DetalhesPedidoPageState
+    extends State<DetalhesPedidoPage>
+    with SingleTickerProviderStateMixin, VoltarParaPedidosMixin {
+  /// Voltar (botão ou sistema) leva para meus_pedidos.dart.
+  @override
+  bool get voltarComoProfissional => false;
+
   static const Color azulPrincipal = Color(0xFF0FB3FF);
   static const Color azulFundoCard = Color(0xFFE0F2FE);
   static const Color fundoTela = Color(0xFFF6F8FB);
@@ -1388,7 +1394,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       child: Row(
         children: [
           IconButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: voltarParaPedidos,
             icon: const Icon(Icons.arrow_back, color: textoEscuro, size: 24),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),

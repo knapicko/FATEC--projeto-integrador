@@ -130,10 +130,51 @@ class _CompletarCadastroClientePageState
   bool _aceitouTermos = false;
   bool _aceitouPrivacidade = false;
 
+  /// Todos os campos visíveis preenchidos (o formato fino é validado ao
+  /// finalizar, como antes).
+  bool get _camposCompletos {
+    final telefoneOk = _somenteDigitos(_telefoneController.text).length >= 10;
+    if (_isPessoaFisica) {
+      return _somenteDigitos(_cpfController.text).length == 11 &&
+          _nomeController.text.trim().isNotEmpty &&
+          _dataNascimentoController.text.trim().isNotEmpty &&
+          telefoneOk;
+    }
+    return _somenteDigitos(_cnpjController.text).length == 14 &&
+        _nomeFantasiaController.text.trim().isNotEmpty &&
+        _razaoSocialController.text.trim().isNotEmpty &&
+        _dataFundacaoController.text.trim().isNotEmpty &&
+        telefoneOk;
+  }
+
+  /// Finalizar só libera com os campos completos e os termos aceitos.
+  bool get _podeFinalizar =>
+      _camposCompletos &&
+      _aceitouTermos &&
+      _aceitouPrivacidade &&
+      !_carregando &&
+      !_validandoDocumento;
+
+  void _redesenhar() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
     _nomeController = TextEditingController(text: widget.nomeGoogle ?? '');
+    for (final c in [
+      _nomeController,
+      _cpfController,
+      _cnpjController,
+      _razaoSocialController,
+      _nomeFantasiaController,
+      _telefoneController,
+      _dataNascimentoController,
+      _dataFundacaoController,
+    ]) {
+      c.addListener(_redesenhar);
+    }
 
     _telefoneFocusNode.addListener(() {
       if (!_telefoneFocusNode.hasFocus && _telefoneController.text.isNotEmpty) {
@@ -448,20 +489,8 @@ class _CompletarCadastroClientePageState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const Text(
-          'Complete seu cadastro',
-          style: TextStyle(
-            color: Color(0xFF0FB3FF),
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        centerTitle: true,
-      ),
+      backgroundColor: _azul,
+      appBar: _appBarAzul('Complete seu cadastro'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         child: Column(
@@ -478,14 +507,14 @@ class _CompletarCadastroClientePageState
             Center(
               child: Text(
                 widget.emailGoogle,
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
               ),
             ),
             const SizedBox(height: 24),
             const Text(
               'Só precisamos de mais alguns dados pra finalizar sua conta de Cliente.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 15, color: Colors.black87),
+              style: TextStyle(fontSize: 15, color: Colors.white),
             ),
             const SizedBox(height: 28),
 
@@ -493,8 +522,9 @@ class _CompletarCadastroClientePageState
               width: double.infinity,
               height: 52,
               decoration: BoxDecoration(
-                color: const Color(0xFFF2F2F2),
+                color: Colors.white.withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
               ),
               padding: const EdgeInsets.all(4),
               child: Row(
@@ -510,7 +540,7 @@ class _CompletarCadastroClientePageState
                         duration: const Duration(milliseconds: 200),
                         decoration: BoxDecoration(
                           color: _isPessoaFisica
-                              ? const Color(0xFF0FB3FF)
+                              ? Colors.white
                               : Colors.transparent,
                           borderRadius: BorderRadius.circular(14),
                         ),
@@ -519,8 +549,8 @@ class _CompletarCadastroClientePageState
                           'Física',
                           style: TextStyle(
                             color: _isPessoaFisica
-                                ? Colors.white
-                                : const Color(0xFF828282),
+                                ? _azul
+                                : Colors.white,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -537,7 +567,7 @@ class _CompletarCadastroClientePageState
                         duration: const Duration(milliseconds: 200),
                         decoration: BoxDecoration(
                           color: !_isPessoaFisica
-                              ? const Color(0xFF0FB3FF)
+                              ? Colors.white
                               : Colors.transparent,
                           borderRadius: BorderRadius.circular(14),
                         ),
@@ -546,8 +576,8 @@ class _CompletarCadastroClientePageState
                           'Jurídica',
                           style: TextStyle(
                             color: !_isPessoaFisica
-                                ? Colors.white
-                                : const Color(0xFF828282),
+                                ? _azul
+                                : Colors.white,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -635,10 +665,13 @@ class _CompletarCadastroClientePageState
               onChanged: (v) => setState(() => _aceitouTermos = v ?? false),
               controlAffinity: ListTileControlAffinity.leading,
               contentPadding: EdgeInsets.zero,
+              activeColor: Colors.white,
+              checkColor: _azul,
+              side: const BorderSide(color: Colors.white, width: 2),
               title: Text.rich(
                 TextSpan(
                   style: const TextStyle(
-                    color: Color(0xFF333333),
+                    color: Colors.white,
                     fontSize: 14,
                   ),
                   children: [
@@ -646,8 +679,10 @@ class _CompletarCadastroClientePageState
                     TextSpan(
                       text: 'Termos de Uso',
                       style: const TextStyle(
-                        color: Color(0xFF0FB3FF),
-                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        decoration: TextDecoration.underline,
+                        decorationColor: Colors.white,
                       ),
                       recognizer: TapGestureRecognizer()
                         ..onTap = () {
@@ -668,10 +703,13 @@ class _CompletarCadastroClientePageState
                   setState(() => _aceitouPrivacidade = v ?? false),
               controlAffinity: ListTileControlAffinity.leading,
               contentPadding: EdgeInsets.zero,
+              activeColor: Colors.white,
+              checkColor: _azul,
+              side: const BorderSide(color: Colors.white, width: 2),
               title: Text.rich(
                 TextSpan(
                   style: const TextStyle(
-                    color: Color(0xFF333333),
+                    color: Colors.white,
                     fontSize: 14,
                   ),
                   children: [
@@ -679,8 +717,10 @@ class _CompletarCadastroClientePageState
                     TextSpan(
                       text: 'Política de Privacidade',
                       style: const TextStyle(
-                        color: Color(0xFF0FB3FF),
-                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        decoration: TextDecoration.underline,
+                        decorationColor: Colors.white,
                       ),
                       recognizer: TapGestureRecognizer()
                         ..onTap = () {
@@ -697,29 +737,14 @@ class _CompletarCadastroClientePageState
             ),
 
             const SizedBox(height: 24),
-            SizedBox(
-              height: 55,
-              child: ElevatedButton(
-                onPressed: (_carregando || _validandoDocumento)
-                    ? null
-                    : _finalizarCadastro,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0FB3FF),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                ),
-                child: _carregando
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text(
-                        'Finalizar Cadastro',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-              ),
+            _BotaoPrincipal(
+              texto: 'Finalizar Cadastro',
+              liberado: _podeFinalizar,
+              carregando: _carregando || _validandoDocumento,
+              aoTocar: _finalizarCadastro,
+              dica: _camposCompletos
+                  ? 'Aceite os Termos de Uso e a Política de Privacidade.'
+                  : 'Preencha todos os campos para continuar.',
             ),
             const SizedBox(height: 20),
           ],
@@ -782,10 +807,43 @@ class _CompletarCadastroProfissionalPageState
       _erroAtuacao;
   String _ddiSelecionado = '+55';
 
+  /// Todos os campos visíveis preenchidos e pelo menos 1 área de atuação.
+  bool get _camposCompletos {
+    final telefoneOk = _somenteDigitos(_telefoneController.text).length >= 10;
+    final comuns =
+        _nomeController.text.trim().isNotEmpty &&
+        telefoneOk &&
+        _oficiosSelecionados.isNotEmpty;
+    if (_isPessoaFisica) {
+      return comuns &&
+          _somenteDigitos(_cpfController.text).length == 11 &&
+          _dataNascimentoController.text.trim().isNotEmpty;
+    }
+    return comuns &&
+        _somenteDigitos(_cnpjController.text).length == 14 &&
+        _razaoSocialController.text.trim().isNotEmpty &&
+        _dataFundacaoController.text.trim().isNotEmpty;
+  }
+
+  void _redesenhar() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
     _nomeController = TextEditingController(text: widget.nomeGoogle ?? '');
+    for (final c in [
+      _nomeController,
+      _cpfController,
+      _cnpjController,
+      _razaoSocialController,
+      _telefoneController,
+      _dataNascimentoController,
+      _dataFundacaoController,
+    ]) {
+      c.addListener(_redesenhar);
+    }
     _carregarOficios();
   }
 
@@ -970,20 +1028,8 @@ class _CompletarCadastroProfissionalPageState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const Text(
-          'Complete seu cadastro',
-          style: TextStyle(
-            color: Color(0xFF0FB3FF),
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        centerTitle: true,
-      ),
+      backgroundColor: _azul,
+      appBar: _appBarAzul('Complete seu cadastro'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         child: Column(
@@ -1000,7 +1046,7 @@ class _CompletarCadastroProfissionalPageState
             Center(
               child: Text(
                 widget.emailGoogle,
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
               ),
             ),
             const SizedBox(height: 24),
@@ -1009,8 +1055,9 @@ class _CompletarCadastroProfissionalPageState
               width: double.infinity,
               height: 52,
               decoration: BoxDecoration(
-                color: const Color(0xFFF2F2F2),
+                color: Colors.white.withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
               ),
               padding: const EdgeInsets.all(4),
               child: Row(
@@ -1022,7 +1069,7 @@ class _CompletarCadastroProfissionalPageState
                         duration: const Duration(milliseconds: 200),
                         decoration: BoxDecoration(
                           color: _isPessoaFisica
-                              ? const Color(0xFF0FB3FF)
+                              ? Colors.white
                               : Colors.transparent,
                           borderRadius: BorderRadius.circular(14),
                         ),
@@ -1031,8 +1078,8 @@ class _CompletarCadastroProfissionalPageState
                           'Física',
                           style: TextStyle(
                             color: _isPessoaFisica
-                                ? Colors.white
-                                : const Color(0xFF828282),
+                                ? _azul
+                                : Colors.white,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -1046,7 +1093,7 @@ class _CompletarCadastroProfissionalPageState
                         duration: const Duration(milliseconds: 200),
                         decoration: BoxDecoration(
                           color: !_isPessoaFisica
-                              ? const Color(0xFF0FB3FF)
+                              ? Colors.white
                               : Colors.transparent,
                           borderRadius: BorderRadius.circular(14),
                         ),
@@ -1055,8 +1102,8 @@ class _CompletarCadastroProfissionalPageState
                           'Pessoa Jurídica',
                           style: TextStyle(
                             color: !_isPessoaFisica
-                                ? Colors.white
-                                : const Color(0xFF828282),
+                                ? _azul
+                                : Colors.white,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -1156,12 +1203,8 @@ class _CompletarCadastroProfissionalPageState
                 constraints: const BoxConstraints(maxHeight: 250),
                 margin: const EdgeInsets.only(bottom: 20),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFAFAFA),
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: const Color(0xFF0FB3FF),
-                    width: 1.5,
-                  ),
                 ),
                 child: _carregandoOficios
                     ? const Center(
@@ -1212,25 +1255,11 @@ class _CompletarCadastroProfissionalPageState
               ),
 
             const SizedBox(height: 12),
-            SizedBox(
-              height: 55,
-              child: ElevatedButton(
-                onPressed: _continuar,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0FB3FF),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                ),
-                child: const Text(
-                  'Continuar',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
+            _BotaoPrincipal(
+              texto: 'Continuar',
+              liberado: _camposCompletos,
+              aoTocar: _continuar,
+              dica: 'Preencha todos os campos e escolha pelo menos 1 área.',
             ),
             const SizedBox(height: 20),
           ],
@@ -1288,7 +1317,6 @@ class _CompletarCadastroProfissionalDocumentosPageState
   bool _termosDeUso = false;
   bool _politicaPrivacidade = false;
   bool _carregando = false;
-  bool _tentouFinalizarCadastro = false;
   String? _idFacial;
   List<Map<String, dynamic>> _documentosValidados = [];
 
@@ -1404,22 +1432,12 @@ class _CompletarCadastroProfissionalDocumentosPageState
       if (!_documentoIdentidadeConcluido)
         'Valide o seu documento de identidade',
     ];
+    // Finalizar só libera com termos aceitos, facial e documento validados.
+    final podeFinalizar = requisitosPendentes.isEmpty && !_carregando;
 
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const Text(
-          'Documentos',
-          style: TextStyle(
-            color: Color(0xFF0FB3FF),
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        centerTitle: true,
-      ),
+      backgroundColor: _azul,
+      appBar: _appBarAzul('Documentos'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         child: Column(
@@ -1436,7 +1454,7 @@ class _CompletarCadastroProfissionalDocumentosPageState
             Center(
               child: Text(
                 widget.emailGoogle,
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
               ),
             ),
             const SizedBox(height: 20),
@@ -1444,7 +1462,7 @@ class _CompletarCadastroProfissionalDocumentosPageState
               'Agora só precisamos de alguns documentos para terminarmos o seu cadastro!',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Color(0xFF0FB3FF),
+                color: Colors.white,
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
               ),
@@ -1497,10 +1515,13 @@ class _CompletarCadastroProfissionalDocumentosPageState
               onChanged: (v) => setState(() => _termosDeUso = v ?? false),
               controlAffinity: ListTileControlAffinity.leading,
               contentPadding: EdgeInsets.zero,
+              activeColor: Colors.white,
+              checkColor: _azul,
+              side: const BorderSide(color: Colors.white, width: 2),
               title: Text.rich(
                 TextSpan(
                   style: const TextStyle(
-                    color: Color(0xFF333333),
+                    color: Colors.white,
                     fontSize: 14,
                   ),
                   children: [
@@ -1508,8 +1529,10 @@ class _CompletarCadastroProfissionalDocumentosPageState
                     TextSpan(
                       text: 'Termos de Uso',
                       style: const TextStyle(
-                        color: Color(0xFF0FB3FF),
-                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        decoration: TextDecoration.underline,
+                        decorationColor: Colors.white,
                       ),
                       recognizer: TapGestureRecognizer()
                         ..onTap = () {
@@ -1530,10 +1553,13 @@ class _CompletarCadastroProfissionalDocumentosPageState
                   setState(() => _politicaPrivacidade = v ?? false),
               controlAffinity: ListTileControlAffinity.leading,
               contentPadding: EdgeInsets.zero,
+              activeColor: Colors.white,
+              checkColor: _azul,
+              side: const BorderSide(color: Colors.white, width: 2),
               title: Text.rich(
                 TextSpan(
                   style: const TextStyle(
-                    color: Color(0xFF333333),
+                    color: Colors.white,
                     fontSize: 14,
                   ),
                   children: [
@@ -1541,8 +1567,10 @@ class _CompletarCadastroProfissionalDocumentosPageState
                     TextSpan(
                       text: 'Política de Privacidade',
                       style: const TextStyle(
-                        color: Color(0xFF0FB3FF),
-                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        decoration: TextDecoration.underline,
+                        decorationColor: Colors.white,
                       ),
                       recognizer: TapGestureRecognizer()
                         ..onTap = () {
@@ -1559,47 +1587,14 @@ class _CompletarCadastroProfissionalDocumentosPageState
             ),
 
             const SizedBox(height: 24),
-            if (_tentouFinalizarCadastro && requisitosPendentes.isNotEmpty) ...[
-              Text(
-                '${requisitosPendentes.join(' e ')}.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Color(0xFF0FB3FF),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 10),
-            ],
-            SizedBox(
-              height: 55,
-              child: ElevatedButton(
-                onPressed: _carregando
-                    ? null
-                    : () {
-                        setState(() => _tentouFinalizarCadastro = true);
-                        _finalizarCadastroBanco();
-                      },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0FB3FF),
-                  disabledBackgroundColor: const Color(
-                    0xFF0FB3FF,
-                  ).withValues(alpha: 0.35),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                ),
-                child: _carregando
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text(
-                        'Finalizar Cadastro',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-              ),
+            _BotaoPrincipal(
+              texto: 'Finalizar Cadastro',
+              liberado: podeFinalizar,
+              carregando: _carregando,
+              aoTocar: _finalizarCadastroBanco,
+              dica: requisitosPendentes.isEmpty
+                  ? null
+                  : '${requisitosPendentes.join(' e ')}.',
             ),
             const SizedBox(height: 20),
           ],
@@ -1613,11 +1608,12 @@ class _CompletarCadastroProfissionalDocumentosPageState
     required bool concluido,
     required VoidCallback onTap,
   }) {
-    final cor = concluido ? const Color(0xFF2EAD5B) : const Color(0xFF0FB3FF);
+    final cor = concluido ? const Color(0xFF2EAD5B) : _azul;
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       height: 58,
       decoration: BoxDecoration(
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: cor, width: 1.2),
       ),
@@ -1645,6 +1641,122 @@ class _CompletarCadastroProfissionalDocumentosPageState
           ),
         ),
       ),
+    );
+  }
+}
+
+// =========================================================================
+// VISUAL COMPARTILHADO: fundo azul, texto branco, botão bloqueado em cinza
+// =========================================================================
+const Color _azul = Color(0xFF0FB3FF);
+const Color _azulEscuro = Color(0xFF0A8FD6);
+
+PreferredSizeWidget _appBarAzul(String titulo) {
+  return AppBar(
+    backgroundColor: _azul,
+    foregroundColor: Colors.white,
+    surfaceTintColor: _azul,
+    elevation: 0,
+    systemOverlayStyle: SystemUiOverlayStyle.light,
+    centerTitle: true,
+    title: Text(
+      titulo,
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+  );
+}
+
+/// Botão principal: branco com texto azul quando liberado; cinza com cadeado
+/// (e uma dica do que falta) enquanto não pode ser tocado.
+class _BotaoPrincipal extends StatelessWidget {
+  const _BotaoPrincipal({
+    required this.texto,
+    required this.liberado,
+    required this.aoTocar,
+    this.carregando = false,
+    this.dica,
+  });
+
+  final String texto;
+  final bool liberado;
+  final bool carregando;
+  final VoidCallback aoTocar;
+  final String? dica;
+
+  @override
+  Widget build(BuildContext context) {
+    const cinza = Color(0xFFCBD5E1);
+    const textoCinza = Color(0xFF64748B);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (!liberado && !carregando && dica != null) ...[
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.info_outline, color: Colors.white, size: 16),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  dica!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+        ],
+        SizedBox(
+          height: 55,
+          child: ElevatedButton(
+            onPressed: (liberado && !carregando) ? aoTocar : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: _azul,
+              disabledBackgroundColor: cinza,
+              disabledForegroundColor: textoCinza,
+              elevation: liberado ? 3 : 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+            child: carregando
+                ? const SizedBox(
+                    width: 26,
+                    height: 26,
+                    child: CircularProgressIndicator(
+                      color: _azul,
+                      strokeWidth: 3,
+                    ),
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (!liberado) ...[
+                        const Icon(Icons.lock_outline_rounded, size: 20),
+                        const SizedBox(width: 8),
+                      ],
+                      Text(
+                        texto,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1694,17 +1806,36 @@ class _CampoTexto extends StatelessWidget {
           errorText: errorText,
           prefixIcon: prefixWidget,
           suffixIcon: suffixIcon != null
-              ? Icon(suffixIcon, color: const Color(0xFF0FB3FF))
+              ? Icon(suffixIcon, color: _azul)
               : null,
           filled: true,
-          fillColor: const Color(0xFFFAFAFA),
+          // Campo branco sobre o fundo azul.
+          fillColor: Colors.white,
+          labelStyle: const TextStyle(color: Color(0xFF6B7280)),
+          floatingLabelStyle: const TextStyle(
+            color: _azulEscuro,
+            fontWeight: FontWeight.w600,
+          ),
+          // Erro legível no azul: texto claro e borda vermelha.
+          errorStyle: const TextStyle(
+            color: Color(0xFFFFE4E6),
+            fontWeight: FontWeight.w700,
+          ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFF0FB3FF), width: 1.5),
+            borderSide: const BorderSide(color: _azulEscuro, width: 2),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFDC2626), width: 2),
+          ),
+          focusedErrorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFDC2626), width: 2),
           ),
         ),
       ),

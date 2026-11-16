@@ -25,6 +25,7 @@ import 'utils/iniciais.dart';
 import 'widgets/avaliacao_bottom_sheet.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/funcao_servico.dart';
+import 'utils/voltar_fluxo_solicitacao.dart';
 
 // A enum ModalidadeExecucao agora vive em utils/fluxo_solicitacao.dart e é
 // reexportada aqui para manter compatibilidade com os imports existentes.
@@ -83,8 +84,13 @@ class SolicitacaoEstadoPage extends StatefulWidget {
   State<SolicitacaoEstadoPage> createState() => _SolicitacaoEstadoPageState();
 }
 
-class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
-    with SingleTickerProviderStateMixin {
+class _SolicitacaoEstadoPageState
+    extends State<SolicitacaoEstadoPage>
+    with SingleTickerProviderStateMixin, VoltarParaPedidosMixin {
+  /// Voltar (botão ou sistema) leva para meus_servicos_solicitados.dart.
+  @override
+  bool get voltarComoProfissional => true;
+
   static const Color _azul = Color(0xFF0FB3FF);
   static const Color _azulEscuro = Color(0xFF0284C7);
   static const Color _fundoCinza = Color(0xFFF8FAFC);
@@ -1523,7 +1529,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         children: [
           IconButton(
             icon: const Icon(Icons.arrow_back, color: _azul, size: 26),
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: voltarParaPedidos,
           ),
           const SizedBox(width: 4),
           Expanded(

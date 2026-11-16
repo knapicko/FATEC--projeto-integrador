@@ -6,6 +6,7 @@ import 'detalhes_pedido.dart';
 import 'models/servico_profissional.dart';
 import 'services/servicos_profissional_service.dart';
 import 'utils/fluxo_solicitacao.dart';
+import 'utils/voltar_fluxo_solicitacao.dart';
 
 /// Retirado no Local — etapa 4 → etapa 5.
 ///
@@ -24,7 +25,12 @@ class ConfirmarRetiradaClientePage extends StatefulWidget {
 }
 
 class _ConfirmarRetiradaClientePageState
-    extends State<ConfirmarRetiradaClientePage> {
+    extends State<ConfirmarRetiradaClientePage>
+    with VoltarParaPedidosMixin {
+  /// Voltar (botão ou sistema) leva para meus_pedidos.dart.
+  @override
+  bool get voltarComoProfissional => false;
+
   static const _azul = Color(0xFF0FB3FF);
   static const _texto = Color(0xFF0F172A);
   static const _muted = Color(0xFF64748B);
