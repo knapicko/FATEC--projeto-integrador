@@ -30,8 +30,7 @@ class AcompanharDeslocamentoPage extends StatefulWidget {
       _AcompanharDeslocamentoPageState();
 }
 
-class _AcompanharDeslocamentoPageState
-    extends State<AcompanharDeslocamentoPage>
+class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
     with SingleTickerProviderStateMixin, VoltarParaPedidosMixin {
   /// Voltar (botão ou sistema) leva para meus_pedidos.dart.
   @override
@@ -81,6 +80,10 @@ class _AcompanharDeslocamentoPageState
   bool _codigoDevolucaoValido = false;
   bool _confirmandoDevolucao = false;
 
+  /// O profissional já marcou que concluiu a entrega? Só então o cliente
+  /// pode confirmar e o serviço vira "Concluído" (as duas confirmações).
+  bool _profissionalConcluiu = false;
+
   void _verificarRedirecionamentoEmAndamento(int? status) {
     if (_redirecionandoEmAndamento || !mounted) return;
     // Atendimento em Domicílio: ao chegar (34 / etapa 3) o acompanhamento
@@ -90,8 +93,9 @@ class _AcompanharDeslocamentoPageState
       _timerPolling?.cancel();
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) =>
-              AtendimentoNoLocalClientePage(idSolicitacao: widget.idSolicitacao),
+          builder: (_) => AtendimentoNoLocalClientePage(
+            idSolicitacao: widget.idSolicitacao,
+          ),
         ),
       );
       return;
@@ -101,7 +105,8 @@ class _AcompanharDeslocamentoPageState
       _timerPolling?.cancel();
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => DetalhesPedidoPage(idSolicitacao: widget.idSolicitacao),
+          builder: (_) =>
+              DetalhesPedidoPage(idSolicitacao: widget.idSolicitacao),
         ),
       );
       return;
@@ -364,10 +369,18 @@ class _AcompanharDeslocamentoPageState
     try {
       final solCheck = await supabase
           .from('solicitacoes')
-          .select('fk_status, codigo_rec_dev, etapa_solicitacao')
+          .select(
+            'fk_status, codigo_rec_dev, etapa_solicitacao, '
+            'profissional_finalizado_atendimento',
+          )
           .eq('id_solicitacao', widget.idSolicitacao)
           .maybeSingle();
       if (solCheck != null) {
+        final concluiu =
+            solCheck['profissional_finalizado_atendimento'] == true;
+        if (concluiu != _profissionalConcluiu && mounted) {
+          setState(() => _profissionalConcluiu = concluiu);
+        }
         _etapaSolicitacao =
             (solCheck['etapa_solicitacao'] as num?)?.toInt() ??
             _etapaSolicitacao;
@@ -2037,7 +2050,10 @@ class _AcompanharDeslocamentoPageState
     final fotosValidas =
         _fotosDevolucao[0] != null && _fotosDevolucao[1] != null;
     final habilitado =
-        _codigoDevolucaoValido && fotosValidas && !_confirmandoDevolucao;
+        _profissionalConcluiu &&
+        _codigoDevolucaoValido &&
+        fotosValidas &&
+        !_confirmandoDevolucao;
 
     return SizedBox(
       width: double.infinity,
@@ -2055,7 +2071,11 @@ class _AcompanharDeslocamentoPageState
               )
             : const Icon(Icons.check_circle_outline),
         label: Text(
-          _confirmandoDevolucao ? 'Confirmando...' : 'Confirmar Devolução',
+          _confirmandoDevolucao
+              ? 'Confirmando...'
+              : _profissionalConcluiu
+              ? 'Confirmar Devolução'
+              : 'Aguardando o profissional concluir',
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
         ),
         style: FilledButton.styleFrom(
@@ -2071,7 +2091,8 @@ class _AcompanharDeslocamentoPageState
   }
 
   Future<void> _confirmarDevolucao() async {
-    if (!_codigoDevolucaoValido ||
+    if (!_profissionalConcluiu ||
+        !_codigoDevolucaoValido ||
         _fotosDevolucao[0] == null ||
         _fotosDevolucao[1] == null ||
         _confirmandoDevolucao) {

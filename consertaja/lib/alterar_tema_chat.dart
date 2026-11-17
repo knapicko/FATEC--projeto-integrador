@@ -8,6 +8,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'services/chat_theme_storage.dart';
 import 'utils/iniciais.dart';
+import 'widgets/fundos_chat.dart';
+import 'widgets/skeletons_telas.dart';
 
 /// Configurações do tema do chat retornadas ao sair da tela.
 class TemaChatConfig {
@@ -392,9 +394,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
           ),
         ),
         body: _carregandoInicial
-            ? const Center(
-                child: CircularProgressIndicator(color: _corAzulPadrao),
-              )
+            ? const SkeletonTemasChat()
             : SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -2084,21 +2084,21 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
           backgroundWidget = Container(color: op.corSolida);
           break;
         case _TipoFundo.gradiente:
-          backgroundWidget = Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: op.coresGradiente ?? [Colors.white, Colors.blueGrey],
-              ),
-            ),
-          );
+          backgroundWidget = op.id == 'aurora_profundo'
+              ? const FundoAurora()
+              : Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors:
+                          op.coresGradiente ?? [Colors.white, Colors.blueGrey],
+                    ),
+                  ),
+                );
           break;
         case _TipoFundo.geometrico:
-          backgroundWidget = CustomPaint(
-            painter: _GeometricPatternPainter(),
-            child: Container(color: const Color(0xFFF1F5F9)),
-          );
+          backgroundWidget = const FundoGeometrico();
           break;
       }
     }
@@ -2116,7 +2116,11 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
       );
     }
 
-    return Container(color: Colors.white, child: resultado);
+    // Aurora: fundo escuro por trás (com branco a opacidade deixava cinza).
+    return Container(
+      color: _planoFundoId == 'aurora_profundo' ? kBaseAurora : Colors.white,
+      child: resultado,
+    );
   }
 
   Widget _buildDoodleWidget() {
@@ -2147,6 +2151,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
       case _TipoFundo.solido:
         return Container(color: opcao.corSolida);
       case _TipoFundo.gradiente:
+        if (opcao.id == 'aurora_profundo') return const FundoAurora();
         return Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -2157,10 +2162,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
           ),
         );
       case _TipoFundo.geometrico:
-        return CustomPaint(
-          painter: _GeometricPatternPainter(),
-          child: Container(color: const Color(0xFFF1F5F9)),
-        );
+        return const FundoGeometrico();
     }
   }
 }
@@ -2243,26 +2245,6 @@ class _DottedBorderPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _DottedBorderPainter oldDelegate) =>
       oldDelegate.cor != cor || oldDelegate.largura != largura;
-}
-
-class _GeometricPatternPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFFCBD5E1).withValues(alpha: 0.5)
-      ..strokeWidth = 1.0
-      ..style = PaintingStyle.stroke;
-
-    const step = 20.0;
-    for (double x = 0; x < size.width; x += step) {
-      for (double y = 0; y < size.height; y += step) {
-        canvas.drawCircle(Offset(x, y), 2.0, paint);
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _DoodleConsertaJaPainter extends CustomPainter {

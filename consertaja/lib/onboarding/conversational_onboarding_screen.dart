@@ -9,6 +9,7 @@ import '../cadastro_profissional.dart';
 import '../esqueci_senha.dart';
 import '../services/google_auth_service.dart';
 import '../utils/app_navigation_util.dart';
+import '../widgets/caixa_flutuante.dart';
 
 class ConversationalOnboardingScreen extends StatefulWidget {
   final bool iniciarLogin;
@@ -472,6 +473,7 @@ class _ConversationalOnboardingScreenState
                                     const SizedBox(height: 4),
                                     Hero(
                                       tag: 'caixa-transicao-inicial',
+                                      flightShuttleBuilder: caixaHeroShuttle,
                                       child: CaixaCharacter(
                                         asset: _controller.pose.asset,
                                         size: _caixaSizeForStep(step, context),

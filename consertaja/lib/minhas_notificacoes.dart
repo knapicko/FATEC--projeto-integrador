@@ -8,6 +8,7 @@ import 'services/notificacoes/notificacao_destinos.dart';
 import 'services/notificacoes/notificacao_repositorio.dart';
 import 'services/notificacoes/notificacao_service.dart';
 import 'services/notificacoes/notificacao_tipos.dart';
+import 'widgets/skeletons_telas.dart';
 
 enum _Filtro { todas, novas, vistas, conta, pedidos, mensagens, radar }
 
@@ -68,6 +69,11 @@ class _MinhasNotificacoesPageState extends State<MinhasNotificacoesPage> {
   bool _carregando = true;
   bool _buscando = false;
   String? _erro;
+
+  /// Modo seleção (botão "Selecionar" ou segurar uma notificação): mostra uma
+  /// barra fixa embaixo com "Marcar como lida" e "Excluir".
+  bool _modoSelecao = false;
+  final Set<int> _selecionadas = {};
 
   @override
   void initState() {
@@ -173,54 +179,164 @@ class _MinhasNotificacoesPageState extends State<MinhasNotificacoesPage> {
     }
   }
 
-  void _opcoes(NotificacaoApp n) {
+  // ── Seleção ──────────────────────────────────────────────────────────────
+
+  void _entrarSelecao([NotificacaoApp? n]) {
     HapticFeedback.selectionClick();
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 10),
-            _alca(),
-            const SizedBox(height: 6),
-            if (!n.aberta)
-              ListTile(
-                leading: const Icon(Icons.done_all_rounded, color: _azul),
-                title: const Text('Marcar como lida'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _marcarComoLida(n);
-                },
+    setState(() {
+      _modoSelecao = true;
+      if (n?.id != null) _selecionadas.add(n!.id!);
+    });
+  }
+
+  void _sairSelecao() => setState(() {
+    _modoSelecao = false;
+    _selecionadas.clear();
+  });
+
+  void _alternar(NotificacaoApp n) {
+    if (n.id == null) return;
+    HapticFeedback.selectionClick();
+    setState(() {
+      if (!_selecionadas.remove(n.id)) _selecionadas.add(n.id!);
+    });
+  }
+
+  void _selecionarTodas() {
+    final ids = _visiveis.map((n) => n.id).whereType<int>().toSet();
+    setState(() {
+      if (_selecionadas.containsAll(ids)) {
+        _selecionadas.clear();
+      } else {
+        _selecionadas.addAll(ids);
+      }
+    });
+  }
+
+  Future<void> _marcarSelecionadasLidas() async {
+    final ids = _todas
+        .where((n) => n.id != null && _selecionadas.contains(n.id) && !n.aberta)
+        .map((n) => n.id!)
+        .toList();
+    setState(() {
+      _todas = [
+        for (final n in _todas)
+          _selecionadas.contains(n.id) ? n.copiarAberta() : n,
+      ];
+      _modoSelecao = false;
+      _selecionadas.clear();
+    });
+    try {
+      await NotificacaoRepositorio.marcarAbertas(ids);
+      await NotificacaoService.instance.atualizarContadores();
+    } catch (_) {
+      if (mounted) _carregar();
+    }
+  }
+
+  Future<void> _excluirSelecionadas() async {
+    final ids = _selecionadas.toList();
+    if (ids.isEmpty) return;
+    final antes = _todas;
+    setState(() {
+      _todas = _todas.where((n) => !_selecionadas.contains(n.id)).toList();
+      _modoSelecao = false;
+      _selecionadas.clear();
+    });
+    try {
+      await NotificacaoRepositorio.excluirVarias(ids);
+      await NotificacaoService.instance.atualizarContadores();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            ids.length == 1
+                ? 'Notificação excluída.'
+                : '${ids.length} notificações excluídas.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (_) {
+      if (mounted) setState(() => _todas = antes);
+    }
+  }
+
+  /// Barra fixa embaixo no modo seleção (a lista continua rolando).
+  Widget _barraSelecao() {
+    final qtd = _selecionadas.length;
+    final temNaoLida = _todas.any(
+      (n) => _selecionadas.contains(n.id) && !n.aberta,
+    );
+    Widget acao({
+      required IconData icone,
+      required String texto,
+      required Color cor,
+      required VoidCallback? aoTocar,
+    }) {
+      final ativo = aoTocar != null;
+      return Expanded(
+        child: Material(
+          color: ativo ? cor : const Color(0xFFE5E7EB),
+          borderRadius: BorderRadius.circular(14),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: aoTocar,
+            child: SizedBox(
+              height: 50,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    icone,
+                    size: 20,
+                    color: ativo ? Colors.white : const Color(0xFF9CA3AF),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    texto,
+                    style: TextStyle(
+                      color: ativo ? Colors.white : const Color(0xFF9CA3AF),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14.5,
+                    ),
+                  ),
+                ],
               ),
-            ListTile(
-              leading: const Icon(Icons.open_in_new_rounded, color: _azul),
-              title: const Text('Abrir'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _abrir(n);
-              },
             ),
-            ListTile(
-              leading: const Icon(
-                Icons.delete_outline_rounded,
-                color: Color(0xFFDC2626),
+          ),
+        ),
+      );
+    }
+
+    return AnimatedSlide(
+      offset: _modoSelecao ? Offset.zero : const Offset(0, 1),
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+      child: Container(
+        color: Colors.white,
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+        child: SafeArea(
+          top: false,
+          child: Row(
+            children: [
+              acao(
+                icone: Icons.visibility_outlined,
+                texto: 'Marcar como lida',
+                cor: _azul,
+                aoTocar: qtd > 0 && temNaoLida
+                    ? _marcarSelecionadasLidas
+                    : null,
               ),
-              title: const Text(
-                'Excluir notificação',
-                style: TextStyle(color: Color(0xFFDC2626)),
+              const SizedBox(width: 10),
+              acao(
+                icone: Icons.delete_outline_rounded,
+                texto: 'Excluir',
+                cor: const Color(0xFFDC2626),
+                aoTocar: qtd > 0 ? _excluirSelecionadas : null,
               ),
-              onTap: () {
-                Navigator.pop(ctx);
-                _excluir(n);
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -294,16 +410,23 @@ class _MinhasNotificacoesPageState extends State<MinhasNotificacoesPage> {
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
-      child: Scaffold(
-        backgroundColor: _fundo,
-        body: Column(
-          children: [
-            _barraVoltar(),
-            _cabecalho(),
-            _chipsFiltro(),
-            const SizedBox(height: 6),
-            Expanded(child: _corpo()),
-          ],
+      child: PopScope(
+        canPop: !_modoSelecao,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop && _modoSelecao) _sairSelecao();
+        },
+        child: Scaffold(
+          backgroundColor: _fundo,
+          bottomNavigationBar: _modoSelecao ? _barraSelecao() : null,
+          body: Column(
+            children: [
+              _barraVoltar(),
+              _cabecalho(),
+              _chipsFiltro(),
+              const SizedBox(height: 6),
+              Expanded(child: _corpo()),
+            ],
+          ),
         ),
       ),
     );
@@ -316,30 +439,77 @@ class _MinhasNotificacoesPageState extends State<MinhasNotificacoesPage> {
         bottom: false,
         child: SizedBox(
           height: 52,
-          child: Row(
-            children: [
-              TextButton.icon(
-                onPressed: () => Navigator.of(context).maybePop(),
-                style: TextButton.styleFrom(foregroundColor: Colors.white),
-                icon: const Icon(Icons.arrow_back_rounded, size: 24),
-                label: const Text(
-                  'Voltar',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          child: _modoSelecao
+              ? Row(
+                  children: [
+                    IconButton(
+                      tooltip: 'Cancelar seleção',
+                      onPressed: _sairSelecao,
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        color: Colors.white,
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        _selecionadas.isEmpty
+                            ? 'Selecione notificações'
+                            : _selecionadas.length == 1
+                            ? '1 selecionada'
+                            : '${_selecionadas.length} selecionadas',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: _selecionarTodas,
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white,
+                      ),
+                      icon: const Icon(Icons.select_all_rounded, size: 20),
+                      label: const Text(
+                        'Todas',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                )
+              : Row(
+                  children: [
+                    TextButton.icon(
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white,
+                      ),
+                      icon: const Icon(Icons.arrow_back_rounded, size: 24),
+                      label: const Text(
+                        'Voltar',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    if (_naoLidas > 0)
+                      TextButton.icon(
+                        onPressed: _marcarTodas,
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white,
+                        ),
+                        icon: const Icon(Icons.visibility_outlined, size: 20),
+                        label: const Text(
+                          'Ler todas',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    const SizedBox(width: 6),
+                  ],
                 ),
-              ),
-              const Spacer(),
-              if (_naoLidas > 0)
-                TextButton(
-                  onPressed: _marcarTodas,
-                  style: TextButton.styleFrom(foregroundColor: Colors.white),
-                  child: const Text(
-                    'Ler todas',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                ),
-              const SizedBox(width: 6),
-            ],
-          ),
         ),
       ),
     );
@@ -410,6 +580,15 @@ class _MinhasNotificacoesPageState extends State<MinhasNotificacoesPage> {
                     tooltip: 'Buscar',
                     onPressed: () => setState(() => _buscando = true),
                     icon: const Icon(Icons.search, color: _texto, size: 26),
+                  ),
+                  IconButton(
+                    tooltip: 'Selecionar',
+                    onPressed: _todas.isEmpty ? null : () => _entrarSelecao(),
+                    icon: const Icon(
+                      Icons.checklist_rounded,
+                      color: _texto,
+                      size: 26,
+                    ),
                   ),
                   IconButton(
                     tooltip: 'Filtros e opções',
@@ -493,7 +672,7 @@ class _MinhasNotificacoesPageState extends State<MinhasNotificacoesPage> {
 
   Widget _corpo() {
     if (_carregando) {
-      return const Center(child: CircularProgressIndicator(color: _azul));
+      return const SkeletonNotificacoes();
     }
     final lista = _visiveis;
     final naoLidas = lista.where((n) => !n.aberta).toList();
@@ -615,19 +794,56 @@ class _MinhasNotificacoesPageState extends State<MinhasNotificacoesPage> {
     final visual = n.visualStatus;
     final cor = visual?.cor ?? n.tipo.cor;
 
+    final selecionada = _selecionadas.contains(n.id);
     final conteudo = InkWell(
-      onTap: () => _abrir(n),
-      onLongPress: () => _opcoes(n),
-      child: Container(
-        color: naoLida ? _naoLidaFundo : Colors.transparent,
+      onTap: () => _modoSelecao ? _alternar(n) : _abrir(n),
+      onLongPress: () => _modoSelecao ? _alternar(n) : _entrarSelecao(n),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        color: selecionada
+            ? const Color(0xFFCDEBFB)
+            : naoLida
+            ? _naoLidaFundo
+            : Colors.transparent,
         padding: const EdgeInsets.fromLTRB(4, 14, 14, 14),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Bolinha azul = não lida.
+            // Seleção (caixinha) ou bolinha azul = não lida.
+            AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              child: _modoSelecao
+                  ? Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 15, 10, 0),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 160),
+                        width: 22,
+                        height: 22,
+                        decoration: BoxDecoration(
+                          color: selecionada ? _azul : Colors.white,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: selecionada
+                                ? _azul
+                                : const Color(0xFFB8C2CC),
+                            width: 2,
+                          ),
+                        ),
+                        child: selecionada
+                            ? const Icon(
+                                Icons.check_rounded,
+                                size: 15,
+                                color: Colors.white,
+                              )
+                            : null,
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
             SizedBox(
               width: 12,
-              child: naoLida
+              child: naoLida && !_modoSelecao
                   ? Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Container(
@@ -701,7 +917,9 @@ class _MinhasNotificacoesPageState extends State<MinhasNotificacoesPage> {
       children: [
         Dismissible(
           key: ValueKey('notif_${n.id}'),
-          direction: naoLida
+          direction: _modoSelecao
+              ? DismissDirection.none
+              : naoLida
               ? DismissDirection.horizontal
               : DismissDirection.endToStart,
           // Arrastar para a direita = marcar como lida (o item fica).
@@ -752,8 +970,38 @@ class _MinhasNotificacoesPageState extends State<MinhasNotificacoesPage> {
   /// Foto (cliente/remetente) com selo do tipo, ou o ícone do tipo/status.
   Widget _avatar(NotificacaoApp n, Color cor, VisualStatus? visual) {
     final icone = visual?.icone ?? n.tipo.icone;
-    final url = n.imagemUrl;
-    if (url == null || url.isEmpty) return _iconeTipo(icone, cor);
+    final url = n.imagemUrl ?? n.dados['foto_remetente']?.toString();
+    // Mensagem: a foto de quem mandou (ou a inicial do nome), sem ícone.
+    if (n.tipo == TipoNotificacao.conversa) {
+      final nome = (n.dados['nome_remetente']?.toString() ?? n.titulo).trim();
+      final inicial = Container(
+        width: 54,
+        height: 54,
+        alignment: Alignment.center,
+        decoration: const BoxDecoration(color: _azul, shape: BoxShape.circle),
+        child: Text(
+          nome.isEmpty ? '?' : nome.characters.first.toUpperCase(),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      );
+      if (url == null || url.isEmpty || url == 'null') return inicial;
+      return ClipOval(
+        child: Image.network(
+          url,
+          width: 54,
+          height: 54,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => inicial,
+        ),
+      );
+    }
+    if (url == null || url.isEmpty || url == 'null') {
+      return _iconeTipo(icone, cor);
+    }
     return SizedBox(
       width: 54,
       height: 54,
@@ -791,20 +1039,10 @@ class _MinhasNotificacoesPageState extends State<MinhasNotificacoesPage> {
     return Container(
       width: 54,
       height: 54,
+      // Cor sólida, sem degradê nem sombra.
       decoration: BoxDecoration(
+        color: cor,
         borderRadius: BorderRadius.circular(14),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [cor, Color.lerp(cor, Colors.black, 0.18)!],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: cor.withValues(alpha: 0.28),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
       ),
       child: Icon(icone, color: Colors.white, size: 28),
     );

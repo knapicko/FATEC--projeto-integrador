@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'widgets/salvamento_automatico.dart';
 import 'widgets/skeleton_loading.dart';
 
 import 'models/metodo_entrega.dart';
@@ -24,7 +25,17 @@ class _MetodoEntregaProfissionalPageState
 
   final Set<String> _selecionadas = <String>{};
   bool _carregando = true;
-  bool _salvando = false;
+
+  /// Cada toque salva sozinho (sem botão "Salvar").
+  late final SalvamentoAutomatico _autosave = SalvamentoAutomatico(
+    _salvarPreferencias,
+  );
+
+  @override
+  void dispose() {
+    _autosave.dispose();
+    super.dispose();
+  }
 
   // Conta ativa (mesma flag da home): false = profissional (CNPJ),
   // true = empresa. Empresa lê/salva em grupo_empresa.metodo_entrega_empresa;
@@ -184,84 +195,56 @@ class _MetodoEntregaProfissionalPageState
         _selecionadas.add('Leva e Traz');
       }
     });
+    _autosave.agendar();
   }
 
+  /// Grava no banco (chamado pelo salvamento automático; erros sobem para o
+  /// indicador da tela).
   Future<void> _salvarPreferencias() async {
-    if (_salvando) return;
+    final supabase = Supabase.instance.client;
+    final user = supabase.auth.currentUser;
+    if (user == null) {
+      throw Exception('Usuário não autenticado.');
+    }
 
-    setState(() => _salvando = true);
+    final usuario = await supabase
+        .from('usuarios')
+        .select('id_usuario')
+        .eq('auth_id', user.id)
+        .maybeSingle();
 
-    try {
-      final supabase = Supabase.instance.client;
-      final user = supabase.auth.currentUser;
-      if (user == null) {
-        throw Exception('Usuário não autenticado.');
+    final usuarioId = (usuario?['id_usuario'] as num?)?.toInt();
+    if (usuarioId == null) {
+      throw Exception('Não foi possível localizar o profissional.');
+    }
+
+    final itens = _selecionadas.toList()
+      ..sort((a, b) => _ordemValor(a).compareTo(_ordemValor(b)));
+    final valorFinal = itens.join(', ');
+
+    if (_contaEmpresaAtiva) {
+      // Conta empresa: salva em grupo_empresa.metodo_entrega_empresa.
+      final idGrupo = _idGrupoEmpresa ?? await _buscarIdGrupoEmpresa(usuarioId);
+      if (idGrupo == null) {
+        throw Exception('Nenhuma empresa vinculada a este perfil.');
       }
-
-      final usuario = await supabase
-          .from('usuarios')
-          .select('id_usuario')
-          .eq('auth_id', user.id)
-          .maybeSingle();
-
-      final usuarioId = (usuario?['id_usuario'] as num?)?.toInt();
-      if (usuarioId == null) {
-        throw Exception('Não foi possível localizar o profissional.');
-      }
-
-      final itens = _selecionadas.toList()
-        ..sort((a, b) => _ordemValor(a).compareTo(_ordemValor(b)));
-
-      final valorFinal = itens.join(', ');
-
-      if (_contaEmpresaAtiva) {
-        // Conta empresa: salva em grupo_empresa.metodo_entrega_empresa
-        // (igual ao profissional, mas na tabela da empresa).
-        var idGrupo = _idGrupoEmpresa ?? await _buscarIdGrupoEmpresa(usuarioId);
-        if (idGrupo == null) {
-          throw Exception(
-            'Nenhuma empresa vinculada a este perfil para salvar.',
-          );
-        }
-        try {
-          await supabase
-              .from('grupo_empresa')
-              .update({'metodo_entrega_empresa': valorFinal})
-              .eq('id_grupo_empresa', idGrupo);
-        } catch (_) {
-          throw Exception(
-            'Banco sem a coluna metodo_entrega_empresa. Rode docs/sql/migration_metodo_entrega_empresa.sql no Supabase.',
-          );
-        }
-        if (mounted) {
-          setState(() => _idGrupoEmpresa = idGrupo);
-        }
-      } else {
+      try {
         await supabase
-            .from('dados_profissionais')
-            .update({'metodo_entrega': valorFinal})
-            .eq('fk_usuario', usuarioId);
+            .from('grupo_empresa')
+            .update({'metodo_entrega_empresa': valorFinal})
+            .eq('id_grupo_empresa', idGrupo);
+      } catch (_) {
+        throw Exception(
+          'banco sem a coluna metodo_entrega_empresa (rode '
+          'docs/sql/migration_metodo_entrega_empresa.sql).',
+        );
       }
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Preferências de entrega salvas com sucesso.'),
-        ),
-      );
-
-      Navigator.of(context).pop();
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erro ao salvar: $e')));
-    } finally {
-      if (mounted) {
-        setState(() => _salvando = false);
-      }
+      _idGrupoEmpresa = idGrupo;
+    } else {
+      await supabase
+          .from('dados_profissionais')
+          .update({'metodo_entrega': valorFinal})
+          .eq('fk_usuario', usuarioId);
     }
   }
 
@@ -455,33 +438,8 @@ class _MetodoEntregaProfissionalPageState
                       child: Align(
                         alignment: Alignment.bottomCenter,
                         child: Padding(
-                          padding: const EdgeInsets.only(bottom: 20, top: 8),
-                          child: SizedBox(
-                            width: double.infinity,
-                            height: 54,
-                            child: ElevatedButton.icon(
-                              onPressed: _salvando ? null : _salvarPreferencias,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: _primaryBlue,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(28),
-                                ),
-                                elevation: 0,
-                              ),
-                              icon: const Icon(
-                                Icons.save_alt_rounded,
-                                size: 20,
-                              ),
-                              label: const Text(
-                                'Salvar Preferências',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ),
+                          padding: const EdgeInsets.only(bottom: 24, top: 8),
+                          child: IndicadorSalvamento(controle: _autosave),
                         ),
                       ),
                     ),

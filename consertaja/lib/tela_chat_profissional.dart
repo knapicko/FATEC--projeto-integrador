@@ -39,6 +39,8 @@ import 'widgets/bottom_sheet_servico_personalizado.dart';
 import 'utils/funcao_servico.dart';
 import 'services/notificacoes/notificacao_exibicao.dart';
 import 'services/notificacoes/notificacao_service.dart';
+import 'utils/abrir_solicitacao.dart';
+import 'widgets/fundos_chat.dart';
 
 class TelaChatProfissional extends StatefulWidget {
   final String nomeProfissional;
@@ -2305,6 +2307,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       }
       setState(() {
         _resumoSolicitacao = _ResumoSolicitacao(
+          idSolicitacao: idSolicitacao!,
           codigo: 'OS #${idSolicitacao.toString().padLeft(4, '0')}',
           nomeServico: nomeServico?.isNotEmpty == true
               ? nomeServico!
@@ -3243,15 +3246,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
         errorBuilder: (_, __, ___) => _buildDoodleChatWidget(),
       );
     } else if (_planoFundo == 'aurora_profundo') {
-      backgroundWidget = Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF0F172A), Color(0xFF1E3A8A)],
-          ),
-        ),
-      );
+      backgroundWidget = const FundoAurora();
     } else if (_planoFundo == 'azul_ceu') {
       backgroundWidget = Container(
         decoration: const BoxDecoration(
@@ -3279,7 +3274,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     } else if (_planoFundo == 'grafite_dark') {
       backgroundWidget = Container(color: const Color(0xFF1E293B));
     } else if (_planoFundo == 'geometrico') {
-      backgroundWidget = Container(color: const Color(0xFFF1F5F9));
+      backgroundWidget = const FundoGeometrico();
     } else {
       backgroundWidget = _buildDoodleChatWidget();
     }
@@ -3299,7 +3294,11 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       );
     }
 
-    return Container(color: Colors.white, child: resultado);
+    // Aurora: fundo escuro por trás (com branco a opacidade deixava cinza).
+    return Container(
+      color: _planoFundo == 'aurora_profundo' ? kBaseAurora : Colors.white,
+      child: resultado,
+    );
   }
 
   Widget _buildDoodleChatWidget() {
@@ -3864,10 +3863,28 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
   }
 
   Widget _buildResumoSolicitacao(_ResumoSolicitacao resumo) {
+    // Toque: abre a tela da etapa (status + método de entrega), igual às
+    // listas de pedidos/serviços.
+    return Material(
+      color: Colors.white,
+      child: InkWell(
+        onTap: () =>
+            abrirSolicitacaoPorStatus(
+              context,
+              resumo.idSolicitacao,
+              comoProfissional: _souProfissionalNaConversa,
+            ).then((_) {
+              if (mounted) _carregarResumoSolicitacao();
+            }),
+        child: _conteudoResumoSolicitacao(resumo),
+      ),
+    );
+  }
+
+  Widget _conteudoResumoSolicitacao(_ResumoSolicitacao resumo) {
     return Container(
       height: 51,
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 22),
+      padding: const EdgeInsets.fromLTRB(22, 0, 14, 0),
       child: Row(
         children: [
           const Icon(Icons.build_outlined, color: Color(0xFF006DCC), size: 18),
@@ -3923,6 +3940,12 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                 fontWeight: FontWeight.w700,
               ),
             ),
+          ),
+          const SizedBox(width: 4),
+          const Icon(
+            Icons.chevron_right_rounded,
+            color: Color(0xFF94A3B8),
+            size: 22,
           ),
         ],
       ),
@@ -4063,9 +4086,15 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
           children: const [_IndicadorDigitando()],
         );
       }
+      // Fundo branco atrás do aviso: fica legível em qualquer tema do chat.
       return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
+        child: Container(
+          margin: const EdgeInsets.all(28),
+          padding: const EdgeInsets.fromLTRB(24, 26, 24, 24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -4073,13 +4102,13 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                 width: 72,
                 height: 72,
                 decoration: const BoxDecoration(
-                  color: Color(0xFFE8F6FD),
+                  color: Color(0xFF0FB3FF),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
                   Icons.chat_bubble_outline,
                   size: 36,
-                  color: Color(0xFF0FB3FF),
+                  color: Colors.white,
                 ),
               ),
               const SizedBox(height: 16),
@@ -4092,10 +4121,10 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                 ),
               ),
               const SizedBox(height: 6),
-              Text(
+              const Text(
                 'Envie a primeira mensagem para iniciar a conversa.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13.5, color: Colors.grey.shade500),
+                style: TextStyle(fontSize: 13.5, color: Color(0xFF4B5563)),
               ),
             ],
           ),
@@ -4981,11 +5010,13 @@ class _Mensagem {
 enum _OpcaoAnexo { galeria, documento }
 
 class _ResumoSolicitacao {
+  final int idSolicitacao;
   final String codigo;
   final String nomeServico;
   final String status;
 
   const _ResumoSolicitacao({
+    required this.idSolicitacao,
     required this.codigo,
     required this.nomeServico,
     required this.status,

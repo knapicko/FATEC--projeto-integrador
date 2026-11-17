@@ -532,6 +532,22 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                             thickness: 1,
                             color: _divider,
                           ),
+                          // Igual ao perfil do profissional: atalho direto.
+                          if (!widget.isVisitante)
+                            _buildProfileItem(
+                              label: 'Editar Meus Dados',
+                              fallbackIcon: Icons.edit_outlined,
+                              onTap: () async {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const EditarInformacoesPage(),
+                                  ),
+                                );
+                                if (mounted) _carregarDadosPerfil();
+                              },
+                            ),
 
                           _buildSectionTitle('Sua Atividade'),
                           _buildProfileItem(
@@ -618,7 +634,8 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                           ),
                           _buildProfileItem(
                             label: 'Sobre a ConsertaJá',
-                            imageAsset: 'assets/images/ConsertaJa_Cinza.png',
+                            imageAsset:
+                                'assets/images/icone/icone_consertaja.png',
                             fallbackIcon: Icons.info_outline_rounded,
                             onTap: () {
                               Navigator.push(

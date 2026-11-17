@@ -222,15 +222,14 @@ class _TelaInicialState extends State<TelaInicial>
     if (_transicionando || _autenticandoGoogle) return;
     setState(() => _transicionando = true);
     if (!mounted) return;
-    // Na primeira transição, o build da tela de onboarding (+ shaders) é
-    // pesado: espera o fade-out terminar e cede um frame antes de construir,
-    // para não travar no toque. Nas próximas vezes já está tudo em cache.
-    if (!_aquecido) {
-      await Future.delayed(const Duration(milliseconds: 300));
-      if (!mounted) return;
-      await WidgetsBinding.instance.endOfFrame;
-      if (!mounted) return;
-    }
+    // Montar a tela de onboarding (ainda mais a de login, com os campos) é
+    // pesado. Sempre deixa o fade dos botões acontecer primeiro e cede um
+    // frame: o quadro mais caro cai com a tela parada, e não no meio de uma
+    // animação (era a "travadinha" às vezes no "Já possuo uma conta").
+    await Future.delayed(Duration(milliseconds: _aquecido ? 200 : 300));
+    if (!mounted) return;
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
     unawaited(OnboardingController.instance.limparRascunho());
     if (login) {
       OnboardingController.instance.iniciarFluxoLogin();
@@ -331,13 +330,18 @@ class _TelaInicialState extends State<TelaInicial>
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Hero(
-                            tag: 'caixa-transicao-inicial',
-                            child: SizedBox(
-                              key: _chaveCaixa,
-                              width: caixaSize,
-                              height: caixaSize,
-                              child: _caixaAnimada(caixaSize),
+                          SizedBox(
+                            key: _chaveCaixa,
+                            width: caixaSize,
+                            height: caixaSize,
+                            child: Hero(
+                              tag: 'caixa-transicao-inicial',
+                              flightShuttleBuilder: caixaHeroShuttle,
+                              child: SizedBox(
+                                width: caixaSize,
+                                height: caixaSize,
+                                child: _caixaAnimada(caixaSize),
+                              ),
                             ),
                           ),
                           _surgir(

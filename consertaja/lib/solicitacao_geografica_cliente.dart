@@ -1793,7 +1793,7 @@ class _SolicitacaoGeograficaClientePageState
         borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
         boxShadow: [
           BoxShadow(
-            color: Color(0x290FB3FF),
+            color: Color(0x1A000000),
             blurRadius: 30,
             offset: Offset(0, -6),
           ),
@@ -1803,20 +1803,6 @@ class _SolicitacaoGeograficaClientePageState
         borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
         child: Stack(
           children: [
-            // Faixa azul fina no topo do sheet.
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: Container(
-                height: 4,
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF0FB3FF), Color(0xFF6FD3FF)],
-                  ),
-                ),
-              ),
-            ),
             AnimatedSize(
               duration: _dur,
               curve: _curva,
@@ -2152,20 +2138,15 @@ class _SolicitacaoGeograficaClientePageState
     );
   }
 
-  Widget _rotulo(String texto, IconData icone) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Icon(icone, color: _azul, size: 18),
-      const SizedBox(width: 6),
-      Text(
-        texto,
-        style: const TextStyle(
-          color: _texto,
-          fontSize: 14.5,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    ],
+  // Só o texto (sem o ícone azul à esquerda). O ícone continua no
+  // parâmetro para não mexer nas chamadas.
+  Widget _rotulo(String texto, IconData _) => Text(
+    texto,
+    style: const TextStyle(
+      color: _texto,
+      fontSize: 14.5,
+      fontWeight: FontWeight.w700,
+    ),
   );
 
   Widget _contador() {
@@ -2916,50 +2897,45 @@ class _SolicitacaoGeograficaClientePageState
                       ),
                     ),
                     const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: SizedBox(
-                            height: 52,
-                            child: OutlinedButton.icon(
-                              onPressed: _respondendoProposta
-                                  ? null
-                                  : _recusarProposta,
-                              icon: const Icon(Icons.close_rounded, size: 19),
-                              label: const Text(
-                                'Recusar',
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: _vermelho,
-                                side: const BorderSide(
-                                  color: Color(0xFFFCA5A5),
-                                  width: 1.4,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(30),
-                                ),
-                              ),
-                            ),
+                    // Aceitar em cima (ação principal) e Recusar embaixo,
+                    // os dois na largura toda: o texto não quebra.
+                    SizedBox(
+                      width: double.infinity,
+                      child: _botaoCheio(
+                        icone: Icons.check_circle_outline_rounded,
+                        texto: _respondendoProposta
+                            ? 'Enviando...'
+                            : 'Aceitar proposta',
+                        aoTocar: _respondendoProposta ? null : _aceitarProposta,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: OutlinedButton.icon(
+                        onPressed: _respondendoProposta
+                            ? null
+                            : _recusarProposta,
+                        icon: const Icon(Icons.close_rounded, size: 19),
+                        label: const Text(
+                          'Recusar proposta',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          flex: 2,
-                          child: _botaoCheio(
-                            icone: Icons.check_circle_outline_rounded,
-                            texto: _respondendoProposta
-                                ? 'Enviando...'
-                                : 'Aceitar proposta',
-                            aoTocar: _respondendoProposta
-                                ? null
-                                : _aceitarProposta,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _vermelho,
+                          side: const BorderSide(
+                            color: Color(0xFFFCA5A5),
+                            width: 1.4,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
                           ),
                         ),
-                      ],
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Center(

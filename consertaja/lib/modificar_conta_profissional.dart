@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'widgets/salvamento_automatico.dart';
 import 'widgets/skeleton_loading.dart';
 import 'services/cor_dominante_service.dart';
 import 'utils/iniciais.dart';
@@ -41,7 +42,11 @@ class _ModificarContaProfissionalPageState
 
   Timer? _descricaoTimer;
   bool _carregando = true;
-  bool _salvando = false;
+
+  /// Tudo salva sozinho a cada mudança (sem botão "Salvar Alterações").
+  late final SalvamentoAutomatico _autosave = SalvamentoAutomatico(
+    _salvarAlteracoes,
+  );
   bool _enviandoFoto = false;
 
   String? _fotoPerfilUrl;
@@ -64,6 +69,7 @@ class _ModificarContaProfissionalPageState
   @override
   void dispose() {
     _descricaoTimer?.cancel();
+    _autosave.dispose();
     _descricaoController.dispose();
     super.dispose();
   }
@@ -181,32 +187,8 @@ class _ModificarContaProfissionalPageState
   }
 
   void _agendarSalvamentoDescricao(String value) {
-    _descricaoTimer?.cancel();
-    _descricaoTimer = Timer(const Duration(milliseconds: 700), () {
-      _salvarDescricaoSilencioso(value);
-    });
+    _autosave.agendar();
     setState(() {});
-  }
-
-  Future<void> _salvarDescricaoSilencioso(String value) async {
-    final idPerfil = await _obterOuCriarPerfil();
-    if (idPerfil == null) return;
-
-    try {
-      final textoLimpo = value.trim();
-      final descricaoFinal = textoLimpo.isEmpty
-          ? null
-          : (textoLimpo.length > 500
-                ? textoLimpo.substring(0, 500)
-                : textoLimpo);
-
-      await _supabase
-          .from('perfil')
-          .update({'descricao_perfil': descricaoFinal})
-          .eq('id_perfil', idPerfil);
-    } catch (e) {
-      debugPrint('Erro ao salvar descricao silenciosamente: $e');
-    }
   }
 
   Future<void> _escolherFotoPerfil() async {
@@ -328,59 +310,35 @@ class _ModificarContaProfissionalPageState
     }
   }
 
+  /// Grava descrição, tipo de conta e anos de experiência.
   Future<void> _salvarAlteracoes() async {
-    _descricaoTimer?.cancel();
-    setState(() => _salvando = true);
+    final idPerfil = await _obterOuCriarPerfil();
+    if (idPerfil == null) {
+      throw Exception('perfil profissional não encontrado.');
+    }
 
-    try {
-      final idPerfil = await _obterOuCriarPerfil();
-      if (idPerfil == null) {
-        throw Exception('Perfil profissional não encontrado.');
-      }
+    final textoLimpo = _descricaoController.text.trim();
+    final descricaoFinal = textoLimpo.isEmpty
+        ? null
+        : (textoLimpo.length > 500 ? textoLimpo.substring(0, 500) : textoLimpo);
 
-      final textoLimpo = _descricaoController.text.trim();
-      final descricaoFinal = textoLimpo.isEmpty
-          ? null
-          : (textoLimpo.length > 500
-                ? textoLimpo.substring(0, 500)
-                : textoLimpo);
+    await _supabase
+        .from('perfil')
+        .update({
+          'descricao_perfil': descricaoFinal,
+          // Tipo de perfil (apenas para pessoa jurídica).
+          if (_isPessoaJuridica)
+            'tipo_perfil': _tipoConta == _TipoConta.loja
+                ? 'Loja'
+                : 'Independente',
+        })
+        .eq('id_perfil', idPerfil);
 
+    if (_anosExperienciaSelecionado != null && _idProfissional != null) {
       await _supabase
-          .from('perfil')
-          .update({'descricao_perfil': descricaoFinal})
-          .eq('id_perfil', idPerfil);
-
-      // Salva o tipo de perfil (apenas para pessoa jurídica)
-      if (_isPessoaJuridica) {
-        final tipoPerfil = _tipoConta == _TipoConta.loja
-            ? 'Loja'
-            : 'Independente';
-        await _supabase
-            .from('perfil')
-            .update({'tipo_perfil': tipoPerfil})
-            .eq('id_perfil', idPerfil);
-      }
-
-      if (_anosExperienciaSelecionado != null) {
-        await _supabase
-            .from('dados_profissionais')
-            .update({'anos_experiencia': _anosExperienciaSelecionado})
-            .eq('id_profissional', _idProfissional!);
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Alterações salvas com sucesso!')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Falha ao salvar alterações: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _salvando = false);
+          .from('dados_profissionais')
+          .update({'anos_experiencia': _anosExperienciaSelecionado})
+          .eq('id_profissional', _idProfissional!);
     }
   }
 
@@ -452,35 +410,6 @@ class _ModificarContaProfissionalPageState
               width: double.infinity,
               height: 128,
               child: ColoredBox(color: _corBanner),
-            ),
-            Positioned(
-              top: 10,
-              right: 10,
-              child: Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFFE3E6EA)),
-                ),
-                child: IconButton(
-                  padding: EdgeInsets.zero,
-                  splashRadius: 16,
-                  icon: const Icon(
-                    Icons.edit_outlined,
-                    size: 18,
-                    color: Color(0xFF0FB3FF),
-                  ),
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Edição da capa disponível em breve.'),
-                      ),
-                    );
-                  },
-                ),
-              ),
             ),
             Positioned(
               left: 0,
@@ -655,6 +584,7 @@ class _ModificarContaProfissionalPageState
                 .toList(),
             onChanged: (value) {
               setState(() => _anosExperienciaSelecionado = value);
+              _autosave.agendar();
             },
           ),
           if (_isPessoaJuridica) ...[
@@ -686,35 +616,7 @@ class _ModificarContaProfissionalPageState
             ),
           ],
           const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            height: 54,
-            child: ElevatedButton.icon(
-              onPressed: _salvando ? null : _salvarAlteracoes,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF12A7EA),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                elevation: 0,
-              ),
-              icon: _salvando
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.save_outlined),
-              label: const Text(
-                'Salvar Alterações',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-              ),
-            ),
-          ),
+          Center(child: IndicadorSalvamento(controle: _autosave)),
         ],
       ),
     );
@@ -728,7 +630,10 @@ class _ModificarContaProfissionalPageState
     required bool selecionado,
   }) {
     return InkWell(
-      onTap: () => setState(() => _tipoConta = tipo),
+      onTap: () {
+        setState(() => _tipoConta = tipo);
+        _autosave.agendar();
+      },
       borderRadius: BorderRadius.circular(18),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -789,6 +694,7 @@ class _ModificarContaProfissionalPageState
               onChanged: (value) {
                 if (value == null) return;
                 setState(() => _tipoConta = value);
+                _autosave.agendar();
               },
             ),
           ],

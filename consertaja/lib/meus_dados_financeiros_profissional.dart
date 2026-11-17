@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'gestao_equipe.dart';
 import 'tela_meu_perfil_profissional.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
+import 'widgets/skeletons_telas.dart';
 
 class MeusDadosFinanceirosProfissionalPage extends StatefulWidget {
   const MeusDadosFinanceirosProfissionalPage({super.key});
@@ -833,9 +834,7 @@ class _MeusDadosFinanceirosProfissionalPageState
         backgroundColor: _background,
         body: SafeArea(
           child: _carregando
-              ? const Center(
-                  child: CircularProgressIndicator(color: _primaryBlue),
-                )
+              ? const SkeletonFinanceiro()
               : Column(
                   children: [
                     _buildHeader(),

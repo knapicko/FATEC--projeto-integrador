@@ -7,6 +7,7 @@ import 'models/servico_profissional.dart';
 import 'services/servicos_profissional_service.dart';
 import 'utils/fluxo_solicitacao.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
+import 'widgets/skeletons_telas.dart';
 
 /// Retirado no Local — etapa 4 → etapa 5.
 ///
@@ -43,6 +44,9 @@ class _ConfirmarRetiradaClientePageState
   bool _enviando = false;
   bool _codigoValido = false;
   bool _podeRetirar = false;
+
+  /// O profissional já confirmou que entregou? (1ª das duas confirmações)
+  bool _profissionalConcluiu = false;
   String _codigoCorreto = '';
   String _nomeProfissional = 'Profissional';
   String _enderecoProfissional = '';
@@ -69,7 +73,7 @@ class _ConfirmarRetiradaClientePageState
           .from('solicitacoes')
           .select(
             'fk_status, etapa_solicitacao, tipo_execucao, codigo_rec_dev, '
-            'fk_servico_prof',
+            'fk_servico_prof, profissional_finalizado_atendimento',
           )
           .eq('id_solicitacao', widget.idSolicitacao)
           .single();
@@ -79,6 +83,8 @@ class _ConfirmarRetiradaClientePageState
         etapa: (sol['etapa_solicitacao'] as num?)?.toInt() ?? 0,
       );
       _podeRetirar = fluxo.aguardandoRetirada;
+      _profissionalConcluiu =
+          sol['profissional_finalizado_atendimento'] == true;
       _codigoCorreto = sol['codigo_rec_dev']?.toString().trim() ?? '';
 
       final idServico = (sol['fk_servico_prof'] as num?)?.toInt();
@@ -121,7 +127,13 @@ class _ConfirmarRetiradaClientePageState
   }
 
   Future<void> _confirmarRetirada() async {
-    if (!_podeRetirar || !_codigoValido || _foto == null || _enviando) return;
+    if (!_podeRetirar ||
+        !_profissionalConcluiu ||
+        !_codigoValido ||
+        _foto == null ||
+        _enviando) {
+      return;
+    }
     setState(() => _enviando = true);
     try {
       final bytes = await _foto!.readAsBytes();
@@ -151,11 +163,14 @@ class _ConfirmarRetiradaClientePageState
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Retirada confirmada. Serviço concluído!')),
+        const SnackBar(
+          content: Text('Retirada confirmada. Serviço concluído!'),
+        ),
       );
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => DetalhesPedidoPage(idSolicitacao: widget.idSolicitacao),
+          builder: (_) =>
+              DetalhesPedidoPage(idSolicitacao: widget.idSolicitacao),
         ),
       );
     } catch (e) {
@@ -171,7 +186,11 @@ class _ConfirmarRetiradaClientePageState
   @override
   Widget build(BuildContext context) {
     final habilitado =
-        _podeRetirar && _codigoValido && _foto != null && !_enviando;
+        _podeRetirar &&
+        _profissionalConcluiu &&
+        _codigoValido &&
+        _foto != null &&
+        !_enviando;
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
@@ -184,7 +203,7 @@ class _ConfirmarRetiradaClientePageState
         ),
       ),
       body: _carregando
-          ? const Center(child: CircularProgressIndicator())
+          ? const SkeletonEtapaFluxo(comMapa: false)
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
@@ -330,9 +349,7 @@ class _ConfirmarRetiradaClientePageState
                                 : 'Código inválido',
                             style: TextStyle(
                               fontWeight: FontWeight.w700,
-                              color: _codigoValido
-                                  ? Colors.green
-                                  : Colors.red,
+                              color: _codigoValido ? Colors.green : Colors.red,
                             ),
                           ),
                       ],
@@ -361,7 +378,11 @@ class _ConfirmarRetiradaClientePageState
                           )
                         : const Icon(Icons.inventory_2_outlined),
                     label: Text(
-                      _enviando ? 'Confirmando...' : 'Confirmar retirada',
+                      _enviando
+                          ? 'Confirmando...'
+                          : _profissionalConcluiu
+                          ? 'Confirmar retirada'
+                          : 'Aguardando o profissional confirmar a entrega',
                       style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
                     style: FilledButton.styleFrom(

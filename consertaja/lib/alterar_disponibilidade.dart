@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'widgets/salvamento_automatico.dart';
 import 'widgets/skeleton_loading.dart';
 
 /// Dados de uma exceção de calendário (dia bloqueado total ou parcialmente).
@@ -123,8 +124,18 @@ class _AlterarDisponibilidadePageState
   final Set<int> _diasComEventos = {};
   List<_ServicoAgendado> _servicosAgendados = [];
 
-  bool _salvando = false;
   bool _carregando = true;
+
+  /// Dias e horários salvam sozinhos a cada mudança (sem botão "Salvar").
+  late final SalvamentoAutomatico _autosave = SalvamentoAutomatico(
+    _gravarDisponibilidade,
+  );
+
+  @override
+  void dispose() {
+    _autosave.dispose();
+    super.dispose();
+  }
 
   DateTime? _dataInicioFerias;
   DateTime? _dataFimFerias;
@@ -886,6 +897,7 @@ class _AlterarDisponibilidadePageState
         _horaFim = horario;
       }
     });
+    _autosave.agendar();
   }
 
   void _alternarDiaSemana(int indice) {
@@ -896,6 +908,7 @@ class _AlterarDisponibilidadePageState
         _diasSemanaAtivos.add(indice);
       }
     });
+    _autosave.agendar();
   }
 
   Future<void> _mesAnterior() async {
@@ -1274,109 +1287,54 @@ class _AlterarDisponibilidadePageState
     }
   }
 
-  Future<void> _salvarDisponibilidade() async {
+  /// Grava a disponibilidade recorrente (chamado pelo salvamento automático;
+  /// erros aparecem no indicador da tela).
+  Future<void> _gravarDisponibilidade() async {
     if (_diasSemanaAtivos.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Selecione pelo menos 1 dia da semana.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
+      throw Exception('selecione pelo menos 1 dia da semana.');
+    }
+    final idProfissional = widget.isEmpresa
+        ? null
+        : await _buscarIdProfissional();
+    final idEmpresa =
+        widget.idGrupoEmpresa ??
+        (widget.isEmpresa ? await _buscarIdGrupoEmpresa() : null);
+
+    if (widget.isEmpresa && idEmpresa == null) {
+      throw Exception('não foi possível identificar a empresa.');
+    }
+    if (!widget.isEmpresa && idProfissional == null) {
+      throw Exception('não foi possível identificar seu perfil profissional.');
     }
 
-    setState(() => _salvando = true);
+    // Dias escolhidos em texto, ex: "segunda-feira,terça-feira,sexta-feira"
+    final diasOrdenados = _diasSemanaAtivos.toList()..sort();
+    final diasTexto = diasOrdenados
+        .map((indice) => _nomesDias[indice])
+        .join(',');
 
-    try {
-      final idProfissional = widget.isEmpresa
-          ? null
-          : await _buscarIdProfissional();
-      final idEmpresa =
-          widget.idGrupoEmpresa ??
-          (widget.isEmpresa ? await _buscarIdGrupoEmpresa() : null);
-
-      if (widget.isEmpresa && idEmpresa == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Não foi possível identificar a empresa.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        setState(() => _salvando = false);
-        return;
-      }
-
-      if (!widget.isEmpresa && idProfissional == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Não foi possível identificar seu perfil profissional.',
-              ),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        setState(() => _salvando = false);
-        return;
-      }
-
-      // Dias escolhidos em texto, ex: "segunda-feira,terça-feira,sexta-feira"
-      final diasOrdenados = _diasSemanaAtivos.toList()..sort();
-      final diasTexto = diasOrdenados
-          .map((indice) => _nomesDias[indice])
-          .join(',');
-
-      // Deleta os registros antigos de disponibilidade recorrente deste
-      // profissional / empresa para que não fiquem dias/horários acumulados de saves antigos.
-      final queryDelete = _supabase
-          .from('agenda_profissional')
-          .delete()
-          .eq('fk_solicitacao', 0);
-
-      if (widget.isEmpresa) {
-        await queryDelete.eq('fk_grupo_empresa', idEmpresa!);
-      } else {
-        await queryDelete.eq('fk_profissional', idProfissional!);
-      }
-
-      // Salva um único registro com todos os dias da semana e o horário
-      // padrão de início/fim (fk_solicitacao = 0 = disponibilidade recorrente).
-      await _supabase.from('agenda_profissional').insert({
-        'dias_semana': diasTexto,
-        'hora_ini': _formatarTimetz(_horaInicio),
-        'hora_fim': _formatarTimetz(_horaFim),
-        if (!widget.isEmpresa) 'fk_profissional': idProfissional,
-        if (widget.isEmpresa) 'fk_grupo_empresa': idEmpresa,
-        'fk_status': 1,
-        'fk_solicitacao': 0,
-      });
-
-      // Exceções são salvas imediatamente pelo Bottom Sheet.
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Disponibilidade salva com sucesso!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      debugPrint('Erro ao salvar disponibilidade: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao salvar disponibilidade: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _salvando = false);
+    // Um único registro de disponibilidade recorrente (fk_solicitacao = 0):
+    // apaga o antigo e grava o novo.
+    final queryDelete = _supabase
+        .from('agenda_profissional')
+        .delete()
+        .eq('fk_solicitacao', 0);
+    if (widget.isEmpresa) {
+      await queryDelete.eq('fk_grupo_empresa', idEmpresa!);
+    } else {
+      await queryDelete.eq('fk_profissional', idProfissional!);
     }
+
+    await _supabase.from('agenda_profissional').insert({
+      'dias_semana': diasTexto,
+      'hora_ini': _formatarTimetz(_horaInicio),
+      'hora_fim': _formatarTimetz(_horaFim),
+      if (!widget.isEmpresa) 'fk_profissional': idProfissional,
+      if (widget.isEmpresa) 'fk_grupo_empresa': idEmpresa,
+      'fk_status': 1,
+      'fk_solicitacao': 0,
+    });
+    // Exceções já são salvas na hora pelo bottom sheet.
   }
 
   String _formatarDataBrasileira(DateTime data) {
@@ -2304,48 +2262,11 @@ class _AlterarDisponibilidadePageState
     );
   }
 
+  /// No lugar do antigo botão "Salvar": mostra o estado do salvamento.
   Widget _buildBotaoSalvar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-      child: SizedBox(
-        width: double.infinity,
-        height: 52,
-        child: ElevatedButton(
-          onPressed: _salvando ? null : _salvarDisponibilidade,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: _blue,
-            disabledBackgroundColor: _blue.withValues(alpha: 0.6),
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(26),
-            ),
-          ),
-          child: _salvando
-              ? const SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
-              : Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    Icon(Icons.save_outlined, color: Colors.white, size: 20),
-                    SizedBox(width: 8),
-                    Text(
-                      'Salvar Disponibilidade',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-        ),
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+      child: Center(child: IndicadorSalvamento(controle: _autosave)),
     );
   }
 

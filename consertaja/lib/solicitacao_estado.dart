@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+
+import 'servico_concluido.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -84,8 +86,7 @@ class SolicitacaoEstadoPage extends StatefulWidget {
   State<SolicitacaoEstadoPage> createState() => _SolicitacaoEstadoPageState();
 }
 
-class _SolicitacaoEstadoPageState
-    extends State<SolicitacaoEstadoPage>
+class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
     with SingleTickerProviderStateMixin, VoltarParaPedidosMixin {
   /// Voltar (botão ou sistema) leva para meus_servicos_solicitados.dart.
   @override
@@ -123,6 +124,20 @@ class _SolicitacaoEstadoPageState
   String _relatoCliente = '';
   int _quantidadeAnexos = 1;
   String? _imagemAnexoUrl;
+
+  /// A imagem mostrada veio do CLIENTE (anexo da solicitação)? Se não, é a
+  /// foto do serviço e a legenda é só o nome do serviço.
+  bool _fotoDoCliente = false;
+
+  /// Profissional já confirmou a conclusão (1ª das duas confirmações).
+  bool _profissionalConcluiu = false;
+  bool _marcandoConclusao = false;
+
+  /// Botão da próxima etapa: fica preso embaixo da tela enquanto o lugar
+  /// dele na lista não aparece; quando aparece, "gruda" de volta no lugar.
+  final GlobalKey _chaveBotoesAcao = GlobalKey();
+  final GlobalKey _chaveAreaLista = GlobalKey();
+  bool _botoesNoLugar = false;
   List<String> _imagensAnexadasCliente = [];
   String _legendaAnexo = '';
   ModalidadeExecucao _modalidade = ModalidadeExecucao.levaETraz;
@@ -331,6 +346,7 @@ class _SolicitacaoEstadoPageState
       _relatoCliente = s.descricaoServico!;
     }
     _imagemAnexoUrl = s.imagemAnexoUrl ?? s.imagemServicoUrl;
+    _fotoDoCliente = (s.imagemAnexoUrl ?? '').trim().isNotEmpty;
     _tipoExecucaoOriginal = s.tipoExecucao;
     _modalidade = ModalidadeExecucao.fromString(s.tipoExecucao);
     _fkGrupoEmpresa = s.fkGrupoEmpresa;
@@ -485,7 +501,7 @@ class _SolicitacaoEstadoPageState
             'fk_status, etapa_solicitacao, fk_profissional, fk_usuario, fk_endereco, fk_servico_prof, fk_servico_temp, '
             'duracao_atendimento, imagens_atendimento_antes, imagens_atendimento_depois, '
             'imagens_recebimento, imagens_em_andamento, imagens_devolucao, '
-            'codigo_rec_dev',
+            'codigo_rec_dev, profissional_finalizado_atendimento',
           )
           .eq('id_solicitacao', _idSolicitacao)
           .maybeSingle();
@@ -503,6 +519,8 @@ class _SolicitacaoEstadoPageState
       _fkGrupoEmpresa = (row['fk_grupo_empresa'] as num?)?.toInt();
       _fkProfissional = (row['fk_profissional'] as num?)?.toInt() ?? 0;
       _idStatusSolicitacao = (row['fk_status'] as num?)?.toInt();
+      _profissionalConcluiu =
+          row['profissional_finalizado_atendimento'] == true;
       _etapaSolicitacao = (row['etapa_solicitacao'] as num?)?.toInt() ?? 0;
       _codigoRecDev = row['codigo_rec_dev']?.toString().trim() ?? '';
       _duracaoAtendimento = (row['duracao_atendimento'] as num?)?.toInt() ?? 0;
@@ -683,6 +701,7 @@ class _SolicitacaoEstadoPageState
           final url = primeiro['anexo_url']?.toString().trim() ?? '';
           if (url.isNotEmpty) {
             _imagemAnexoUrl = url;
+            _fotoDoCliente = true;
           }
           final nomeArq = primeiro['nome_arquivo']?.toString().trim() ?? '';
           if (nomeArq.isNotEmpty) {
@@ -699,6 +718,7 @@ class _SolicitacaoEstadoPageState
             .toList();
         if (_imagensAnexadasCliente.isNotEmpty) {
           _imagemAnexoUrl = _imagensAnexadasCliente.first;
+          _fotoDoCliente = true;
           _quantidadeAnexos = _imagensAnexadasCliente.length;
         }
       }
@@ -706,7 +726,7 @@ class _SolicitacaoEstadoPageState
       if (_legendaAnexo.isEmpty && _imagemAnexoUrl != null) {
         _legendaAnexo = _modeloEquipamento.isNotEmpty
             ? _modeloEquipamento
-            : 'Foto anexada pela cliente';
+            : _tituloServico;
       }
 
       // 4. Endereço do cliente
@@ -1293,6 +1313,10 @@ class _SolicitacaoEstadoPageState
 
   @override
   Widget build(BuildContext context) {
+    // Confere, depois de montar, se o botão já está no lugar dele na lista.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _verificarBotoesNoLugar();
+    });
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
@@ -1329,65 +1353,146 @@ class _SolicitacaoEstadoPageState
                           ),
                         ),
                       )
-                    : NestedScrollView(
-                        headerSliverBuilder: (context, innerBoxIsScrolled) => [
-                          SliverPersistentHeader(
-                            pinned: true,
-                            delegate: _AndamentoHeaderDelegate(
-                              child: _buildEtapasAndamentoCompacto(),
+                    : Stack(
+                        key: _chaveAreaLista,
+                        children: [
+                          NotificationListener<ScrollMetricsNotification>(
+                            onNotification: (_) {
+                              _verificarBotoesNoLugar();
+                              return false;
+                            },
+                            child: NotificationListener<ScrollNotification>(
+                              onNotification: (_) {
+                                _verificarBotoesNoLugar();
+                                return false;
+                              },
+                              child: NestedScrollView(
+                                headerSliverBuilder:
+                                    (context, innerBoxIsScrolled) => [
+                                      SliverPersistentHeader(
+                                        pinned: true,
+                                        delegate: _AndamentoHeaderDelegate(
+                                          child:
+                                              _buildEtapasAndamentoCompacto(),
+                                        ),
+                                      ),
+                                    ],
+                                body: RefreshIndicator(
+                                  color: _azul,
+                                  onRefresh: _carregarDadosCompletos,
+                                  child: ListView(
+                                    physics:
+                                        const AlwaysScrollableScrollPhysics(),
+                                    padding: const EdgeInsets.fromLTRB(
+                                      16,
+                                      12,
+                                      16,
+                                      32,
+                                    ),
+                                    children: [
+                                      if (_idStatusSolicitacao == 6) ...[
+                                        _buildServicoConcluido(),
+                                        const SizedBox(height: 14),
+                                        SizedBox(
+                                          height: 52,
+                                          child: FilledButton.icon(
+                                            onPressed: _abrirResumoConclusao,
+                                            icon: const Icon(
+                                              Icons.receipt_long_rounded,
+                                            ),
+                                            label: const Text(
+                                              'Ver resumo e recebimento',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                            style: FilledButton.styleFrom(
+                                              backgroundColor: _azul,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(26),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                      if (_idStatusSolicitacao != 6) ...[
+                                        if (widget.recemAceito ||
+                                            _ehDevolucao) ...[
+                                          _buildCardConfirmacaoAceite(),
+                                          const SizedBox(height: 14),
+                                        ],
+                                        _buildCardPerfilCliente(),
+                                        const SizedBox(height: 14),
+                                        if (_avaliacaoCliente != null) ...[
+                                          _buildCardAvaliacaoCliente(),
+                                          const SizedBox(height: 14),
+                                        ],
+                                        _buildCardServicoSelecionado(),
+                                        const SizedBox(height: 14),
+                                        _buildCardModalidadeAtendimento(),
+                                        const SizedBox(height: 14),
+                                        if (_temDataAgendada ||
+                                            _temHoraAgendada) ...[
+                                          _buildCardsAgendamento(),
+                                          const SizedBox(height: 14),
+                                        ],
+                                        _buildCardLocalizacao(),
+                                        const SizedBox(height: 14),
+                                        _buildCardEstimativaCombinada(),
+                                        if (_modalidade ==
+                                            ModalidadeExecucao
+                                                .recebaEmCasa) ...[
+                                          const SizedBox(height: 14),
+                                          _buildCardChecklistEspecialista(),
+                                        ],
+                                        if ((_fluxo.clienteDeslocando &&
+                                                _modalidade
+                                                    .clienteLevaProduto) ||
+                                            _fluxo.aguardandoRetirada) ...[
+                                          const SizedBox(height: 14),
+                                          _buildCardCodigoRecebimento(),
+                                        ],
+                                        const SizedBox(height: 20),
+                                        // Lugar do botão na lista (invisível enquanto
+                                        // ele está preso embaixo da tela).
+                                        Opacity(
+                                          key: _chaveBotoesAcao,
+                                          opacity: _botoesNoLugar ? 1 : 0,
+                                          child: _buildBotoesAcao(),
+                                        ),
+                                        const SizedBox(height: 16),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
+                          if (_idStatusSolicitacao != 6)
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              child: IgnorePointer(
+                                ignoring: _botoesNoLugar,
+                                child: AnimatedOpacity(
+                                  opacity: _botoesNoLugar ? 0 : 1,
+                                  duration: const Duration(milliseconds: 160),
+                                  child: Container(
+                                    color: const Color(0xFFF1F5F9),
+                                    padding: EdgeInsets.fromLTRB(
+                                      16,
+                                      10,
+                                      16,
+                                      10 + MediaQuery.paddingOf(context).bottom,
+                                    ),
+                                    child: _buildBotoesAcao(),
+                                  ),
+                                ),
+                              ),
+                            ),
                         ],
-                        body: RefreshIndicator(
-                          color: _azul,
-                          onRefresh: _carregarDadosCompletos,
-                          child: ListView(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-                            children: [
-                              if (_idStatusSolicitacao == 6)
-                                _buildServicoConcluido(),
-                              if (_idStatusSolicitacao != 6) ...[
-                                if (widget.recemAceito || _ehDevolucao) ...[
-                                  _buildCardConfirmacaoAceite(),
-                                  const SizedBox(height: 14),
-                                ],
-                                _buildCardPerfilCliente(),
-                                const SizedBox(height: 14),
-                                if (_avaliacaoCliente != null) ...[
-                                  _buildCardAvaliacaoCliente(),
-                                  const SizedBox(height: 14),
-                                ],
-                                _buildCardServicoSelecionado(),
-                                const SizedBox(height: 14),
-                                _buildCardModalidadeAtendimento(),
-                                const SizedBox(height: 14),
-                                if (_temDataAgendada ||
-                                    _temHoraAgendada) ...[
-                                  _buildCardsAgendamento(),
-                                  const SizedBox(height: 14),
-                                ],
-                                _buildCardLocalizacao(),
-                                const SizedBox(height: 14),
-                                _buildCardEstimativaCombinada(),
-                                if (_modalidade ==
-                                    ModalidadeExecucao.recebaEmCasa) ...[
-                                  const SizedBox(height: 14),
-                                  _buildCardChecklistEspecialista(),
-                                ],
-                                if ((_fluxo.clienteDeslocando &&
-                                        _modalidade.clienteLevaProduto) ||
-                                    _fluxo.aguardandoRetirada) ...[
-                                  const SizedBox(height: 14),
-                                  _buildCardCodigoRecebimento(),
-                                ],
-                                const SizedBox(height: 20),
-                                _buildBotoesAcao(),
-                                const SizedBox(height: 16),
-                              ],
-                            ],
-                          ),
-                        ),
                       ),
               ),
             ],
@@ -1395,6 +1500,23 @@ class _SolicitacaoEstadoPageState
         ),
       ),
     );
+  }
+
+  /// O lugar do botão na lista já está visível acima da barra fixa?
+  void _verificarBotoesNoLugar() {
+    final botoes =
+        _chaveBotoesAcao.currentContext?.findRenderObject() as RenderBox?;
+    final area =
+        _chaveAreaLista.currentContext?.findRenderObject() as RenderBox?;
+    if (botoes == null || area == null || !botoes.attached || !area.attached) {
+      return;
+    }
+    final fundoBotoes = botoes.localToGlobal(Offset(0, botoes.size.height)).dy;
+    final fundoArea =
+        area.localToGlobal(Offset(0, area.size.height)).dy -
+        MediaQuery.paddingOf(context).bottom;
+    final noLugar = fundoBotoes <= fundoArea - 10;
+    if (noLugar != _botoesNoLugar) setState(() => _botoesNoLugar = noLugar);
   }
 
   void _carregarLista(dynamic valor, List<String> destino) {
@@ -2505,7 +2627,11 @@ class _SolicitacaoEstadoPageState
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
-                              'Foto anexada pela cliente ($_legendaAnexo)',
+                              _fotoDoCliente
+                                  ? (_legendaAnexo.isNotEmpty
+                                        ? 'Foto anexada pelo cliente ($_legendaAnexo)'
+                                        : 'Foto anexada pelo cliente')
+                                  : _tituloServico,
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 12.5,
@@ -2739,123 +2865,123 @@ class _SolicitacaoEstadoPageState
       children: [
         // Bloco de Data
         if (_temDataAgendada)
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  children: [
-                    Icon(
-                      Icons.calendar_today_outlined,
-                      color: _textoEscuro,
-                      size: 18,
-                    ),
-                    SizedBox(width: 6),
-                    Text(
-                      'Data',
-                      style: TextStyle(
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(
+                        Icons.calendar_today_outlined,
                         color: _textoEscuro,
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w800,
+                        size: 18,
                       ),
+                      SizedBox(width: 6),
+                      Text(
+                        'Data',
+                        style: TextStyle(
+                          color: _textoEscuro,
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    _dataExibicao,
+                    style: const TextStyle(
+                      color: _textoEscuro,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
                     ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  _dataExibicao,
-                  style: const TextStyle(
-                    color: _textoEscuro,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  _periodoExibicao,
-                  style: const TextStyle(
-                    color: _textoMuted,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
+                  const SizedBox(height: 3),
+                  Text(
+                    _periodoExibicao,
+                    style: const TextStyle(
+                      color: _textoMuted,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
         if (_temDataAgendada && _temHoraAgendada) const SizedBox(width: 12),
         // Bloco de Horário
         if (_temHoraAgendada)
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  children: [
-                    Icon(Icons.access_time, color: _textoEscuro, size: 18),
-                    SizedBox(width: 6),
-                    Text(
-                      'Horário',
-                      style: TextStyle(
-                        color: _textoEscuro,
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w800,
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.access_time, color: _textoEscuro, size: 18),
+                      SizedBox(width: 6),
+                      Text(
+                        'Horário',
+                        style: TextStyle(
+                          color: _textoEscuro,
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    _horaExibicao,
+                    style: const TextStyle(
+                      color: _textoEscuro,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
                     ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  _horaExibicao,
-                  style: const TextStyle(
-                    color: _textoEscuro,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
                   ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  _janelaExibicao,
-                  style: const TextStyle(
-                    color: _textoMuted,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
+                  const SizedBox(height: 3),
+                  Text(
+                    _janelaExibicao,
+                    style: const TextStyle(
+                      color: _textoMuted,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
       ],
     );
   }
@@ -3389,6 +3515,39 @@ class _SolicitacaoEstadoPageState
     );
   }
 
+  Future<void> _marcarConclusaoProfissional() async {
+    setState(() => _marcandoConclusao = true);
+    try {
+      await _supabase
+          .from('solicitacoes')
+          .update({'profissional_finalizado_atendimento': true})
+          .eq('id_solicitacao', _idSolicitacao);
+      if (!mounted) return;
+      setState(() => _profissionalConcluiu = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Entrega confirmada. Falta o cliente confirmar.'),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Não foi possível confirmar: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _marcandoConclusao = false);
+    }
+  }
+
+  void _abrirResumoConclusao() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ServicoConcluidoPage(idSolicitacao: _idSolicitacao),
+      ),
+    );
+  }
+
   void _abrirAndamento() {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -3474,10 +3633,33 @@ class _SolicitacaoEstadoPageState
     final fluxo = _fluxo;
 
     // Retirado no Local: serviço pronto, o cliente vem buscar no balcão.
+    // O profissional confirma a entrega e depois o cliente confirma a
+    // retirada — só então vira "Concluído".
     if (fluxo.aguardandoRetirada) {
-      return _buildBotaoAguardar(
-        'Aguardando retirada pelo cliente',
-        Icons.storefront_outlined,
+      if (_profissionalConcluiu) {
+        return _buildBotaoAguardar(
+          'Aguardando o cliente confirmar',
+          Icons.hourglass_top_rounded,
+        );
+      }
+      return SizedBox(
+        width: double.infinity,
+        height: 52,
+        child: FilledButton.icon(
+          onPressed: _marcandoConclusao ? null : _marcarConclusaoProfissional,
+          icon: const Icon(Icons.task_alt_rounded, size: 20),
+          label: const Text(
+            'Entreguei ao cliente',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+          ),
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFF168A52),
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(26),
+            ),
+          ),
+        ),
       );
     }
 
@@ -3787,34 +3969,34 @@ class _SolicitacaoEstadoPageState
         Row(
           children: [
             if (_temDataAgendada)
-            Expanded(
-              child: SizedBox(
-                height: 48,
-                child: FilledButton.icon(
-                  onPressed: _salvarNaAgenda,
-                  icon: const Icon(
-                    Icons.calendar_today_outlined,
-                    color: _textoEscuro,
-                    size: 18,
-                  ),
-                  label: const Text(
-                    'Salvar na Agenda',
-                    style: TextStyle(
+              Expanded(
+                child: SizedBox(
+                  height: 48,
+                  child: FilledButton.icon(
+                    onPressed: _salvarNaAgenda,
+                    icon: const Icon(
+                      Icons.calendar_today_outlined,
                       color: _textoEscuro,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13.5,
+                      size: 18,
                     ),
-                  ),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFFF1F5F9),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24),
+                    label: const Text(
+                      'Salvar na Agenda',
+                      style: TextStyle(
+                        color: _textoEscuro,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFF1F5F9),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
             if (_temDataAgendada) const SizedBox(width: 10),
             Expanded(
               child: SizedBox(

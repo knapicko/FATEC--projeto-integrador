@@ -42,6 +42,16 @@ class NotificacaoRepositorio {
     );
   }
 
+  static Future<void> marcarAbertas(List<int> ids) async {
+    if (ids.isEmpty) return;
+    await _db.rpc('marcar_notificacoes_abertas', params: {'p_ids': ids});
+  }
+
+  static Future<void> excluirVarias(List<int> ids) async {
+    if (ids.isEmpty) return;
+    await _db.from('notificacoes').delete().inFilter('id_notificacao', ids);
+  }
+
   static Future<int> marcarTodasAbertas() async {
     final r = await _db.rpc('marcar_notificacoes_abertas');
     return (r as num?)?.toInt() ?? 0;

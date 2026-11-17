@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'tela_home.dart';
+import 'tela_inicial.dart';
 import 'tela_home_profissional.dart';
 import 'services/validacao_telefone.dart';
 import 'services/formatacao_data.dart';
@@ -548,9 +549,7 @@ class _CompletarCadastroClientePageState
                         child: Text(
                           'Física',
                           style: TextStyle(
-                            color: _isPessoaFisica
-                                ? _azul
-                                : Colors.white,
+                            color: _isPessoaFisica ? _azul : Colors.white,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -575,9 +574,7 @@ class _CompletarCadastroClientePageState
                         child: Text(
                           'Jurídica',
                           style: TextStyle(
-                            color: !_isPessoaFisica
-                                ? _azul
-                                : Colors.white,
+                            color: !_isPessoaFisica ? _azul : Colors.white,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -670,10 +667,7 @@ class _CompletarCadastroClientePageState
               side: const BorderSide(color: Colors.white, width: 2),
               title: Text.rich(
                 TextSpan(
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                  ),
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
                   children: [
                     const TextSpan(text: 'Li e aceito os '),
                     TextSpan(
@@ -708,10 +702,7 @@ class _CompletarCadastroClientePageState
               side: const BorderSide(color: Colors.white, width: 2),
               title: Text.rich(
                 TextSpan(
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                  ),
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
                   children: [
                     const TextSpan(text: 'Li e aceito a '),
                     TextSpan(
@@ -1077,9 +1068,7 @@ class _CompletarCadastroProfissionalPageState
                         child: Text(
                           'Física',
                           style: TextStyle(
-                            color: _isPessoaFisica
-                                ? _azul
-                                : Colors.white,
+                            color: _isPessoaFisica ? _azul : Colors.white,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -1101,9 +1090,7 @@ class _CompletarCadastroProfissionalPageState
                         child: Text(
                           'Pessoa Jurídica',
                           style: TextStyle(
-                            color: !_isPessoaFisica
-                                ? _azul
-                                : Colors.white,
+                            color: !_isPessoaFisica ? _azul : Colors.white,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -1520,10 +1507,7 @@ class _CompletarCadastroProfissionalDocumentosPageState
               side: const BorderSide(color: Colors.white, width: 2),
               title: Text.rich(
                 TextSpan(
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                  ),
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
                   children: [
                     const TextSpan(text: 'Li e aceito os '),
                     TextSpan(
@@ -1558,10 +1542,7 @@ class _CompletarCadastroProfissionalDocumentosPageState
               side: const BorderSide(color: Colors.white, width: 2),
               title: Text.rich(
                 TextSpan(
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                  ),
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
                   children: [
                     const TextSpan(text: 'Li e aceito a '),
                     TextSpan(
@@ -1651,6 +1632,21 @@ class _CompletarCadastroProfissionalDocumentosPageState
 const Color _azul = Color(0xFF0FB3FF);
 const Color _azulEscuro = Color(0xFF0A8FD6);
 
+Future<void> _voltarDoCadastro(BuildContext context) async {
+  final navegador = Navigator.of(context);
+  if (navegador.canPop()) {
+    navegador.pop();
+    return;
+  }
+  try {
+    await Supabase.instance.client.auth.signOut();
+  } catch (_) {}
+  navegador.pushAndRemoveUntil(
+    MaterialPageRoute(builder: (_) => const TelaInicial()),
+    (route) => false,
+  );
+}
+
 PreferredSizeWidget _appBarAzul(String titulo) {
   return AppBar(
     backgroundColor: _azul,
@@ -1659,6 +1655,15 @@ PreferredSizeWidget _appBarAzul(String titulo) {
     elevation: 0,
     systemOverlayStyle: SystemUiOverlayStyle.light,
     centerTitle: true,
+    // Voltar: tela anterior, ou (quando o cadastro abriu direto, sem nada
+    // atrás) sai da conta incompleta e volta para a tela inicial.
+    leading: Builder(
+      builder: (context) => IconButton(
+        tooltip: 'Voltar',
+        icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+        onPressed: () => _voltarDoCadastro(context),
+      ),
+    ),
     title: Text(
       titulo,
       style: const TextStyle(

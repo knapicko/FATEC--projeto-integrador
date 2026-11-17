@@ -21,6 +21,7 @@ import 'utils/icone_oficio.dart';
 import 'utils/iniciais.dart';
 import 'widgets/camada_mapa.dart';
 import 'widgets/sonar_pulso.dart';
+import 'widgets/skeletons_telas.dart';
 
 enum _Aba { proximas, aceitas }
 
@@ -1025,14 +1026,7 @@ class _SolicitacaoGeograficaProfissionalPageState
   List<Widget> _conteudoSheet() {
     if (_aba == _Aba.aceitas) return _conteudoAceitas();
     if (_carregando && _solicitacoes.isEmpty) {
-      return const [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: EdgeInsets.all(32),
-            child: Center(child: CircularProgressIndicator(color: _azul)),
-          ),
-        ),
-      ];
+      return const [SliverToBoxAdapter(child: SkeletonCardsRadar())];
     }
     if (_erro != null) {
       return [SliverToBoxAdapter(child: _aviso(Icons.error_outline, _erro!))];
