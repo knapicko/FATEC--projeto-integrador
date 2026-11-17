@@ -5,29 +5,28 @@ import 'package:flutter/services.dart';
 import 'package:latlong2/latlong.dart' show LatLng;
 
 import 'meus_pedidos.dart';
-import 'perfil_loja.dart';
-import 'perfil_profissional.dart';
 import 'services/home_cliente_service.dart';
 import 'services/solicitacao_geografica_service.dart';
 import 'solicitacao_geografica_cliente.dart';
 import 'tela_busca.dart';
-import 'tela_chat_profissional.dart';
 import 'tela_mensagens.dart';
 import 'tela_meu_perfil_cliente.dart';
 import 'tela_servico.dart';
+import 'todos_profissionais.dart';
 import 'todos_servicos.dart';
 import 'utils/abrir_solicitacao.dart';
 import 'utils/app_navigation_util.dart';
 import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/cor_oficio.dart';
+import 'utils/icone_oficio.dart';
 import 'utils/iniciais.dart';
 import 'widgets/avisos_bottom_sheet.dart';
+import 'widgets/card_profissional_vitrine.dart';
 import 'widgets/card_servico_popular.dart';
 import 'widgets/contador_notificacoes.dart';
 import 'widgets/filtros_busca.dart';
 import 'widgets/seletor_endereco_cliente.dart';
 import 'widgets/skeleton_loading.dart';
-import 'widgets/tag_oficio.dart';
 
 /// Home do cliente (e do visitante).
 class TelaHome extends StatefulWidget {
@@ -47,8 +46,9 @@ class _TelaHomeState extends State<TelaHome> {
 
   ({String nome, String? foto})? _eu;
   List<PedidoAndamento>? _pedidos;
-  List<CategoriaHome>? _categorias;
-  List<ProfissionalRegiao>? _regiao;
+  List<OficioInfo>? _categorias;
+  bool _todasCategorias = false;
+  List<ProfissionalVitrine>? _regiao;
   List<ServicoAvaliado>? _servicos;
   EnderecoCliente? _endereco;
 
@@ -70,7 +70,8 @@ class _TelaHomeState extends State<TelaHome> {
     } else {
       _pedidos = const [];
     }
-    HomeClienteService.categorias().then((c) {
+    // Todas as funções (tabela funcoes) com a cor do ofício.
+    carregarFuncoesFiltro().then((c) {
       if (mounted) setState(() => _categorias = c);
     });
     HomeClienteService.servicosPorAvaliacao().then((s) {
@@ -268,6 +269,7 @@ class _TelaHomeState extends State<TelaHome> {
                     const SizedBox(height: 2),
                     SeletorEnderecoCliente(
                       cor: _texto,
+                      corIcone: const Color(0xFF0EA5E9),
                       corTrocar: _azul,
                       aoMudar: (e) {
                         setState(() {
@@ -321,7 +323,7 @@ class _TelaHomeState extends State<TelaHome> {
                           SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'O que precisa consertar? (vazamento, tomada…)',
+                              'Pesquisar...',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(color: _sec, fontSize: 14.5),
@@ -688,88 +690,85 @@ class _TelaHomeState extends State<TelaHome> {
     );
   }
 
-  static IconData _iconeCategoria(String nome) {
-    final n = nome.toLowerCase();
-    if (n.contains('ar') && (n.contains('clima') || n.contains('condic'))) {
-      return Icons.mode_fan_off_outlined;
-    }
-    if (n.contains('el')) return Icons.bolt_rounded;
-    if (n.contains('hidr') || n.contains('encan'))
-      return Icons.plumbing_rounded;
-    if (n.contains('chave')) return Icons.vpn_key_outlined;
-    if (n.contains('limp')) return Icons.cleaning_services_outlined;
-    if (n.contains('tecn') || n.contains('inform') || n.contains('celul')) {
-      return Icons.devices_other_rounded;
-    }
-    if (n.contains('pint')) return Icons.format_paint_outlined;
-    if (n.contains('jard')) return Icons.yard_outlined;
-    if (n.contains('mov') || n.contains('marcen')) return Icons.chair_outlined;
-    if (n.contains('auto') || n.contains('carro') || n.contains('mec')) {
-      return Icons.directions_car_outlined;
-    }
-    if (n.contains('cost') || n.contains('roupa')) {
-      return Icons.checkroom_outlined;
-    }
-    if (n.contains('eletrodom') || n.contains('cozinh')) {
-      return Icons.kitchen_outlined;
-    }
-    return Icons.handyman_outlined;
-  }
-
   Widget _secaoCategorias() {
     final cats = _categorias;
+    // 7 funções + "Mais" (mostra todas); com todas abertas, "Menos".
+    final visiveis = cats == null
+        ? const <OficioInfo>[]
+        : (_todasCategorias ? cats : cats.take(7).toList());
     return Column(
       children: [
         _tituloSecao(
           'Categorias Populares',
           'Técnicos e serviços por especialidade',
           acao: 'Ver todas ›',
-          aoTocar: () => _abrirBusca(),
+          aoTocar: () => setState(() => _todasCategorias = true),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: GridView.count(
-            crossAxisCount: 4,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 0.86,
-            children: cats == null
-                ? List.generate(
-                    8,
-                    (_) => const SkeletonBox(
-                      height: double.infinity,
-                      borderRadius: 18,
-                    ),
-                  )
-                : [
-                    for (final c in cats.take(7))
-                      _tileCategoria(
-                        c.nome,
-                        _iconeCategoria(c.nome),
-                        CorOficio.parse(c.cor),
-                        () => _abrirBusca(
-                          filtros: FiltrosBusca(categoria: c.nome),
-                        ),
+          child: AnimatedSize(
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: GridView.count(
+              crossAxisCount: 4,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 0.86,
+              children: cats == null
+                  ? List.generate(
+                      8,
+                      (_) => const SkeletonBox(
+                        height: double.infinity,
+                        borderRadius: 18,
                       ),
-                    _tileCategoria(
-                      'Mais',
-                      Icons.grid_view_rounded,
-                      const Color(0xFF64748B),
-                      () => _abrirBusca(),
-                      tracejado: true,
-                    ),
-                  ],
+                    )
+                  : [
+                      for (final f in visiveis) _tileFuncao(f),
+                      if (cats.length > 7)
+                        _tileCategoria(
+                          _todasCategorias ? 'Menos' : 'Mais',
+                          Icon(
+                            _todasCategorias
+                                ? Icons.expand_less_rounded
+                                : Icons.grid_view_rounded,
+                            color: const Color(0xFF64748B),
+                            size: 24,
+                          ),
+                          const Color(0xFF64748B),
+                          () => setState(
+                            () => _todasCategorias = !_todasCategorias,
+                          ),
+                          tracejado: true,
+                        ),
+                    ],
+            ),
           ),
         ),
       ],
     );
   }
 
+  /// Função com o ícone (icone_oficio.dart) pintado na cor do ofício
+  /// (cor_oficio.dart). Toque: busca já filtrada por essa função.
+  Widget _tileFuncao(OficioInfo f) {
+    final cor = CorOficio.parse(f.cor);
+    return _tileCategoria(
+      f.funcao,
+      ColorFiltered(
+        colorFilter: ColorFilter.mode(cor, BlendMode.srcIn),
+        child: IconeOficio.imagemPorFuncao(f.funcao, tamanho: 26),
+      ),
+      cor,
+      () => _abrirBusca(filtros: FiltrosBusca(funcoes: {f.funcao})),
+    );
+  }
+
   Widget _tileCategoria(
     String nome,
-    IconData icone,
+    Widget icone,
     Color cor,
     VoidCallback aoTocar, {
     bool tracejado = false,
@@ -780,23 +779,25 @@ class _TelaHomeState extends State<TelaHome> {
         Container(
           width: 46,
           height: 46,
+          alignment: Alignment.center,
           decoration: BoxDecoration(
             color: cor.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(14),
           ),
-          child: Icon(icone, color: cor, size: 24),
+          child: icone,
         ),
         const SizedBox(height: 8),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Text(
             nome,
-            maxLines: 1,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: Color(0xFF1E293B),
-              fontSize: 12.5,
+              fontSize: 12,
+              height: 1.15,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -827,294 +828,83 @@ class _TelaHomeState extends State<TelaHome> {
           'Profissionais na sua Região',
           'Prontos para atender ${_bairro == 'sua região' ? 'na sua região' : 'na $_bairro'} e arredores',
           acao: 'Ver todos',
-          aoTocar: () {
-            if (_permitido()) _abrir(const SolicitacaoGeograficaClientePage());
-          },
+          aoTocar: () => _abrir(const TodosProfissionaisPage()),
         ),
-        SizedBox(
-          height: 236,
-          child: lista == null
-              ? ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: 2,
-                  separatorBuilder: (_, _) => const SizedBox(width: 14),
-                  itemBuilder: (_, _) => const SkeletonBox(
-                    width: 300,
-                    height: 236,
-                    borderRadius: 22,
-                  ),
-                )
-              : lista.isEmpty
-              ? const Center(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 32),
-                    child: Text(
-                      'Ainda não há profissionais a até 5 km de você.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: _sec),
+        if (lista != null && lista.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFE0F2FE),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.location_searching_rounded,
+                      color: _azul,
                     ),
                   ),
-                )
-              : ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  itemCount: lista.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 14),
-                  itemBuilder: (_, i) => _cardProfissional(lista[i]),
-                ),
-        ),
-      ],
-    );
-  }
-
-  void _abrirPerfil(ProfissionalRegiao r) {
-    final p = r.perfil;
-    if (p.ehEmpresa) {
-      _abrir(
-        PerfilLoja(
-          idGrupoEmpresa: p.idGrupoEmpresa,
-          nomeEmpresa: p.nome,
-          fotoUrlEmpresa: p.fotoUrl,
-          tagEmpresa: p.tagEmpresa,
-          corTagEmpresa: p.corTagEmpresa,
-        ),
-      );
-    } else {
-      _abrir(
-        PerfilProfissionalPage(
-          nomeInicial: p.nome,
-          imagemInicial: p.fotoUrl ?? '',
-          profissao: r.funcoes.isNotEmpty
-              ? r.funcoes.first.funcao
-              : 'Profissional independente',
-          avaliacao: p.nota,
-          idProfissional: p.idProfissional,
-        ),
-      );
-    }
-  }
-
-  void _conversar(ProfissionalRegiao r) {
-    if (!_permitido()) return;
-    final p = r.perfil;
-    _abrir(
-      TelaChatProfissional(
-        nomeProfissional: p.nome,
-        fotoProfissional: p.fotoUrl ?? '',
-        oficioPrincipal: r.funcoes.isNotEmpty ? r.funcoes.first.funcao : '',
-        idProfissional: p.ehEmpresa ? null : p.idProfissional,
-        idGrupoEmpresa: p.ehEmpresa ? p.idGrupoEmpresa : null,
-      ),
-    );
-  }
-
-  Widget _cardProfissional(ProfissionalRegiao r) {
-    final p = r.perfil;
-    final foto = p.fotoUrl ?? '';
-    final km = p.distanciaKm < 1
-        ? '${(p.distanciaKm * 1000).round()} m'
-        : '${p.distanciaKm.toStringAsFixed(1).replaceAll('.', ',')} km';
-    return Container(
-      width: 300,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          InkWell(
-            onTap: () => _abrirPerfil(r),
-            child: Row(
-              children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: SizedBox(
-                        width: 62,
-                        height: 62,
-                        child: foto.startsWith('http')
-                            ? Image.network(
-                                foto,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) => _iniciais(p.nome),
-                              )
-                            : _iniciais(p.nome),
-                      ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Nenhum profissional a até 5 km',
+                    style: TextStyle(
+                      color: _texto,
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w800,
                     ),
-                    Positioned(
-                      right: -4,
-                      bottom: -4,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.verified_rounded,
-                          color: _azul,
-                          size: 18,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFF7E0),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.star_rounded,
-                              color: Color(0xFFF59E0B),
-                              size: 15,
-                            ),
-                            const SizedBox(width: 3),
-                            Text(
-                              p.nota == null
-                                  ? 'Novo'
-                                  : p.nota!.toStringAsFixed(1),
-                              style: const TextStyle(
-                                color: Color(0xFFB45309),
-                                fontWeight: FontWeight.w800,
-                                fontSize: 12.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        p.nome,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: _texto,
-                          fontSize: 16.5,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      Text(
-                        r.funcoes.isNotEmpty
-                            ? r.funcoes.first.funcao
-                            : (p.ehEmpresa ? 'Loja' : 'Profissional'),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: _sec, fontSize: 13),
-                      ),
-                    ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  Text(
+                    'Ainda não há profissionais num raio de 5 km de '
+                    '${_bairro == 'sua região' ? 'onde você está' : _bairro}. '
+                    'Veja todos os profissionais cadastrados.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: _sec, fontSize: 13.5),
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: () => _abrir(const TodosProfissionaisPage()),
+                    child: const Text('Ver todos os profissionais'),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF3F6FA),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.near_me_outlined, color: _azul, size: 16),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    '$km de você',
-                    style: const TextStyle(
-                      color: Color(0xFF334155),
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-                Text(
-                  r.disponivelHoje ? 'Disponível hoje' : 'Agenda a combinar',
-                  style: TextStyle(
-                    color: r.disponivelHoje ? const Color(0xFF16A34A) : _sec,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
+          )
+        else
           SizedBox(
-            height: 26,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: r.funcoes.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 6),
-              itemBuilder: (_, i) => TagOficio(
-                oficio: r.funcoes[i],
-                fontSize: 11.5,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-              ),
-            ),
-          ),
-          const Spacer(),
-          const Divider(height: 1, color: Color(0xFFEDEFF2)),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 44,
-                  child: FilledButton(
-                    onPressed: () => _conversar(r),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _azul,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
+            height: 236,
+            child: lista == null
+                ? ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: 2,
+                    separatorBuilder: (_, _) => const SizedBox(width: 14),
+                    itemBuilder: (_, _) => const SkeletonBox(
+                      width: 300,
+                      height: 236,
+                      borderRadius: 22,
                     ),
-                    child: const Text(
-                      'Conversar',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
+                  )
+                : ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    itemCount: lista.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 14),
+                    itemBuilder: (_, i) => CardProfissionalVitrine(p: lista[i]),
                   ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Material(
-                color: const Color(0xFFE8EDF3),
-                borderRadius: BorderRadius.circular(14),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(14),
-                  onTap: () => _abrirPerfil(r),
-                  child: const SizedBox(
-                    width: 44,
-                    height: 44,
-                    child: Icon(Icons.badge_outlined, color: Color(0xFF334155)),
-                  ),
-                ),
-              ),
-            ],
           ),
-        ],
-      ),
+      ],
     );
   }
 

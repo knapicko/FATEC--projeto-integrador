@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../meus_enderecos.dart';
+
 /// Um endereço do cliente (ass_usuario_endereco + enderecos).
 class EnderecoCliente {
   const EnderecoCliente({
@@ -112,9 +114,13 @@ class EnderecosCliente {
     }
   }
 
-  /// O escolhido no aparelho, senão o ativo, senão o primeiro.
+  /// O endereço ATIVO (banco); sem ativo, o último escolhido no aparelho;
+  /// senão o primeiro.
   static Future<EnderecoCliente?> escolhido(List<EnderecoCliente> lista) async {
     if (lista.isEmpty) return null;
+    for (final e in lista) {
+      if (e.ativo) return e;
+    }
     try {
       final prefs = await SharedPreferences.getInstance();
       final id = prefs.getInt(_chave);
@@ -122,17 +128,40 @@ class EnderecosCliente {
         if (e.id == id) return e;
       }
     } catch (_) {}
-    for (final e in lista) {
-      if (e.ativo) return e;
-    }
     return lista.first;
   }
 
+  /// Torna [e] o endereço ATIVO do cliente (ass_usuario_endereco).
   static Future<void> escolher(EnderecoCliente e) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt(_chave, e.id);
     } catch (_) {}
+    final db = Supabase.instance.client;
+    final user = db.auth.currentUser;
+    if (user == null) return;
+    try {
+      final u = await db
+          .from('usuarios')
+          .select('id_usuario')
+          .eq('auth_id', user.id)
+          .limit(1)
+          .maybeSingle();
+      final idUsuario = (u?['id_usuario'] as num?)?.toInt();
+      if (idUsuario == null) return;
+      await db
+          .from('ass_usuario_endereco')
+          .update({'endereco_ativo': false})
+          .eq('fk_usuario', idUsuario)
+          .neq('fk_endereco', e.id);
+      await db
+          .from('ass_usuario_endereco')
+          .update({'endereco_ativo': true})
+          .eq('fk_usuario', idUsuario)
+          .eq('fk_endereco', e.id);
+    } catch (err) {
+      debugPrint('[enderecos cliente] ativar: $err');
+    }
   }
 }
 
@@ -141,6 +170,7 @@ class SeletorEnderecoCliente extends StatefulWidget {
   const SeletorEnderecoCliente({
     super.key,
     this.cor = Colors.white,
+    this.corIcone,
     this.corTrocar,
     this.mostrarTrocar = true,
     this.aoMudar,
@@ -148,6 +178,7 @@ class SeletorEnderecoCliente extends StatefulWidget {
   });
 
   final Color cor;
+  final Color? corIcone;
   final Color? corTrocar;
   final bool mostrarTrocar;
   final ValueChanged<EnderecoCliente>? aoMudar;
@@ -190,15 +221,15 @@ class _SeletorEnderecoClienteState extends State<SeletorEnderecoCliente> {
       widget.aoTocarSemPermissao!();
       return;
     }
-    if (_lista.length < 2) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Cadastre outro endereço em Perfil → Meus Endereços para trocar.',
-          ),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+    if (_lista.isEmpty) {
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const MeusEnderecosPage()));
+      if (!mounted) return;
+      setState(() => _carregando = true);
+      await _carregar();
+      final atual = _atual;
+      if (atual != null) widget.aoMudar?.call(atual);
       return;
     }
     final caixa = context.findRenderObject() as RenderBox;
@@ -267,7 +298,11 @@ class _SeletorEnderecoClienteState extends State<SeletorEnderecoCliente> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.location_on_rounded, color: widget.cor, size: 18),
+          Icon(
+            Icons.location_on_rounded,
+            color: widget.corIcone ?? widget.cor,
+            size: 18,
+          ),
           const SizedBox(width: 4),
           Flexible(
             child: Text(
@@ -281,7 +316,8 @@ class _SeletorEnderecoClienteState extends State<SeletorEnderecoCliente> {
               ),
             ),
           ),
-          if (widget.mostrarTrocar) ...[
+          // "Trocar" só quando há endereço para trocar.
+          if (widget.mostrarTrocar && _lista.isNotEmpty) ...[
             const SizedBox(width: 6),
             Text(
               'Trocar',
@@ -294,11 +330,18 @@ class _SeletorEnderecoClienteState extends State<SeletorEnderecoCliente> {
               ),
             ),
           ],
-          Icon(
-            Icons.keyboard_arrow_down_rounded,
-            color: widget.corTrocar ?? widget.cor,
-            size: 18,
-          ),
+          if (_lista.isNotEmpty || widget.aoTocarSemPermissao != null)
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: widget.corTrocar ?? widget.cor,
+              size: 18,
+            )
+          else
+            Icon(
+              Icons.add_circle_outline_rounded,
+              color: widget.corTrocar ?? widget.cor,
+              size: 16,
+            ),
         ],
       ),
     );

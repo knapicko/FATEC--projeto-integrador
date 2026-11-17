@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/servico_catalogo.dart';
 import '../models/servico_profissional.dart';
 import '../utils/funcao_servico.dart';
+import '../utils/texto_busca.dart';
 
 class ServicosProfissionalService {
   static SupabaseClient get _supabase => Supabase.instance.client;
@@ -655,22 +656,7 @@ class ServicosProfissionalService {
         }
       }
 
-      String normalizar(String texto) {
-        return texto
-            .toLowerCase()
-            .replaceAll('á', 'a')
-            .replaceAll('à', 'a')
-            .replaceAll('ã', 'a')
-            .replaceAll('â', 'a')
-            .replaceAll('é', 'e')
-            .replaceAll('ê', 'e')
-            .replaceAll('í', 'i')
-            .replaceAll('ó', 'o')
-            .replaceAll('ô', 'o')
-            .replaceAll('õ', 'o')
-            .replaceAll('ú', 'u')
-            .replaceAll('ç', 'c');
-      }
+      String normalizar(String texto) => normalizarBusca(texto);
 
       final termoNorm = normalizar(termo);
       final palavras = termoNorm

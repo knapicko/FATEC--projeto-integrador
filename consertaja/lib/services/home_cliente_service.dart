@@ -6,6 +6,7 @@ import '../models/servico_profissional.dart';
 import '../utils/cor_oficio.dart';
 import '../utils/fluxo_solicitacao.dart';
 import '../utils/funcao_servico.dart';
+import '../widgets/card_profissional_vitrine.dart';
 import 'solicitacao_geografica_service.dart';
 
 SupabaseClient get _db => Supabase.instance.client;
@@ -40,21 +41,6 @@ class CategoriaHome {
   final String nome;
   final String? cor;
   final int total;
-}
-
-/// Profissional (ou loja) perto do cliente.
-class ProfissionalRegiao {
-  const ProfissionalRegiao({
-    required this.perfil,
-    this.funcoes = const [],
-    this.disponivelHoje = false,
-    this.totalAvaliacoes = 0,
-  });
-
-  final PerfilProximo perfil;
-  final List<OficioInfo> funcoes;
-  final bool disponivelHoje;
-  final int totalAvaliacoes;
 }
 
 /// Serviço com a média de avaliação dos atendimentos feitos com ele.
@@ -271,32 +257,114 @@ class HomeClienteService {
     'sábado',
   ];
 
-  /// Profissionais e lojas a até 5 km (mesmo raio do Radar), com funções e
-  /// se atendem hoje.
-  static Future<List<ProfissionalRegiao>> profissionaisNaRegiao(
-    LatLng centro,
-  ) async {
-    try {
-      final proximos = await SolicitacaoGeograficaService.buscarProximos(
-        centro,
-      );
-      final unicos = <String, PerfilProximo>{};
-      for (final p in proximos) {
-        unicos.putIfAbsent(p.chave, () => p);
+  /// Profissionais (independentes) e lojas com funções, se atendem hoje
+  /// (agenda), data de criação da conta, tag da loja e nota.
+  static Future<List<ProfissionalVitrine>> _montarVitrine({
+    required List<int> idsProf,
+    required List<int> idsGrupo,
+    Map<String, PerfilProximo> proximos = const {},
+  }) async {
+    // Dados dos profissionais
+    final dadosProf = <int, Map<String, dynamic>>{};
+    if (idsProf.isNotEmpty) {
+      final rows = await _db
+          .from('dados_profissionais')
+          .select('id_profissional, fk_usuario, fk_grupo_empresa, fk_perfil')
+          .inFilter('id_profissional', idsProf);
+      for (final r in rows) {
+        dadosProf[(r['id_profissional'] as num).toInt()] = r;
       }
-      final perfis = unicos.values.toList()
-        ..sort((a, b) => a.distanciaKm.compareTo(b.distanciaKm));
-      final idsProf = [
-        for (final p in perfis)
-          if (!p.ehEmpresa && p.idProfissional != null) p.idProfissional!,
-      ];
-      final idsGrupo = [
-        for (final p in perfis)
-          if (p.ehEmpresa && p.idGrupoEmpresa != null) p.idGrupoEmpresa!,
-      ];
+    }
+    final idsUsuario = {
+      for (final d in dadosProf.values)
+        if (d['fk_usuario'] != null) (d['fk_usuario'] as num).toInt(),
+    };
 
-      final funcoesProf = <int, List<OficioInfo>>{};
-      final funcoesGrupo = <int, List<OficioInfo>>{};
+    // Lojas: as pedidas + as dos funcionários + as que os donos têm.
+    final grupos = <int, Map<String, dynamic>>{};
+    final idsPerfil = {
+      for (final d in dadosProf.values)
+        if (d['fk_perfil'] != null) (d['fk_perfil'] as num).toInt(),
+    };
+    final idsGrupoBusca = {
+      ...idsGrupo,
+      for (final d in dadosProf.values)
+        if (d['fk_grupo_empresa'] != null)
+          (d['fk_grupo_empresa'] as num).toInt(),
+    };
+    try {
+      if (idsGrupoBusca.isNotEmpty) {
+        final rows = await _db
+            .from('grupo_empresa')
+            .select(
+              'id_grupo_empresa, nome_empresa, foto_url_empresa, tag_empresa, '
+              'cor_tag_empresa, fk_perfil',
+            )
+            .inFilter('id_grupo_empresa', idsGrupoBusca.toList());
+        for (final r in rows) {
+          grupos[(r['id_grupo_empresa'] as num).toInt()] = r;
+        }
+      }
+      if (idsPerfil.isNotEmpty) {
+        final rows = await _db
+            .from('grupo_empresa')
+            .select(
+              'id_grupo_empresa, nome_empresa, foto_url_empresa, tag_empresa, '
+              'cor_tag_empresa, fk_perfil',
+            )
+            .inFilter('fk_perfil', idsPerfil.toList());
+        for (final r in rows) {
+          grupos[(r['id_grupo_empresa'] as num).toInt()] = r;
+        }
+      }
+    } catch (_) {}
+    final grupoPorPerfil = <int, Map<String, dynamic>>{
+      for (final g in grupos.values)
+        if (g['fk_perfil'] != null) (g['fk_perfil'] as num).toInt(): g,
+    };
+
+    // Dono de cada loja (para a data de criação da conta).
+    final donoPorGrupo = <int, int>{};
+    final perfisDono = {
+      for (final g in grupos.values)
+        if (g['fk_perfil'] != null) (g['fk_perfil'] as num).toInt(),
+    };
+    if (perfisDono.isNotEmpty) {
+      try {
+        final rows = await _db
+            .from('dados_profissionais')
+            .select('fk_usuario, fk_perfil')
+            .inFilter('fk_perfil', perfisDono.toList());
+        for (final r in rows) {
+          final perfil = (r['fk_perfil'] as num?)?.toInt();
+          final usuario = (r['fk_usuario'] as num?)?.toInt();
+          final g = perfil == null ? null : grupoPorPerfil[perfil];
+          if (g != null && usuario != null) {
+            donoPorGrupo[(g['id_grupo_empresa'] as num).toInt()] = usuario;
+            idsUsuario.add(usuario);
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Usuários (nome, foto, criação)
+    final usuarios = <int, Map<String, dynamic>>{};
+    if (idsUsuario.isNotEmpty) {
+      try {
+        final rows = await _db
+            .from('usuarios')
+            .select('id_usuario, nome, foto_perfil_url, data_criacao')
+            .inFilter('id_usuario', idsUsuario.toList());
+        for (final r in rows) {
+          usuarios[(r['id_usuario'] as num).toInt()] = r;
+        }
+      } catch (_) {}
+    }
+
+    // Funções
+    final funcoesProf = <int, List<OficioInfo>>{};
+    final funcoesGrupo = <int, List<OficioInfo>>{};
+    try {
       if (idsProf.isNotEmpty) {
         final ass = await _db
             .from('ass_oficio_profissional')
@@ -311,54 +379,189 @@ class HomeClienteService {
         }
       }
       if (idsGrupo.isNotEmpty) {
-        try {
-          final ass = await _db
-              .from('ass_oficio_grupo_empresa')
-              .select('fk_grupo_empresa, $kSelectFuncao')
-              .inFilter('fk_grupo_empresa', idsGrupo);
-          for (final a in ass) {
-            final f = extrairFuncao(a);
-            if (f == null) continue;
-            funcoesGrupo
-                .putIfAbsent((a['fk_grupo_empresa'] as num).toInt(), () => [])
-                .add(OficioInfo.fromMap(f));
-          }
-        } catch (_) {}
-      }
-
-      // Atende hoje? (disponibilidade recorrente)
-      final hoje = _diasSemana[DateTime.now().weekday % 7];
-      final atendeHojeProf = <int>{};
-      final atendeHojeGrupo = <int>{};
-      try {
-        final agendas = await _db
-            .from('agenda_profissional')
-            .select('fk_profissional, fk_grupo_empresa, dias_semana')
-            .eq('fk_solicitacao', 0);
-        for (final a in agendas) {
-          final dias = a['dias_semana']?.toString().toLowerCase() ?? '';
-          if (!dias.contains(hoje)) continue;
-          final p = (a['fk_profissional'] as num?)?.toInt();
-          final g = (a['fk_grupo_empresa'] as num?)?.toInt();
-          if (p != null) atendeHojeProf.add(p);
-          if (g != null) atendeHojeGrupo.add(g);
+        final ass = await _db
+            .from('ass_oficio_grupo_empresa')
+            .select('fk_grupo_empresa, $kSelectFuncao')
+            .inFilter('fk_grupo_empresa', idsGrupo);
+        for (final a in ass) {
+          final f = extrairFuncao(a);
+          if (f == null) continue;
+          funcoesGrupo
+              .putIfAbsent((a['fk_grupo_empresa'] as num).toInt(), () => [])
+              .add(OficioInfo.fromMap(f));
         }
-      } catch (_) {}
+      }
+    } catch (_) {}
 
-      return [
-        for (final p in perfis)
-          ProfissionalRegiao(
-            perfil: p,
-            funcoes: p.ehEmpresa
-                ? (funcoesGrupo[p.idGrupoEmpresa] ?? const [])
-                : (funcoesProf[p.idProfissional] ?? const []),
-            disponivelHoje: p.ehEmpresa
-                ? atendeHojeGrupo.contains(p.idGrupoEmpresa)
-                : atendeHojeProf.contains(p.idProfissional),
-          ),
-      ];
+    // Disponível hoje (agenda recorrente: "segunda-feira,terça-feira…")
+    final hoje = _diasSemana[DateTime.now().weekday % 7];
+    final hojeProf = <int>{};
+    final hojeGrupo = <int>{};
+    try {
+      final agendas = await _db
+          .from('agenda_profissional')
+          .select('fk_profissional, fk_grupo_empresa, dias_semana')
+          .eq('fk_solicitacao', 0);
+      for (final a in agendas) {
+        final dias = (a['dias_semana']?.toString().toLowerCase() ?? '')
+            .split(',')
+            .map((d) => d.trim());
+        if (!dias.any((d) => d.startsWith(hoje))) continue;
+        final p = (a['fk_profissional'] as num?)?.toInt();
+        final g = (a['fk_grupo_empresa'] as num?)?.toInt();
+        if (g != null) {
+          hojeGrupo.add(g);
+        } else if (p != null) {
+          hojeProf.add(p);
+        }
+      }
+    } catch (_) {}
+
+    // Notas (quando não vieram do Radar)
+    final notasProf = <int, List<int>>{};
+    final notasGrupo = <int, List<int>>{};
+    try {
+      final avs = await _db
+          .from('avaliacoes_solicitacao')
+          .select('fk_solicitacao, nota')
+          .eq('tipo_avaliacao', 'profissional');
+      final idsSol = {
+        for (final a in avs)
+          if (a['fk_solicitacao'] != null) (a['fk_solicitacao'] as num).toInt(),
+      };
+      if (idsSol.isNotEmpty) {
+        final sols = await _db
+            .from('solicitacoes')
+            .select('id_solicitacao, fk_profissional, fk_grupo_empresa')
+            .inFilter('id_solicitacao', idsSol.toList());
+        final solPorId = {
+          for (final s in sols) (s['id_solicitacao'] as num).toInt(): s,
+        };
+        for (final a in avs) {
+          final s = solPorId[(a['fk_solicitacao'] as num?)?.toInt() ?? -1];
+          final nota = (a['nota'] as num?)?.toInt();
+          if (s == null || nota == null) continue;
+          final g = (s['fk_grupo_empresa'] as num?)?.toInt();
+          final p = (s['fk_profissional'] as num?)?.toInt();
+          if (g != null) {
+            notasGrupo.putIfAbsent(g, () => []).add(nota);
+          } else if (p != null) {
+            notasProf.putIfAbsent(p, () => []).add(nota);
+          }
+        }
+      }
+    } catch (_) {}
+    double? media(List<int>? l) =>
+        l == null || l.isEmpty ? null : l.reduce((a, b) => a + b) / l.length;
+    DateTime? criacao(Map<String, dynamic>? u) =>
+        DateTime.tryParse(u?['data_criacao']?.toString() ?? '')?.toLocal();
+
+    final lista = <ProfissionalVitrine>[];
+    for (final id in idsProf) {
+      final d = dadosProf[id];
+      if (d == null) continue;
+      final u = usuarios[(d['fk_usuario'] as num?)?.toInt() ?? -1];
+      final perto = proximos['p$id'];
+      // Loja associada: funcionário (fk_grupo_empresa) ou dono (fk_perfil).
+      final grupo =
+          grupos[(d['fk_grupo_empresa'] as num?)?.toInt() ?? -1] ??
+          grupoPorPerfil[(d['fk_perfil'] as num?)?.toInt() ?? -1];
+      lista.add(
+        ProfissionalVitrine(
+          ehEmpresa: false,
+          idProfissional: id,
+          nome: perto?.nome ?? u?['nome']?.toString() ?? 'Profissional',
+          foto: perto?.fotoUrl ?? u?['foto_perfil_url']?.toString(),
+          nota: perto?.nota ?? media(notasProf[id]),
+          totalAvaliacoes: notasProf[id]?.length ?? 0,
+          funcoes: funcoesProf[id] ?? const [],
+          disponivelHoje: hojeProf.contains(id),
+          criadoEm: criacao(u),
+          tagEmpresa: grupo?['tag_empresa']?.toString() ?? perto?.tagEmpresa,
+          corTagEmpresa:
+              grupo?['cor_tag_empresa']?.toString() ?? perto?.corTagEmpresa,
+          distanciaKm: perto?.distanciaKm,
+        ),
+      );
+    }
+    for (final id in idsGrupo) {
+      final g = grupos[id];
+      final perto = proximos['e$id'];
+      if (g == null && perto == null) continue;
+      lista.add(
+        ProfissionalVitrine(
+          ehEmpresa: true,
+          idGrupoEmpresa: id,
+          nome: perto?.nome ?? g?['nome_empresa']?.toString() ?? 'Loja',
+          foto: perto?.fotoUrl ?? g?['foto_url_empresa']?.toString(),
+          nota: perto?.nota ?? media(notasGrupo[id]),
+          totalAvaliacoes: notasGrupo[id]?.length ?? 0,
+          funcoes: funcoesGrupo[id] ?? const [],
+          disponivelHoje: hojeGrupo.contains(id),
+          criadoEm: criacao(usuarios[donoPorGrupo[id] ?? -1]),
+          tagEmpresa: g?['tag_empresa']?.toString() ?? perto?.tagEmpresa,
+          corTagEmpresa:
+              g?['cor_tag_empresa']?.toString() ?? perto?.corTagEmpresa,
+          distanciaKm: perto?.distanciaKm,
+        ),
+      );
+    }
+    return lista;
+  }
+
+  /// Profissionais e lojas a até 5 km (mesmo raio do Radar).
+  static Future<List<ProfissionalVitrine>> profissionaisNaRegiao(
+    LatLng centro,
+  ) async {
+    try {
+      final proximos = await SolicitacaoGeograficaService.buscarProximos(
+        centro,
+      );
+      final porChave = <String, PerfilProximo>{};
+      for (final p in proximos) {
+        porChave.putIfAbsent(p.chave, () => p);
+      }
+      final lista = await _montarVitrine(
+        idsProf: [
+          for (final p in porChave.values)
+            if (!p.ehEmpresa && p.idProfissional != null) p.idProfissional!,
+        ],
+        idsGrupo: [
+          for (final p in porChave.values)
+            if (p.ehEmpresa && p.idGrupoEmpresa != null) p.idGrupoEmpresa!,
+        ],
+        proximos: porChave,
+      );
+      lista.sort(
+        (a, b) => (a.distanciaKm ?? 99).compareTo(b.distanciaKm ?? 99),
+      );
+      return lista;
     } catch (e) {
       debugPrint('[home] região: $e');
+      return const [];
+    }
+  }
+
+  /// Todos os profissionais independentes e lojas cadastrados.
+  static Future<List<ProfissionalVitrine>> todosProfissionais() async {
+    try {
+      final dados = await _db
+          .from('dados_profissionais')
+          .select('id_profissional, fk_grupo_empresa');
+      final grupos = await _db.from('grupo_empresa').select('id_grupo_empresa');
+      return await _montarVitrine(
+        // Funcionários de loja aparecem pela loja; independentes sozinhos.
+        idsProf: [
+          for (final d in dados)
+            if (d['fk_grupo_empresa'] == null)
+              (d['id_profissional'] as num).toInt(),
+        ],
+        idsGrupo: [
+          for (final g in grupos) (g['id_grupo_empresa'] as num).toInt(),
+        ],
+      );
+    } catch (e) {
+      debugPrint('[home] todos profissionais: $e');
       return const [];
     }
   }

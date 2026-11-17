@@ -250,6 +250,9 @@ class _TelaInicialState extends State<TelaInicial>
     if (_transicionando || _autenticandoGoogle) return;
     setState(() => _transicionando = true);
     if (!mounted) return;
+    // A caixa para de flutuar: assim a tela inicial não redesenha a cada
+    // quadro enquanto a de login é montada (disputava o mesmo frame).
+    _flutuar.stop();
     // Montar a tela de onboarding (ainda mais a de login, com os campos) é
     // pesado. Sempre deixa o fade dos botões acontecer primeiro e cede um
     // frame: o quadro mais caro cai com a tela parada, e não no meio de uma
@@ -337,151 +340,199 @@ class _TelaInicialState extends State<TelaInicial>
       isAuth: true,
       child: Scaffold(
         backgroundColor: _blue,
-        body: SafeArea(
-          key: _chaveTela,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(5, 20, 5, 24),
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            key: _chaveCaixa,
-                            width: caixaSize,
-                            height: caixaSize,
-                            child: Hero(
-                              tag: 'caixa-transicao-inicial',
-                              flightShuttleBuilder: caixaHeroShuttle,
-                              child: SizedBox(
+        body: Stack(
+          children: [
+            // Aquecimento: um campo de texto e um botão desenhados fora da
+            // tela. O primeiro desenho de um TextField (cursor, fonte,
+            // seleção) é caro; feito aqui, em tempo ocioso, não pesa mais no
+            // primeiro quadro do login.
+            if (_aquecido)
+              const Positioned(
+                left: -2000,
+                top: 0,
+                width: 320,
+                child: IgnorePointer(child: _AquecimentoCampos()),
+              ),
+            SafeArea(
+              key: _chaveTela,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(5, 20, 5, 24),
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              SizedBox(
+                                key: _chaveCaixa,
                                 width: caixaSize,
                                 height: caixaSize,
-                                child: _caixaAnimada(caixaSize),
-                              ),
-                            ),
-                          ),
-                          _surgir(
-                            _titulo,
-                            AnimatedOpacity(
-                              opacity: _transicionando || _autenticandoGoogle
-                                  ? 0
-                                  : 1,
-                              duration: const Duration(milliseconds: 280),
-                              child: const Padding(
-                                padding: EdgeInsets.only(top: 16),
-                                child: Text.rich(
-                                  TextSpan(
-                                    text: 'Conserta',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 30,
-                                      fontWeight: FontWeight.w400,
+                                child: Hero(
+                                  tag: 'caixa-transicao-inicial',
+                                  flightShuttleBuilder: caixaHeroShuttle,
+                                  child: SizedBox(
+                                    width: caixaSize,
+                                    height: caixaSize,
+                                    child: RepaintBoundary(
+                                      child: _caixaAnimada(caixaSize),
                                     ),
-                                    children: [
+                                  ),
+                                ),
+                              ),
+                              _surgir(
+                                _titulo,
+                                AnimatedOpacity(
+                                  opacity:
+                                      _transicionando || _autenticandoGoogle
+                                      ? 0
+                                      : 1,
+                                  duration: const Duration(milliseconds: 280),
+                                  child: const Padding(
+                                    padding: EdgeInsets.only(top: 16),
+                                    child: Text.rich(
                                       TextSpan(
-                                        text: 'Já',
+                                        text: 'Conserta',
                                         style: TextStyle(
-                                          fontWeight: FontWeight.w800,
+                                          color: Colors.white,
+                                          fontSize: 30,
+                                          fontWeight: FontWeight.w400,
                                         ),
+                                        children: [
+                                          TextSpan(
+                                            text: 'Já',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                    ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 360),
+                            child: _surgir(
+                              _botoes,
+                              AnimatedBuilder(
+                                animation: _intro,
+                                // Sem toque durante a intro.
+                                builder: (context, child) => IgnorePointer(
+                                  ignoring: _intro.value < 0.9,
+                                  child: child,
+                                ),
+                                child: AnimatedOpacity(
+                                  opacity:
+                                      _transicionando || _autenticandoGoogle
+                                      ? 0
+                                      : 1,
+                                  duration: const Duration(milliseconds: 280),
+                                  child: IgnorePointer(
+                                    ignoring:
+                                        _transicionando || _autenticandoGoogle,
+                                    child: Column(
+                                      children: [
+                                        _BotaoInicial(
+                                          label: 'INICIAR CADASTRO',
+                                          background: Colors.white,
+                                          foreground: _blue,
+                                          onPressed: () =>
+                                              _abrirFluxo(login: false),
+                                        ),
+                                        const SizedBox(height: 14),
+                                        _BotaoInicial(
+                                          label: 'JÁ POSSUO UMA CONTA',
+                                          background: Colors.transparent,
+                                          foreground: Colors.white,
+                                          border: Colors.white,
+                                          onPressed: () =>
+                                              _abrirFluxo(login: true),
+                                        ),
+                                        const SizedBox(height: 14),
+                                        BotaoGoogleCircular(
+                                          carregando: _autenticandoGoogle,
+                                          onPressed: _entrarComGoogle,
+                                        ),
+                                        const SizedBox(height: 10),
+                                        TextButton(
+                                          onPressed: () {
+                                            Navigator.of(
+                                              context,
+                                            ).pushAndRemoveUntil(
+                                              _rotaComFade(
+                                                () => const TelaHome(
+                                                  isVisitante: true,
+                                                ),
+                                              ),
+                                              (route) => false,
+                                            );
+                                          },
+                                          style: TextButton.styleFrom(
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 20,
+                                              vertical: 4,
+                                            ),
+                                          ),
+                                          child: const Text(
+                                            'Quero visitar ›',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                    Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 360),
-                        child: _surgir(
-                          _botoes,
-                          AnimatedBuilder(
-                            animation: _intro,
-                            // Sem toque durante a intro.
-                            builder: (context, child) => IgnorePointer(
-                              ignoring: _intro.value < 0.9,
-                              child: child,
-                            ),
-                            child: AnimatedOpacity(
-                              opacity: _transicionando || _autenticandoGoogle
-                                  ? 0
-                                  : 1,
-                              duration: const Duration(milliseconds: 280),
-                              child: IgnorePointer(
-                                ignoring:
-                                    _transicionando || _autenticandoGoogle,
-                                child: Column(
-                                  children: [
-                                    _BotaoInicial(
-                                      label: 'INICIAR CADASTRO',
-                                      background: Colors.white,
-                                      foreground: _blue,
-                                      onPressed: () =>
-                                          _abrirFluxo(login: false),
-                                    ),
-                                    const SizedBox(height: 14),
-                                    _BotaoInicial(
-                                      label: 'JÁ POSSUO UMA CONTA',
-                                      background: Colors.transparent,
-                                      foreground: Colors.white,
-                                      border: Colors.white,
-                                      onPressed: () => _abrirFluxo(login: true),
-                                    ),
-                                    const SizedBox(height: 14),
-                                    BotaoGoogleCircular(
-                                      carregando: _autenticandoGoogle,
-                                      onPressed: _entrarComGoogle,
-                                    ),
-                                    const SizedBox(height: 10),
-                                    TextButton(
-                                      onPressed: () {
-                                        Navigator.of(
-                                          context,
-                                        ).pushAndRemoveUntil(
-                                          _rotaComFade(
-                                            () => const TelaHome(
-                                              isVisitante: true,
-                                            ),
-                                          ),
-                                          (route) => false,
-                                        );
-                                      },
-                                      style: TextButton.styleFrom(
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 20,
-                                          vertical: 4,
-                                        ),
-                                      ),
-                                      child: const Text(
-                                        'Quero visitar ›',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
-                ),
-              );
-            },
-          ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
+      ),
+    );
+  }
+}
+
+/// Campos desenhados fora da tela só para "aquecer" o primeiro desenho de
+/// TextField/botão antes de abrir o login.
+class _AquecimentoCampos extends StatelessWidget {
+  const _AquecimentoCampos();
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: TextEditingController(text: 'aquecimento'),
+            decoration: const InputDecoration(
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const TextField(obscureText: true),
+          FilledButton(onPressed: () {}, child: const Text('Entrar')),
+        ],
       ),
     );
   }
@@ -539,6 +590,7 @@ class BotaoGoogleCircular extends StatelessWidget {
   final VoidCallback onPressed;
 
   const BotaoGoogleCircular({
+    super.key,
     required this.carregando,
     required this.onPressed,
   });

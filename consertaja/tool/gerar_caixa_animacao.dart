@@ -173,7 +173,11 @@ void _contornarFerramentas() {
 /// sobe da esquerda (101,232) até a quina (318,272) e desce até (407,236).
 /// Trinco da caixa aberta (retângulo azul no meio da borda da frente), com
 /// uma margem para pegar o contorno inteiro.
-const _trinco = (left: 169, top: 231, right: 227, bottom: 287);
+const _trinco = (left: 170, top: 234, right: 225, bottom: 287);
+
+/// Linha de cima (por fora) do contorno do trinco, que acompanha a
+/// inclinação da borda: ~(172,235) até ~(223,247).
+double _topoTrinco(int x) => 235 + (x - 172) * (247 - 235) / (223 - 172);
 
 double _bordaFrente(int x) {
   if (x <= 318) return 232 + (x - 101) * (272 - 232) / (318 - 101);
@@ -222,19 +226,32 @@ void _separarCaixaAberta() {
       // A divisória azul da borda de cima da frente fica INTEIRA na frente:
       // sobe até o fim da faixa azul, senão as ferramentas passavam por
       // cima da metade dela ao flutuar.
+      // Limite de 10 px acima da borda: a faixa tem ~7 px. Sem o limite,
+      // onde a divisória encosta numa linha vertical (canto interno da
+      // caixa, à esquerda do trinco) a busca subia pela linha inteira e ela
+      // passava a ser desenhada por cima das ferramentas.
+      final limite = (_bordaFrente(x) - 10).floor();
       var y = (_bordaFrente(x) + 8).floor().clamp(0, original.height - 1);
-      while (y > 0 && branco(x, y)) {
+      while (y > limite && branco(x, y)) {
         y--;
       }
-      while (y > 0 && azul(x, y)) {
+      while (y > limite && azul(x, y)) {
         y--;
       }
       if (y + 1 < topo) topo = y + 1;
     }
-    // Trinco (retângulo no meio da borda): todo ele, contorno incluso, fica
-    // na frente — as ferramentas passam por trás dele.
-    final noTrinco = x >= _trinco.left && x <= _trinco.right;
-    if (noTrinco && _trinco.top < topo) topo = _trinco.top;
+    // Trinco: o contorno de cima é inclinado e tem cantos arredondados. Em
+    // cada coluna, desce da linha de cima do trinco até achar o azul do
+    // contorno — o branco acima dele (os "triângulos" dos cantos) fica
+    // atrás das ferramentas.
+    if (x >= _trinco.left && x <= _trinco.right) {
+      var y = (_topoTrinco(x) - 2).floor();
+      final ateOnde = y + 9;
+      while (y < ateOnde && branco(x, y)) {
+        y++;
+      }
+      if (y < topo) topo = y;
+    }
     // Pé da face nesta coluna (último branco de baixo para cima).
     var pe = -1;
     if (dentroDaCaixa) {
