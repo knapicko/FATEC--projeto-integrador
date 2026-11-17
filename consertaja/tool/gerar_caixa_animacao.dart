@@ -171,6 +171,10 @@ void _contornarFerramentas() {
 
 /// Borda de cima da FACE DA FRENTE da caixa aberta (medida na arte 500×500):
 /// sobe da esquerda (101,232) até a quina (318,272) e desce até (407,236).
+/// Trinco da caixa aberta (retângulo azul no meio da borda da frente), com
+/// uma margem para pegar o contorno inteiro.
+const _trinco = (left: 169, top: 231, right: 227, bottom: 287);
+
 double _bordaFrente(int x) {
   if (x <= 318) return 232 + (x - 101) * (272 - 232) / (318 - 101);
   return 272 + (x - 318) * (236 - 272) / (407 - 318);
@@ -209,9 +213,28 @@ void _separarCaixaAberta() {
     return p.r > 200 && p.g > 200 && p.b > 200;
   }
 
+  bool azul(int x, int y) => !branco(x, y);
+
   for (var x = 0; x < original.width; x++) {
     final dentroDaCaixa = x >= 98 && x <= 410;
-    final topo = dentroDaCaixa ? _bordaFrente(x).floor() - 1 : original.height;
+    var topo = dentroDaCaixa ? _bordaFrente(x).floor() - 1 : original.height;
+    if (dentroDaCaixa) {
+      // A divisória azul da borda de cima da frente fica INTEIRA na frente:
+      // sobe até o fim da faixa azul, senão as ferramentas passavam por
+      // cima da metade dela ao flutuar.
+      var y = (_bordaFrente(x) + 8).floor().clamp(0, original.height - 1);
+      while (y > 0 && branco(x, y)) {
+        y--;
+      }
+      while (y > 0 && azul(x, y)) {
+        y--;
+      }
+      if (y + 1 < topo) topo = y + 1;
+    }
+    // Trinco (retângulo no meio da borda): todo ele, contorno incluso, fica
+    // na frente — as ferramentas passam por trás dele.
+    final noTrinco = x >= _trinco.left && x <= _trinco.right;
+    if (noTrinco && _trinco.top < topo) topo = _trinco.top;
     // Pé da face nesta coluna (último branco de baixo para cima).
     var pe = -1;
     if (dentroDaCaixa) {

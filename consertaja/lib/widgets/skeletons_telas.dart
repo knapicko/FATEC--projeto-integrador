@@ -375,3 +375,155 @@ class SkeletonCardsRadar extends StatelessWidget {
     );
   }
 }
+
+/// Perfil (profissional/loja): lista de serviços (foto, nome, preço).
+class SkeletonServicosPerfil extends StatelessWidget {
+  const SkeletonServicosPerfil({super.key, this.quantidade = 3});
+
+  final int quantidade;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: List.generate(
+        quantidade,
+        (_) => Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Row(
+            children: [
+              const SkeletonBox(width: 84, height: 84, borderRadius: 14),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SkeletonBox(width: 150, height: 15),
+                    SizedBox(height: 8),
+                    SkeletonBox(height: 12),
+                    SizedBox(height: 10),
+                    Row(
+                      children: [
+                        SkeletonBox(width: 70, height: 18, borderRadius: 9),
+                        Spacer(),
+                        SkeletonBox(width: 64, height: 16),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Perfil: galeria de postagens (fileira de quadrados).
+class SkeletonGaleriaPostagens extends StatelessWidget {
+  const SkeletonGaleriaPostagens({super.key, this.altura = 140});
+
+  final double altura;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: altura,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: 4,
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
+        itemBuilder: (_, _) =>
+            SkeletonBox(width: altura * 0.85, height: altura, borderRadius: 14),
+      ),
+    );
+  }
+}
+
+/// Perfil da loja: equipe (cartões com foto, nome e função).
+class SkeletonEquipeLoja extends StatelessWidget {
+  const SkeletonEquipeLoja({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 195,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: 3,
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
+        itemBuilder: (_, _) => Container(
+          width: 140,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: const Column(
+            children: [
+              SkeletonBox(width: 64, height: 64, borderRadius: 32),
+              SizedBox(height: 12),
+              SkeletonBox(width: 96, height: 14),
+              SizedBox(height: 8),
+              SkeletonBox(width: 70, height: 18, borderRadius: 9),
+              Spacer(),
+              SkeletonBox(height: 30, borderRadius: 15),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// solicitacao_estado.dart: etapas, cliente, serviço com foto, modalidade,
+/// mapa e botão da etapa.
+class SkeletonEstadoSolicitacao extends StatelessWidget {
+  const SkeletonEstadoSolicitacao({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      children: [
+        _card([
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: List.generate(
+              5,
+              (_) => const SkeletonBox(width: 24, height: 24, borderRadius: 12),
+            ),
+          ),
+        ]),
+        _card([
+          _linhaPerfil(avatar: 52),
+          const SizedBox(height: 14),
+          const Row(
+            children: [
+              Expanded(child: SkeletonBox(height: 40, borderRadius: 20)),
+              SizedBox(width: 10),
+              Expanded(child: SkeletonBox(height: 40, borderRadius: 20)),
+            ],
+          ),
+        ]),
+        _card(const [
+          SkeletonBox(width: 170, height: 16),
+          SizedBox(height: 12),
+          SkeletonBox(height: 60, borderRadius: 12),
+          SizedBox(height: 12),
+          SkeletonBox(height: 170, borderRadius: 14),
+        ]),
+        _card(const [
+          SkeletonBox(width: 150, height: 15),
+          SizedBox(height: 12),
+          SkeletonBox(height: 120, borderRadius: 14),
+        ]),
+        const SkeletonBox(height: 52, borderRadius: 26),
+      ],
+    );
+  }
+}

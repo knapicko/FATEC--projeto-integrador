@@ -678,18 +678,24 @@ class ServicosProfissionalService {
           .where((p) => p.length > 1)
           .toList();
 
+      // Campos vazios (tag/empresa sem valor) não podem "combinar": antes
+      // `"qualquer".contains("")` era verdadeiro e TODOS os serviços
+      // apareciam em qualquer busca.
       bool corresponde(List<String> termos) {
-        bool combina(String item) {
-          final itemNorm = normalizar(item);
-          return itemNorm.contains(termoNorm) || termoNorm.contains(itemNorm);
-        }
-
-        if (palavras.isEmpty) return termos.any(combina);
-        return palavras.any(
-          (palavra) => termos.any((t) {
-            final tNorm = normalizar(t);
-            return tNorm.contains(palavra) || palavra.contains(tNorm);
-          }),
+        if (termoNorm.trim().isEmpty) return true;
+        final validos = termos
+            .map(normalizar)
+            .map((t) => t.trim())
+            .where((t) => t.isNotEmpty)
+            .toList();
+        if (validos.isEmpty) return false;
+        if (validos.any((t) => t.contains(termoNorm.trim()))) return true;
+        if (palavras.isEmpty) return false;
+        return palavras.every(
+          (palavra) => validos.any(
+            (t) =>
+                t.contains(palavra) || (t.length >= 4 && palavra.contains(t)),
+          ),
         );
       }
 

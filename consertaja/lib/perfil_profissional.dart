@@ -14,8 +14,9 @@ import 'tela_servico.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/icone_oficio.dart';
 import 'utils/iniciais.dart';
-import 'widgets/skeleton_loading.dart';
 import 'utils/funcao_servico.dart';
+import 'widgets/skeletons_telas.dart';
+import 'widgets/avisos_bottom_sheet.dart';
 
 class _DadosEnderecoProfissional {
   final String apelido;
@@ -1179,6 +1180,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   }
 
   Future<void> _alternarSeguimento() async {
+    if (!SessaoVisitante.permitir(context)) return;
     final idPerfil = _idPerfilProfissional;
     if (_alterandoSeguimento || idPerfil == null) {
       setState(() {
@@ -2633,55 +2635,6 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
           ),
         const SizedBox(height: 16),
 
-        if (_idProfissional != null) ...[
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEAF8FF),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFB9E8FF)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.handyman_outlined,
-                    color: _primaryBlue,
-                    size: 24,
-                  ),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Text(
-                      'Encontrou o serviço que precisa?',
-                      style: TextStyle(
-                        color: _textDark,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  ElevatedButton(
-                    onPressed: _abrirSolicitacaoServico,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _primaryBlue,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    child: const Text('Solicitar Serviço'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-        ],
-
         // Botões de Ação: "+ Seguir" e "Conversar"
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -2827,6 +2780,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   Widget _buildBotaoConversar() {
     return ElevatedButton(
       onPressed: () {
+        if (!SessaoVisitante.permitir(context)) return;
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => TelaChatProfissional(
@@ -2863,12 +2817,6 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
         ],
       ),
     );
-  }
-
-  Future<void> _abrirSolicitacaoServico() async {
-    // Fluxo antigo (SolicitarServicoPage) removido: a solicitação nasce só no
-    // botão Continuar da lista_servicos.dart. Aqui não faz nada.
-    return;
   }
 
   Widget _buildMetricaItem({
@@ -4130,10 +4078,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
             future: _postagensGaleriaFuture,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const SizedBox(
-                  height: 140,
-                  child: Center(child: const SkeletonProfileCard()),
-                );
+                return const SkeletonGaleriaPostagens();
               }
 
               final postagens = snapshot.data ?? const <PostagemResumo>[];
@@ -4502,12 +4447,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
           ),
           const SizedBox(height: 12),
           if (_carregandoServicos)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 32),
-              child: Center(
-                child: CircularProgressIndicator(color: _primaryBlue),
-              ),
-            )
+            const SkeletonServicosPerfil()
           else if (_servicos.isEmpty)
             Container(
               width: double.infinity,

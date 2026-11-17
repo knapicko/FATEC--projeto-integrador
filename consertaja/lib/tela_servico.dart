@@ -16,6 +16,7 @@ import 'utils/fluxo_solicitacao.dart';
 import 'utils/icone_oficio.dart';
 import 'utils/iniciais.dart';
 import 'widgets/skeleton_loading.dart';
+import 'widgets/avisos_bottom_sheet.dart';
 
 class TelaServico extends StatefulWidget {
   final int? idServico;
@@ -198,6 +199,7 @@ class _TelaServicoState extends State<TelaServico> {
                               _buildOferecidoPor(detalhe),
                               const SizedBox(height: 22),
                               _buildDetalhes(servico),
+                              const SizedBox(height: 26),
                               _buildEnderecoProfissional(detalhe),
                             ],
                           ),
@@ -421,11 +423,38 @@ class _TelaServicoState extends State<TelaServico> {
     );
   }
 
-  // Formas de Pagamento: Pix, Cartão, Boleto
+  /// Nome bonito de uma forma de pagamento salva pelo profissional.
+  String _rotuloPagamento(String bruto) {
+    final t = bruto.trim().toLowerCase();
+    if (t.contains('pix')) return 'Pix';
+    if (t.contains('credito') || t.contains('crédito'))
+      return 'Cartão de crédito';
+    if (t.contains('debito') || t.contains('débito')) return 'Cartão de débito';
+    if (t.contains('cart')) return 'Cartão';
+    if (t.contains('boleto')) return 'Boleto';
+    if (t.contains('dinheiro')) return 'Dinheiro';
+    return bruto.trim().isEmpty
+        ? bruto
+        : bruto.trim()[0].toUpperCase() + bruto.trim().substring(1);
+  }
+
+  /// Formas de pagamento que o profissional/empresa realmente aceita
+  /// (pagamento_aceito), sem dados de exemplo.
   Widget _buildFormasPagamento() {
-    final pagamentos = _sheetPagamentosDisponiveis.isEmpty
-        ? const ['Pix', 'Cartão', 'Boleto']
-        : _sheetPagamentosDisponiveis;
+    final pagamentos = _sheetPagamentosDisponiveis
+        .map(_rotuloPagamento)
+        .where((p) => p.isNotEmpty)
+        .toSet()
+        .toList();
+    if (!_sheetDadosCarregados) {
+      return const SkeletonBox(width: 220, height: 26, borderRadius: 6);
+    }
+    if (pagamentos.isEmpty) {
+      return const Text(
+        'Formas de pagamento: a combinar com o profissional',
+        style: TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -484,65 +513,60 @@ class _TelaServicoState extends State<TelaServico> {
     );
   }
 
-  // Prazo e Entrega
+  IconData _iconeMetodo(String metodo) {
+    final t = metodo.toLowerCase();
+    if (t.contains('leva')) return Icons.local_shipping_outlined;
+    if (t.contains('retirad')) return Icons.storefront_outlined;
+    if (t.contains('receba')) return Icons.home_outlined;
+    if (t.contains('domic')) return Icons.home_repair_service_outlined;
+    return Icons.handyman_outlined;
+  }
+
+  /// Métodos de realização que o prestador aceita (metodo_entrega).
   Widget _buildPrazoEntrega() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: Row(
-        children: [
-          const Expanded(
-            child: Text.rich(
-              TextSpan(
-                children: [
-                  TextSpan(
-                    text: 'Entregue em até 5 dias ',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF334155),
-                      fontSize: 12.5,
-                    ),
-                  ),
-                  TextSpan(
-                    text: '— Retirada ou Leva e Traz',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: _azul,
-                      fontSize: 12.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+    final metodos = _sheetMetodosDisponiveis;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Métodos de realização:',
+          style: TextStyle(
+            color: _azul,
+            fontWeight: FontWeight.w700,
+            fontSize: 12.5,
           ),
-          const Icon(Icons.local_shipping, color: _azul, size: 18),
-          const SizedBox(width: 8),
-          Container(
-            width: 18,
-            height: 18,
-            decoration: const BoxDecoration(
-              color: _azul,
-              shape: BoxShape.circle,
-            ),
-            child: const Center(
-              child: Text(
-                'i',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 11,
-                  fontFamily: 'serif',
-                ),
-              ),
-            ),
+        ),
+        const SizedBox(height: 8),
+        if (!_sheetDadosCarregados)
+          const SkeletonBox(width: 240, height: 26, borderRadius: 6)
+        else if (metodos.isEmpty)
+          const Text(
+            'A combinar com o profissional',
+            style: TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
+          )
+        else
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: metodos
+                .map(
+                  (m) => _pagamentoChip(
+                    iconeWidget: Icon(_iconeMetodo(m), size: 14, color: _azul),
+                    label: m,
+                  ),
+                )
+                .toList(),
           ),
-        ],
-      ),
+      ],
     );
+  }
+
+  /// Texto curto da barra de baixo (no lugar de "Entregue em até 5 dias").
+  String get _textoMetodosCurto {
+    if (_sheetMetodosDisponiveis.isEmpty) return 'Métodos a combinar';
+    return _sheetMetodosDisponiveis.length == 1
+        ? _sheetMetodosDisponiveis.first
+        : '${_sheetMetodosDisponiveis.length} métodos de realização';
   }
 
   // 3. Perfil do Prestador ("Oferecido por Mundo das Louças")
@@ -850,7 +874,7 @@ class _TelaServicoState extends State<TelaServico> {
   Widget _buildDetalhes(ServicoProfissional servico) {
     final descricao = servico.descricao.trim().isNotEmpty
         ? servico.descricao.trim()
-        : 'Conserto e reposição especializada de cabos, alças e pegadores de panelas comuns e de pressão. Instalação de peças em baquelite antitérmico com fixação reforçada em rebite industrial de alumínio, garantindo máxima segurança e firmeza no uso diário.';
+        : 'O profissional ainda não escreveu detalhes sobre este serviço.';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -867,8 +891,8 @@ class _TelaServicoState extends State<TelaServico> {
         Text(
           descricao,
           style: const TextStyle(
-            fontSize: 13,
-            height: 1.45,
+            fontSize: 15,
+            height: 1.5,
             color: Color(0xFF334155),
           ),
         ),
@@ -1715,9 +1739,9 @@ class _TelaServicoState extends State<TelaServico> {
                     fontSize: 22,
                   ),
                 ),
-                const Text(
-                  'Entregue em até 5 dias',
-                  style: TextStyle(
+                Text(
+                  _textoMetodosCurto,
+                  style: const TextStyle(
                     fontSize: 11,
                     color: Color(0xFF64748B),
                     fontWeight: FontWeight.w500,
@@ -1902,15 +1926,6 @@ class _TelaServicoState extends State<TelaServico> {
         }
       }
 
-      if (metodos.isEmpty) {
-        metodos.addAll([
-          'Leva e Traz',
-          'Retirado no Local',
-          'Receba em Casa',
-          'Atendimento em Domicílio',
-        ]);
-      }
-
       // 3. Agenda e Exceções
       try {
         final agendas = await supabase
@@ -1948,10 +1963,11 @@ class _TelaServicoState extends State<TelaServico> {
               .map((item) => item.trim())
               .where((item) => item.isNotEmpty)
               .toList();
-          if (_sheetTipoExecucaoSelecionado == null ||
-              !_sheetMetodosDisponiveis.contains(
-                _sheetTipoExecucaoSelecionado,
-              )) {
+          if (_sheetMetodosDisponiveis.isNotEmpty &&
+              (_sheetTipoExecucaoSelecionado == null ||
+                  !_sheetMetodosDisponiveis.contains(
+                    _sheetTipoExecucaoSelecionado,
+                  ))) {
             _sheetTipoExecucaoSelecionado = _sheetMetodosDisponiveis.first;
           }
           _sheetDadosCarregados = true;
@@ -1963,6 +1979,7 @@ class _TelaServicoState extends State<TelaServico> {
   }
 
   void _abrirSheetAdicionarServico() {
+    if (!SessaoVisitante.permitir(context)) return;
     if (!_sheetDadosCarregados) {
       _carregarDadosSheet();
     }
@@ -2680,9 +2697,9 @@ class _TelaServicoState extends State<TelaServico> {
                     fontSize: 22,
                   ),
                 ),
-                const Text(
-                  'Entregue em até 5 dias',
-                  style: TextStyle(
+                Text(
+                  _textoMetodosCurto,
+                  style: const TextStyle(
                     fontSize: 11,
                     color: Color(0xFF64748B),
                     fontWeight: FontWeight.w500,

@@ -3668,6 +3668,9 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
               return SizedBox(
                 width: 78,
                 child: Column(
+                  // stretch: todos os dias com a mesma largura, até os
+                  // vazios (antes ficavam finos, do tamanho do número).
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
                       _abreviacaoDiaSemana(dia.data.weekday % 7),

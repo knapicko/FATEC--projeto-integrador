@@ -14,8 +14,9 @@ import 'tela_servico.dart';
 import 'utils/cor_oficio.dart';
 import 'utils/icone_oficio.dart';
 import 'utils/iniciais.dart';
-import 'widgets/skeleton_loading.dart';
 import 'utils/funcao_servico.dart';
+import 'widgets/skeletons_telas.dart';
+import 'widgets/avisos_bottom_sheet.dart';
 
 // Cores temáticas fiéis ao design
 const Color _kPrimaryCyan = Color(0xFF0FB3FF);
@@ -1043,6 +1044,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
   }
 
   Future<void> _alternarSeguimento() async {
+    if (!SessaoVisitante.permitir(context)) return;
     final idGrupo = _idGrupoEmpresa;
     if (_alterandoSeguimento) return;
 
@@ -1118,6 +1120,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
   }
 
   void _abrirConversa() {
+    if (!SessaoVisitante.permitir(context)) return;
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => TelaChatProfissional(
@@ -1854,10 +1857,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
         const SizedBox(height: 14),
 
         if (_carregandoProfissionais)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Center(child: const SkeletonProfileCard()),
-          )
+          const SkeletonEquipeLoja()
         else
           SizedBox(
             height: 195,
@@ -2623,11 +2623,9 @@ class _PerfilLojaState extends State<PerfilLoja> {
           future: _postagensGaleriaFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const SizedBox(
-                height: 145,
-                child: Center(
-                  child: CircularProgressIndicator(color: _kPrimaryCyan),
-                ),
+              return const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: SkeletonGaleriaPostagens(altura: 145),
               );
             }
             final postagens = snapshot.data ?? const <PostagemResumo>[];
@@ -2833,10 +2831,8 @@ class _PerfilLojaState extends State<PerfilLoja> {
 
         if (_carregandoServicos)
           const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Center(
-              child: CircularProgressIndicator(color: _kPrimaryCyan),
-            ),
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: SkeletonServicosPerfil(),
           )
         else if (servicosFiltrados.isEmpty)
           Container(

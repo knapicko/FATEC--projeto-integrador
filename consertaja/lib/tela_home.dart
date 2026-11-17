@@ -1,167 +1,35 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'main.dart';
+import 'package:flutter/services.dart';
+import 'package:latlong2/latlong.dart' show LatLng;
+
+import 'meus_pedidos.dart';
 import 'perfil_loja.dart';
 import 'perfil_profissional.dart';
-import 'meus_enderecos.dart';
-import 'meus_pedidos.dart';
-import 'tela_meu_perfil_cliente.dart';
-import 'tela_busca.dart';
-import 'tela_inicial.dart';
-import 'tela_mensagens.dart';
-import 'tela_servico.dart';
+import 'services/home_cliente_service.dart';
+import 'services/solicitacao_geografica_service.dart';
 import 'solicitacao_geografica_cliente.dart';
-import 'services/google_auth_service.dart';
-import 'utils/cor_oficio.dart';
-import 'utils/bottom_navigation_bar_cliente.dart';
-import 'widgets/contador_notificacoes.dart';
-import 'utils/iniciais.dart';
-import 'widgets/imagem_servico.dart';
-import 'widgets/tag_oficio.dart';
-import 'widgets/skeleton_loading.dart';
+import 'tela_busca.dart';
+import 'tela_chat_profissional.dart';
+import 'tela_mensagens.dart';
+import 'tela_meu_perfil_cliente.dart';
+import 'tela_servico.dart';
+import 'todos_servicos.dart';
+import 'utils/abrir_solicitacao.dart';
 import 'utils/app_navigation_util.dart';
-import 'utils/funcao_servico.dart';
+import 'utils/bottom_navigation_bar_cliente.dart';
+import 'utils/cor_oficio.dart';
+import 'utils/iniciais.dart';
+import 'widgets/avisos_bottom_sheet.dart';
+import 'widgets/card_servico_popular.dart';
+import 'widgets/contador_notificacoes.dart';
+import 'widgets/filtros_busca.dart';
+import 'widgets/seletor_endereco_cliente.dart';
+import 'widgets/skeleton_loading.dart';
+import 'widgets/tag_oficio.dart';
 
-class ServicoPopular {
-  final int? idServicoProf;
-  final String titulo;
-  final String categoria;
-  final String? funcao;
-  final String? corOficio;
-  final double? avaliacao;
-  final int totalAvaliacoes;
-  final double precoMedio;
-  final String caminhoImagem;
-  final String? imagemUrl;
-  final String? nomePrestador;
-  final String? fotoPrestador;
-  final String? tagEmpresa;
-  final String? corTagEmpresa;
-
-  ServicoPopular({
-    this.idServicoProf,
-    required this.titulo,
-    required this.categoria,
-    this.funcao,
-    this.corOficio,
-    required this.avaliacao,
-    required this.totalAvaliacoes,
-    required this.precoMedio,
-    required this.caminhoImagem,
-    this.imagemUrl,
-    this.nomePrestador,
-    this.fotoPrestador,
-    this.tagEmpresa,
-    this.corTagEmpresa,
-  });
-}
-
-class ServicoProximo {
-  final String titulo;
-  final String preco;
-  final IconData icone;
-  final String? oferecidoPor;
-
-  ServicoProximo({
-    required this.titulo,
-    required this.preco,
-    required this.icone,
-    this.oferecidoPor,
-  });
-}
-
-class LojaPopular {
-  final int? idGrupoEmpresa;
-  final String titulo;
-  final double? avaliacao;
-  final int totalAvaliacoes;
-  final String distancia;
-  final String tag1;
-  final String tag2;
-  final Color tag1BgColor;
-  final Color tag1TextColor;
-  final Color tag2BgColor;
-  final Color tag2TextColor;
-  final String caminhoImagem;
-  final String bannerUrl;
-  final String? tagEmpresa;
-  final String? corTagEmpresaHex;
-  final List<OficioInfo> oficios;
-  final bool isVerified;
-  final String descricao;
-
-  LojaPopular({
-    this.idGrupoEmpresa,
-    required this.titulo,
-    required this.avaliacao,
-    required this.totalAvaliacoes,
-    required this.distancia,
-    required this.tag1,
-    required this.tag2,
-    required this.tag1BgColor,
-    required this.tag1TextColor,
-    required this.tag2BgColor,
-    required this.tag2TextColor,
-    required this.caminhoImagem,
-    this.bannerUrl = '',
-    this.tagEmpresa,
-    this.corTagEmpresaHex,
-    this.oficios = const [],
-    this.isVerified = false,
-    this.descricao = '',
-  });
-}
-
-class PerfilPopular {
-  final String nome;
-  final double? avaliacao;
-  final int totalAvaliacoes;
-  final String tag;
-  final Color tagBgColor;
-  final Color tagTextColor;
-  final String caminhoImagem;
-  final String profissao;
-  final String? metrica;
-  final bool isVerified;
-  final List<OficioInfo> oficios;
-  final String? tagEmpresa;
-  final Color? tagEmpresaBgColor;
-  final Color? tagEmpresaTextColor;
-
-  PerfilPopular({
-    required this.nome,
-    required this.avaliacao,
-    required this.totalAvaliacoes,
-    required this.tag,
-    required this.tagBgColor,
-    required this.tagTextColor,
-    required this.caminhoImagem,
-    this.profissao = 'Eletricista Residencial',
-    this.metrica,
-    this.isVerified = false,
-    this.oficios = const [],
-    this.tagEmpresa,
-    this.tagEmpresaBgColor,
-    this.tagEmpresaTextColor,
-  });
-}
-
-class EnderecoHomeResumo {
-  final int idEndereco;
-  final String titulo;
-  final String tipoEndereco;
-  final String enderecoFormatado;
-  final bool principal;
-
-  const EnderecoHomeResumo({
-    required this.idEndereco,
-    required this.titulo,
-    required this.tipoEndereco,
-    required this.enderecoFormatado,
-    required this.principal,
-  });
-}
-
+/// Home do cliente (e do visitante).
 class TelaHome extends StatefulWidget {
   final bool isVisitante;
 
@@ -172,2484 +40,1230 @@ class TelaHome extends StatefulWidget {
 }
 
 class _TelaHomeState extends State<TelaHome> {
-  static const Color _primaryBlue = Color(0xFF0FB3FF);
-  static const Color _ratingBg = Color(0xFFFFF8E1);
-  static const Color _ratingText = Color(0xFFE65100);
+  static const _azul = Color(0xFF0FB3FF);
+  static const _fundo = Color(0xFFF3F6FA);
+  static const _texto = Color(0xFF0F172A);
+  static const _sec = Color(0xFF64748B);
 
-  late Future<List<EnderecoHomeResumo>> _enderecosFuture;
-  late Future<Map<String, dynamic>?> _dadosUsuarioFuture;
-  late Future<List<PerfilPopular>> _perfisDestaqueFuture;
-
-  List<ServicoPopular> _servicosPopulares = [];
-  bool _carregandoServicosPopulares = true;
-
-  final List<ServicoProximo> listaServicosProximos = [];
+  ({String nome, String? foto})? _eu;
+  List<PedidoAndamento>? _pedidos;
+  List<CategoriaHome>? _categorias;
+  List<ProfissionalRegiao>? _regiao;
+  List<ServicoAvaliado>? _servicos;
+  EnderecoCliente? _endereco;
 
   @override
   void initState() {
     super.initState();
-    _enderecosFuture = _carregarEnderecosCliente();
-    _perfisDestaqueFuture = _buscarProfissionaisDestaque();
-    _carregarServicosPopulares();
-    if (!widget.isVisitante) {
-      _dadosUsuarioFuture = _buscarDadosUsuario();
-    } else {
-      _dadosUsuarioFuture = Future.value(null);
-    }
+    SessaoVisitante.ativo = widget.isVisitante;
+    _carregarTudo();
   }
+
+  Future<void> _carregarTudo() async {
+    if (!widget.isVisitante) {
+      HomeClienteService.meusDados().then((d) {
+        if (mounted) setState(() => _eu = d);
+      });
+      HomeClienteService.pedidosEmAndamento().then((p) {
+        if (mounted) setState(() => _pedidos = p);
+      });
+    } else {
+      _pedidos = const [];
+    }
+    HomeClienteService.categorias().then((c) {
+      if (mounted) setState(() => _categorias = c);
+    });
+    HomeClienteService.servicosPorAvaliacao().then((s) {
+      if (mounted) setState(() => _servicos = s);
+    });
+    await _carregarRegiao();
+  }
+
+  Future<void> _carregarRegiao() async {
+    LatLng? centro;
+    if (!widget.isVisitante) {
+      final lista = await EnderecosCliente.carregar();
+      final escolhido = await EnderecosCliente.escolhido(lista);
+      if (mounted) setState(() => _endereco = escolhido);
+      if (escolhido?.latitude != null && escolhido?.longitude != null) {
+        centro = LatLng(escolhido!.latitude!, escolhido.longitude!);
+      }
+    }
+    centro ??= await SolicitacaoGeograficaService.localizacaoAtual();
+    final regiao = await HomeClienteService.profissionaisNaRegiao(centro);
+    if (mounted) setState(() => _regiao = regiao);
+  }
+
+  Future<void> _recarregar() async {
+    setState(() {
+      _pedidos = widget.isVisitante ? const [] : null;
+      _regiao = null;
+    });
+    await _carregarTudo();
+  }
+
+  /// Ação que exige conta: visitante vê o convite para entrar.
+  bool _permitido() {
+    if (!widget.isVisitante) return true;
+    mostrarAvisoVisitante(context);
+    return false;
+  }
+
+  void _abrir(Widget pagina) =>
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => pagina));
+
+  void _abrirBusca({FiltrosBusca? filtros}) {
+    _abrir(
+      TelaBusca(isVisitante: widget.isVisitante, filtrosIniciais: filtros),
+    );
+  }
+
+  Future<void> _abrirFiltros() async {
+    final filtros = await mostrarFiltrosBusca(
+      context,
+      atuais: const FiltrosBusca(),
+    );
+    if (filtros != null && mounted) _abrirBusca(filtros: filtros);
+  }
+
+  String get _primeiroNome {
+    final nome = _eu?.nome.trim() ?? '';
+    return nome.isEmpty ? 'Visitante' : nome.split(' ').first;
+  }
+
+  String get _bairro {
+    final b = _endereco?.bairroCidade.split(',').first.trim() ?? '';
+    return b.isEmpty ? 'sua região' : b;
+  }
+
+  // ── Build ────────────────────────────────────────────────────────────────
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Recarrega a foto quando voltar para a home (ex.: trocou a foto
-    // no perfil e voltou). Sem isso o círculo fica com a foto antiga.
-    if (!widget.isVisitante) {
-      _dadosUsuarioFuture = _buscarDadosUsuario();
-    }
-  }
-
-  double _paraDouble(dynamic valor, [double padrao = 0]) {
-    if (valor is num) return valor.toDouble();
-    return double.tryParse(valor?.toString() ?? '') ?? padrao;
-  }
-
-  double? _mediaNotas(List<int>? notas) {
-    if (notas == null || notas.isEmpty) return null;
-    return notas.reduce((total, nota) => total + nota) / notas.length;
-  }
-
-  /// Carrega TODOS os servicos ativos de `servicos_profissional`.
-  /// Tenta o join com `funcoes` (kSelectFuncao); se a FK/RLS falhar, cai para
-  /// select simples sem join para nao quebrar a home.
-  Future<void> _carregarServicosPopulares() async {
-    try {
-      final supabase = Supabase.instance.client;
-      List<dynamic> rows = [];
-      try {
-        rows = await supabase
-            .from('servicos_profissional')
-            .select('*, $kSelectFuncao')
-            .eq('ativo', true)
-            .order('data_criacao', ascending: false);
-      } catch (_) {
-        rows = await supabase
-            .from('servicos_profissional')
-            .select('*')
-            .eq('ativo', true)
-            .order('data_criacao', ascending: false);
-      }
-
-      final idsGrupo = <int>{};
-      final idsProf = <int>{};
-      final idsServicos = <int>{};
-      for (final r in rows) {
-        final g = (r['fk_grupo_empresa'] as num?)?.toInt();
-        final p = (r['fk_profissional'] as num?)?.toInt();
-        final s = (r['id_servico_prof'] as num?)?.toInt();
-        if (g != null) idsGrupo.add(g);
-        if (p != null) idsProf.add(p);
-        if (s != null) idsServicos.add(s);
-      }
-      final avaliacoesPorServico = <int, List<int>>{};
-      if (idsServicos.isNotEmpty) {
-        final solicitacoes = await supabase
-            .from('solicitacoes')
-            .select('id_solicitacao, fk_servico_prof')
-            .inFilter('fk_servico_prof', idsServicos.toList());
-        final servicoPorSolicitacao = <int, int>{};
-        for (final solicitacao in solicitacoes) {
-          final idSolicitacao = (solicitacao['id_solicitacao'] as num?)
-              ?.toInt();
-          final idServico = (solicitacao['fk_servico_prof'] as num?)?.toInt();
-          if (idSolicitacao != null && idServico != null) {
-            servicoPorSolicitacao[idSolicitacao] = idServico;
-          }
-        }
-        if (servicoPorSolicitacao.isNotEmpty) {
-          final avaliacoes = await supabase
-              .from('avaliacoes_solicitacao')
-              .select('fk_solicitacao, nota')
-              .eq('tipo_avaliacao', 'servico')
-              .inFilter('fk_solicitacao', servicoPorSolicitacao.keys.toList());
-          for (final avaliacao in avaliacoes) {
-            final idSolicitacao = (avaliacao['fk_solicitacao'] as num?)
-                ?.toInt();
-            final nota = (avaliacao['nota'] as num?)?.toInt();
-            final idServico = idSolicitacao == null
-                ? null
-                : servicoPorSolicitacao[idSolicitacao];
-            if (idServico != null && nota != null) {
-              avaliacoesPorServico.putIfAbsent(idServico, () => []).add(nota);
-            }
-          }
-        }
-      }
-
-      final Map<int, Map<String, dynamic>> grupos = {};
-      final Map<int, List<int>> gruposPorProf = {};
-      if (idsGrupo.isNotEmpty) {
-        final gRows = await supabase
-            .from('grupo_empresa')
-            .select(
-              'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, '
-              'foto_url_empresa',
-            )
-            .inFilter('id_grupo_empresa', idsGrupo.toList());
-        for (final g in gRows) {
-          final id = (g['id_grupo_empresa'] as num?)?.toInt();
-          if (id != null) grupos[id] = Map<String, dynamic>.from(g);
-        }
-      }
-
-      final Map<int, int> perfilPorProf = {};
-      if (idsProf.isNotEmpty) {
-        final dRows = await supabase
-            .from('dados_profissionais')
-            .select('id_profissional, fk_perfil, fk_grupo_empresa')
-            .inFilter('id_profissional', idsProf.toList());
-        for (final d in dRows) {
-          final id = (d['id_profissional'] as num?)?.toInt();
-          final pf = (d['fk_perfil'] as num?)?.toInt();
-          final g = (d['fk_grupo_empresa'] as num?)?.toInt();
-          if (id != null && pf != null) perfilPorProf[id] = pf;
-          if (id != null) {
-            if (g != null) {
-              gruposPorProf.putIfAbsent(id, () => []).add(g);
-              idsGrupo.add(g);
-            }
-          }
-        }
-        // Grupos vinculados via profissional (associado a empresa).
-        final extras = idsGrupo.where((e) => !grupos.containsKey(e)).toList();
-        if (extras.isNotEmpty) {
-          try {
-            final gRows2 = await supabase
-                .from('grupo_empresa')
-                .select(
-                  'id_grupo_empresa, nome_empresa, tag_empresa, '
-                  'cor_tag_empresa, foto_url_empresa',
-                )
-                .inFilter('id_grupo_empresa', extras);
-            for (final g in gRows2) {
-              final id = (g['id_grupo_empresa'] as num?)?.toInt();
-              if (id != null) grupos[id] = Map<String, dynamic>.from(g);
-            }
-          } catch (_) {}
-        }
-      }
-
-      final Map<int, String> tipoPorPerfil = {};
-      if (perfilPorProf.values.isNotEmpty) {
-        final pRows = await supabase
-            .from('perfil')
-            .select('id_perfil, tipo_perfil')
-            .inFilter('id_perfil', perfilPorProf.values.toSet().toList());
-        for (final p in pRows) {
-          final id = (p['id_perfil'] as num?)?.toInt();
-          if (id != null) {
-            tipoPorPerfil[id] =
-                p['tipo_perfil']?.toString().trim().toLowerCase() ?? '';
-          }
-        }
-      }
-
-      // Nome/foto do prestador: resolve grupo_empresa ou dados do
-      // profissional via usuarios (foto_perfil_url).
-      final Map<int, Map<String, dynamic>> usuariosPorProf = {};
-      if (idsProf.isNotEmpty) {
-        try {
-          // Busca fk_usuario de cada profissional para depois ler usuarios.
-          final profRows = await supabase
-              .from('dados_profissionais')
-              .select('id_profissional, fk_usuario')
-              .inFilter('id_profissional', idsProf.toList());
-          final Map<int, int> usuarioIdPorProf = {};
-          for (final d in profRows) {
-            final id = (d['id_profissional'] as num?)?.toInt();
-            final u = (d['fk_usuario'] as num?)?.toInt();
-            if (id != null && u != null) usuarioIdPorProf[id] = u;
-          }
-          if (usuarioIdPorProf.values.isNotEmpty) {
-            final uRows = await supabase
-                .from('usuarios')
-                .select('id_usuario, nome, foto_perfil_url')
-                .inFilter(
-                  'id_usuario',
-                  usuarioIdPorProf.values.toSet().toList(),
-                );
-            final Map<int, Map<String, dynamic>> porIdUsuario = {};
-            for (final u in uRows) {
-              final id = (u['id_usuario'] as num?)?.toInt();
-              if (id != null) porIdUsuario[id] = Map<String, dynamic>.from(u);
-            }
-            for (final e in usuarioIdPorProf.entries) {
-              final u = porIdUsuario[e.value];
-              if (u != null) usuariosPorProf[e.key] = u;
-            }
-          }
-        } catch (_) {}
-      }
-
-      final lista = <ServicoPopular>[];
-      for (final r in rows) {
-        final id = (r['id_servico_prof'] as num?)?.toInt();
-        final titulo = r['titulo']?.toString().trim().isNotEmpty == true
-            ? r['titulo'].toString().trim()
-            : 'Serviço';
-        final dynamic ofRaw = r['funcoes'];
-        final Map<String, dynamic>? ofMap = ofRaw is Map<String, dynamic>
-            ? ofRaw
-            : (ofRaw is List && ofRaw.isNotEmpty
-                  ? Map<String, dynamic>.from(ofRaw.first)
-                  : null);
-        final funcao = ofMap?['funcao']?.toString().trim() ?? '';
-        // Coluna `cor` = enum Cores Oficio ('vinho', 'roxo', 'azul claro'...);
-        // `CorOficio.parse` resolve o nome para a cor. OficioInfo.fromMap
-        // já normaliza esse campo.
-        final corOficio = ofMap == null
-            ? null
-            : OficioInfo.fromMap(Map<String, dynamic>.from(ofMap)).cor;
-
-        String categoriaExibicao = funcao.isNotEmpty ? funcao : 'Serviço';
-        String? nomePrestador;
-        String? fotoPrestador;
-        String? tagEmpresa;
-        String? corTagEmpresa;
-        final idGrupo = (r['fk_grupo_empresa'] as num?)?.toInt();
-        final idProf = (r['fk_profissional'] as num?)?.toInt();
-        if (idGrupo != null && grupos.containsKey(idGrupo)) {
-          final g = grupos[idGrupo]!;
-          final tag = g['tag_empresa']?.toString().trim() ?? '';
-          categoriaExibicao = tag.isNotEmpty ? tag : 'Loja';
-          nomePrestador = g['nome_empresa']?.toString().trim();
-          fotoPrestador = g['foto_url_empresa']?.toString().trim();
-          tagEmpresa = tag.isNotEmpty ? tag : null;
-          corTagEmpresa = g['cor_tag_empresa']?.toString().trim();
-        } else if (idProf != null) {
-          final idPerfil = perfilPorProf[idProf];
-          final tipo = idPerfil == null ? '' : (tipoPorPerfil[idPerfil] ?? '');
-          if (tipo.contains('independente')) {
-            categoriaExibicao = 'Independente';
-          } else if (tipo == 'loja') {
-            categoriaExibicao = 'Loja';
-          }
-          nomePrestador = usuariosPorProf[idProf]?['nome']?.toString().trim();
-          fotoPrestador = usuariosPorProf[idProf]?['foto_perfil_url']
-              ?.toString()
-              .trim();
-          // Profissional associado a empresa: tag da empresa a direita.
-          final idGrupoAssoc = gruposPorProf[idProf]?.isNotEmpty == true
-              ? gruposPorProf[idProf]!.first
-              : null;
-          if (idGrupoAssoc != null && grupos.containsKey(idGrupoAssoc)) {
-            final g = grupos[idGrupoAssoc]!;
-            final tag = g['tag_empresa']?.toString().trim() ?? '';
-            tagEmpresa = tag.isNotEmpty ? tag : null;
-            corTagEmpresa = g['cor_tag_empresa']?.toString().trim();
-          }
-        }
-
-        final imagemUrl = r['imagem_url']?.toString().trim();
-        lista.add(
-          ServicoPopular(
-            idServicoProf: id,
-            titulo: titulo,
-            categoria: categoriaExibicao,
-            funcao: funcao.isNotEmpty ? funcao : null,
-            corOficio: corOficio?.isNotEmpty == true ? corOficio : null,
-            avaliacao: _mediaNotas(avaliacoesPorServico[id]),
-            totalAvaliacoes: avaliacoesPorServico[id]?.length ?? 0,
-            precoMedio: _paraDouble(r['valor'], 0),
-            caminhoImagem: 'assets/images/panela.png',
-            imagemUrl: imagemUrl != null && imagemUrl.isNotEmpty
-                ? imagemUrl
-                : null,
-            nomePrestador: nomePrestador?.isNotEmpty == true
-                ? nomePrestador
-                : null,
-            fotoPrestador: fotoPrestador?.isNotEmpty == true
-                ? fotoPrestador
-                : null,
-            tagEmpresa: tagEmpresa,
-            corTagEmpresa: corTagEmpresa?.isNotEmpty == true
-                ? corTagEmpresa
-                : null,
-          ),
-        );
-      }
-
-      if (mounted) {
-        setState(() {
-          _servicosPopulares = lista;
-          _carregandoServicosPopulares = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Erro ao carregar servicos populares: $e');
-      if (mounted) {
-        setState(() {
-          _servicosPopulares = [];
-          _carregandoServicosPopulares = false;
-        });
-      }
-    }
-  }
-
-  Future<int?> _buscarIdUsuario(SupabaseClient supabase, String authId) async {
-    final usuarioResponse = await supabase
-        .from('usuarios')
-        .select('id_usuario')
-        .eq('auth_id', authId)
-        .maybeSingle();
-
-    if (usuarioResponse == null) return null;
-    final idUsuario = usuarioResponse['id_usuario'];
-    return idUsuario is int
-        ? idUsuario
-        : int.tryParse(idUsuario?.toString() ?? '');
-  }
-
-  String _capitalizar(String texto) {
-    final limpo = texto.trim();
-    if (limpo.isEmpty) return limpo;
-    return limpo[0].toUpperCase() + limpo.substring(1).toLowerCase();
-  }
-
-  String _tipoEnderecoExibicao(String? tipo) {
-    final texto = tipo?.trim() ?? '';
-    if (texto.isEmpty) return 'Outro';
-    final normalizado = texto.toLowerCase();
-    if (normalizado.contains('casa')) return 'Casa';
-    if (normalizado.contains('trabalho')) return 'Trabalho';
-    if (normalizado.contains('outro')) return 'Outro';
-    return _capitalizar(texto);
-  }
-
-  String _formatarEnderecoCompleto(
-    Map<String, dynamic> row,
-    String cidade,
-    String estado,
-  ) {
-    final logradouro = row['logradouro']?.toString().trim() ?? '';
-    final numero = row['numero']?.toString().trim() ?? '';
-    final bairro = row['bairro']?.toString().trim() ?? '';
-    final complemento = row['complemento']?.toString().trim() ?? '';
-
-    final primeiraLinha = [
-      if (logradouro.isNotEmpty) logradouro,
-      if (numero.isNotEmpty) numero,
-    ].join(numero.isNotEmpty ? ', ' : '');
-
-    final partes = <String>[];
-    if (primeiraLinha.isNotEmpty) partes.add(primeiraLinha);
-    if (bairro.isNotEmpty) partes.add(bairro);
-    if (complemento.isNotEmpty) partes.add(complemento);
-
-    final cidadeEstado = [
-      if (cidade.isNotEmpty) cidade,
-      if (estado.isNotEmpty) estado,
-    ].join(estado.isNotEmpty ? ' - ' : '');
-
-    if (cidadeEstado.isNotEmpty) partes.add(cidadeEstado);
-
-    return partes.join(', ');
-  }
-
-  Future<List<EnderecoHomeResumo>> _carregarEnderecosCliente() async {
-    try {
-      final supabase = Supabase.instance.client;
-      final user = supabase.auth.currentUser;
-      if (user == null) return [];
-
-      final usuarioId = await _buscarIdUsuario(supabase, user.id);
-      if (usuarioId == null) return [];
-
-      final assResponse = await supabase
-          .from('ass_usuario_endereco')
-          .select(
-            'fk_endereco, apelido_endereco, tipo_endereco, endereco_ativo',
-          )
-          .eq('fk_usuario', usuarioId);
-
-      if (assResponse.isEmpty) return [];
-
-      final enderecosResponse = await supabase
-          .from('enderecos')
-          .select(
-            'id_endereco, logradouro, numero, bairro, complemento, fk_cidade',
-          );
-
-      final cidadesResponse = await supabase
-          .from('cidades')
-          .select('id_cidade, nome_cidade, fk_estado');
-
-      final estadosResponse = await supabase
-          .from('estados')
-          .select('id_estado, sigla_estado');
-
-      final Map<int, Map<String, dynamic>> cidadesMap = {};
-      for (final cidade in cidadesResponse) {
-        final idCidade = cidade['id_cidade'] is int
-            ? cidade['id_cidade'] as int
-            : int.tryParse(cidade['id_cidade']?.toString() ?? '');
-        if (idCidade != null)
-          cidadesMap[idCidade] = Map<String, dynamic>.from(cidade);
-      }
-
-      final Map<int, String> estadosMap = {};
-      for (final estado in estadosResponse) {
-        final idEstado = estado['id_estado'] is int
-            ? estado['id_estado'] as int
-            : int.tryParse(estado['id_estado']?.toString() ?? '');
-        if (idEstado != null) {
-          estadosMap[idEstado] = estado['sigla_estado']?.toString() ?? '';
-        }
-      }
-
-      final enderecos = <EnderecoHomeResumo>[];
-      for (final ass in assResponse) {
-        final fkEndereco = ass['fk_endereco'];
-        final idEndereco = fkEndereco is int
-            ? fkEndereco
-            : int.tryParse(fkEndereco?.toString() ?? '');
-        if (idEndereco == null) continue;
-
-        final enderecoRow = enderecosResponse.firstWhere((row) {
-          final id = row['id_endereco'];
-          final idRow = id is int ? id : int.tryParse(id?.toString() ?? '');
-          return idRow == idEndereco;
-        }, orElse: () => const {});
-
-        final fkCidade = enderecoRow['fk_cidade'];
-        final idCidade = fkCidade is int
-            ? fkCidade
-            : int.tryParse(fkCidade?.toString() ?? '');
-        final cidadeInfo = idCidade != null ? cidadesMap[idCidade] : null;
-        final cidade = cidadeInfo?['nome_cidade']?.toString() ?? '';
-
-        final fkEstado = cidadeInfo?['fk_estado'];
-        final idEstado = fkEstado is int
-            ? fkEstado
-            : int.tryParse(fkEstado?.toString() ?? '');
-        final estado = idEstado != null ? estadosMap[idEstado] ?? '' : '';
-
-        final apelido = ass['apelido_endereco']?.toString().trim() ?? '';
-        final tipoEndereco = _tipoEnderecoExibicao(
-          ass['tipo_endereco']?.toString(),
-        );
-        final principal = ass['endereco_ativo'] == true;
-
-        enderecos.add(
-          EnderecoHomeResumo(
-            idEndereco: idEndereco,
-            titulo: apelido.isNotEmpty ? apelido : tipoEndereco,
-            tipoEndereco: tipoEndereco,
-            enderecoFormatado: _formatarEnderecoCompleto(
-              enderecoRow,
-              cidade,
-              estado,
-            ),
-            principal: principal,
-          ),
-        );
-      }
-
-      enderecos.sort((a, b) {
-        if (a.principal == b.principal) return 0;
-        return a.principal ? -1 : 1;
-      });
-
-      return enderecos;
-    } catch (_) {
-      return [];
-    }
-  }
-
-  Future<void> _definirEnderecoPrincipal(int idEndereco) async {
-    try {
-      final supabase = Supabase.instance.client;
-      final user = supabase.auth.currentUser;
-      if (user == null) return;
-
-      final usuarioId = await _buscarIdUsuario(supabase, user.id);
-      if (usuarioId == null) return;
-
-      await supabase
-          .from('ass_usuario_endereco')
-          .update({'endereco_ativo': false})
-          .eq('fk_usuario', usuarioId);
-
-      await supabase
-          .from('ass_usuario_endereco')
-          .update({'endereco_ativo': true})
-          .eq('fk_usuario', usuarioId)
-          .eq('fk_endereco', idEndereco);
-
-      if (!mounted) return;
-      setState(() {
-        _enderecosFuture = _carregarEnderecosCliente();
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Endereço definido como principal.')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao trocar o endereço principal: $e')),
-      );
-    }
-  }
-
-  Future<void> _abrirMeusEnderecos() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => MeusEnderecosPage(isVisitante: widget.isVisitante),
-      ),
-    );
-
-    if (!mounted) return;
-    setState(() {
-      _enderecosFuture = _carregarEnderecosCliente();
-    });
-  }
-
-  Future<Map<String, dynamic>?> _buscarDadosUsuario() async {
-    try {
-      final supabase = Supabase.instance.client;
-      final currentUser = supabase.auth.currentUser;
-      if (currentUser == null) return {'foto_perfil_url': ''};
-      final String userId = currentUser.id;
-      var user = currentUser;
-
-      // Garante metadados atualizados (avatar do Google pode ter sido
-      // persistido via updateUser depois do login).
-      try {
-        final refreshed = await supabase.auth.refreshSession();
-        final refreshedUser = refreshed.session?.user;
-        if (refreshedUser != null) user = refreshedUser;
-      } catch (_) {}
-
-      // 1. Foto do cadastro (usuarios.foto_perfil_url).
-      String? fotoBanco;
-      try {
-        final response = await supabase
-            .from('usuarios')
-            .select('nome, foto_perfil_url')
-            .eq('auth_id', userId)
-            .maybeSingle();
-        fotoBanco = response?['foto_perfil_url']?.toString().trim();
-        if (fotoBanco != null && fotoBanco.isNotEmpty) return response;
-      } catch (_) {}
-
-      // 2. Sessão/onboarding em memória (login Google recente).
-      try {
-        final fotoMemoria = GoogleAuthService.ultimaFotoUrl?.trim() ?? '';
-        if (fotoMemoria.isNotEmpty) {
-          return {
-            'nome': GoogleAuthService.extrairNome(user),
-            'foto_perfil_url': fotoMemoria,
-          };
-        }
-      } catch (_) {}
-
-      // 3. Fallback: foto do Google (auth metadata).
-      final meta = user.userMetadata ?? <String, dynamic>{};
-      final fotoMeta =
-          (meta['avatar_url'] ??
-                  meta['picture'] ??
-                  meta['foto_perfil_url'] ??
-                  meta['fotoPerfilUrl'])
-              ?.toString()
-              .trim();
-      if (fotoMeta != null && fotoMeta.isNotEmpty) {
-        return {
-          'nome': meta['full_name'] ?? meta['nome'] ?? meta['name'],
-          'foto_perfil_url': fotoMeta,
-        };
-      }
-      // Retorna o que veio do banco mesmo sem foto (evita null -> cinza
-      // por caminho errado); o widget decide o fallback.
-      if (fotoBanco != null) {
-        return {'foto_perfil_url': fotoBanco};
-      }
-      debugPrint(
-        'Foto perfil: nenhuma fonte encontrada. metaKeys=${meta.keys.toList()}',
-      );
-      return {'foto_perfil_url': ''};
-    } catch (e) {
-      debugPrint('Erro _buscarDadosUsuario: $e');
-      return {'foto_perfil_url': ''};
-    }
-  }
-
-  Future<List<PerfilPopular>> _buscarProfissionaisDestaque() async {
-    try {
-      final supabase = Supabase.instance.client;
-
-      final empresasData = await supabase
-          .from('grupo_empresa')
-          .select('id_grupo_empresa, tag_empresa, cor_tag_empresa, fk_perfil');
-      final empresasPorId = <int, Map<String, dynamic>>{};
-      final empresasPorPerfil = <int, Map<String, dynamic>>{};
-      for (final empresa in empresasData) {
-        final idGrupo = (empresa['id_grupo_empresa'] as num?)?.toInt();
-        if (idGrupo == null) continue;
-        final dados = Map<String, dynamic>.from(empresa);
-        empresasPorId[idGrupo] = dados;
-        final fkPerfil = (empresa['fk_perfil'] as num?)?.toInt();
-        if (fkPerfil != null) empresasPorPerfil[fkPerfil] = dados;
-      }
-
-      // 1. Busca todos os profissionais cadastrados (com dados do usuário)
-      final dadosProfissionais = await supabase
-          .from('dados_profissionais')
-          .select(
-            'id_profissional, fk_usuario, fk_grupo_empresa, fk_perfil, verificar_autenticacao',
-          );
-
-      final perfis = <PerfilPopular>[];
-      final idsProfissionais = dadosProfissionais
-          .map((dados) => (dados['id_profissional'] as num?)?.toInt())
-          .whereType<int>()
-          .toList();
-      final avaliacoesPorProfissional = <int, List<int>>{};
-      if (idsProfissionais.isNotEmpty) {
-        final solicitacoes = await supabase
-            .from('solicitacoes')
-            .select('id_solicitacao, fk_profissional')
-            .inFilter('fk_profissional', idsProfissionais);
-        final profissionalPorSolicitacao = <int, int>{};
-        for (final solicitacao in solicitacoes) {
-          final idSolicitacao = (solicitacao['id_solicitacao'] as num?)
-              ?.toInt();
-          final idProfissional = (solicitacao['fk_profissional'] as num?)
-              ?.toInt();
-          if (idSolicitacao != null && idProfissional != null) {
-            profissionalPorSolicitacao[idSolicitacao] = idProfissional;
-          }
-        }
-        if (profissionalPorSolicitacao.isNotEmpty) {
-          final avaliacoes = await supabase
-              .from('avaliacoes_solicitacao')
-              .select('fk_solicitacao, nota')
-              .eq('tipo_avaliacao', 'profissional')
-              .inFilter(
-                'fk_solicitacao',
-                profissionalPorSolicitacao.keys.toList(),
-              );
-          for (final avaliacao in avaliacoes) {
-            final idSolicitacao = (avaliacao['fk_solicitacao'] as num?)
-                ?.toInt();
-            final nota = (avaliacao['nota'] as num?)?.toInt();
-            final idProfissional = idSolicitacao == null
-                ? null
-                : profissionalPorSolicitacao[idSolicitacao];
-            if (idProfissional != null && nota != null) {
-              avaliacoesPorProfissional
-                  .putIfAbsent(idProfissional, () => [])
-                  .add(nota);
-            }
-          }
-        }
-      }
-
-      for (final dados in dadosProfissionais) {
-        final idProfissional = (dados['id_profissional'] as num?)?.toInt();
-        final fkUsuario = (dados['fk_usuario'] as num?)?.toInt();
-
-        if (idProfissional == null || fkUsuario == null) continue;
-
-        // 2. Busca dados do usuário (nome e foto)
-        final usuarioResponse = await supabase
-            .from('usuarios')
-            .select('nome, foto_perfil_url')
-            .eq('id_usuario', fkUsuario)
-            .maybeSingle();
-
-        if (usuarioResponse == null) continue;
-
-        final nome = usuarioResponse['nome']?.toString().trim() ?? '';
-        if (nome.isEmpty) continue;
-        final fotoUrl = usuarioResponse['foto_perfil_url']?.toString() ?? '';
-
-        final idGrupoEmpresa = (dados['fk_grupo_empresa'] as num?)?.toInt();
-        final fkPerfil = (dados['fk_perfil'] as num?)?.toInt();
-        final empresa = idGrupoEmpresa != null
-            ? empresasPorId[idGrupoEmpresa]
-            : (fkPerfil != null ? empresasPorPerfil[fkPerfil] : null);
-        final tagEmpresaRaw = empresa?['tag_empresa']?.toString().trim() ?? '';
-        final corEmpresa = CorOficio.parse(
-          empresa?['cor_tag_empresa']?.toString(),
-        );
-
-        // 3. Busca os ofícios associados ao profissional
-        final assOficios = await supabase
-            .from('ass_oficio_profissional')
-            .select('fk_funcao')
-            .eq('fk_profissional', idProfissional);
-
-        final idsOficios = assOficios
-            .map((e) => e['fk_funcao'])
-            .whereType<num>()
-            .map((e) => e.toInt())
-            .toList();
-
-        final oficios = <OficioInfo>[];
-        if (idsOficios.isNotEmpty) {
-          final oficiosData = await supabase
-              .from('funcoes')
-              .select(kColunasFuncaoComoOficio)
-              .inFilter('id_funcao', idsOficios);
-
-          for (final row in oficiosData) {
-            final info = OficioInfo.fromMap(row);
-            if (info.funcao.isNotEmpty) oficios.add(info);
-          }
-        }
-
-        perfis.add(
-          PerfilPopular(
-            nome: nome,
-            avaliacao: _mediaNotas(avaliacoesPorProfissional[idProfissional]),
-            totalAvaliacoes:
-                avaliacoesPorProfissional[idProfissional]?.length ?? 0,
-            tag: oficios.isNotEmpty ? oficios.first.funcao : 'Profissional',
-            tagBgColor: const Color(0xFFE1F5FE),
-            tagTextColor: _primaryBlue,
-            caminhoImagem: fotoUrl,
-            profissao: oficios.isNotEmpty
-                ? oficios.first.funcao
-                : 'Profissional',
-            oficios: oficios,
-            isVerified: dados['verificar_autenticacao'] == true,
-            metrica:
-                avaliacoesPorProfissional[idProfissional]?.isNotEmpty == true
-                ? '${avaliacoesPorProfissional[idProfissional]!.length} avaliações'
-                : null,
-            tagEmpresa: tagEmpresaRaw.isEmpty
-                ? null
-                : (tagEmpresaRaw.startsWith('#')
-                      ? tagEmpresaRaw
-                      : '#$tagEmpresaRaw'),
-            tagEmpresaBgColor: tagEmpresaRaw.isEmpty ? null : corEmpresa,
-            tagEmpresaTextColor: tagEmpresaRaw.isEmpty
-                ? null
-                : CorOficio.corTextoContraste(corEmpresa),
-          ),
-        );
-      }
-
-      return perfis;
-    } catch (e) {
-      debugPrint('Erro ao buscar profissionais em destaque: $e');
-      return [];
-    }
-  }
-
-  Future<List<LojaPopular>> _buscarLojasDestaque() async {
-    try {
-      final supabase = Supabase.instance.client;
-
-      // 1. Busca grupos de empresa cadastrados
-      final empresasData = await supabase
-          .from('grupo_empresa')
-          .select(
-            'id_grupo_empresa, fk_perfil, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, descricao_empresa',
-          );
-
-      final List<LojaPopular> lista = [];
-
-      for (final empresa in empresasData) {
-        final idGrupo = (empresa['id_grupo_empresa'] as num?)?.toInt();
-        if (idGrupo == null) continue;
-
-        final nome = empresa['nome_empresa']?.toString().trim();
-        final tag = empresa['tag_empresa']?.toString().trim();
-        final corHex = empresa['cor_tag_empresa']?.toString().trim();
-        final fotoUrl = empresa['foto_url_empresa']?.toString().trim() ?? '';
-        final bannerUrl =
-            empresa['banner_url_empresa']?.toString().trim() ?? '';
-        final descricaoDb =
-            empresa['descricao_empresa']?.toString().trim() ?? '';
-        if (nome == null || nome.isEmpty) continue;
-
-        // Ofícios DA LOJA (empresa/grupo_empresa) via ass_oficio_grupo_empresa
-        // — não herda os ofícios do profissional dono do CNPJ.
-        final List<OficioInfo> oficiosLoja = [];
-        try {
-          final assOficios = await supabase
-              .from('ass_oficio_grupo_empresa')
-              .select('fk_funcao')
-              .eq('fk_grupo_empresa', idGrupo);
-
-          final idsOficios = assOficios
-              .map((e) => e['fk_funcao'])
-              .whereType<num>()
-              .map((e) => e.toInt())
-              .toSet()
-              .toList();
-
-          if (idsOficios.isNotEmpty) {
-            final oficiosData = await supabase
-                .from('funcoes')
-                .select(kColunasFuncaoComoOficio)
-                .inFilter('id_funcao', idsOficios);
-
-            final Set<String> funcoesVistas = {};
-            for (final row in oficiosData) {
-              final info = OficioInfo.fromMap(row);
-              final chave = info.funcao.trim().toLowerCase();
-              if (info.funcao.trim().isNotEmpty &&
-                  !funcoesVistas.contains(chave)) {
-                funcoesVistas.add(chave);
-                oficiosLoja.add(info);
-              }
-            }
-          }
-        } catch (_) {}
-
-        final corBase = CorOficio.parse(corHex);
-        final tagEmpresaFormatada = (tag != null && tag.isNotEmpty)
-            ? (tag.startsWith('#') ? tag : '#$tag')
-            : null;
-
-        final descricaoFinal = descricaoDb.isNotEmpty
-            ? descricaoDb
-            : oficiosLoja.take(3).map((o) => o.funcao).join(' • ');
-
-        final profissionaisLoja = await supabase
-            .from('dados_profissionais')
-            .select('id_profissional')
-            .eq('fk_grupo_empresa', idGrupo);
-        final idsProfissionaisLoja = profissionaisLoja
-            .map((row) => (row['id_profissional'] as num?)?.toInt())
-            .whereType<int>()
-            .toSet();
-        final idPerfilEmpresa = (empresa['fk_perfil'] as num?)?.toInt();
-        final donoEmpresa = idPerfilEmpresa == null
-            ? null
-            : await supabase
-                  .from('dados_profissionais')
-                  .select('id_profissional, verificar_autenticacao')
-                  .eq('fk_perfil', idPerfilEmpresa)
-                  .maybeSingle();
-        final idProfissionalDono = (donoEmpresa?['id_profissional'] as num?)
-            ?.toInt();
-        if (idProfissionalDono != null) {
-          idsProfissionaisLoja.add(idProfissionalDono);
-        }
-
-        final avaliacoesLoja = <int>[];
-        if (idsProfissionaisLoja.isNotEmpty) {
-          final solicitacoesLoja = await supabase
-              .from('solicitacoes')
-              .select('id_solicitacao')
-              .inFilter('fk_profissional', idsProfissionaisLoja.toList());
-          final idsSolicitacoes = solicitacoesLoja
-              .map((row) => (row['id_solicitacao'] as num?)?.toInt())
-              .whereType<int>()
-              .toList();
-          if (idsSolicitacoes.isNotEmpty) {
-            final avaliacoes = await supabase
-                .from('avaliacoes_solicitacao')
-                .select('nota')
-                .eq('tipo_avaliacao', 'profissional')
-                .inFilter('fk_solicitacao', idsSolicitacoes);
-            avaliacoesLoja.addAll(
-              avaliacoes
-                  .map((row) => (row['nota'] as num?)?.toInt())
-                  .whereType<int>(),
-            );
-          }
-        }
-
-        lista.add(
-          LojaPopular(
-            idGrupoEmpresa: idGrupo,
-            titulo: nome,
-            avaliacao: _mediaNotas(avaliacoesLoja),
-            totalAvaliacoes: avaliacoesLoja.length,
-            distancia: '',
-            tag1: tagEmpresaFormatada ?? '',
-            tag2: oficiosLoja.isNotEmpty
-                ? oficiosLoja.first.funcao
-                : 'Serviços',
-            tag1BgColor: corBase,
-            tag1TextColor: CorOficio.corTextoContraste(corBase),
-            tag2BgColor: const Color(0xFFEEEEEE),
-            tag2TextColor: const Color(0xFF616161),
-            caminhoImagem: fotoUrl,
-            bannerUrl: bannerUrl,
-            tagEmpresa: tagEmpresaFormatada,
-            corTagEmpresaHex: corHex,
-            oficios: oficiosLoja,
-            isVerified: donoEmpresa?['verificar_autenticacao'] == true,
-            descricao: descricaoFinal,
-          ),
-        );
-      }
-
-      return lista;
-    } catch (e) {
-      debugPrint('Erro ao buscar lojas em destaque: $e');
-      return [];
-    }
-  }
-
-  PageRouteBuilder _rotaSemAnimacao(Widget page) {
-    return PageRouteBuilder(
-      pageBuilder: (_, _, _) => page,
-      transitionDuration: Duration.zero,
-      reverseTransitionDuration: Duration.zero,
-    );
-  }
-
-  void _exibirDialogSair(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text(
-            widget.isVisitante ? 'Sair do Modo Visitante' : 'Confirmar Saída',
-          ),
-          content: Text(
-            widget.isVisitante
-                ? 'Deseja realmente voltar para a tela de escolha de conta?'
-                : 'Deseja realmente sair da sua conta?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
-            TextButton(
-              onPressed: () async {
-                Navigator.of(context, rootNavigator: true).pop();
-
-                if (!widget.isVisitante) {
-                  await Supabase.instance.client.auth.signOut();
-                }
-
-                navigatorKey.currentState?.pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const TelaInicial()),
-                  (route) => false,
-                );
-              },
-              child: const Text(
-                'Sair',
-                style: TextStyle(
-                  color: _primaryBlue,
-                  fontWeight: FontWeight.bold,
-                ),
+  Widget build(BuildContext context) {
+    final pedidos = _pedidos;
+    return AppBackHandler(
+      isHome: true,
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.dark,
+        child: Scaffold(
+          backgroundColor: _fundo,
+          body: SafeArea(
+            bottom: false,
+            child: RefreshIndicator(
+              color: _azul,
+              onRefresh: _recarregar,
+              child: ListView(
+                padding: const EdgeInsets.only(bottom: 24),
+                children: [
+                  _cabecalho(),
+                  if (widget.isVisitante) _cardVisitante(),
+                  if (pedidos == null)
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(20, 18, 20, 0),
+                      child: SkeletonBox(height: 170, borderRadius: 22),
+                    )
+                  else if (pedidos.isNotEmpty)
+                    _pedidosEmAndamento(pedidos),
+                  _secaoCategorias(),
+                  _secaoRegiao(),
+                  _secaoServicos(),
+                ],
               ),
             ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _navegarParaPerfil(BuildContext context) {
-    AppNavigationUtil.navegarAba(
-      context,
-      TelaMeuPerfilClientePage(isVisitante: widget.isVisitante),
-      isHome: false,
-    );
-  }
-
-  void _navegarParaBusca(BuildContext context) {
-    Navigator.of(
-      context,
-    ).push(_rotaSemAnimacao(TelaBusca(isVisitante: widget.isVisitante)));
-  }
-
-  BoxDecoration _cardDecoration() {
-    return BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.06),
-          blurRadius: 10,
-          offset: const Offset(0, 2),
+          ),
+          bottomNavigationBar: BottomNavigationBarCliente(
+            currentIndex: 0,
+            onReselecionarAbaAtual: (_) => _recarregar(),
+            onTap: (index) {
+              if (index == 0) return;
+              if (!_permitido()) return;
+              final destino = switch (index) {
+                1 => const SolicitacaoGeograficaClientePage(),
+                2 => const TelaMensagensPage(isVisitante: false),
+                3 => const MeusPedidosPage(),
+                _ => const TelaMeuPerfilClientePage(),
+              };
+              AppNavigationUtil.navegarAba(context, destino, isHome: false);
+            },
+          ),
         ),
-      ],
+      ),
     );
   }
 
-  Widget _buildRatingBadge(double? avaliacao) {
-    if (avaliacao == null) return const SizedBox.shrink();
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      decoration: BoxDecoration(
-        color: _ratingBg,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+  // ── Cabeçalho ────────────────────────────────────────────────────────────
+
+  Widget _cabecalho() {
+    final foto = _eu?.foto;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+      child: Column(
         children: [
-          const Icon(Icons.star, color: _ratingText, size: 12),
-          Text(
-            ' ${avaliacao.toStringAsFixed(1)}',
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: _ratingText,
-            ),
+          Row(
+            children: [
+              GestureDetector(
+                onTap: () {
+                  if (_permitido()) _abrir(const TelaMeuPerfilClientePage());
+                },
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      child: CircleAvatar(
+                        radius: 26,
+                        backgroundColor: _azul,
+                        backgroundImage: foto != null
+                            ? NetworkImage(foto)
+                            : null,
+                        child: foto == null
+                            ? widget.isVisitante
+                                  ? const Icon(
+                                      Icons.person_rounded,
+                                      color: Colors.white,
+                                    )
+                                  : Text(
+                                      obterIniciais(_eu?.nome ?? ''),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    )
+                            : null,
+                      ),
+                    ),
+                    if (!widget.isVisitante)
+                      Positioned(
+                        right: 1,
+                        bottom: 1,
+                        child: Container(
+                          width: 13,
+                          height: 13,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF22C55E),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Olá, $_primeiroNome',
+                      style: const TextStyle(
+                        color: Color(0xFF334155),
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    SeletorEnderecoCliente(
+                      cor: _texto,
+                      corTrocar: _azul,
+                      aoMudar: (e) {
+                        setState(() {
+                          _endereco = e;
+                          _regiao = null;
+                        });
+                        _carregarRegiao();
+                      },
+                      aoTocarSemPermissao: widget.isVisitante
+                          ? () => mostrarAvisoVisitante(context)
+                          : null,
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                width: 46,
+                height: 46,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFE8EDF3),
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: SinoNotificacoes(
+                    cor: _texto,
+                    tamanho: 24,
+                    aoTocar: widget.isVisitante
+                        ? () => mostrarAvisoVisitante(context)
+                        : null,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: Material(
+                  color: const Color(0xFFE8EDF3),
+                  borderRadius: BorderRadius.circular(18),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(18),
+                    onTap: () => _abrirBusca(),
+                    child: const SizedBox(
+                      height: 52,
+                      child: Row(
+                        children: [
+                          SizedBox(width: 14),
+                          Icon(Icons.search_rounded, color: _sec),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'O que precisa consertar? (vazamento, tomada…)',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: _sec, fontSize: 14.5),
+                            ),
+                          ),
+                          Icon(Icons.mic_none_rounded, color: _sec),
+                          SizedBox(width: 12),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Material(
+                color: _azul,
+                borderRadius: BorderRadius.circular(18),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(18),
+                  onTap: _abrirFiltros,
+                  child: const SizedBox(
+                    width: 52,
+                    height: 52,
+                    child: Icon(Icons.tune_rounded, color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildVerifiedBadge() {
-    return Container(
-      width: 16,
-      height: 16,
-      decoration: BoxDecoration(
-        color: _primaryBlue,
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 1.5),
-      ),
-      child: const Icon(Icons.check, color: Colors.white, size: 10),
-    );
-  }
-
-  Widget _buildSectionHeader({
-    required String titulo,
-    Color? tituloColor,
-    bool mostrarRadar = false,
-    String? linkVerTodos,
-  }) {
-    return Row(
-      children: [
-        Expanded(
-          child: Row(
-            children: [
-              Flexible(
-                child: Text(
-                  titulo,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: tituloColor ?? Colors.black87,
+  Widget _cardVisitante() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: _azul,
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: Row(
+          children: [
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Você está como visitante',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16.5,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                ),
-              ),
-              if (mostrarRadar) ...[
-                const SizedBox(width: 4),
-                const Icon(Icons.radar, color: _primaryBlue, size: 18),
-              ],
-            ],
-          ),
-        ),
-        if (linkVerTodos != null)
-          TextButton(
-            onPressed: () {},
-            style: TextButton.styleFrom(
-              padding: EdgeInsets.zero,
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: Text(
-              linkVerTodos,
-              style: const TextStyle(
-                color: _primaryBlue,
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
+                  SizedBox(height: 4),
+                  Text(
+                    'Entre para pedir serviços, conversar e acompanhar seus '
+                    'pedidos.',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildOutlineButton(String texto) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton(
-        onPressed: () {},
-        style: OutlinedButton.styleFrom(
-          foregroundColor: _primaryBlue,
-          side: const BorderSide(color: _primaryBlue, width: 1.5),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        child: Text(
-          texto,
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+            const SizedBox(width: 12),
+            FilledButton(
+              onPressed: () => mostrarAvisoVisitante(context),
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: _azul,
+                shape: const StadiumBorder(),
+              ),
+              child: const Text(
+                'Acessar agora',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildEnderecoAtual() {
-    return FutureBuilder<List<EnderecoHomeResumo>>(
-      future: _enderecosFuture,
-      builder: (context, snapshot) {
-        final enderecos = snapshot.data ?? <EnderecoHomeResumo>[];
-        final enderecoPrincipal = enderecos.isNotEmpty
-            ? enderecos.firstWhere(
-                (endereco) => endereco.principal,
-                orElse: () => enderecos.first,
-              )
-            : null;
+  // ── Pedido em andamento ──────────────────────────────────────────────────
 
-        Widget conteudo() {
-          return Column(
+  Widget _pedidosEmAndamento(List<PedidoAndamento> pedidos) {
+    if (pedidos.length == 1) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+        child: _cardPedido(pedidos.first),
+      );
+    }
+    final largura = MediaQuery.sizeOf(context).width - 56;
+    return SizedBox(
+      height: 196,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+        itemCount: pedidos.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
+        itemBuilder: (_, i) =>
+            SizedBox(width: largura, child: _cardPedido(pedidos[i])),
+      ),
+    );
+  }
+
+  Widget _cardPedido(PedidoAndamento p) {
+    void abrir() => abrirSolicitacaoPorStatus(
+      context,
+      p.id,
+      comoProfissional: false,
+    ).then((_) => _recarregar());
+    final local = [p.status, if ((p.rua ?? '').isNotEmpty) p.rua!].join(' • ');
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.06),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.white,
+        child: InkWell(
+          onTap: abrir,
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'LOCALIZAÇÃO ATUAL',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade500,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.location_on, color: _primaryBlue, size: 18),
-                  const SizedBox(width: 2),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              const _BordaGradienteAnimada(),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        if (enderecoPrincipal != null)
-                          Text(
-                            enderecoPrincipal.enderecoFormatado,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: Colors.black87,
-                            ),
-                          )
-                        else
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  'Nenhum endereço cadastrado',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 2),
-                              Icon(
-                                Icons.keyboard_arrow_right,
-                                color: Colors.grey.shade700,
-                                size: 20,
-                              ),
-                            ],
+                        Container(
+                          width: 9,
+                          height: 9,
+                          decoration: const BoxDecoration(
+                            color: _azul,
+                            shape: BoxShape.circle,
                           ),
-                        if (enderecoPrincipal != null) ...[
-                          const SizedBox(height: 3),
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: _primaryBlue.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: Text(
-                                  enderecoPrincipal.tipoEndereco,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    color: _primaryBlue,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              Icon(
-                                enderecos.length > 1
-                                    ? Icons.keyboard_arrow_down
-                                    : Icons.keyboard_arrow_right,
-                                color: Colors.grey.shade700,
-                                size: 20,
-                              ),
-                            ],
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          );
-        }
-
-        if (enderecos.length > 1) {
-          return PopupMenuButton<int>(
-            tooltip: 'Selecionar endereço',
-            offset: const Offset(0, 50),
-            onSelected: (idEndereco) {
-              final selecionado = enderecos.firstWhere(
-                (endereco) => endereco.idEndereco == idEndereco,
-                orElse: () => enderecoPrincipal ?? enderecos.first,
-              );
-              if (!selecionado.principal) {
-                _definirEnderecoPrincipal(selecionado.idEndereco);
-              }
-            },
-            itemBuilder: (context) => enderecos
-                .map(
-                  (endereco) => PopupMenuItem<int>(
-                    value: endereco.idEndereco,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 280),
-                      child: Row(
-                        children: [
-                          Icon(
-                            endereco.principal
-                                ? Icons.location_on
-                                : Icons.place_outlined,
-                            size: 18,
-                            color: endereco.principal
-                                ? _primaryBlue
-                                : Colors.grey.shade600,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  endereco.enderecoFormatado,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 13),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  endereco.tipoEndereco,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.grey.shade600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (endereco.principal) ...[
-                            const SizedBox(width: 8),
-                            const Icon(
-                              Icons.check,
-                              color: _primaryBlue,
-                              size: 18,
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                )
-                .toList(),
-            child: conteudo(),
-          );
-        }
-
-        return GestureDetector(onTap: _abrirMeusEnderecos, child: conteudo());
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final larguraDaTela = MediaQuery.of(context).size.width;
-    final alturaDaTela = MediaQuery.of(context).size.height;
-    final larguraCategoria = (larguraDaTela - 32 - 24) / 4;
-
-    return AppBackHandler(
-      isHome: true,
-      child: Scaffold(
-        backgroundColor: Colors.white,
-        body: SafeArea(
-          child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            children: [
-              const SizedBox(height: 8),
-
-              // Cabeçalho
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: _buildEnderecoAtual()),
-                  // Sininho com as notificações não lidas (Realtime).
-                  const Padding(
-                    padding: EdgeInsets.only(right: 8),
-                    child: SinoNotificacoes(cor: _primaryBlue),
-                  ),
-                  GestureDetector(
-                    onTap: () => _navegarParaPerfil(context),
-                    onLongPress: () => _exibirDialogSair(context),
-                    child: widget.isVisitante
-                        ? CircleAvatar(
-                            radius: 20,
-                            backgroundColor: Colors.grey.shade200,
-                            child: Icon(
-                              Icons.person,
-                              color: Colors.grey.shade600,
-                              size: 22,
-                            ),
-                          )
-                        : FutureBuilder<Map<String, dynamic>?>(
-                            future: _dadosUsuarioFuture,
-                            builder: (context, snapshot) {
-                              final fotoUrl =
-                                  (snapshot.data?['foto_perfil_url'] as String?)
-                                      ?.trim();
-                              final nome = snapshot.data?['nome']
-                                  ?.toString()
-                                  .trim();
-                              if (snapshot.connectionState ==
-                                      ConnectionState.waiting &&
-                                  fotoUrl == null) {
-                                return CircleAvatar(
-                                  radius: 20,
-                                  backgroundColor: Colors.grey.shade200,
-                                  child: const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: _primaryBlue,
-                                    ),
-                                  ),
-                                );
-                              }
-                              if (fotoUrl != null && fotoUrl.isNotEmpty) {
-                                return ClipOval(
-                                  child: Image.network(
-                                    fotoUrl,
-                                    width: 40,
-                                    height: 40,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) =>
-                                        _avatarUsuarioFallback(nome),
-                                  ),
-                                );
-                              }
-                              return _avatarUsuarioFallback(nome);
-                            },
-                          ),
-                  ),
-                ],
-              ),
-
-              SizedBox(height: alturaDaTela * 0.02),
-
-              // Barra de pesquisa + radar
-              Row(
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => _navegarParaBusca(context),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.shade200),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.04),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
                         ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 14,
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.search, color: Colors.grey.shade500),
-                            const SizedBox(width: 12),
-                            Text(
-                              'Qual será o serviço de hoje?',
-                              style: TextStyle(
-                                color: Colors.grey.shade500,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.grey.shade200),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.radar,
-                      color: _primaryBlue,
-                      size: 24,
-                    ),
-                  ),
-                ],
-              ),
-
-              SizedBox(height: alturaDaTela * 0.025),
-
-              if (widget.isVisitante) ...[
-                GestureDetector(
-                  onTap: () {
-                    Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(builder: (_) => const TelaInicial()),
-                      (route) => false,
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [_primaryBlue, Color(0xFF0066FF)],
-                        begin: Alignment.centerLeft,
-                        end: Alignment.centerRight,
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
+                        const SizedBox(width: 8),
                         const Expanded(
+                          child: Text(
+                            'PEDIDO EM ANDAMENTO',
+                            style: TextStyle(
+                              color: Color(0xFF0369A1),
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ),
+                        Flexible(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFDCFCE7),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: const Color(0xFFBBF7D0),
+                              ),
+                            ),
+                            child: Text(
+                              p.status,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xFF15803D),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: SizedBox(
+                            width: 56,
+                            height: 56,
+                            child: p.foto != null
+                                ? Image.network(
+                                    p.foto!,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) =>
+                                        _iniciais(p.nomePrestador),
+                                  )
+                                : _iniciais(p.nomePrestador),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Acesse agora',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
+                                p.titulo,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: _texto,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
                                 ),
                               ),
-                              SizedBox(height: 6),
-                              Text(
-                                'Entre ou cadastre-se para ter acesso completo ao ConsertaJá',
-                                style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 12,
+                              const SizedBox(height: 3),
+                              Text.rich(
+                                TextSpan(
+                                  children: [
+                                    TextSpan(
+                                      text: p.nomePrestador,
+                                      style: const TextStyle(
+                                        color: Color(0xFF334155),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    if ((p.funcao ?? '').isNotEmpty)
+                                      TextSpan(text: ' • ${p.funcao}'),
+                                  ],
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: _sec,
+                                  fontSize: 13.5,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: const BoxDecoration(
-                            color: Colors.white24,
-                            shape: BoxShape.circle,
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    const Divider(height: 1, color: Color(0xFFEDEFF2)),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.navigation_outlined,
+                          color: Color(0xFF1E6FB8),
+                          size: 18,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            local,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: _sec, fontSize: 13.5),
                           ),
-                          child: const Icon(
-                            Icons.arrow_forward,
-                            color: Colors.white,
-                            size: 28,
+                        ),
+                        const SizedBox(width: 8),
+                        FilledButton(
+                          onPressed: abrir,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _azul,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                          ),
+                          child: const Text(
+                            'Acompanhar →',
+                            style: TextStyle(fontWeight: FontWeight.w700),
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ),
-                SizedBox(height: alturaDaTela * 0.025),
-              ],
-
-              // Tipos de Serviços
-              _buildSectionHeader(
-                titulo: 'Tipos de Serviços',
-                linkVerTodos: 'Ver todos',
-              ),
-              const SizedBox(height: 12),
-              GridView.count(
-                crossAxisCount: 4,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 8,
-                childAspectRatio: larguraCategoria / 72,
-                children: [
-                  _buildCategoriaServico('Ar Cond.', Icons.ac_unit),
-                  _buildCategoriaServico('Reformas', Icons.handyman_outlined),
-                  _buildCategoriaServico(
-                    'Limpeza',
-                    Icons.cleaning_services_outlined,
-                  ),
-                  _buildCategoriaServico('Aulas', Icons.school_outlined),
-                  _buildCategoriaServico('Assistência', Icons.build_outlined),
-                  _buildCategoriaServico(
-                    'Fretes',
-                    Icons.local_shipping_outlined,
-                  ),
-                  _buildCategoriaServico('Beleza', Icons.content_cut),
-                  _buildCategoriaServico(
-                    'Mais',
-                    Icons.more_horiz,
-                    isMais: true,
-                  ),
-                ],
-              ),
-
-              SizedBox(height: alturaDaTela * 0.03),
-
-              FutureBuilder<List<PerfilPopular>>(
-                future: _perfisDestaqueFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const SkeletonProfileCard();
-                  }
-                  final perfis = snapshot.data ?? <PerfilPopular>[];
-                  if (perfis.isEmpty) return const SizedBox.shrink();
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildSectionHeader(
-                        titulo: 'Profissionais cadastrados',
-                        tituloColor: _primaryBlue,
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        height: 110,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          physics: const BouncingScrollPhysics(),
-                          itemCount: perfis.length,
-                          separatorBuilder: (_, _) => const SizedBox(width: 12),
-                          itemBuilder: (context, index) =>
-                              _buildCardProfissional(
-                                perfis[index],
-                                largura: larguraDaTela * 0.78,
-                              ),
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-
-              SizedBox(height: alturaDaTela * 0.03),
-
-              // Serviços Perto de Você
-              _buildSectionHeader(
-                titulo: 'Serviços Perto de Você',
-                tituloColor: _primaryBlue,
-                mostrarRadar: true,
-                linkVerTodos: 'Ver todos',
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 130,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  itemCount: listaServicosProximos.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 12),
-                  itemBuilder: (context, index) {
-                    return _buildCardServicoProximo(
-                      listaServicosProximos[index],
-                    );
-                  },
+                  ],
                 ),
               ),
-
-              SizedBox(height: alturaDaTela * 0.03),
-
-              // Profissionais em destaque
-              FutureBuilder<List<PerfilPopular>>(
-                future: _buscarProfissionaisDestaque(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      child: const SkeletonProfileCard(),
-                    );
-                  }
-
-                  final perfis = snapshot.data ?? <PerfilPopular>[];
-
-                  if (perfis.isEmpty) {
-                    return const SizedBox.shrink();
-                  }
-
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildSectionHeader(titulo: 'Profissionais em destaque'),
-                      const SizedBox(height: 12),
-                      ...perfis
-                          .take(3)
-                          .map(
-                            (perfil) => Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: GestureDetector(
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          PerfilProfissionalPage(
-                                            nomeInicial: perfil.nome,
-                                            imagemInicial: perfil.caminhoImagem,
-                                            profissao: perfil.profissao,
-                                            avaliacao: perfil.avaliacao,
-                                            totalAvaliacoes:
-                                                perfil.totalAvaliacoes,
-                                          ),
-                                    ),
-                                  );
-                                },
-                                child: _buildCardProfissionalDestaque(perfil),
-                              ),
-                            ),
-                          ),
-                      _buildOutlineButton('Ver todos os profissionais'),
-                    ],
-                  );
-                },
-              ),
-
-              SizedBox(height: alturaDaTela * 0.03),
-
-              // Lojas em destaque
-              FutureBuilder<List<LojaPopular>>(
-                future: _buscarLojasDestaque(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      child: Center(
-                        child: CircularProgressIndicator(color: _primaryBlue),
-                      ),
-                    );
-                  }
-
-                  final lojas = snapshot.data ?? <LojaPopular>[];
-
-                  if (lojas.isEmpty) {
-                    return const SizedBox.shrink();
-                  }
-
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildSectionHeader(titulo: 'Lojas em destaque'),
-                      const SizedBox(height: 12),
-                      ...lojas
-                          .take(3)
-                          .map(
-                            (loja) => Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: GestureDetector(
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => PerfilLoja(
-                                        idGrupoEmpresa: loja.idGrupoEmpresa,
-                                        nomeEmpresa: loja.titulo,
-                                        fotoUrlEmpresa: loja.caminhoImagem,
-                                        bannerUrlEmpresa: loja.bannerUrl,
-                                        tagEmpresa: loja.tagEmpresa,
-                                        corTagEmpresa: loja.corTagEmpresaHex,
-                                      ),
-                                    ),
-                                  );
-                                },
-                                child: _buildCardLojaVertical(loja),
-                              ),
-                            ),
-                          ),
-                      _buildOutlineButton('Ver todos os profissionais'),
-                    ],
-                  );
-                },
-              ),
-
-              SizedBox(height: alturaDaTela * 0.03),
-
-              // Serviços populares — todos de `servicos_profissional`
-              _buildSectionHeader(titulo: 'Serviços populares'),
-              const SizedBox(height: 12),
-              if (_carregandoServicosPopulares)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(
-                    child: CircularProgressIndicator(color: _primaryBlue),
-                  ),
-                )
-              else if (_servicosPopulares.isEmpty)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: _cardDecoration(),
-                  child: const Text(
-                    'Nenhum serviço cadastrado no momento.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 13, color: Colors.black54),
-                  ),
-                )
-              else
-                SizedBox(
-                  height: 220,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    physics: const BouncingScrollPhysics(),
-                    itemCount: _servicosPopulares.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 12),
-                    itemBuilder: (context, index) {
-                      final servico = _servicosPopulares[index];
-                      return GestureDetector(
-                        onTap: servico.idServicoProf == null
-                            ? null
-                            : () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => TelaServico(
-                                      idServico: servico.idServicoProf,
-                                    ),
-                                  ),
-                                );
-                              },
-                        child: _buildCardServicoPopular(servico),
-                      );
-                    },
-                  ),
-                ),
-
-              const SizedBox(height: 24),
             ],
           ),
-        ),
-        bottomNavigationBar: BottomNavigationBarCliente(
-          currentIndex: 0,
-          // Tocar em Home estando na Home recarrega os endereços da página.
-          onReselecionarAbaAtual: (_) {
-            if (mounted) {
-              setState(() {
-                _enderecosFuture = _carregarEnderecosCliente();
-              });
-            }
-          },
-          onTap: (index) {
-            if (index == 1) {
-              AppNavigationUtil.navegarAba(
-                context,
-                SolicitacaoGeograficaClientePage(
-                  isVisitante: widget.isVisitante,
-                ),
-                isHome: false,
-              );
-            } else if (index == 2) {
-              AppNavigationUtil.navegarAba(
-                context,
-                TelaMensagensPage(isVisitante: widget.isVisitante),
-                isHome: false,
-              );
-            } else if (index == 3) {
-              AppNavigationUtil.navegarAba(
-                context,
-                MeusPedidosPage(isVisitante: widget.isVisitante),
-                isHome: false,
-              );
-            } else if (index == 4) {
-              _navegarParaPerfil(context);
-            }
-          },
         ),
       ),
     );
   }
 
-  Widget _buildCategoriaServico(
-    String texto,
-    IconData icone, {
-    bool isMais = false,
+  Widget _iniciais(String nome) => Container(
+    color: _azul,
+    alignment: Alignment.center,
+    child: Text(
+      obterIniciais(nome),
+      style: const TextStyle(
+        color: Colors.white,
+        fontWeight: FontWeight.w800,
+        fontSize: 18,
+      ),
+    ),
+  );
+
+  // ── Seções ───────────────────────────────────────────────────────────────
+
+  Widget _tituloSecao(
+    String titulo,
+    String subtitulo, {
+    String? acao,
+    VoidCallback? aoTocar,
   }) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 26, 20, 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  titulo,
+                  style: const TextStyle(
+                    color: _texto,
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitulo,
+                  style: const TextStyle(color: _sec, fontSize: 13.5),
+                ),
+              ],
+            ),
+          ),
+          if (acao != null)
+            InkWell(
+              onTap: aoTocar,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 4, left: 8),
+                child: Text(
+                  acao,
+                  style: const TextStyle(
+                    color: _azul,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  static IconData _iconeCategoria(String nome) {
+    final n = nome.toLowerCase();
+    if (n.contains('ar') && (n.contains('clima') || n.contains('condic'))) {
+      return Icons.mode_fan_off_outlined;
+    }
+    if (n.contains('el')) return Icons.bolt_rounded;
+    if (n.contains('hidr') || n.contains('encan'))
+      return Icons.plumbing_rounded;
+    if (n.contains('chave')) return Icons.vpn_key_outlined;
+    if (n.contains('limp')) return Icons.cleaning_services_outlined;
+    if (n.contains('tecn') || n.contains('inform') || n.contains('celul')) {
+      return Icons.devices_other_rounded;
+    }
+    if (n.contains('pint')) return Icons.format_paint_outlined;
+    if (n.contains('jard')) return Icons.yard_outlined;
+    if (n.contains('mov') || n.contains('marcen')) return Icons.chair_outlined;
+    if (n.contains('auto') || n.contains('carro') || n.contains('mec')) {
+      return Icons.directions_car_outlined;
+    }
+    if (n.contains('cost') || n.contains('roupa')) {
+      return Icons.checkroom_outlined;
+    }
+    if (n.contains('eletrodom') || n.contains('cozinh')) {
+      return Icons.kitchen_outlined;
+    }
+    return Icons.handyman_outlined;
+  }
+
+  Widget _secaoCategorias() {
+    final cats = _categorias;
     return Column(
-      mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(
-            color: isMais ? Colors.grey.shade200 : _primaryBlue,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(
-            icone,
-            color: isMais ? Colors.grey.shade600 : Colors.white,
-            size: 26,
-          ),
+        _tituloSecao(
+          'Categorias Populares',
+          'Técnicos e serviços por especialidade',
+          acao: 'Ver todas ›',
+          aoTocar: () => _abrirBusca(),
         ),
-        const SizedBox(height: 6),
-        Text(
-          texto,
-          style: TextStyle(
-            fontSize: 10,
-            color: Colors.grey.shade700,
-            fontWeight: FontWeight.w500,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: GridView.count(
+            crossAxisCount: 4,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: 0.86,
+            children: cats == null
+                ? List.generate(
+                    8,
+                    (_) => const SkeletonBox(
+                      height: double.infinity,
+                      borderRadius: 18,
+                    ),
+                  )
+                : [
+                    for (final c in cats.take(7))
+                      _tileCategoria(
+                        c.nome,
+                        _iconeCategoria(c.nome),
+                        CorOficio.parse(c.cor),
+                        () => _abrirBusca(
+                          filtros: FiltrosBusca(categoria: c.nome),
+                        ),
+                      ),
+                    _tileCategoria(
+                      'Mais',
+                      Icons.grid_view_rounded,
+                      const Color(0xFF64748B),
+                      () => _abrirBusca(),
+                      tracejado: true,
+                    ),
+                  ],
           ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
         ),
       ],
     );
   }
 
-  Widget _buildCardProfissional(PerfilPopular perfil, {double? largura}) {
-    final bool usaImagemRede =
-        perfil.caminhoImagem.startsWith('http') ||
-        perfil.caminhoImagem.startsWith('https');
-
-    Widget imagem;
-    if (usaImagemRede) {
-      imagem = Image.network(
-        perfil.caminhoImagem,
-        width: 64,
-        height: 64,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => Container(
-          width: 64,
-          height: 64,
-          color: const Color(0xFFE1F5FE),
-          alignment: Alignment.center,
-          child: Text(
-            obterIniciais(perfil.nome),
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: _primaryBlue,
-            ),
-          ),
-        ),
-      );
-    } else {
-      imagem = Container(
-        width: 64,
-        height: 64,
-        color: const Color(0xFFE1F5FE),
-        alignment: Alignment.center,
-        child: Text(
-          obterIniciais(perfil.nome),
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: _primaryBlue,
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      width: largura,
-      padding: const EdgeInsets.all(12),
-      decoration: _cardDecoration(),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              ClipRRect(borderRadius: BorderRadius.circular(10), child: imagem),
-              if (perfil.isVerified)
-                Positioned(right: -2, bottom: -2, child: _buildVerifiedBadge()),
-            ],
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        perfil.nome,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    _buildRatingBadge(perfil.avaliacao),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                if (perfil.tagEmpresa != null) ...[
-                  _buildTag(
-                    perfil.tagEmpresa!,
-                    perfil.tagEmpresaBgColor ?? const Color(0xFFE1F5FE),
-                    perfil.tagEmpresaTextColor ?? _primaryBlue,
-                  ),
-                  const SizedBox(height: 4),
-                ],
-                Text(
-                  perfil.profissao,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 6),
-                if (perfil.metrica != null)
-                  Text(
-                    perfil.metrica!,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: _primaryBlue,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCardProfissionalDestaque(
-    PerfilPopular perfil, {
-    double? largura,
+  Widget _tileCategoria(
+    String nome,
+    IconData icone,
+    Color cor,
+    VoidCallback aoTocar, {
+    bool tracejado = false,
   }) {
-    final bool usaImagemRede =
-        perfil.caminhoImagem.startsWith('http') ||
-        perfil.caminhoImagem.startsWith('https');
-
-    Widget imagem;
-    if (usaImagemRede) {
-      imagem = Image.network(
-        perfil.caminhoImagem,
-        width: 64,
-        height: 64,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => Container(
-          width: 64,
-          height: 64,
-          color: const Color(0xFFE1F5FE),
-          alignment: Alignment.center,
+    final conteudo = Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
+            color: cor.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(icone, color: cor, size: 24),
+        ),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Text(
-            obterIniciais(perfil.nome),
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: _primaryBlue,
-            ),
-          ),
-        ),
-      );
-    } else {
-      imagem = Container(
-        width: 64,
-        height: 64,
-        color: const Color(0xFFE1F5FE),
-        alignment: Alignment.center,
-        child: Text(
-          obterIniciais(perfil.nome),
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: _primaryBlue,
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      width: largura,
-      padding: const EdgeInsets.all(12),
-      decoration: _cardDecoration(),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              ClipRRect(borderRadius: BorderRadius.circular(10), child: imagem),
-              if (perfil.isVerified)
-                Positioned(right: -2, bottom: -2, child: _buildVerifiedBadge()),
-            ],
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        perfil.nome,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    _buildRatingBadge(perfil.avaliacao),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                if (perfil.tagEmpresa != null || perfil.oficios.isNotEmpty)
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: [
-                      if (perfil.tagEmpresa != null)
-                        _buildTag(
-                          perfil.tagEmpresa!,
-                          perfil.tagEmpresaBgColor ?? const Color(0xFFE1F5FE),
-                          perfil.tagEmpresaTextColor ?? _primaryBlue,
-                        ),
-                      ...perfil.oficios.map(
-                        (oficio) => TagOficio(
-                          oficio: oficio,
-                          fontSize: 10,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          borderRadius: 20,
-                        ),
-                      ),
-                    ],
-                  )
-                else
-                  Text(
-                    perfil.profissao,
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                const SizedBox(height: 6),
-                if (perfil.metrica != null)
-                  Text(
-                    perfil.metrica!,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: _primaryBlue,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCardServicoProximo(ServicoProximo servico) {
-    return Container(
-      width: 120,
-      padding: const EdgeInsets.all(12),
-      decoration: _cardDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(servico.icone, color: _primaryBlue, size: 28),
-          const SizedBox(height: 8),
-          Text(
-            servico.titulo,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-            maxLines: 2,
+            nome,
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            servico.preco,
+            textAlign: TextAlign.center,
             style: const TextStyle(
-              fontSize: 11,
+              color: Color(0xFF1E293B),
+              fontSize: 12.5,
               fontWeight: FontWeight.w600,
-              color: _primaryBlue,
             ),
           ),
-          if (servico.oferecidoPor != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              servico.oferecidoPor!,
-              style: const TextStyle(
-                fontSize: 9,
-                color: _primaryBlue,
-                fontWeight: FontWeight.w500,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ],
+        ),
+      ],
+    );
+    return Material(
+      color: tracejado ? Colors.transparent : Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: aoTocar,
+        child: tracejado
+            ? CustomPaint(
+                painter: const _BordaTracejada(),
+                child: SizedBox.expand(child: conteudo),
+              )
+            : conteudo,
       ),
     );
   }
 
-  Widget _buildCardLojaVertical(LojaPopular loja) {
-    final bool usaImagemRede =
-        loja.caminhoImagem.startsWith('http://') ||
-        loja.caminhoImagem.startsWith('https://');
-
-    Widget imagem;
-    if (usaImagemRede) {
-      imagem = Image.network(
-        loja.caminhoImagem,
-        width: 64,
-        height: 64,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => Container(
-          width: 64,
-          height: 64,
-          color: const Color(0xFFE1F5FE),
-          alignment: Alignment.center,
-          child: Text(
-            obterIniciais(loja.titulo),
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: _primaryBlue,
-            ),
-          ),
+  Widget _secaoRegiao() {
+    final lista = _regiao;
+    return Column(
+      children: [
+        _tituloSecao(
+          'Profissionais na sua Região',
+          'Prontos para atender ${_bairro == 'sua região' ? 'na sua região' : 'na $_bairro'} e arredores',
+          acao: 'Ver todos',
+          aoTocar: () {
+            if (_permitido()) _abrir(const SolicitacaoGeograficaClientePage());
+          },
         ),
-      );
-    } else if (loja.caminhoImagem.isNotEmpty &&
-        loja.caminhoImagem.startsWith('assets/')) {
-      imagem = Image.asset(
-        loja.caminhoImagem,
-        width: 64,
-        height: 64,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => Container(
-          width: 64,
-          height: 64,
-          color: const Color(0xFFE1F5FE),
-          alignment: Alignment.center,
-          child: Text(
-            obterIniciais(loja.titulo),
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: _primaryBlue,
-            ),
-          ),
+        SizedBox(
+          height: 236,
+          child: lista == null
+              ? ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: 2,
+                  separatorBuilder: (_, _) => const SizedBox(width: 14),
+                  itemBuilder: (_, _) => const SkeletonBox(
+                    width: 300,
+                    height: 236,
+                    borderRadius: 22,
+                  ),
+                )
+              : lista.isEmpty
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 32),
+                    child: Text(
+                      'Ainda não há profissionais a até 5 km de você.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: _sec),
+                    ),
+                  ),
+                )
+              : ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  itemCount: lista.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 14),
+                  itemBuilder: (_, i) => _cardProfissional(lista[i]),
+                ),
+        ),
+      ],
+    );
+  }
+
+  void _abrirPerfil(ProfissionalRegiao r) {
+    final p = r.perfil;
+    if (p.ehEmpresa) {
+      _abrir(
+        PerfilLoja(
+          idGrupoEmpresa: p.idGrupoEmpresa,
+          nomeEmpresa: p.nome,
+          fotoUrlEmpresa: p.fotoUrl,
+          tagEmpresa: p.tagEmpresa,
+          corTagEmpresa: p.corTagEmpresa,
         ),
       );
     } else {
-      imagem = Container(
-        width: 64,
-        height: 64,
-        color: const Color(0xFFE1F5FE),
-        alignment: Alignment.center,
-        child: Text(
-          obterIniciais(loja.titulo),
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: _primaryBlue,
-          ),
+      _abrir(
+        PerfilProfissionalPage(
+          nomeInicial: p.nome,
+          imagemInicial: p.fotoUrl ?? '',
+          profissao: r.funcoes.isNotEmpty
+              ? r.funcoes.first.funcao
+              : 'Profissional independente',
+          avaliacao: p.nota,
+          idProfissional: p.idProfissional,
         ),
       );
     }
+  }
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: _cardDecoration(),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              ClipRRect(borderRadius: BorderRadius.circular(10), child: imagem),
-              if (loja.isVerified)
-                Positioned(right: -2, bottom: -2, child: _buildVerifiedBadge()),
-            ],
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        loja.titulo,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    _buildRatingBadge(loja.avaliacao),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  loja.descricao,
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  children: [
-                    if (loja.tagEmpresa != null && loja.tagEmpresa!.isNotEmpty)
-                      _buildTag(
-                        loja.tagEmpresa!,
-                        loja.tag1BgColor,
-                        loja.tag1TextColor,
-                      ),
-                    ...loja.oficios
-                        .take(3)
-                        .map(
-                          (oficio) => TagOficio(
-                            oficio: oficio,
-                            fontSize: 10,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            borderRadius: 4,
-                          ),
-                        ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
+  void _conversar(ProfissionalRegiao r) {
+    if (!_permitido()) return;
+    final p = r.perfil;
+    _abrir(
+      TelaChatProfissional(
+        nomeProfissional: p.nome,
+        fotoProfissional: p.fotoUrl ?? '',
+        oficioPrincipal: r.funcoes.isNotEmpty ? r.funcoes.first.funcao : '',
+        idProfissional: p.ehEmpresa ? null : p.idProfissional,
+        idGrupoEmpresa: p.ehEmpresa ? p.idGrupoEmpresa : null,
       ),
     );
   }
 
-  Widget _avatarUsuarioFallback([String? nome]) {
-    final iniciais = obterIniciais(
-      (nome ?? '').trim().isNotEmpty ? nome! : '?',
-    );
-    return CircleAvatar(
-      radius: 20,
-      backgroundColor: _primaryBlue,
-      child: Text(
-        iniciais,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 14,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-
-  Widget _avatarFallbackPrestador(String nome) {
+  Widget _cardProfissional(ProfissionalRegiao r) {
+    final p = r.perfil;
+    final foto = p.fotoUrl ?? '';
+    final km = p.distanciaKm < 1
+        ? '${(p.distanciaKm * 1000).round()} m'
+        : '${p.distanciaKm.toStringAsFixed(1).replaceAll('.', ',')} km';
     return Container(
-      width: 20,
-      height: 20,
-      alignment: Alignment.center,
+      width: 300,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey.shade200,
-        shape: BoxShape.circle,
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
       ),
-      child: Text(
-        obterIniciais(nome.isNotEmpty ? nome : '?'),
-        style: TextStyle(
-          fontSize: 8,
-          fontWeight: FontWeight.bold,
-          color: Colors.grey.shade700,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTag(String texto, Color bg, Color fg) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        texto,
-        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: fg),
-      ),
-    );
-  }
-
-  Widget _buildCardServicoPopular(ServicoPopular servico) {
-    final nomePrestador = servico.nomePrestador?.trim() ?? '';
-    final fotoPrestador = servico.fotoPrestador?.trim() ?? '';
-    final temTagEmpresa = servico.tagEmpresa?.trim().isNotEmpty == true;
-    return Container(
-      width: 180,
-      decoration: _cardDecoration(),
-      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Stack(
-            children: [
-              ImagemServico(
-                imagemUrl: servico.imagemUrl,
-                funcao: servico.funcao ?? servico.categoria,
-                cor: servico.corOficio,
-                height: 100,
-              ),
-              if (servico.avaliacao != null)
-                Positioned(
-                  top: 6,
-                  right: 6,
-                  child: _buildRatingBadge(servico.avaliacao),
-                ),
-            ],
-          ),
-          Padding(
-            padding: const EdgeInsets.all(10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          InkWell(
+            onTap: () => _abrirPerfil(r),
+            child: Row(
               children: [
-                Text(
-                  servico.titulo,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 6),
-                Row(
+                Stack(
+                  clipBehavior: Clip.none,
                   children: [
-                    Expanded(
-                      child: Row(
-                        children: [
-                          ClipOval(
-                            child: fotoPrestador.isNotEmpty
-                                ? Image.network(
-                                    fotoPrestador,
-                                    width: 20,
-                                    height: 20,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) =>
-                                        _avatarFallbackPrestador(nomePrestador),
-                                  )
-                                : _avatarFallbackPrestador(nomePrestador),
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              nomePrestador.isNotEmpty
-                                  ? nomePrestador
-                                  : 'Prestador',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey.shade700,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: SizedBox(
+                        width: 62,
+                        height: 62,
+                        child: foto.startsWith('http')
+                            ? Image.network(
+                                foto,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) => _iniciais(p.nome),
+                              )
+                            : _iniciais(p.nome),
                       ),
                     ),
-                    if (temTagEmpresa)
+                    Positioned(
+                      right: -4,
+                      bottom: -4,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.verified_rounded,
+                          color: _azul,
+                          size: 18,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Container(
-                        margin: const EdgeInsets.only(left: 6),
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 7,
+                          horizontal: 8,
                           vertical: 3,
                         ),
                         decoration: BoxDecoration(
-                          color: CorOficio.corFundo(
-                            CorOficio.parse(servico.corTagEmpresa),
-                          ),
-                          borderRadius: BorderRadius.circular(4),
+                          color: const Color(0xFFFFF7E0),
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Text(
-                          servico.tagEmpresa!.trim().startsWith('#')
-                              ? servico.tagEmpresa!.trim()
-                              : '#${servico.tagEmpresa!.trim()}',
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
-                            color: CorOficio.corTexto(
-                              CorOficio.parse(servico.corTagEmpresa),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.star_rounded,
+                              color: Color(0xFFF59E0B),
+                              size: 15,
                             ),
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                            const SizedBox(width: 3),
+                            Text(
+                              p.nota == null
+                                  ? 'Novo'
+                                  : p.nota!.toStringAsFixed(1),
+                              style: const TextStyle(
+                                color: Color(0xFFB45309),
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12.5,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Preço médio: R\$ ${servico.precoMedio.toStringAsFixed(0)}',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: _primaryBlue,
+                      const SizedBox(height: 4),
+                      Text(
+                        p.nome,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: _texto,
+                          fontSize: 16.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        r.funcoes.isNotEmpty
+                            ? r.funcoes.first.funcao
+                            : (p.ehEmpresa ? 'Loja' : 'Profissional'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: _sec, fontSize: 13),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF3F6FA),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.near_me_outlined, color: _azul, size: 16),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '$km de você',
+                    style: const TextStyle(
+                      color: Color(0xFF334155),
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                Text(
+                  r.disponivelHoje ? 'Disponível hoje' : 'Agenda a combinar',
+                  style: TextStyle(
+                    color: r.disponivelHoje ? const Color(0xFF16A34A) : _sec,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 26,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: r.funcoes.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 6),
+              itemBuilder: (_, i) => TagOficio(
+                oficio: r.funcoes[i],
+                fontSize: 11.5,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+              ),
+            ),
+          ),
+          const Spacer(),
+          const Divider(height: 1, color: Color(0xFFEDEFF2)),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 44,
+                  child: FilledButton(
+                    onPressed: () => _conversar(r),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _azul,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      'Conversar',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Material(
+                color: const Color(0xFFE8EDF3),
+                borderRadius: BorderRadius.circular(14),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () => _abrirPerfil(r),
+                  child: const SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: Icon(Icons.badge_outlined, color: Color(0xFF334155)),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
+
+  Widget _secaoServicos() {
+    final lista = _servicos;
+    return Column(
+      children: [
+        _tituloSecao(
+          'Serviços Populares',
+          'Preços transparentes com garantia de 90 dias',
+          acao: 'Ver catálogo',
+          aoTocar: () => _abrir(const TodosServicosPage()),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: lista == null
+              ? const Column(
+                  children: [
+                    SkeletonBox(height: 280, borderRadius: 22),
+                    SizedBox(height: 18),
+                    SkeletonBox(height: 280, borderRadius: 22),
+                  ],
+                )
+              : lista.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Text(
+                    'Nenhum serviço disponível ainda.',
+                    style: TextStyle(color: _sec),
+                  ),
+                )
+              : Column(
+                  children: [
+                    for (final item in lista.take(3))
+                      CardServicoPopular(
+                        item: item,
+                        aoTocar: () =>
+                            _abrir(TelaServico(idServico: item.servico.id)),
+                      ),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: OutlinedButton(
+                        onPressed: () => _abrir(const TodosServicosPage()),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _azul,
+                          backgroundColor: Colors.white,
+                          side: const BorderSide(color: _azul, width: 1.4),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: Text(
+                          'Ver todos os serviços (${lista.length})',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Faixa colorida no topo do card de pedido, com o degradê andando
+/// (efeito "animated gradient border").
+class _BordaGradienteAnimada extends StatefulWidget {
+  const _BordaGradienteAnimada();
+
+  @override
+  State<_BordaGradienteAnimada> createState() => _BordaGradienteAnimadaState();
+}
+
+class _BordaGradienteAnimadaState extends State<_BordaGradienteAnimada>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2600),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, _) => Container(
+        height: 5,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: const [
+              Color(0xFFFBBF24),
+              Color(0xFF34D399),
+              Color(0xFF22D3EE),
+              Color(0xFF0FB3FF),
+              Color(0xFF6366F1),
+              Color(0xFFFBBF24),
+            ],
+            tileMode: TileMode.repeated,
+            transform: _Deslizar(_c.value),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Deslizar extends GradientTransform {
+  const _Deslizar(this.t);
+
+  final double t;
+
+  @override
+  Matrix4? transform(Rect bounds, {TextDirection? textDirection}) =>
+      Matrix4.translationValues(bounds.width * t, 0, 0);
+}
+
+/// Borda tracejada do tile "Mais".
+class _BordaTracejada extends CustomPainter {
+  const _BordaTracejada();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFFCBD5E1)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+    final caminho = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(18)),
+      );
+    for (final m in caminho.computeMetrics()) {
+      var d = 0.0;
+      while (d < m.length) {
+        canvas.drawPath(m.extractPath(d, d + 6), paint);
+        d += 11;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
