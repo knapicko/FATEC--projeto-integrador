@@ -67,6 +67,7 @@ O projeto foi desenvolvido por uma equipe multidisciplinar:
 * **[OSRM](https://project-osrm.org/)** — Serviço alternativo para cálculo de rotas
 * **[Google Sign-In](https://developers.google.com/identity)** — Autenticação com conta Google
 * **[Flutter Map](https://pub.dev/packages/flutter_map)** — Exibição dos mapas na interface do aplicativo
+* **[Firebase](https://firebase.google.com/)** — Notificações Push para o aplicativo
 
 ---
 
