@@ -22,8 +22,7 @@ class VerificacaoOnline {
   /// True se [ultimaConexao] está dentro da janela de presença.
   static bool estaOnline(DateTime? ultimaConexao) {
     if (ultimaConexao == null) return false;
-    final local =
-        ultimaConexao.isUtc ? ultimaConexao.toLocal() : ultimaConexao;
+    final local = ultimaConexao.isUtc ? ultimaConexao.toLocal() : ultimaConexao;
     return DateTime.now().difference(local) <= janelaOnline;
   }
 

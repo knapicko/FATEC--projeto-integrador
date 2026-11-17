@@ -84,7 +84,9 @@ class _AvaliacaoBottomSheetState extends State<_AvaliacaoBottomSheet> {
   Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(context).bottom,
+        ),
         child: Container(
           constraints: BoxConstraints(
             maxHeight: MediaQuery.sizeOf(context).height * 0.9,
@@ -234,7 +236,9 @@ class _AvaliacaoBottomSheetState extends State<_AvaliacaoBottomSheet> {
               onPressed: () => onNotaChanged(valor),
               visualDensity: VisualDensity.compact,
               icon: Icon(
-                valor <= (nota ?? 0) ? Icons.star_rounded : Icons.star_outline_rounded,
+                valor <= (nota ?? 0)
+                    ? Icons.star_rounded
+                    : Icons.star_outline_rounded,
                 color: valor <= (nota ?? 0)
                     ? const Color(0xFFF5A623)
                     : const Color(0xFF98A2B3),

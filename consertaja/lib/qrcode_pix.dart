@@ -32,8 +32,7 @@ class QrcodePixPage extends StatefulWidget {
   State<QrcodePixPage> createState() => _QrcodePixPageState();
 }
 
-class _QrcodePixPageState
-    extends State<QrcodePixPage>
+class _QrcodePixPageState extends State<QrcodePixPage>
     with VoltarParaPedidosMixin {
   /// Voltar (botão ou sistema) leva para meus_pedidos.dart.
   @override

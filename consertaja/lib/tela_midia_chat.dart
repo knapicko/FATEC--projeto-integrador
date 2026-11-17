@@ -37,11 +37,7 @@ class TelaMidiaChat extends StatefulWidget {
   final int? idConversa;
   final String? nomeContato;
 
-  const TelaMidiaChat({
-    super.key,
-    required this.idConversa,
-    this.nomeContato,
-  });
+  const TelaMidiaChat({super.key, required this.idConversa, this.nomeContato});
 
   @override
   State<TelaMidiaChat> createState() => _TelaMidiaChatState();
@@ -204,41 +200,49 @@ class _TelaMidiaChatState extends State<TelaMidiaChat> {
             : _extrairNomeArquivoDeUrl(urlFinal);
 
         // Verifica se é imagem
-        final ehImagem = tipo.contains('imagem') ||
+        final ehImagem =
+            tipo.contains('imagem') ||
             ChatAnexosService.ehImagem(nomeFinal) ||
             ChatAnexosService.ehImagem(urlFinal) ||
-            RegExp(r'\.(jpg|jpeg|png|webp|gif|bmp|heic|heif)(\?|$)',
-                    caseSensitive: false)
-                .hasMatch(urlFinal);
+            RegExp(
+              r'\.(jpg|jpeg|png|webp|gif|bmp|heic|heif)(\?|$)',
+              caseSensitive: false,
+            ).hasMatch(urlFinal);
 
         // Verifica se é áudio
-        final ehAudio = tipo.contains('audio') ||
+        final ehAudio =
+            tipo.contains('audio') ||
             tipo.contains('áudio') ||
-            RegExp(r'\.(m4a|aac|mp3|wav|ogg|webm)(\?|$)',
-                    caseSensitive: false)
-                .hasMatch(urlFinal);
+            RegExp(
+              r'\.(m4a|aac|mp3|wav|ogg|webm)(\?|$)',
+              caseSensitive: false,
+            ).hasMatch(urlFinal);
 
         if (ehImagem && _urlValida(urlFinal)) {
-          lista.add(ItemMidiaChat(
-            id: id,
-            tipo: TipoMidiaChat.imagem,
-            url: urlFinal,
-            nome: nomeFinal,
-            legenda: legenda,
-            dataEnvio: data,
-            ehRemetente: ehRemetente,
-          ));
+          lista.add(
+            ItemMidiaChat(
+              id: id,
+              tipo: TipoMidiaChat.imagem,
+              url: urlFinal,
+              nome: nomeFinal,
+              legenda: legenda,
+              dataEnvio: data,
+              ehRemetente: ehRemetente,
+            ),
+          );
         } else if (ehAudio && _urlValida(urlFinal)) {
-          lista.add(ItemMidiaChat(
-            id: id,
-            tipo: TipoMidiaChat.audio,
-            url: urlFinal,
-            nome: nomeFinal.isNotEmpty ? nomeFinal : 'Mensagem de voz',
-            legenda: legenda,
-            dataEnvio: data,
-            ehRemetente: ehRemetente,
-            duracaoSegundos: duracao,
-          ));
+          lista.add(
+            ItemMidiaChat(
+              id: id,
+              tipo: TipoMidiaChat.audio,
+              url: urlFinal,
+              nome: nomeFinal.isNotEmpty ? nomeFinal : 'Mensagem de voz',
+              legenda: legenda,
+              dataEnvio: data,
+              ehRemetente: ehRemetente,
+              duracaoSegundos: duracao,
+            ),
+          );
         }
       }
 
@@ -278,9 +282,11 @@ class _TelaMidiaChatState extends State<TelaMidiaChat> {
     final list = _todasMidias
         .where((m) => m.tipo == TipoMidiaChat.imagem)
         .toList();
-    list.sort((a, b) => _ordemDecrescente
-        ? b.dataEnvio.compareTo(a.dataEnvio)
-        : a.dataEnvio.compareTo(b.dataEnvio));
+    list.sort(
+      (a, b) => _ordemDecrescente
+          ? b.dataEnvio.compareTo(a.dataEnvio)
+          : a.dataEnvio.compareTo(b.dataEnvio),
+    );
     return list;
   }
 
@@ -288,9 +294,11 @@ class _TelaMidiaChatState extends State<TelaMidiaChat> {
     final list = _todasMidias
         .where((m) => m.tipo == TipoMidiaChat.audio)
         .toList();
-    list.sort((a, b) => _ordemDecrescente
-        ? b.dataEnvio.compareTo(a.dataEnvio)
-        : a.dataEnvio.compareTo(b.dataEnvio));
+    list.sort(
+      (a, b) => _ordemDecrescente
+          ? b.dataEnvio.compareTo(a.dataEnvio)
+          : a.dataEnvio.compareTo(b.dataEnvio),
+    );
     return list;
   }
 
@@ -699,14 +707,15 @@ class _TelaMidiaChatState extends State<TelaMidiaChat> {
                               ),
                             );
                           },
-                          errorBuilder: (context, error, stackTrace) => Container(
-                            color: const Color(0xFFE2E8F0),
-                            child: const Icon(
-                              Icons.broken_image_rounded,
-                              color: Color(0xFF94A3B8),
-                              size: 28,
-                            ),
-                          ),
+                          errorBuilder: (context, error, stackTrace) =>
+                              Container(
+                                color: const Color(0xFFE2E8F0),
+                                child: const Icon(
+                                  Icons.broken_image_rounded,
+                                  color: Color(0xFF94A3B8),
+                                  size: 28,
+                                ),
+                              ),
                         ),
                         // Gradiente e horário no canto inferior direito
                         Positioned(
@@ -780,7 +789,9 @@ class _TelaMidiaChatState extends State<TelaMidiaChat> {
         // Duração total
         final duracaoTotal = item.duracaoSegundos != null
             ? _formatarSegundos(item.duracaoSegundos!)
-            : (estaAtivo ? _formatarSegundos(_duracaoTocando.inSeconds) : '0:00');
+            : (estaAtivo
+                  ? _formatarSegundos(_duracaoTocando.inSeconds)
+                  : '0:00');
 
         // Rótulo de reprodução
         final rotuloTempo = estaAtivo
@@ -794,7 +805,24 @@ class _TelaMidiaChatState extends State<TelaMidiaChat> {
             : 0.0;
 
         final barras = const [
-          10, 18, 14, 26, 32, 22, 16, 28, 20, 12, 24, 30, 18, 14, 22, 16, 12, 20
+          10,
+          18,
+          14,
+          26,
+          32,
+          22,
+          16,
+          28,
+          20,
+          12,
+          24,
+          30,
+          18,
+          14,
+          22,
+          16,
+          12,
+          20,
         ];
         final barrasTocadas = (progresso * barras.length).round();
 
@@ -829,9 +857,7 @@ class _TelaMidiaChatState extends State<TelaMidiaChat> {
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: tocando
-                            ? const Color(0xFF0284C7)
-                            : _primaryBlue,
+                        color: tocando ? const Color(0xFF0284C7) : _primaryBlue,
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
@@ -926,9 +952,9 @@ class _TelaMidiaChatState extends State<TelaMidiaChat> {
                     item.ehRemetente
                         ? 'Enviado por você'
                         : (widget.nomeContato != null &&
-                                widget.nomeContato!.trim().isNotEmpty
-                            ? 'Recebido de ${widget.nomeContato!.trim()}'
-                            : 'Recebido'),
+                                  widget.nomeContato!.trim().isNotEmpty
+                              ? 'Recebido de ${widget.nomeContato!.trim()}'
+                              : 'Recebido'),
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
@@ -1018,7 +1044,7 @@ class _TelaMidiaChatState extends State<TelaMidiaChat> {
       'Setembro',
       'Outubro',
       'Novembro',
-      'Dezembro'
+      'Dezembro',
     ];
 
     if (data.year == agora.year) {
@@ -1163,8 +1189,7 @@ class _VisualizadorGaleriaTelaCheiaState
                   child: Image.network(
                     img.url,
                     fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) =>
-                        const Center(
+                    errorBuilder: (context, error, stackTrace) => const Center(
                       child: Icon(
                         Icons.broken_image,
                         color: Colors.white54,
@@ -1208,8 +1233,9 @@ class _VisualizadorGaleriaTelaCheiaState
                         ),
                       ),
                       Text(
-                        DateFormat('dd/MM/yyyy HH:mm')
-                            .format(imagemAtual.dataEnvio),
+                        DateFormat(
+                          'dd/MM/yyyy HH:mm',
+                        ).format(imagemAtual.dataEnvio),
                         style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 12,

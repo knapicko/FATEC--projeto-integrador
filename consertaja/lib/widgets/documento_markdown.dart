@@ -14,9 +14,7 @@ class DocumentoMarkdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final styleSheet = MarkdownStyleSheet.fromTheme(
-      Theme.of(context),
-    ).copyWith(
+    final styleSheet = MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
       h1: const TextStyle(
         fontSize: 22,
         fontWeight: FontWeight.bold,
@@ -41,11 +39,7 @@ class DocumentoMarkdown extends StatelessWidget {
         color: _textDark,
         height: 1.4,
       ),
-      p: const TextStyle(
-        fontSize: 14,
-        color: _textBody,
-        height: 1.55,
-      ),
+      p: const TextStyle(fontSize: 14, color: _textBody, height: 1.55),
       strong: const TextStyle(
         fontSize: 14,
         color: _textDark,
@@ -58,23 +52,14 @@ class DocumentoMarkdown extends StatelessWidget {
         height: 1.55,
         fontStyle: FontStyle.italic,
       ),
-      listBullet: const TextStyle(
-        fontSize: 14,
-        color: _textBody,
-        height: 1.55,
-      ),
+      listBullet: const TextStyle(fontSize: 14, color: _textBody, height: 1.55),
       listIndent: 24,
       blockSpacing: 12,
       horizontalRuleDecoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: Color(0xFFE2E2E2), width: 1),
-        ),
+        border: Border(bottom: BorderSide(color: Color(0xFFE2E2E2), width: 1)),
       ),
     );
 
-    return MarkdownBody(
-      data: data,
-      styleSheet: styleSheet,
-    );
+    return MarkdownBody(data: data, styleSheet: styleSheet);
   }
 }

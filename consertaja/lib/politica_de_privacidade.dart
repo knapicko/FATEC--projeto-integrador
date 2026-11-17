@@ -365,9 +365,7 @@ A continuidade do uso da plataforma após a publicação das alterações poder�
             ),
           ],
         ),
-        child: SingleChildScrollView(
-          child: DocumentoMarkdown(data: _conteudo),
-        ),
+        child: SingleChildScrollView(child: DocumentoMarkdown(data: _conteudo)),
       ),
     );
   }

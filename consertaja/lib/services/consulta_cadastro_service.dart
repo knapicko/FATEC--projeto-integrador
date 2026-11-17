@@ -163,7 +163,8 @@ class ConsultaCadastroService {
     final razaoSocial = data['razao_social'] as String?;
     final nomeFantasia = data['nome_fantasia'] as String?;
     final telefone =
-        (data['ddd_telefone_1'] as String?) ?? (data['ddd_telefone'] as String?);
+        (data['ddd_telefone_1'] as String?) ??
+        (data['ddd_telefone'] as String?);
     final dataIso =
         (data['data_inicio_atividade'] as String?) ??
         (data['data_inicio_atividades'] as String?);
@@ -419,8 +420,7 @@ class ConsultaCadastroService {
     final identificadorLimpo = identificador.trim();
     if (_emailRegex.hasMatch(identificadorLimpo)) {
       email = identificadorLimpo;
-    }
-    else {
+    } else {
       final digits = somenteDigitos(identificador);
       final credencial = digits.length == 11 || digits.length == 14
           ? await _credencialPorDocumento(digits) ??
@@ -474,7 +474,10 @@ class ConsultaCadastroService {
         mensagem: await _mensagemFalhaLogin(email),
       );
     } catch (e) {
-      return ResultadoLogin(sucesso: false, mensagem: 'Erro ao fazer login: $e');
+      return ResultadoLogin(
+        sucesso: false,
+        mensagem: 'Erro ao fazer login: $e',
+      );
     }
   }
 
@@ -566,7 +569,9 @@ class ConsultaCadastroService {
               'razao_social': razaoSocial,
               'nome_fantasia': nomeFantasia,
               'tem_imovel': !cnpjDeEmpresa,
-              'data_fundacao': dataFundacaoIso.isNotEmpty ? dataFundacaoIso : null,
+              'data_fundacao': dataFundacaoIso.isNotEmpty
+                  ? dataFundacaoIso
+                  : null,
             })
             .select()
             .single();
@@ -605,7 +610,7 @@ class ConsultaCadastroService {
     } on AuthException catch (e) {
       var mensagemAmigavel = 'Ocorreu um erro ao registrar.';
 
-        if (e.toString().contains('AuthWeakPasswordException') ||
+      if (e.toString().contains('AuthWeakPasswordException') ||
           e.message.toLowerCase().contains('password should be at least') ||
           e.message.toLowerCase().contains('weak password')) {
         final match = RegExp(
@@ -624,7 +629,10 @@ class ConsultaCadastroService {
       } else {
         mensagemAmigavel = e.message;
       }
-      return ResultadoCadastroCliente(sucesso: false, mensagem: mensagemAmigavel);
+      return ResultadoCadastroCliente(
+        sucesso: false,
+        mensagem: mensagemAmigavel,
+      );
     } catch (e) {
       return ResultadoCadastroCliente(
         sucesso: false,

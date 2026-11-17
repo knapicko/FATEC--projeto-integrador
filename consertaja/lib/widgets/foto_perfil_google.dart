@@ -92,19 +92,22 @@ class _FotoPerfilGoogleState extends State<FotoPerfilGoogle> {
       }
 
       // Baixa a imagem com timeout e headers adequados
-      final response = await http.get(
-        Uri.parse(widget.fotoUrl!),
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
-          'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
-        },
-      ).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          throw TimeoutException('Timeout ao carregar imagem');
-        },
-      );
+      final response = await http
+          .get(
+            Uri.parse(widget.fotoUrl!),
+            headers: {
+              'User-Agent':
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+              'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
+            },
+          )
+          .timeout(
+            const Duration(seconds: 10),
+            onTimeout: () {
+              throw TimeoutException('Timeout ao carregar imagem');
+            },
+          );
 
       if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
         // Salva no cache

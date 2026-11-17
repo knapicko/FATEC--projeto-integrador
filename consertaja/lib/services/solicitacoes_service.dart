@@ -17,7 +17,9 @@ class SolicitacoesService {
 
     final pedidosIndividuais = await _supabase
         .from('solicitacoes')
-        .select('*, servicos_profissional(titulo, valor, tipo_execucao, carga_servico)')
+        .select(
+          '*, servicos_profissional(titulo, valor, tipo_execucao, carga_servico)',
+        )
         .eq('fk_profissional', idProfissional)
         .order('data_solicitacao', ascending: false);
 
@@ -27,21 +29,23 @@ class SolicitacoesService {
 
     final pedidosLoja = await _supabase
         .from('solicitacoes')
-        .select('*, servicos_profissional(titulo, valor, tipo_execucao, carga_servico)')
+        .select(
+          '*, servicos_profissional(titulo, valor, tipo_execucao, carga_servico)',
+        )
         .eq('fk_grupo_empresa', idGrupo)
         .order('data_solicitacao', ascending: false);
 
     final porId = <int, Map<String, dynamic>>{};
-    for (final pedido in [
-      ...pedidosIndividuais,
-      ...pedidosLoja,
-    ]) {
+    for (final pedido in [...pedidosIndividuais, ...pedidosLoja]) {
       final id = (pedido['id_solicitacao'] as num?)?.toInt();
       if (id != null) porId[id] = Map<String, dynamic>.from(pedido);
     }
     final resultado = porId.values.toList()
-      ..sort((a, b) => (b['data_solicitacao']?.toString() ?? '')
-          .compareTo(a['data_solicitacao']?.toString() ?? ''));
+      ..sort(
+        (a, b) => (b['data_solicitacao']?.toString() ?? '').compareTo(
+          a['data_solicitacao']?.toString() ?? '',
+        ),
+      );
     return resultado;
   }
 

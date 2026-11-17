@@ -173,8 +173,9 @@ class _PerguntasFrequentesPageState extends State<PerguntasFrequentesPage> {
                         expandido: _itemExpandido == index,
                         onTap: () {
                           setState(() {
-                            _itemExpandido =
-                                _itemExpandido == index ? null : index;
+                            _itemExpandido = _itemExpandido == index
+                                ? null
+                                : index;
                           });
                         },
                       ),
@@ -261,15 +262,8 @@ class _PerguntasFrequentesPageState extends State<PerguntasFrequentesPage> {
         style: const TextStyle(fontSize: 15, color: _textDark),
         decoration: InputDecoration(
           hintText: 'Pesquisar artigos...',
-          hintStyle: TextStyle(
-            color: Colors.grey.shade400,
-            fontSize: 15,
-          ),
-          prefixIcon: Icon(
-            Icons.search,
-            color: Colors.grey.shade400,
-            size: 22,
-          ),
+          hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 15),
+          prefixIcon: Icon(Icons.search, color: Colors.grey.shade400, size: 22),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 14),
         ),
@@ -300,9 +294,7 @@ class _PerguntasFrequentesPageState extends State<PerguntasFrequentesPage> {
               decoration: BoxDecoration(
                 color: ativo ? _chipActiveBg : Colors.white,
                 borderRadius: BorderRadius.circular(20),
-                border: ativo
-                    ? null
-                    : Border.all(color: _chipBorder, width: 1),
+                border: ativo ? null : Border.all(color: _chipBorder, width: 1),
               ),
               child: Text(
                 _categorias[index].nome,
@@ -395,10 +387,7 @@ class _PerguntasFrequentesPageState extends State<PerguntasFrequentesPage> {
         gradient: const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            Color(0xFF0D7AAF),
-            Color(0xFF0A6E9D),
-          ],
+          colors: [Color(0xFF0D7AAF), Color(0xFF0A6E9D)],
         ),
       ),
       child: Column(
@@ -458,10 +447,7 @@ class _PerguntasFrequentesPageState extends State<PerguntasFrequentesPage> {
               ),
               child: const Text(
                 'Contatar Suporte',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
               ),
             ),
           ),

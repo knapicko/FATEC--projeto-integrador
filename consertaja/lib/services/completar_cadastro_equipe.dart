@@ -165,7 +165,8 @@ class _CompletarCadastroEquipeDialogState
   Future<void> _selecionarDataNascimento() async {
     final agora = DateTime.now();
     final inicial =
-        _dataNascimentoValue ?? DateTime(agora.year - 25, agora.month, agora.day);
+        _dataNascimentoValue ??
+        DateTime(agora.year - 25, agora.month, agora.day);
     final selecionada = await showDatePicker(
       context: context,
       initialDate: inicial,
@@ -254,11 +255,14 @@ class _CompletarCadastroEquipeDialogState
           '${dataNascimento.month.toString().padLeft(2, '0')}-'
           '${dataNascimento.day.toString().padLeft(2, '0')}';
 
-      await client.from('usuarios').update({
-        'nome': nome,
-        'data_nascimento': dataNascimentoIso,
-        'fk_email': emailId,
-      }).eq('id_usuario', idUsuario);
+      await client
+          .from('usuarios')
+          .update({
+            'nome': nome,
+            'data_nascimento': dataNascimentoIso,
+            'fk_email': emailId,
+          })
+          .eq('id_usuario', idUsuario);
 
       final profissional = await client
           .from('dados_profissionais')
@@ -266,10 +270,10 @@ class _CompletarCadastroEquipeDialogState
           .eq('fk_usuario', idUsuario)
           .single();
       final idProfissional = profissional['id_profissional'];
-      await client.from('dados_profissionais').update({
-        'id_facial': _idFacial,
-        'rosto_validado': true,
-      }).eq('id_profissional', idProfissional);
+      await client
+          .from('dados_profissionais')
+          .update({'id_facial': _idFacial, 'rosto_validado': true})
+          .eq('id_profissional', idProfissional);
 
       for (final documento in _documentos) {
         await client.from('documentos_profissionais').insert({
@@ -288,7 +292,9 @@ class _CompletarCadastroEquipeDialogState
   }
 
   void _avisar(String mensagem) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(mensagem)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(mensagem)));
   }
 
   @override
@@ -352,7 +358,10 @@ class _CompletarCadastroEquipeDialogState
                         ),
                         Text(
                           'Ative sua conta profissional com seus dados',
-                          style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF64748B),
+                          ),
                         ),
                       ],
                     ),
@@ -374,10 +383,7 @@ class _CompletarCadastroEquipeDialogState
                 controller: _email,
                 focusNode: _focoEmail,
                 keyboardType: TextInputType.emailAddress,
-                decoration: _decoracaoCampo(
-                  label: 'Email',
-                  foco: _focoEmail,
-                ),
+                decoration: _decoracaoCampo(label: 'Email', foco: _focoEmail),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -396,21 +402,17 @@ class _CompletarCadastroEquipeDialogState
                 ),
               ),
               const SizedBox(height: 12),
-              _botaoValidacao(
-                'Cadastro facial',
-                _idFacial != null,
-                () async {
-                  final resultado = await Navigator.push<String>(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const CadastroFacialInstrucoesPage(),
-                    ),
-                  );
-                  if (resultado != null && mounted) {
-                    setState(() => _idFacial = resultado);
-                  }
-                },
-              ),
+              _botaoValidacao('Cadastro facial', _idFacial != null, () async {
+                final resultado = await Navigator.push<String>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const CadastroFacialInstrucoesPage(),
+                  ),
+                );
+                if (resultado != null && mounted) {
+                  setState(() => _idFacial = resultado);
+                }
+              }),
               _botaoValidacao(
                 'Documento de identidade',
                 _documentoConcluido,
@@ -455,7 +457,10 @@ class _CompletarCadastroEquipeDialogState
                         )
                       : const Text(
                           'Finalizar cadastro',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                 ),
               ),

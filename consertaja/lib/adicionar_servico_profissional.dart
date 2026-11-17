@@ -791,6 +791,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
   String _categoriaCor = '#1D2430';
   final Set<String> _tiposExecucaoSelecionados = <String>{};
   String _cargaServico = 'Médio';
+
   /// `id_funcao` escolhido (tabela `funcoes`).
   int? _fkFuncaoSelecionada;
   bool _salvando = false;

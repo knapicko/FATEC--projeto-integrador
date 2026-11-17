@@ -1972,7 +1972,9 @@ class _TelaHomeState extends State<TelaHome> {
             if (index == 1) {
               AppNavigationUtil.navegarAba(
                 context,
-                SolicitacaoGeograficaClientePage(isVisitante: widget.isVisitante),
+                SolicitacaoGeograficaClientePage(
+                  isVisitante: widget.isVisitante,
+                ),
                 isHome: false,
               );
             } else if (index == 2) {

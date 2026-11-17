@@ -12,7 +12,8 @@ class AtualizarSenhaPage extends StatefulWidget {
 
 class _AtualizarSenhaPageState extends State<AtualizarSenhaPage> {
   final TextEditingController _senhaController = TextEditingController();
-  final TextEditingController _confirmarSenhaController = TextEditingController();
+  final TextEditingController _confirmarSenhaController =
+      TextEditingController();
 
   bool _carregando = false;
   String? _erroSenha;
@@ -22,7 +23,8 @@ class _AtualizarSenhaPageState extends State<AtualizarSenhaPage> {
   bool get _temOitoCaracteres => _senhaController.text.length >= 8;
   bool get _temMaiuscula => _senhaController.text.contains(RegExp(r'[A-Z]'));
   bool get _temMinuscula => _senhaController.text.contains(RegExp(r'[a-z]'));
-  bool get _temSimbolo => _senhaController.text.contains(RegExp(r'[^A-Za-z0-9\s]'));
+  bool get _temSimbolo =>
+      _senhaController.text.contains(RegExp(r'[^A-Za-z0-9\s]'));
   bool get _temNumero => _senhaController.text.contains(RegExp(r'[0-9]'));
 
   @override
@@ -39,7 +41,8 @@ class _AtualizarSenhaPageState extends State<AtualizarSenhaPage> {
         if (_senhaController.text.isNotEmpty && _erroSenha != null) {
           _erroSenha = null;
         }
-        if (_confirmarSenhaController.text.isNotEmpty && _erroConfirmarSenha != null) {
+        if (_confirmarSenhaController.text.isNotEmpty &&
+            _erroConfirmarSenha != null) {
           _erroConfirmarSenha = null;
         }
       });
@@ -61,10 +64,18 @@ class _AtualizarSenhaPageState extends State<AtualizarSenhaPage> {
       _erroSenha = null;
       _erroConfirmarSenha = null;
     });
-    
-    if (!_temOitoCaracteres || !_temMaiuscula || !_temMinuscula || !_temSimbolo || !_temNumero) {
+
+    if (!_temOitoCaracteres ||
+        !_temMaiuscula ||
+        !_temMinuscula ||
+        !_temSimbolo ||
+        !_temNumero) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor, preencha todos os requisitos de segurança.')),
+        const SnackBar(
+          content: Text(
+            'Por favor, preencha todos os requisitos de segurança.',
+          ),
+        ),
       );
       return;
     }
@@ -80,13 +91,13 @@ class _AtualizarSenhaPageState extends State<AtualizarSenhaPage> {
 
     try {
       final supabase = Supabase.instance.client;
-      
+
       // 1. Pega o e-mail do usuário logado na sessão temporária de recuperação
       final emailUsuario = supabase.auth.currentUser?.email;
 
       if (emailUsuario != null) {
         bool ehAMesmaSenha = false;
-        
+
         try {
           // 2. TESTE DE SEGURANÇA: Tenta logar usando a NOVA senha digitada
           await supabase.auth.signInWithPassword(
@@ -119,9 +130,11 @@ class _AtualizarSenhaPageState extends State<AtualizarSenhaPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Senha atualizada com sucesso! Faça login.')),
+          const SnackBar(
+            content: Text('Senha atualizada com sucesso! Faça login.'),
+          ),
         );
-        
+
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (_) => const LoginPage()),
@@ -149,8 +162,15 @@ class _AtualizarSenhaPageState extends State<AtualizarSenhaPage> {
         leadingWidth: 100,
         leading: TextButton.icon(
           onPressed: () => Navigator.pop(context),
-          icon: const Icon(Icons.arrow_back_ios, size: 18, color: Color(0xFF00A2FF)),
-          label: const Text('Voltar', style: TextStyle(color: Color(0xFF00A2FF), fontSize: 16)),
+          icon: const Icon(
+            Icons.arrow_back_ios,
+            size: 18,
+            color: Color(0xFF00A2FF),
+          ),
+          label: const Text(
+            'Voltar',
+            style: TextStyle(color: Color(0xFF00A2FF), fontSize: 16),
+          ),
         ),
       ),
       body: SingleChildScrollView(
@@ -186,10 +206,22 @@ class _AtualizarSenhaPageState extends State<AtualizarSenhaPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildRequisitoItem('No mínimo 8 caracteres', _temOitoCaracteres),
-                  _buildRequisitoItem('Pelo menos 1 letra maiúscula', _temMaiuscula),
-                  _buildRequisitoItem('Pelo menos 1 letra minúscula', _temMinuscula),
-                  _buildRequisitoItem('Pelo menos 1 símbolo (ex: @, #, \$, %)', _temSimbolo),
+                  _buildRequisitoItem(
+                    'No mínimo 8 caracteres',
+                    _temOitoCaracteres,
+                  ),
+                  _buildRequisitoItem(
+                    'Pelo menos 1 letra maiúscula',
+                    _temMaiuscula,
+                  ),
+                  _buildRequisitoItem(
+                    'Pelo menos 1 letra minúscula',
+                    _temMinuscula,
+                  ),
+                  _buildRequisitoItem(
+                    'Pelo menos 1 símbolo (ex: @, #, \$, %)',
+                    _temSimbolo,
+                  ),
                   _buildRequisitoItem('Pelo menos 1 número', _temNumero),
                 ],
               ),
@@ -293,15 +325,18 @@ class InputFieldWithAnimation extends StatefulWidget {
   });
 
   @override
-  State<InputFieldWithAnimation> createState() => _InputFieldWithAnimationState();
+  State<InputFieldWithAnimation> createState() =>
+      _InputFieldWithAnimationState();
 }
 
 class _InputFieldWithAnimationState extends State<InputFieldWithAnimation> {
   FocusNode? _localFocusNode;
   TextEditingController? _localController;
 
-  FocusNode get _effectiveFocusNode => widget.focusNode ?? (_localFocusNode ??= FocusNode());
-  TextEditingController get _effectiveController => widget.controller ?? (_localController ??= TextEditingController());
+  FocusNode get _effectiveFocusNode =>
+      widget.focusNode ?? (_localFocusNode ??= FocusNode());
+  TextEditingController get _effectiveController =>
+      widget.controller ?? (_localController ??= TextEditingController());
 
   bool _isFocused = false;
   late bool _obscureActive;
@@ -337,8 +372,12 @@ class _InputFieldWithAnimationState extends State<InputFieldWithAnimation> {
     final bool hasError = widget.errorText != null;
 
     IconData? dynamicIcon = widget.suffixIcon;
-    if (widget.obscureText && (widget.suffixIcon == Icons.visibility_outlined || widget.suffixIcon == Icons.visibility)) {
-      dynamicIcon = _obscureActive ? Icons.visibility_outlined : Icons.visibility_off_outlined;
+    if (widget.obscureText &&
+        (widget.suffixIcon == Icons.visibility_outlined ||
+            widget.suffixIcon == Icons.visibility)) {
+      dynamicIcon = _obscureActive
+          ? Icons.visibility_outlined
+          : Icons.visibility_off_outlined;
     }
 
     Color borderColor = Colors.transparent;
@@ -402,7 +441,9 @@ class _InputFieldWithAnimationState extends State<InputFieldWithAnimation> {
                                 style: TextStyle(
                                   color: labelColor,
                                   fontSize: shouldFloat ? 11 : 16,
-                                  fontWeight: shouldFloat ? FontWeight.bold : FontWeight.w500,
+                                  fontWeight: shouldFloat
+                                      ? FontWeight.bold
+                                      : FontWeight.w500,
                                 ),
                                 child: Text(widget.label),
                               ),
@@ -412,7 +453,9 @@ class _InputFieldWithAnimationState extends State<InputFieldWithAnimation> {
                                 child: Text(
                                   '*',
                                   style: TextStyle(
-                                    color: hasError ? Colors.red : const Color(0xFF00A2FF),
+                                    color: hasError
+                                        ? Colors.red
+                                        : const Color(0xFF00A2FF),
                                     fontSize: 14,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -453,7 +496,9 @@ class _InputFieldWithAnimationState extends State<InputFieldWithAnimation> {
                             ),
                             border: InputBorder.none,
                             isDense: true,
-                            contentPadding: shouldFloat ? EdgeInsets.zero : const EdgeInsets.only(top: 16),
+                            contentPadding: shouldFloat
+                                ? EdgeInsets.zero
+                                : const EdgeInsets.only(top: 16),
                           ),
                         ),
                       ),
@@ -463,9 +508,12 @@ class _InputFieldWithAnimationState extends State<InputFieldWithAnimation> {
                 if (dynamicIcon != null) ...[
                   const SizedBox(width: 12),
                   GestureDetector(
-                    onTap: widget.onSuffixIconTap ??
+                    onTap:
+                        widget.onSuffixIconTap ??
                         (widget.obscureText
-                            ? () => setState(() => _obscureActive = !_obscureActive)
+                            ? () => setState(
+                                () => _obscureActive = !_obscureActive,
+                              )
                             : widget.onTap),
                     child: AnimatedScale(
                       duration: const Duration(milliseconds: 200),
@@ -474,7 +522,9 @@ class _InputFieldWithAnimationState extends State<InputFieldWithAnimation> {
                         dynamicIcon,
                         color: hasError
                             ? Colors.red
-                            : (_isFocused ? const Color(0xFF00A2FF) : Colors.grey.shade400),
+                            : (_isFocused
+                                  ? const Color(0xFF00A2FF)
+                                  : Colors.grey.shade400),
                         size: 22,
                       ),
                     ),
