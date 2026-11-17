@@ -605,110 +605,114 @@ class _TelaServicoState extends State<TelaServico> {
                 children: [
                   // Logotipo da loja com selo de verificação
                   Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0D47A1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: _buildAvatarOuLogo(detalhe),
-                  ),
-                  Positioned(
-                    bottom: -3,
-                    right: -3,
-                    child: Container(
-                      width: 18,
-                      height: 18,
-                      decoration: BoxDecoration(
-                        color: _azul,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        width: 52,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0D47A1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: _buildAvatarOuLogo(detalhe),
                       ),
-                      child: const Center(
-                        child: Icon(Icons.check, color: Colors.white, size: 10),
+                      Positioned(
+                        bottom: -3,
+                        right: -3,
+                        child: Container(
+                          width: 18,
+                          height: 18,
+                          decoration: BoxDecoration(
+                            color: _azul,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                          child: const Center(
+                            child: Icon(
+                              Icons.check,
+                              color: Colors.white,
+                              size: 10,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      nomePrestador,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14,
-                        color: _texto,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildChipTipoPrestador(detalhe.tipoPrestador),
-                        const SizedBox(width: 6),
-                        if (temTagEmpresa) ...[
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: corFundoEmpresa,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              tagEmpresa.startsWith('#')
-                                  ? tagEmpresa
-                                  : '#$tagEmpresa',
-                              style: TextStyle(
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w800,
-                                color: corTextoEmpresa,
-                              ),
-                            ),
+                        Text(
+                          nomePrestador,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                            color: _texto,
                           ),
-                          const SizedBox(width: 6),
-                        ],
-                        if (categoria != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: corFundoOficio,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              categoria,
-                              style: TextStyle(
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w700,
-                                color: corTextoOficio,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            _buildChipTipoPrestador(detalhe.tipoPrestador),
+                            const SizedBox(width: 6),
+                            if (temTagEmpresa) ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: corFundoEmpresa,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  tagEmpresa.startsWith('#')
+                                      ? tagEmpresa
+                                      : '#$tagEmpresa',
+                                  style: TextStyle(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: corTextoEmpresa,
+                                  ),
+                                ),
                               ),
-                            ),
+                              const SizedBox(width: 6),
+                            ],
+                            if (categoria != null)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: corFundoOficio,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  categoria,
+                                  style: TextStyle(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: corTextoOficio,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${detalhe.seguidores} ${detalhe.seguidores == 1 ? 'Seguidor' : 'Seguidores'} • ${detalhe.rotuloTipoPrestador}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF64748B),
+                            fontWeight: FontWeight.w500,
                           ),
+                        ),
                       ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${detalhe.seguidores} ${detalhe.seguidores == 1 ? 'Seguidor' : 'Seguidores'} • ${detalhe.rotuloTipoPrestador}',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF64748B),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
                     ),
                   ),
                 ],
@@ -717,40 +721,40 @@ class _TelaServicoState extends State<TelaServico> {
               Center(
                 child: Column(
                   children: [
-                  SizedBox(
-                    height: 32,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => TelaChatProfissional(
-                              nomeProfissional: nomePrestador,
-                              fotoProfissional: detalhe.fotoPrestador ?? '',
-                              oficioPrincipal: categoria ?? '',
-                              idProfissional: detalhe.idProfissional,
+                    SizedBox(
+                      height: 32,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => TelaChatProfissional(
+                                nomeProfissional: nomePrestador,
+                                fotoProfissional: detalhe.fotoPrestador ?? '',
+                                oficioPrincipal: categoria ?? '',
+                                idProfissional: detalhe.idProfissional,
+                              ),
                             ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _azul,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _azul,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
                         ),
-                      ),
-                      child: const Text(
-                        'Conversar',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12.5,
+                        child: const Text(
+                          'Conversar',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12.5,
+                          ),
                         ),
                       ),
                     ),
-                  ),
                   ],
                 ),
               ),
@@ -3077,8 +3081,14 @@ class _TelaServicoState extends State<TelaServico> {
 
                       // Uma exceção parcial bloqueia somente os horários que
                       // colidem com o intervalo de ausência.
+                      // Hoje só vale se ainda sobra algum horário (o último
+                      // começa às 15:00).
+                      final hojeSemHorario =
+                          dataSemHora == hojeSemHora &&
+                          hoje.hour * 60 + hoje.minute >= 15 * 60;
                       final bool isEscolhavel =
                           !isPassado &&
+                          !hojeSemHorario &&
                           isDisponivelAgenda &&
                           (!temExcecao || excecaoParcial);
 
@@ -3278,7 +3288,16 @@ class _TelaServicoState extends State<TelaServico> {
                           slot.inicio,
                           slot.fim,
                         );
-                    final indisponivel = bloqueado || foraDaAgenda;
+                    // Hoje: horário que já começou não pode ser escolhido.
+                    final agora = DateTime.now();
+                    final dataSel = _sheetDataSelecionada!;
+                    final jaPassou =
+                        dataSel.year == agora.year &&
+                        dataSel.month == agora.month &&
+                        dataSel.day == agora.day &&
+                        _horaParaMinutos(slot.inicio) <=
+                            agora.hour * 60 + agora.minute;
+                    final indisponivel = bloqueado || foraDaAgenda || jaPassou;
                     final selecionado = _sheetHorarioSelecionado == slot.label;
 
                     return ListTile(
@@ -3309,9 +3328,11 @@ class _TelaServicoState extends State<TelaServico> {
                         ),
                       ),
                       subtitle: indisponivel
-                          ? const Text(
-                              'Indisponível neste horário conforme a agenda do profissional',
-                              style: TextStyle(
+                          ? Text(
+                              jaPassou
+                                  ? 'Este horário já passou'
+                                  : 'Indisponível neste horário conforme a agenda do profissional',
+                              style: const TextStyle(
                                 fontSize: 11.5,
                                 color: Color(0xFFCE4257),
                               ),

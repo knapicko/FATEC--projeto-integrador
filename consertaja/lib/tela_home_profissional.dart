@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -172,6 +173,14 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   late Future<String?> _tipoPerfilFuture;
   late Future<List<PostagemResumo>> _postagensFuture;
   late Future<List<_DiaAgendaCalendario>> _agendaSemanaFuture;
+
+  /// Contagem real das solicitações (Pendentes, Ativos, Concluídos,
+  /// Cancelados) da conta ativa.
+  late Future<Map<String, int>> _estatisticasFuture;
+
+  /// Atalhos com informação faltando (mostram a bolinha de "importante"):
+  /// 'disponibilidade', 'entrega', 'financeiro', 'conta', 'enderecos'.
+  Set<String> _pendencias = {};
   late Future<List<Map<String, dynamic>>> _convitesEmpresaFuture;
 
   // Estado da criação de postagem
@@ -245,6 +254,8 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     _tipoPerfilFuture = _buscarTipoPerfil();
     _postagensFuture = _carregarPostagens();
     _agendaSemanaFuture = _carregarAgendaSemana();
+    _estatisticasFuture = _carregarEstatisticas();
+    unawaited(_atualizarPendencias());
     _convitesEmpresaFuture = _buscarConvitesEmpresa();
     // Mantém o cache da troca de contas atualizado em 2º plano.
     _precarregarInfosContas();
@@ -1161,6 +1172,183 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   /// Carrega os 7 dias da semana atual (segunda a domingo), verificando a
   /// disponibilidade recorrente (agenda_profissional) e as exceções
   /// (grade_horario_excecao) de cada dia.
+  /// (id_usuario, dados_profissionais, grupo_empresa da conta ativa).
+  Future<(int?, Map<String, dynamic>?, int?)> _contextoConta() async {
+    final db = Supabase.instance.client;
+    final user = db.auth.currentUser;
+    if (user == null) return (null, null, null);
+    final u = await db
+        .from('usuarios')
+        .select('id_usuario')
+        .eq('auth_id', user.id)
+        .maybeSingle();
+    final idUsuario = (u?['id_usuario'] as num?)?.toInt();
+    if (idUsuario == null) return (null, null, null);
+    final dp = await db
+        .from('dados_profissionais')
+        .select(
+          'id_profissional, fk_perfil, fk_grupo_empresa, anos_experiencia, '
+          'chave_pix, metodo_entrega',
+        )
+        .eq('fk_usuario', idUsuario)
+        .maybeSingle();
+    int? idGrupo;
+    if (_contaEmpresaAtiva) {
+      final empresa = await _buscarDadosEmpresa();
+      idGrupo = (empresa?['id_grupo_empresa'] as num?)?.toInt();
+    }
+    return (idUsuario, dp, idGrupo);
+  }
+
+  Future<Map<String, int>> _carregarEstatisticas() async {
+    final contagem = {
+      'pendentes': 0,
+      'ativos': 0,
+      'concluidos': 0,
+      'cancelados': 0,
+    };
+    if (widget.isVisitante) return contagem;
+    try {
+      final (_, dp, idGrupo) = await _contextoConta();
+      final idProf = (dp?['id_profissional'] as num?)?.toInt();
+      var query = Supabase.instance.client
+          .from('solicitacoes')
+          .select('fk_status, status!solicitacoes_fk_status_fkey(status)');
+      if (_contaEmpresaAtiva) {
+        if (idGrupo == null) return contagem;
+        query = query.eq('fk_grupo_empresa', idGrupo);
+      } else {
+        if (idProf == null) return contagem;
+        query = query
+            .eq('fk_profissional', idProf)
+            .isFilter('fk_grupo_empresa', null);
+      }
+      final rows = await query;
+      for (final row in rows) {
+        final st = (row['fk_status'] as num?)?.toInt();
+        final rel = row['status'];
+        final texto =
+            (rel is Map
+                    ? rel['status']
+                    : rel is List && rel.isNotEmpty
+                    ? (rel.first as Map)['status']
+                    : null)
+                ?.toString()
+                .toLowerCase() ??
+            '';
+        if (st == 6 || texto.contains('conclu')) {
+          contagem['concluidos'] = contagem['concluidos']! + 1;
+        } else if (texto.contains('cancel') || texto.contains('recus')) {
+          contagem['cancelados'] = contagem['cancelados']! + 1;
+        } else if (st == 1 || texto == 'aberto' || texto == 'pendente') {
+          // Abertas que o profissional ainda não respondeu.
+          contagem['pendentes'] = contagem['pendentes']! + 1;
+        } else {
+          contagem['ativos'] = contagem['ativos']! + 1;
+        }
+      }
+    } catch (e) {
+      debugPrint('[estatisticas] $e');
+    }
+    return contagem;
+  }
+
+  /// Confere o que falta preencher para marcar os atalhos.
+  Future<void> _atualizarPendencias() async {
+    if (widget.isVisitante) return;
+    final pendencias = <String>{};
+    try {
+      final db = Supabase.instance.client;
+      final (_, dp, idGrupo) = await _contextoConta();
+      if (dp == null) return;
+      final idProf = (dp['id_profissional'] as num?)?.toInt();
+      bool vazio(Object? v) {
+        final t = v?.toString().trim() ?? '';
+        return t.isEmpty || t == 'null' || t == '[]';
+      }
+
+      Map<String, dynamic>? grupo;
+      if (_contaEmpresaAtiva && idGrupo != null) {
+        try {
+          grupo = await db
+              .from('grupo_empresa')
+              .select('chave_pix, metodo_entrega_empresa')
+              .eq('id_grupo_empresa', idGrupo)
+              .maybeSingle();
+        } catch (_) {}
+      }
+
+      // Dados financeiros: sem chave PIX.
+      if (vazio((grupo ?? dp)['chave_pix'])) pendencias.add('financeiro');
+
+      // Método de entrega: nenhum salvo.
+      final metodo = grupo != null
+          ? (grupo['metodo_entrega_empresa'] ?? dp['metodo_entrega'])
+          : dp['metodo_entrega'];
+      if (vazio(metodo)) pendencias.add('entrega');
+
+      // Disponibilidade: sem dias definidos.
+      try {
+        final q = db
+            .from('agenda_profissional')
+            .select('dias_semana')
+            .eq('fk_solicitacao', 0);
+        final agenda = grupo != null
+            ? await q.eq('fk_grupo_empresa', idGrupo!).limit(1).maybeSingle()
+            : idProf == null
+            ? null
+            : await q.eq('fk_profissional', idProf).limit(1).maybeSingle();
+        if (vazio(agenda?['dias_semana'])) pendencias.add('disponibilidade');
+      } catch (_) {}
+
+      // Modificar conta: sem descrição ou sem anos de experiência.
+      if (!_contaEmpresaAtiva) {
+        var descricao = '';
+        final idPerfil = (dp['fk_perfil'] as num?)?.toInt();
+        if (idPerfil != null) {
+          try {
+            final perfil = await db
+                .from('perfil')
+                .select('descricao_perfil')
+                .eq('id_perfil', idPerfil)
+                .maybeSingle();
+            descricao = perfil?['descricao_perfil']?.toString().trim() ?? '';
+          } catch (_) {}
+        }
+        if (descricao.isEmpty || vazio(dp['anos_experiencia'])) {
+          pendencias.add('conta');
+        }
+      }
+
+      // Meus endereços: nenhum cadastrado.
+      try {
+        final enderecos = grupo != null
+            ? await db
+                  .from('ass_grupo_empresa_endereco')
+                  .select('fk_endereco')
+                  .eq('fk_grupo_empresa', idGrupo!)
+                  .limit(1)
+            : idProf == null
+            ? const <Map<String, dynamic>>[]
+            : await db
+                  .from('ass_profissional_endereco')
+                  .select('fk_endereco')
+                  .eq('fk_profissional', idProf)
+                  .limit(1);
+        if (enderecos.isEmpty) pendencias.add('enderecos');
+      } catch (_) {}
+    } catch (e) {
+      debugPrint('[pendencias] $e');
+    }
+    if (mounted) setState(() => _pendencias = pendencias);
+  }
+
+  /// Abre um atalho e, na volta, reconfere o que ainda falta preencher.
+  Future<void> _abrirAtalho(Widget pagina) async {
+    await Navigator.of(context).push(_rotaSemAnimacao(pagina));
+    if (mounted) unawaited(_atualizarPendencias());
+  }
+
   Future<List<_DiaAgendaCalendario>> _carregarAgendaSemana() async {
     try {
       final supabase = Supabase.instance.client;
@@ -2631,7 +2819,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                     ),
                                   )
                                 : Icon(
-                                    Icons.send_outlined,
+                                    CupertinoIcons.paperplane,
                                     color: _imagensSelecionadas.isEmpty
                                         ? Colors.grey.shade400
                                         : _primaryBlue,
@@ -3047,16 +3235,41 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(child: _buildStatCard('Pendentes', '1')),
-                        const SizedBox(width: 8),
-                        Expanded(child: _buildStatCard('Ativos', '1')),
-                        const SizedBox(width: 8),
-                        Expanded(child: _buildStatCard('Concluídos', '1')),
-                        const SizedBox(width: 8),
-                        Expanded(child: _buildStatCard('Cancelados', '0')),
-                      ],
+                    FutureBuilder<Map<String, int>>(
+                      future: _estatisticasFuture,
+                      builder: (context, snapshot) {
+                        final c = snapshot.data;
+                        String v(String chave) =>
+                            c == null ? '–' : '${c[chave] ?? 0}';
+                        return Row(
+                          children: [
+                            Expanded(
+                              child: _buildStatCard(
+                                'Pendentes',
+                                v('pendentes'),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _buildStatCard('Ativos', v('ativos')),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _buildStatCard(
+                                'Concluídos',
+                                v('concluidos'),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _buildStatCard(
+                                'Cancelados',
+                                v('cancelados'),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: 20),
                     const Text(
@@ -3164,8 +3377,12 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                         ),
                         Expanded(
                           child: _buildQuickOption(
-                            Icons.history,
-                            'Histórico de\nServiços',
+                            Icons.location_on_outlined,
+                            'Meus\nEndereços',
+                            pendente: _pendencias.contains('enderecos'),
+                            onTap: () => _abrirAtalho(
+                              const MeusEnderecosPage(isProfissional: true),
+                            ),
                           ),
                         ),
                         Expanded(
@@ -3191,13 +3408,10 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                           child: _buildQuickOption(
                             Icons.local_shipping_outlined,
                             'Método de\nEntrega',
-                            onTap: () {
-                              Navigator.of(context).push(
-                                _rotaSemAnimacao(
-                                  const MetodoEntregaProfissionalPage(),
-                                ),
-                              );
-                            },
+                            pendente: _pendencias.contains('entrega'),
+                            onTap: () => _abrirAtalho(
+                              const MetodoEntregaProfissionalPage(),
+                            ),
                           ),
                         ),
                         Expanded(
@@ -3210,6 +3424,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                           child: _buildQuickOption(
                             Icons.calendar_month_outlined,
                             'Ajustar\nDisponibilidade',
+                            pendente: _pendencias.contains('disponibilidade'),
                             onTap: () async {
                               final navigator = Navigator.of(context);
                               final empresa = _contaEmpresaAtiva
@@ -3232,6 +3447,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                 setState(() {
                                   _agendaSemanaFuture = _carregarAgendaSemana();
                                 });
+                                unawaited(_atualizarPendencias());
                               }
                             },
                           ),
@@ -3246,13 +3462,10 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                           child: _buildQuickOption(
                             Icons.account_balance_wallet_outlined,
                             'Dados\nFinanceiros',
-                            onTap: () {
-                              Navigator.of(context).push(
-                                _rotaSemAnimacao(
-                                  const MeusDadosFinanceirosProfissionalPage(),
-                                ),
-                              );
-                            },
+                            pendente: _pendencias.contains('financeiro'),
+                            onTap: () => _abrirAtalho(
+                              const MeusDadosFinanceirosProfissionalPage(),
+                            ),
                           ),
                         ),
                         if (!_contaEmpresaAtiva)
@@ -3260,11 +3473,10 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                             child: _buildQuickOption(
                               Icons.manage_accounts_outlined,
                               'Modificar\nconta',
+                              pendente: _pendencias.contains('conta'),
                               onTap: () async {
-                                await Navigator.of(context).push(
-                                  _rotaSemAnimacao(
-                                    const ModificarContaProfissionalPage(),
-                                  ),
+                                await _abrirAtalho(
+                                  const ModificarContaProfissionalPage(),
                                 );
                                 if (mounted) {
                                   setState(() {
@@ -3279,19 +3491,31 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                             child: FutureBuilder<String?>(
                               future: _tipoPerfilFuture,
                               builder: (context, snapshot) {
-                                if (snapshot.data != 'Independente') {
-                                  return const SizedBox.shrink();
-                                }
+                                // Independente não está associado a uma
+                                // empresa: atalho bloqueado (cinza).
+                                final bloqueado =
+                                    snapshot.data == 'Independente';
                                 return _buildQuickOption(
                                   Icons.storefront_outlined,
                                   'Empresa\nassociada',
-                                  onTap: () {
-                                    Navigator.of(context).push(
-                                      _rotaSemAnimacao(
-                                        const EmpresaAssociadaPage(),
-                                      ),
-                                    );
-                                  },
+                                  bloqueado: bloqueado,
+                                  onTap: bloqueado
+                                      ? () => ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'Seu perfil é independente: você '
+                                                  'não está associado a uma empresa.',
+                                                ),
+                                                behavior:
+                                                    SnackBarBehavior.floating,
+                                              ),
+                                            )
+                                      : () => Navigator.of(context).push(
+                                          _rotaSemAnimacao(
+                                            const EmpresaAssociadaPage(),
+                                          ),
+                                        ),
                                 );
                               },
                             ),
@@ -3433,34 +3657,35 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           return const SkeletonAgenda();
         }
 
-        return Column(
-          children: [
-            Row(
-              children: List.generate(dias.length, (index) {
-                final dia = dias[index];
-                return Expanded(
-                  child: Text(
-                    _abreviacaoDiaSemana(dia.data.weekday % 7),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade500,
-                      letterSpacing: 0.3,
+        // Dias maiores (rolam na horizontal quando não cabem).
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: List.generate(dias.length, (index) {
+              final dia = dias[index];
+              return SizedBox(
+                width: 78,
+                child: Column(
+                  children: [
+                    Text(
+                      _abreviacaoDiaSemana(dia.data.weekday % 7),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey.shade500,
+                        letterSpacing: 0.3,
+                      ),
                     ),
-                  ),
-                );
-              }),
-            ),
-            const SizedBox(height: 6),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: List.generate(dias.length, (index) {
-                final dia = dias[index];
-                return Expanded(child: _buildCelulaDiaAgenda(dia));
-              }),
-            ),
-          ],
+                    const SizedBox(height: 6),
+                    _buildCelulaDiaAgenda(dia),
+                  ],
+                ),
+              );
+            }),
+          ),
         );
       },
     );
@@ -3487,12 +3712,12 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
       return GestureDetector(
         onTap: servico == null ? null : () => _abrirServicoAgendado(servico),
         child: Container(
-          height: 72,
-          margin: const EdgeInsets.symmetric(horizontal: 1.5),
-          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+          height: 104,
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
           decoration: BoxDecoration(
             color: _primaryBlue,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(12),
             border: isHoje ? Border.all(color: Colors.white, width: 2) : null,
           ),
           child: Column(
@@ -3501,7 +3726,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
               Text(
                 '${dia.data.day}',
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 22,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
@@ -3511,7 +3736,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                 const Text(
                   'Hoje',
                   style: TextStyle(
-                    fontSize: 8,
+                    fontSize: 11,
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
                   ),
@@ -3522,7 +3747,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                 servico?.nomeCliente ?? '${dia.servicos.length} serviços',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  fontSize: 7,
+                  fontSize: 11,
                   fontWeight: FontWeight.w600,
                   color: Colors.white,
                   height: 1.2,
@@ -3545,12 +3770,12 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
         return GestureDetector(
           onTap: () => _mostrarPopupExcecao(dia),
           child: Container(
-            height: 72,
-            margin: const EdgeInsets.symmetric(horizontal: 1.5),
-            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+            height: 104,
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: isHoje ? _vermelhoExcecao : _vermelhoExcecao,
                 width: isHoje ? 2 : 1.5,
@@ -3562,7 +3787,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                 Text(
                   '${dia.data.day}',
                   style: const TextStyle(
-                    fontSize: 16,
+                    fontSize: 22,
                     fontWeight: FontWeight.bold,
                     color: _vermelhoExcecao,
                   ),
@@ -3573,7 +3798,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                     'Hoje',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 8,
+                      fontSize: 11,
                       fontWeight: FontWeight.w600,
                       color: _vermelhoExcecao,
                     ),
@@ -3584,7 +3809,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                   '$horaIni\nàs $horaFim',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    fontSize: 7,
+                    fontSize: 11,
                     fontWeight: FontWeight.w600,
                     color: _vermelhoExcecao,
                     height: 1.2,
@@ -3607,12 +3832,12 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
       return GestureDetector(
         onTap: () => _mostrarPopupExcecao(dia),
         child: Container(
-          height: 72,
-          margin: const EdgeInsets.symmetric(horizontal: 1.5),
-          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+          height: 104,
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
           decoration: BoxDecoration(
             color: _vermelhoExcecao,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(12),
             border: isHoje ? Border.all(color: Colors.white, width: 2) : null,
           ),
           child: Column(
@@ -3621,7 +3846,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
               Text(
                 '${dia.data.day}',
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 22,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
@@ -3632,7 +3857,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                   'Hoje',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 8,
+                    fontSize: 11,
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
                   ),
@@ -3643,7 +3868,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                 motivo,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  fontSize: 7,
+                  fontSize: 11,
                   fontWeight: FontWeight.w600,
                   color: Colors.white,
                   height: 1.2,
@@ -3660,12 +3885,12 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     if (dia.disponivel) {
       // Dia disponível (agenda_profissional).
       return Container(
-        height: 72,
-        margin: const EdgeInsets.symmetric(horizontal: 1.5),
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+        height: 104,
+        margin: const EdgeInsets.symmetric(horizontal: 3),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
         decoration: BoxDecoration(
           color: _primaryBlue.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isHoje ? _primaryBlue : _primaryBlue.withValues(alpha: 0.4),
             width: isHoje ? 1.5 : 1,
@@ -3677,7 +3902,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
             Text(
               '${dia.data.day}',
               style: TextStyle(
-                fontSize: 16,
+                fontSize: 22,
                 fontWeight: FontWeight.bold,
                 color: isHoje ? _primaryBlue : _primaryBlue,
               ),
@@ -3687,7 +3912,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
               'Disponível',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 7,
+                fontSize: 11,
                 fontWeight: FontWeight.w600,
                 color: _primaryBlue,
                 height: 1.2,
@@ -3702,12 +3927,12 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
 
     // Dia indisponível (padrão) ou hoje sem exceção.
     return Container(
-      height: 72,
-      margin: const EdgeInsets.symmetric(horizontal: 1.5),
+      height: 104,
+      margin: const EdgeInsets.symmetric(horizontal: 3),
       padding: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isHoje ? _primaryBlue : Colors.grey.shade200,
           width: isHoje ? 1.5 : 1,
@@ -3719,7 +3944,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           Text(
             '${dia.data.day}',
             style: TextStyle(
-              fontSize: 16,
+              fontSize: 22,
               fontWeight: FontWeight.bold,
               color: isHoje ? _primaryBlue : _titleDark,
             ),
@@ -3730,7 +3955,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
               'Hoje',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 8,
+                fontSize: 11,
                 fontWeight: FontWeight.w600,
                 color: _primaryBlue,
               ),
@@ -3841,7 +4066,11 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
               borderRadius: BorderRadius.circular(20),
               child: const Padding(
                 padding: EdgeInsets.all(4),
-                child: Icon(Icons.send_outlined, color: _primaryBlue, size: 26),
+                child: Icon(
+                  CupertinoIcons.paperplane,
+                  color: _primaryBlue,
+                  size: 26,
+                ),
               ),
             ),
           ),
@@ -4019,33 +4248,78 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     );
   }
 
-  Widget _buildQuickOption(IconData icon, String label, {VoidCallback? onTap}) {
+  /// [pendente]: falta preencher algo → bolinha laranja com "!" no canto.
+  /// [bloqueado]: atalho indisponível para a conta → cinza.
+  Widget _buildQuickOption(
+    IconData icon,
+    String label, {
+    VoidCallback? onTap,
+    bool pendente = false,
+    bool bloqueado = false,
+  }) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(14),
-            child: Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: _primaryBlue,
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onTap,
                 borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: bloqueado ? const Color(0xFFD1D5DB) : _primaryBlue,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    bloqueado ? Icons.lock_outline_rounded : icon,
+                    color: Colors.white,
+                    size: 26,
+                  ),
+                ),
               ),
-              child: Icon(icon, color: Colors.white, size: 26),
             ),
-          ),
+            Positioned(
+              top: -5,
+              right: -5,
+              child: AnimatedScale(
+                scale: pendente && !bloqueado ? 1 : 0,
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutBack,
+                child: Container(
+                  width: 20,
+                  height: 20,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF59E0B),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  child: const Text(
+                    '!',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      height: 1,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 8),
         Text(
           label,
           textAlign: TextAlign.center,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 11,
-            color: _titleDark,
+            color: bloqueado ? const Color(0xFF9CA3AF) : _titleDark,
             fontWeight: FontWeight.w500,
             height: 1.2,
           ),

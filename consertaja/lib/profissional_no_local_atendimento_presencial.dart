@@ -10,6 +10,7 @@ import 'servico_concluido.dart';
 import 'tela_chat_profissional.dart';
 import 'tela_meu_perfil_profissional.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
+import 'widgets/skeletons_telas.dart';
 
 class ProfissionalNoLocalAtendimentoPresencialPage extends StatefulWidget {
   final int idSolicitacao;
@@ -478,7 +479,10 @@ class _ProfissionalNoLocalAtendimentoPresencialPageState
   @override
   Widget build(BuildContext context) {
     if (_carregando) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(
+        backgroundColor: Color(0xFFF1F5F9),
+        body: SafeArea(child: SkeletonEtapaFluxo(comMapa: false)),
+      );
     }
     final podeFinalizar =
         _antes.isNotEmpty && _tempoAtual >= 600 && !_finalizado;

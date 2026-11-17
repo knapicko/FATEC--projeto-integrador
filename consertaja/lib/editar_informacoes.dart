@@ -22,6 +22,9 @@ class EditarInformacoesPage extends StatefulWidget {
 class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
   static const Color _blue = Color(0xFF0FB3FF);
   static const Color _textGray = Color(0xFF7B7B7B);
+  static const Color _fundo = Color(0xFFF3F5F8);
+  static const Color _texto = Color(0xFF111827);
+  static const Color _verde = Color(0xFF16A34A);
 
   final SupabaseClient _supabase = Supabase.instance.client;
   final ImagePicker _picker = ImagePicker();
@@ -29,12 +32,14 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
   bool _isLoading = true;
   bool _isUploading = false;
   String _nomeCompleto = 'Nome não encontrado';
-  String _cpf = '';
+
+  /// CPF (pessoa física) ou CNPJ (pessoa jurídica), já formatado.
+  String _documento = '';
+  String _rotuloDocumento = 'CPF';
   String _email = '';
   String _telefone = '';
   String _dataNascimento = '';
   String? _fotoPerfilUrl;
-  String _genero = '';
   String _tipoConta = 'Cliente';
 
   // IDs para atualização
@@ -50,6 +55,17 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
     _carregarDados();
   }
 
+  /// Aceita "AAAA-MM-DD", "AAAA-MM-DDTHH:MM:SS" (timestamp) e "DD/MM/AAAA".
+  String _dataParaExibir(Object? bruto) {
+    final texto = bruto?.toString().trim() ?? '';
+    if (texto.isEmpty || texto == 'null') return '';
+    if (RegExp(r'^\d{2}/\d{2}/\d{4}$').hasMatch(texto)) return texto;
+    final data = DateTime.tryParse(texto);
+    if (data == null) return formatarDataBrasileira(texto);
+    return '${data.day.toString().padLeft(2, '0')}/'
+        '${data.month.toString().padLeft(2, '0')}/${data.year}';
+  }
+
   Future<void> _carregarDados() async {
     try {
       final user = _supabase.auth.currentUser;
@@ -60,36 +76,26 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
 
       final usuarioResponse = await _supabase
           .from('usuarios')
-          .select('''
-            id_usuario,
-            nome,
-            data_nascimento,
-            foto_perfil_url,
-            fk_email,
-            fk_telefone,
-            fk_tipo_pessoa,
-            tipo_conta
-          ''')
+          .select(
+            'id_usuario, nome, data_nascimento, foto_perfil_url, fk_email, '
+            'fk_telefone, fk_tipo_pessoa, tipo_conta',
+          )
           .eq('auth_id', user.id)
+          .limit(1)
           .maybeSingle();
 
       if (!mounted) return;
 
-      _usuarioId = usuarioResponse?['id_usuario'] as int?;
-      String nome =
+      _usuarioId = (usuarioResponse?['id_usuario'] as num?)?.toInt();
+      final nome =
           usuarioResponse?['nome']?.toString() ?? 'Nome não encontrado';
-      String dataNascimento =
-          usuarioResponse?['data_nascimento']?.toString() ?? '';
-      String? fotoUrl = usuarioResponse?['foto_perfil_url']?.toString();
+      final dataNascimento = _dataParaExibir(
+        usuarioResponse?['data_nascimento'],
+      );
+      final fotoUrl = usuarioResponse?['foto_perfil_url']?.toString();
 
-      if (dataNascimento.isNotEmpty && dataNascimento != 'null') {
-        dataNascimento = formatarDataBrasileira(dataNascimento);
-      } else {
-        dataNascimento = '';
-      }
-
-      // Buscar email
-      String email = '';
+      // E-mail
+      String email = user.email ?? '';
       final emailId = usuarioResponse?['fk_email'];
       if (emailId != null) {
         try {
@@ -98,25 +104,21 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
               .select('endereco_email')
               .eq('id_email', emailId)
               .maybeSingle();
-          email =
-              emailResponse?['endereco_email']?.toString() ?? user.email ?? '';
-        } catch (_) {
-          email = user.email ?? '';
-        }
-      } else {
-        email = user.email ?? '';
+          final e = emailResponse?['endereco_email']?.toString().trim() ?? '';
+          if (e.isNotEmpty) email = e;
+        } catch (_) {}
       }
 
-      // Buscar telefone
+      // Telefone
       String telefone = '';
-      final telefoneId = usuarioResponse?['fk_telefone'];
+      final telefoneId = (usuarioResponse?['fk_telefone'] as num?)?.toInt();
       if (telefoneId != null) {
-        _telefoneId = telefoneId as int;
+        _telefoneId = telefoneId;
         try {
           final telefoneResponse = await _supabase
               .from('telefones')
               .select('ddd, numero')
-              .eq('id_telefone', _telefoneId!)
+              .eq('id_telefone', telefoneId)
               .maybeSingle();
           if (telefoneResponse != null) {
             final ddd = telefoneResponse['ddd']?.toString() ?? '';
@@ -124,35 +126,51 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
             _telefoneDDD = ddd;
             _telefoneNumero = numero;
             if (ddd.isNotEmpty && numero.isNotEmpty) {
-              telefone = '($ddd) $numero';
+              telefone = _formatarTelefone(ddd, numero);
             }
           }
         } catch (_) {}
       }
 
-      // Buscar CPF
-      String cpf = '';
+      // CPF (pessoa física) ou CNPJ (pessoa jurídica)
+      String documento = '';
+      String rotulo = 'CPF';
       final tipoPessoaId = usuarioResponse?['fk_tipo_pessoa'];
       if (tipoPessoaId != null) {
         try {
-          final assTipoPessoaResponse = await _supabase
+          final ass = await _supabase
               .from('ass_tipo_pessoa')
-              .select('fk_pessoa_fisica')
+              .select('fk_pessoa_fisica, fk_pessoa_juridica')
               .eq('id_tipo_pessoa', tipoPessoaId)
               .maybeSingle();
-          final pfId = assTipoPessoaResponse?['fk_pessoa_fisica'];
+          final pfId = ass?['fk_pessoa_fisica'];
+          final pjId = ass?['fk_pessoa_juridica'];
           if (pfId != null) {
-            final pfResponse = await _supabase
+            final pf = await _supabase
                 .from('pessoa_fisica')
                 .select('cpf')
                 .eq('id_pessoa_fisica', pfId)
                 .maybeSingle();
-            final cpfRaw = pfResponse?['cpf']?.toString() ?? '';
-            if (cpfRaw.length == 11) {
-              cpf =
-                  '${cpfRaw.substring(0, 3)}.${cpfRaw.substring(3, 6)}.${cpfRaw.substring(6, 9)}-${cpfRaw.substring(9, 11)}';
+            final d = pf?['cpf']?.toString().replaceAll(RegExp(r'\D'), '');
+            if (d != null && d.length == 11) {
+              documento =
+                  '${d.substring(0, 3)}.${d.substring(3, 6)}.${d.substring(6, 9)}-${d.substring(9)}';
             } else {
-              cpf = cpfRaw;
+              documento = d ?? '';
+            }
+          } else if (pjId != null) {
+            rotulo = 'CNPJ';
+            final pj = await _supabase
+                .from('pessoa_juridica')
+                .select('cnpj')
+                .eq('id_pessoa_juridica', pjId)
+                .maybeSingle();
+            final d = pj?['cnpj']?.toString().replaceAll(RegExp(r'\D'), '');
+            if (d != null && d.length == 14) {
+              documento =
+                  '${d.substring(0, 2)}.${d.substring(2, 5)}.${d.substring(5, 8)}/${d.substring(8, 12)}-${d.substring(12)}';
+            } else {
+              documento = d ?? '';
             }
           }
         } catch (_) {}
@@ -161,7 +179,8 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
       if (mounted) {
         setState(() {
           _nomeCompleto = nome;
-          _cpf = cpf;
+          _documento = documento;
+          _rotuloDocumento = rotulo;
           _email = email;
           _telefone = telefone;
           _dataNascimento = dataNascimento;
@@ -171,6 +190,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
         });
       }
     } catch (e) {
+      debugPrint('[editar_informacoes] $e');
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -183,6 +203,17 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
       return '($ddd) ${numero.substring(0, 5)}-${numero.substring(5)}';
     }
     return '($ddd) $numero';
+  }
+
+  void _aviso(String texto, {Color? cor}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(texto),
+        backgroundColor: cor,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   // ================= ALTERAR FOTO =================
@@ -506,6 +537,8 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                       controller: controller,
                       keyboardType: campo == 'Celular'
                           ? TextInputType.phone
+                          : campo == 'Email'
+                          ? TextInputType.emailAddress
                           : null,
                       inputFormatters: campo == 'Celular'
                           ? [
@@ -632,44 +665,6 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
     }
   }
 
-  Future<void> _salvarEmail(String novoEmail) async {
-    try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) return;
-
-      // Atualizar email no auth
-      await _supabase.auth.updateUser(UserAttributes(email: novoEmail));
-
-      // Atualizar na tabela emails
-      final usuarioResponse = await _supabase
-          .from('usuarios')
-          .select('fk_email')
-          .eq('auth_id', user.id)
-          .maybeSingle();
-
-      final emailId = usuarioResponse?['fk_email'];
-      if (emailId != null) {
-        await _supabase
-            .from('emails')
-            .update({'endereco_email': novoEmail})
-            .eq('id_email', emailId);
-      }
-
-      if (mounted) {
-        setState(() => _email = novoEmail);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Email atualizado com sucesso!')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erro ao atualizar email: $e')));
-      }
-    }
-  }
-
   Future<void> _salvarTelefone(String novoTelefone) async {
     try {
       // Valida estrutura do telefone antes de salvar
@@ -714,13 +709,13 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
             .insert({'ddd': ddd, 'numero': numero, 'fk_status': 1})
             .select()
             .single();
-        _telefoneId = telefoneResponse['id_telefone'] as int?;
+        _telefoneId = (telefoneResponse['id_telefone'] as num?)?.toInt();
 
         if (_usuarioId != null) {
           await _supabase
               .from('usuarios')
               .update({'fk_telefone': _telefoneId!})
-              .eq('id_usuario', user.id);
+              .eq('id_usuario', _usuarioId!);
         }
       }
 
@@ -769,50 +764,6 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
           context,
         ).showSnackBar(SnackBar(content: Text('Erro ao atualizar data: $e')));
       }
-    }
-  }
-
-  Future<void> _salvarGenero(String novoGenero) async {
-    try {
-      if (mounted) {
-        setState(() => _genero = novoGenero);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Gênero atualizado com sucesso!')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erro ao atualizar gênero: $e')));
-      }
-    }
-  }
-
-  void _definirCampo(String campo) {
-    switch (campo) {
-      case 'Nome':
-        _mostrarPopupEdicao('Nome', _nomeCompleto, _salvarNome);
-        break;
-      case 'Email':
-        _mostrarPopupEdicao('Email', _email, _salvarEmail);
-        break;
-      case 'Celular':
-        _mostrarPopupEdicao('Celular', _telefone, _salvarTelefone);
-        break;
-      case 'Data de Nascimento':
-        _mostrarPopupEdicao(
-          'Data de Nascimento',
-          _dataNascimento,
-          _salvarDataNascimento,
-        );
-        break;
-      case 'Gênero':
-        _mostrarPopupEdicao('Gênero', _genero, _salvarGenero);
-        break;
-      case 'Senha':
-        _mostrarPopupEdicaoSenha();
-        break;
     }
   }
 
@@ -997,345 +948,571 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
     );
   }
 
+  // ================= VERIFICAÇÃO POR CÓDIGO =================
+
+  bool get _emailConfirmed =>
+      _supabase.auth.currentUser?.emailConfirmedAt != null;
+
+  /// Telefone no formato internacional (+5511999998888).
+  String? get _telefoneE164 {
+    final ddd = _telefoneDDD ?? '';
+    final numero = _telefoneNumero ?? '';
+    if (ddd.isEmpty || numero.isEmpty) return null;
+    final ddi = _ddiSelecionado.replaceAll(RegExp(r'\D'), '');
+    return '+$ddi$ddd$numero';
+  }
+
+  bool get _telefoneConfirmado {
+    final user = _supabase.auth.currentUser;
+    final e164 = _telefoneE164;
+    if (user == null || e164 == null || user.phoneConfirmedAt == null) {
+      return false;
+    }
+    final doAuth = (user.phone ?? '').replaceAll(RegExp(r'\D'), '');
+    return doAuth.isNotEmpty && doAuth == e164.replaceAll(RegExp(r'\D'), '');
+  }
+
+  /// Janela para digitar o código de 6 dígitos. [verificar] lança erro se o
+  /// código estiver errado; [reenviar] manda outro código.
+  Future<bool> _pedirCodigo({
+    required String titulo,
+    required String destino,
+    required Future<void> Function(String codigo) verificar,
+    required Future<void> Function() reenviar,
+  }) async {
+    final controller = TextEditingController();
+    final confirmado = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        String? erro;
+        bool enviando = false;
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> confirmar() async {
+              final codigo = controller.text.trim();
+              if (codigo.length < 6) {
+                setDialogState(() => erro = 'Digite o código de 6 dígitos.');
+                return;
+              }
+              setDialogState(() {
+                enviando = true;
+                erro = null;
+              });
+              try {
+                await verificar(codigo);
+                if (context.mounted) Navigator.pop(context, true);
+              } catch (e) {
+                setDialogState(() {
+                  enviando = false;
+                  erro = 'Código inválido ou expirado. Tente de novo.';
+                });
+              }
+            }
+
+            return Dialog(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(22),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      titulo,
+                      style: const TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w800,
+                        color: _texto,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Enviamos um código de 6 dígitos para $destino.',
+                      style: const TextStyle(color: _textGray, fontSize: 14),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: controller,
+                      autofocus: true,
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      maxLength: 6,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      onSubmitted: (_) => confirmar(),
+                      style: const TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 10,
+                        color: _texto,
+                      ),
+                      decoration: InputDecoration(
+                        counterText: '',
+                        hintText: '••••••',
+                        filled: true,
+                        fillColor: _fundo,
+                        errorText: erro,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(color: _blue, width: 2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: FilledButton(
+                        onPressed: enviando ? null : confirmar,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _blue,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: enviando
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text(
+                                'Confirmar',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        TextButton(
+                          onPressed: enviando
+                              ? null
+                              : () async {
+                                  try {
+                                    await reenviar();
+                                    setDialogState(() => erro = null);
+                                    _aviso('Enviamos um novo código.');
+                                  } catch (e) {
+                                    setDialogState(
+                                      () => erro =
+                                          'Não foi possível reenviar agora.',
+                                    );
+                                  }
+                                },
+                          child: const Text('Reenviar código'),
+                        ),
+                        const Spacer(),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text(
+                            'Cancelar',
+                            style: TextStyle(color: _textGray),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+    controller.dispose();
+    return confirmado == true;
+  }
+
+  /// Confirma o e-mail atual com um código enviado para ele.
+  Future<void> _verificarEmail() async {
+    final email = _email.trim();
+    if (email.isEmpty) return;
+    Future<void> enviar() =>
+        _supabase.auth.resend(type: OtpType.signup, email: email);
+    try {
+      await enviar();
+    } catch (e) {
+      _aviso('Não foi possível enviar o código: $e', cor: Colors.red);
+      return;
+    }
+    final ok = await _pedirCodigo(
+      titulo: 'Verificar e-mail',
+      destino: email,
+      verificar: (codigo) => _supabase.auth.verifyOTP(
+        type: OtpType.signup,
+        email: email,
+        token: codigo,
+      ),
+      reenviar: enviar,
+    );
+    if (!ok) return;
+    try {
+      await _supabase.auth.refreshSession();
+    } catch (_) {}
+    if (mounted) setState(() {});
+    _aviso('E-mail verificado!', cor: _verde);
+  }
+
+  /// Troca o e-mail: o novo só vale depois do código enviado para ele.
+  Future<void> _trocarEmail(String novoEmail) async {
+    final novo = novoEmail.trim().toLowerCase();
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(novo)) {
+      _aviso('Digite um e-mail válido.', cor: Colors.red);
+      return;
+    }
+    if (novo == _email.trim().toLowerCase()) return;
+    Future<void> enviar() =>
+        _supabase.auth.updateUser(UserAttributes(email: novo));
+    try {
+      await enviar();
+    } catch (e) {
+      _aviso('Não foi possível enviar o código: $e', cor: Colors.red);
+      return;
+    }
+    final ok = await _pedirCodigo(
+      titulo: 'Confirmar novo e-mail',
+      destino: novo,
+      verificar: (codigo) => _supabase.auth.verifyOTP(
+        type: OtpType.emailChange,
+        email: novo,
+        token: codigo,
+      ),
+      reenviar: enviar,
+    );
+    if (!ok) return;
+    try {
+      final user = _supabase.auth.currentUser;
+      final usuario = user == null
+          ? null
+          : await _supabase
+                .from('usuarios')
+                .select('fk_email')
+                .eq('auth_id', user.id)
+                .maybeSingle();
+      final emailId = usuario?['fk_email'];
+      if (emailId != null) {
+        await _supabase
+            .from('emails')
+            .update({'endereco_email': novo})
+            .eq('id_email', emailId);
+      }
+      if (mounted) setState(() => _email = novo);
+      _aviso('E-mail alterado e verificado!', cor: _verde);
+    } catch (e) {
+      _aviso('E-mail verificado, mas houve um erro ao salvar: $e');
+    }
+  }
+
+  /// Confirma o celular com um código por SMS (precisa de um provedor de SMS
+  /// configurado no Supabase: Authentication → Providers → Phone).
+  Future<void> _verificarTelefone() async {
+    final e164 = _telefoneE164;
+    if (e164 == null) {
+      _aviso('Cadastre um celular primeiro.');
+      return;
+    }
+    Future<void> enviar() =>
+        _supabase.auth.updateUser(UserAttributes(phone: e164));
+    try {
+      await enviar();
+    } catch (e) {
+      _aviso(
+        'Não foi possível enviar o SMS agora. A verificação por celular '
+        'precisa de um provedor de SMS ativo no Supabase.',
+        cor: Colors.red,
+      );
+      debugPrint('[verificar telefone] $e');
+      return;
+    }
+    final ok = await _pedirCodigo(
+      titulo: 'Verificar celular',
+      destino: _telefone,
+      verificar: (codigo) => _supabase.auth.verifyOTP(
+        type: OtpType.phoneChange,
+        phone: e164,
+        token: codigo,
+      ),
+      reenviar: enviar,
+    );
+    if (!ok) return;
+    try {
+      await _supabase.auth.refreshSession();
+    } catch (_) {}
+    if (mounted) setState(() {});
+    _aviso('Celular verificado!', cor: _verde);
+  }
+
+  Future<void> _escolherDataNascimento() async {
+    DateTime inicial = DateTime(2000);
+    final partes = _dataNascimento.split('/');
+    if (partes.length == 3) {
+      inicial =
+          DateTime.tryParse(
+            '${partes[2]}-${partes[1].padLeft(2, '0')}-${partes[0].padLeft(2, '0')}',
+          ) ??
+          inicial;
+    }
+    final agora = DateTime.now();
+    final escolhida = await showDatePicker(
+      context: context,
+      initialDate: inicial,
+      firstDate: DateTime(1900),
+      lastDate: DateTime(agora.year - 16, agora.month, agora.day),
+      helpText: 'Data de nascimento',
+      builder: (context, child) => Theme(
+        data: Theme.of(
+          context,
+        ).copyWith(colorScheme: const ColorScheme.light(primary: _blue)),
+        child: child!,
+      ),
+    );
+    if (escolhida == null) return;
+    final br =
+        '${escolhida.day.toString().padLeft(2, '0')}/'
+        '${escolhida.month.toString().padLeft(2, '0')}/${escolhida.year}';
+    await _salvarDataNascimento(br);
+  }
+
+  // ================= LAYOUT =================
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return Scaffold(
-        backgroundColor: Colors.white,
-        body: const SkeletonPage(layout: SkeletonLayout.form),
+      return const Scaffold(
+        backgroundColor: _fundo,
+        body: SafeArea(child: SkeletonPage(layout: SkeletonLayout.form)),
       );
     }
 
+    final temFoto = _fotoPerfilUrl != null && _fotoPerfilUrl!.trim().isNotEmpty;
+    final ehProfissional = _tipoConta == 'Profissional';
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: _fundo,
       appBar: AppBar(
-        backgroundColor: _blue,
+        backgroundColor: _fundo,
+        surfaceTintColor: _fundo,
         elevation: 0,
-        leadingWidth: 100,
-        leading: TextButton.icon(
+        leading: IconButton(
           onPressed: () => Navigator.pop(context),
-          icon: const Icon(Icons.arrow_back_ios, size: 18, color: Colors.white),
-          label: const Text(
-            'Voltar',
-            style: TextStyle(color: Colors.white, fontSize: 16),
-          ),
+          icon: const Icon(Icons.arrow_back_rounded, color: _texto),
         ),
         title: const Text(
-          'Editar Informações',
+          'Meus dados',
           style: TextStyle(
-            color: Colors.white,
+            color: _texto,
             fontSize: 18,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w800,
           ),
         ),
         centerTitle: true,
       ),
       body: Stack(
         children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              children: [
-                const SizedBox(height: 30),
-
-                // ================= FOTO DE PERFIL =================
-                Center(
+          ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+            children: [
+              // Foto + nome + tipo de conta
+              Center(
+                child: GestureDetector(
+                  onTap: _isUploading ? null : _alterarFoto,
                   child: Stack(
+                    clipBehavior: Clip.none,
                     children: [
                       CircleAvatar(
-                        radius: 50,
+                        radius: 48,
                         backgroundColor: _blue,
-                        backgroundImage:
-                            _fotoPerfilUrl != null &&
-                                _fotoPerfilUrl!.trim().isNotEmpty
+                        backgroundImage: temFoto
                             ? NetworkImage(_fotoPerfilUrl!)
                             : null,
-                        child:
-                            _fotoPerfilUrl == null ||
-                                _fotoPerfilUrl!.trim().isEmpty
-                            ? Text(
+                        child: temFoto
+                            ? null
+                            : Text(
                                 obterIniciais(_nomeCompleto),
                                 style: const TextStyle(
-                                  fontSize: 36,
+                                  fontSize: 34,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.white,
                                 ),
-                              )
-                            : null,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                InkWell(
-                  onTap: _isUploading ? null : _alterarFoto,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        _isUploading
-                            ? Icons.hourglass_top
-                            : Icons.camera_alt_outlined,
-                        color: _blue,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        _isUploading ? 'Enviando...' : 'Alterar Foto',
-                        style: const TextStyle(
-                          color: _blue,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // ================= TIPO DE PERFIL =================
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF5F9FF),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: _blue.withValues(alpha: 0.2)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.person, color: _blue, size: 22),
-                      const SizedBox(width: 10),
-                      const Text(
-                        'Tipo de perfil:',
-                        style: TextStyle(
-                          color: Colors.black87,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        _tipoConta == 'Profissional'
-                            ? 'Perfil de Profissional'
-                            : 'Perfil de Cliente',
-                        style: TextStyle(
-                          color: _tipoConta == 'Profissional'
-                              ? const Color(0xFFFFAA47)
-                              : _blue,
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 28),
-
-                // ================= DADOS PESSOAIS =================
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Dados Pessoais',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // CPF (não editável)
-                _buildInfoField(
-                  label: 'CPF',
-                  value: _cpf.isNotEmpty ? _cpf : 'Não informado',
-                  icon: Icons.badge_outlined,
-                  editable: false,
-                ),
-                const SizedBox(height: 16),
-
-                // Nome
-                _buildInfoField(
-                  label: 'Nome',
-                  value: _nomeCompleto,
-                  icon: Icons.person_outline,
-                  editable: true,
-                  showEditButton: true,
-                  onTap: () => _definirCampo('Nome'),
-                ),
-                const SizedBox(height: 16),
-
-                // Email
-                _buildInfoField(
-                  label: 'Email',
-                  value: _email.isNotEmpty ? _email : 'Não informado',
-                  icon: Icons.email_outlined,
-                  editable: true,
-                  isEmail: true,
-                  showEditButton: true,
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'A função de alterar email ainda não foi implementada',
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Celular
-                _buildInfoField(
-                  label: 'Celular',
-                  value: _telefone.isNotEmpty ? _telefone : 'Definir agora',
-                  icon: Icons.phone_outlined,
-                  editable: true,
-                  showArrow: _telefone.isEmpty,
-                  showEditButton: _telefone.isNotEmpty,
-                  onTap: () => _definirCampo('Celular'),
-                ),
-                const SizedBox(height: 16),
-
-                // Data de Nascimento (não editável)
-                _buildInfoField(
-                  label: 'Data de Nascimento',
-                  value: _dataNascimento.isNotEmpty
-                      ? _dataNascimento
-                      : 'Definir agora',
-                  icon: Icons.cake_outlined,
-                  editable: false,
-                ),
-                const SizedBox(height: 16),
-
-                // Gênero
-                _buildInfoField(
-                  label: 'Gênero',
-                  value: _genero.isNotEmpty ? _genero : 'Definir agora',
-                  icon: Icons.people_outline,
-                  editable: true,
-                  showArrow: _genero.isEmpty,
-                  showEditButton: _genero.isNotEmpty,
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'A função de definir gênero ainda não foi implementada',
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 28),
-
-                // ================= SENHA =================
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF5F9FF),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: _blue.withValues(alpha: 0.2)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.lock_outline, color: _blue, size: 22),
-                      const SizedBox(width: 10),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Senha:',
-                              style: TextStyle(
-                                color: Colors.black87,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
                               ),
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              '************',
-                              style: TextStyle(
-                                color: _textGray,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
-                      InkWell(
-                        onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'A função de alterar senha ainda não foi implementada',
-                              ),
-                            ),
-                          );
-                        },
-                        child: const Text(
-                          'Alterar >',
-                          style: TextStyle(
+                      Positioned(
+                        right: -2,
+                        bottom: -2,
+                        child: Container(
+                          padding: const EdgeInsets.all(7),
+                          decoration: BoxDecoration(
                             color: _blue,
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: _fundo, width: 3),
+                          ),
+                          child: Icon(
+                            _isUploading
+                                ? Icons.hourglass_top_rounded
+                                : Icons.camera_alt_rounded,
+                            color: Colors.white,
+                            size: 16,
                           ),
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 32),
-
-                // ================= RODAPÉ DE PRIVACIDADE =================
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(
-                      Icons.shield_outlined,
-                      color: _textGray,
-                      size: 20,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                _nomeCompleto,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: _texto,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: ehProfissional ? const Color(0xFFFFF1DE) : _blue,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    ehProfissional ? 'Conta profissional' : 'Conta cliente',
+                    style: TextStyle(
+                      color: ehProfissional
+                          ? const Color(0xFFB45309)
+                          : Colors.white,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: RichText(
-                        text: const TextSpan(
-                          style: TextStyle(
-                            color: _textGray,
-                            fontSize: 13,
-                            height: 1.4,
-                          ),
-                          children: [
-                            TextSpan(
-                              text:
-                                  'Os seus dados pessoais estão protegidos. Para mais informações confira a ',
-                            ),
-                            TextSpan(
-                              text: 'Política de Privacidade.',
-                              style: TextStyle(
-                                color: _blue,
-                                fontWeight: FontWeight.bold,
-                                decoration: TextDecoration.underline,
-                              ),
-                            ),
-                          ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              _tituloGrupo('Dados pessoais'),
+              _grupo([
+                _linha(
+                  icone: Icons.person_outline_rounded,
+                  rotulo: 'Nome',
+                  valor: _nomeCompleto,
+                  acao: _acao(
+                    'Alterar',
+                    () =>
+                        _mostrarPopupEdicao('Nome', _nomeCompleto, _salvarNome),
+                  ),
+                ),
+                _linha(
+                  icone: Icons.badge_outlined,
+                  rotulo: _rotuloDocumento,
+                  valor: _documento.isNotEmpty ? _documento : 'Não informado',
+                ),
+                _linha(
+                  icone: Icons.cake_outlined,
+                  rotulo: 'Data de nascimento',
+                  valor: _dataNascimento.isNotEmpty
+                      ? _dataNascimento
+                      : 'Não informada',
+                  acao: _acao(
+                    _dataNascimento.isEmpty ? 'Definir' : 'Alterar',
+                    _escolherDataNascimento,
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 20),
+
+              _tituloGrupo('Contato'),
+              _grupo([
+                _linha(
+                  icone: Icons.email_outlined,
+                  rotulo: 'E-mail',
+                  valor: _email.isNotEmpty ? _email : 'Não informado',
+                  selo: _email.isEmpty ? null : _selo(_emailConfirmed),
+                  acao: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_email.isNotEmpty && !_emailConfirmed)
+                        _acao('Verificar', _verificarEmail, forte: true),
+                      _acao(
+                        'Alterar',
+                        () =>
+                            _mostrarPopupEdicao('Email', _email, _trocarEmail),
+                      ),
+                    ],
+                  ),
+                ),
+                _linha(
+                  icone: Icons.phone_iphone_rounded,
+                  rotulo: 'Celular',
+                  valor: _telefone.isNotEmpty ? _telefone : 'Não informado',
+                  selo: _telefone.isEmpty ? null : _selo(_telefoneConfirmado),
+                  acao: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_telefone.isNotEmpty && !_telefoneConfirmado)
+                        _acao('Verificar', _verificarTelefone, forte: true),
+                      _acao(
+                        _telefone.isEmpty ? 'Definir' : 'Alterar',
+                        () => _mostrarPopupEdicao(
+                          'Celular',
+                          _telefone,
+                          _salvarTelefone,
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 30),
-              ],
-            ),
+              ]),
+              const SizedBox(height: 20),
+
+              _tituloGrupo('Segurança'),
+              _grupo([
+                _linha(
+                  icone: Icons.lock_outline_rounded,
+                  rotulo: 'Senha',
+                  valor: '••••••••••',
+                  acao: _acao('Alterar', _mostrarPopupEdicaoSenha),
+                ),
+              ]),
+              const SizedBox(height: 24),
+
+              const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.shield_outlined, color: _textGray, size: 18),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Seus dados pessoais estão protegidos e só são usados '
+                      'para o funcionamento do ConsertaJá.',
+                      style: TextStyle(
+                        color: _textGray,
+                        fontSize: 12.5,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
           if (_isUploading)
             Container(
@@ -1349,108 +1526,125 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
     );
   }
 
-  Widget _buildInfoField({
-    required String label,
-    required String value,
-    required IconData icon,
-    required bool editable,
-    bool isEmail = false,
-    bool showArrow = false,
-    bool showEditButton = false,
-    VoidCallback? onTap,
-  }) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF5F9FF),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _blue.withValues(alpha: 0.2)),
+  Widget _tituloGrupo(String texto) => Padding(
+    padding: const EdgeInsets.fromLTRB(6, 0, 0, 8),
+    child: Text(
+      texto.toUpperCase(),
+      style: const TextStyle(
+        color: _textGray,
+        fontSize: 12,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0.6,
       ),
+    ),
+  );
+
+  /// Bloco branco sólido (sem sombra) com as linhas separadas por divisória.
+  Widget _grupo(List<Widget> linhas) => Container(
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: Column(
+      children: [
+        for (var i = 0; i < linhas.length; i++) ...[
+          if (i > 0)
+            const Divider(height: 1, indent: 56, color: Color(0xFFEDEFF2)),
+          linhas[i],
+        ],
+      ],
+    ),
+  );
+
+  Widget _linha({
+    required IconData icone,
+    required String rotulo,
+    required String valor,
+    Widget? selo,
+    Widget? acao,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
       child: Row(
         children: [
-          Icon(icon, color: _blue, size: 22),
-          const SizedBox(width: 10),
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE6F6FE),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(icone, color: _blue, size: 18),
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '$label:',
-                  style: const TextStyle(
-                    color: Colors.black87,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      rotulo,
+                      style: const TextStyle(
+                        color: _textGray,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (selo != null) ...[const SizedBox(width: 6), selo],
+                  ],
                 ),
                 const SizedBox(height: 2),
-                if (isEmail && !_emailConfirmed)
-                  Row(
-                    children: [
-                      const Icon(Icons.error_outline, color: _blue, size: 16),
-                      const SizedBox(width: 4),
-                      const Text(
-                        'Valide o seu e-mail',
-                        style: TextStyle(
-                          color: _blue,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  )
-                else
-                  Text(
-                    value,
-                    style: const TextStyle(
-                      color: _textGray,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
+                Text(
+                  valor,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: _texto,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
                   ),
+                ),
               ],
             ),
           ),
-          if (editable && showArrow)
-            InkWell(
-              onTap: onTap,
-              child: const Icon(
-                Icons.chevron_right,
-                color: Color(0xFFB0B0B0),
-                size: 22,
-              ),
-            ),
-          if (editable && showEditButton && !isEmail)
-            InkWell(
-              onTap: onTap,
-              child: const Text(
-                'Alterar >',
-                style: TextStyle(
-                  color: _blue,
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          if (editable && isEmail)
-            InkWell(
-              onTap: onTap,
-              child: const Text(
-                'Alterar >',
-                style: TextStyle(
-                  color: _blue,
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
+          ?acao,
         ],
       ),
     );
   }
 
-  bool get _emailConfirmed {
-    final user = _supabase.auth.currentUser;
-    return user?.emailConfirmedAt != null;
+  Widget _acao(String texto, VoidCallback aoTocar, {bool forte = false}) {
+    return TextButton(
+      onPressed: aoTocar,
+      style: TextButton.styleFrom(
+        foregroundColor: forte ? Colors.white : _blue,
+        backgroundColor: forte ? _blue : null,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        minimumSize: const Size(0, 32),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+      child: Text(
+        texto,
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+      ),
+    );
   }
+
+  Widget _selo(bool verificado) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+    decoration: BoxDecoration(
+      color: verificado ? const Color(0xFFDCFCE7) : const Color(0xFFFEF3C7),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Text(
+      verificado ? 'Verificado' : 'Não verificado',
+      style: TextStyle(
+        color: verificado ? _verde : const Color(0xFFB45309),
+        fontSize: 10.5,
+        fontWeight: FontWeight.w800,
+      ),
+    ),
+  );
 }

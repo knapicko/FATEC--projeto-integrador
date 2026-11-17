@@ -20,9 +20,9 @@ import 'perguntas_frequentes.dart';
 import 'tela_chat_profissional.dart';
 import 'utils/iniciais.dart';
 import 'widgets/avaliacao_bottom_sheet.dart';
-import 'widgets/skeleton_loading.dart';
 import 'utils/funcao_servico.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
+import 'widgets/skeletons_telas.dart';
 
 class DetalhesPedidoPage extends StatefulWidget {
   final int idSolicitacao;
@@ -60,8 +60,7 @@ class _EtapaVisualConfig {
   });
 }
 
-class _DetalhesPedidoPageState
-    extends State<DetalhesPedidoPage>
+class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
     with SingleTickerProviderStateMixin, VoltarParaPedidosMixin {
   /// Voltar (botão ou sistema) leva para meus_pedidos.dart.
   @override
@@ -672,7 +671,8 @@ class _DetalhesPedidoPageState
       if (fluxo.profissionalChegou && fluxo.modalidade.ehDomicilio) {
         return (
           titulo: 'Atendimento no local',
-          subtitulo: 'O profissional está realizando o serviço no seu endereço.',
+          subtitulo:
+              'O profissional está realizando o serviço no seu endereço.',
         );
       }
     }
@@ -1370,7 +1370,7 @@ class _DetalhesPedidoPageState
               _buildHeader(),
               Expanded(
                 child: _carregando
-                    ? const SkeletonPage(layout: SkeletonLayout.cards)
+                    ? const SkeletonDetalhesPedido()
                     : _erro != null
                     ? _buildErro()
                     : _buildConteudo(),
@@ -3236,8 +3236,10 @@ class _DetalhesPedidoPageState
     final iniciarDeslocamentoCliente = fluxo.clientePodeIniciarDeslocamento;
     final destino = fluxo.destinoCliente;
     final acompanhar = destino != DestinoCliente.detalhes;
-    final (String rotuloAcompanhar, IconData iconeAcompanhar) = switch (
-      destino) {
+    final (
+      String rotuloAcompanhar,
+      IconData iconeAcompanhar,
+    ) = switch (destino) {
       DestinoCliente.atendimentoNoLocal => (
         'Atendimento no local',
         Icons.home_repair_service_outlined,
@@ -3251,7 +3253,9 @@ class _DetalhesPedidoPageState
         Icons.inventory_2_outlined,
       ),
       _ => (
-        fluxo.devolucaoChegou ? 'Confirmar recebimento' : 'Acompanhar deslocamento',
+        fluxo.devolucaoChegou
+            ? 'Confirmar recebimento'
+            : 'Acompanhar deslocamento',
         Icons.navigation_outlined,
       ),
     };

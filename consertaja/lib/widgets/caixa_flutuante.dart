@@ -28,7 +28,8 @@ class CaixaAnimacaoAssets {
 /// Caixa da tela inicial montada em camadas, de trás para a frente:
 ///   1. caixa fechada (some quando abre);
 ///   2. tampa + interior da caixa aberta;
-///   3. ferramentas (com contorno na cor do fundo para não "grudar" na tampa);
+///   3. ferramentas (com contorno na cor do fundo, da grossura das
+///      linhas da caixa, para não "grudar" na tampa);
 ///   4. frente da caixa (silhueta na cor do fundo + traços), que esconde a
 ///      parte de baixo das ferramentas — elas parecem estar DENTRO da caixa.
 ///
@@ -81,10 +82,11 @@ class CaixaFlutuante extends StatelessWidget {
     final sobe = ferramentas.clamp(0.0, 1.2);
     final f = intensidadeFlutuacao.clamp(0.0, 1.0);
 
-    // Ferramentas: saem de dentro (+70) até flutuar acima (-85), com uma
-    // flutuação própria, defasada da caixa, e um balanço leve.
+    // Ferramentas: saem do fundo da caixa (+70) até a altura da arte (0),
+    // com a parte de baixo dentro da caixa, flutuando ali com um balanço
+    // leve, defasado da caixa.
     final ferramentasY =
-        (70 + (-85 - 70) * sobe) * u + math.sin(fase + 1.3) * 5 * u * f;
+        (70 - 70 * sobe) * u + math.sin(fase + 1.3) * 5 * u * f;
     final ferramentasGiro = math.sin(fase + 0.6) * 0.04 * f;
     final ferramentasOpacidade = (sobe * 1.6).clamp(0.0, 1.0);
 
@@ -111,6 +113,8 @@ class CaixaFlutuante extends StatelessWidget {
                   child: Transform.rotate(
                     angle: ferramentasGiro,
                     origin: Offset(-12 * u, 40 * u),
+                    // Contorno na cor do fundo (mesma grossura das linhas
+                    // da caixa) + ferramentas brancas por cima.
                     child: Stack(
                       children: [
                         _camada(
@@ -140,4 +144,43 @@ class CaixaFlutuante extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Voo do Hero da caixa entre telas: em vez de trocar de imagem de uma vez
+/// (caixa animada da tela inicial ↔ caixa parada do onboarding), uma some
+/// enquanto a outra aparece, já no tamanho do voo.
+Widget caixaHeroShuttle(
+  BuildContext flightContext,
+  Animation<double> animation,
+  HeroFlightDirection direction,
+  BuildContext fromHeroContext,
+  BuildContext toHeroContext,
+) {
+  final de = (fromHeroContext.widget as Hero).child;
+  final para = (toHeroContext.widget as Hero).child;
+  // No pop a animação da rota anda de 1 para 0.
+  final progresso = direction == HeroFlightDirection.push
+      ? animation
+      : ReverseAnimation(animation);
+  return Stack(
+    fit: StackFit.expand,
+    children: [
+      FadeTransition(
+        opacity: ReverseAnimation(
+          CurvedAnimation(
+            parent: progresso,
+            curve: const Interval(0, 0.65, curve: Curves.easeInOut),
+          ),
+        ),
+        child: FittedBox(child: de),
+      ),
+      FadeTransition(
+        opacity: CurvedAnimation(
+          parent: progresso,
+          curve: const Interval(0.35, 1, curve: Curves.easeInOut),
+        ),
+        child: FittedBox(child: para),
+      ),
+    ],
+  );
 }

@@ -1961,8 +1961,10 @@ class _CadastroProfissionalEtapa3PageState
           .from('usuarios')
           .insert({
             'nome': widget.nome,
+            // O formulário usa DD/MM/AAAA; o banco precisa de AAAA-MM-DD
+            // (antes ia "DD/MM/AAAA" e a data não aparecia depois).
             'data_nascimento': widget.dataNascimento.isNotEmpty
-                ? widget.dataNascimento
+                ? _dataIsoNascimento(widget.dataNascimento)
                 : null,
             'data_criacao': DateTime.now().toUtc().toIso8601String(),
             'tipo_conta': 'Profissional',
@@ -3272,9 +3274,7 @@ class _CadastroFacialSucessoPageState extends State<CadastroFacialSucessoPage>
                 ),
               ),
               const Spacer(),
-              Center(
-                child: CheckAnimado(tamanho: 210, progresso: _check),
-              ),
+              Center(child: CheckAnimado(tamanho: 210, progresso: _check)),
               const SizedBox(height: 32),
               _surgir(
                 _texto,
@@ -4031,23 +4031,23 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
                         );
                       },
                       child: Container(
-                          width: 100,
-                          height: 70,
-                          decoration: BoxDecoration(
-                            color: const Color.fromARGB(
-                              255,
-                              104,
-                              107,
-                              109,
-                            ).withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            Icons.credit_card,
-                            size: 50,
-                            color: Color(0xFFFFFFFF),
-                          ),
+                        width: 100,
+                        height: 70,
+                        decoration: BoxDecoration(
+                          color: const Color.fromARGB(
+                            255,
+                            104,
+                            107,
+                            109,
+                          ).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
                         ),
+                        child: const Icon(
+                          Icons.credit_card,
+                          size: 50,
+                          color: Color(0xFFFFFFFF),
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 20),
                     const Text(
@@ -5110,4 +5110,11 @@ class MaskedInputFormatter extends TextInputFormatter {
       selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
+}
+
+/// "DD/MM/AAAA" → "AAAA-MM-DD" (outros formatos passam como estão).
+String _dataIsoNascimento(String data) {
+  final partes = data.trim().split('/');
+  if (partes.length != 3) return data.trim();
+  return '${partes[2]}-${partes[1].padLeft(2, '0')}-${partes[0].padLeft(2, '0')}';
 }

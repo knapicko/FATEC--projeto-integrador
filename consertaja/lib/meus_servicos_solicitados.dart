@@ -133,7 +133,11 @@ enum FiltroSolicitacao {
 }
 
 class MeusServicosSolicitadosPage extends StatefulWidget {
-  const MeusServicosSolicitadosPage({super.key});
+  const MeusServicosSolicitadosPage({super.key, this.abrirIdSolicitacao});
+
+  /// Ao carregar, abre direto a tela da etapa desta solicitação (ex.: vindo
+  /// da linha "solicitação ativa" do chat).
+  final int? abrirIdSolicitacao;
 
   @override
   State<MeusServicosSolicitadosPage> createState() =>
@@ -153,6 +157,7 @@ class _MeusServicosSolicitadosPageState
   bool _contaEmpresaAtiva = false;
   String? _erro;
   final Set<int> _iniciandoSolicitacoes = {};
+  bool _abriuSolicitacaoInicial = false;
   final Set<int> _concluindoSolicitacoes = {};
   final Set<int> _avaliandoClientes = {};
   late final AnimationController _animacaoDevolucao;
@@ -325,6 +330,18 @@ class _MeusServicosSolicitadosPageState
           _todas = lista;
           _carregando = false;
         });
+        final abrir = widget.abrirIdSolicitacao;
+        if (abrir != null && !_abriuSolicitacaoInicial) {
+          _abriuSolicitacaoInicial = true;
+          for (final item in lista) {
+            if (item.idSolicitacao == abrir) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) _abrirPorStatus(item);
+              });
+              break;
+            }
+          }
+        }
         SolicitacaoRecebida? pedidoParaAvaliar;
         for (final item in lista) {
           if (FiltroSolicitacao.porStatus(item.statusTexto) ==
@@ -584,7 +601,6 @@ class _MeusServicosSolicitadosPageState
     etapa: item.etapaSolicitacao,
     statusTexto: item.statusTexto,
   );
-
 
   void _abrirChat(SolicitacaoRecebida item) {
     Navigator.of(context).push(
@@ -1360,7 +1376,17 @@ class _MeusServicosSolicitadosPageState
                               temDivisoria && index > _quantidadeAtivosTodos
                               ? index - 1
                               : index;
-                          return _buildCard(_filtradas[indiceCard]);
+                          final item = _filtradas[indiceCard];
+                          // Na lista principal os serviços ativos ficam em
+                          // cima, numa linha compacta.
+                          if (_filtro == FiltroSolicitacao.novos &&
+                              indiceCard < _quantidadeAtivosTodos) {
+                            return _buildLinhaAtiva(
+                              item,
+                              primeira: indiceCard == 0,
+                            );
+                          }
+                          return _buildCard(item);
                         },
                       ),
                     ),
@@ -1561,6 +1587,149 @@ class _MeusServicosSolicitadosPageState
     );
   }
 
+  /// Texto do status de um serviço ativo (aceito / em andamento / etc).
+  String _textoStatusAtivo(SolicitacaoRecebida item) {
+    final status = item.statusTexto?.trim().toLowerCase() ?? '';
+    final fluxo = _fluxo(item);
+    if (fluxo.aguardandoRetirada) return 'Aguardando retirada';
+    if (fluxo.clienteDeslocando) return 'Cliente a caminho';
+    if (fluxo.aguardandoDevolucao) return 'Aguardando devolução';
+    if (fluxo.devolucaoDeslocando) return 'Devolução em andamento';
+    if (fluxo.devolucaoChegou || fluxo.profissionalChegou) return 'No local';
+    if (item.fkStatus == 32 || item.fkStatus == 33) return 'Em deslocamento';
+    if (status == 'pago') return 'Pago • pronto para iniciar';
+    if (item.fkStatus == 4 || status.contains('andamento')) {
+      return 'Em andamento';
+    }
+    if (status == 'aguardando cliente') return 'Aguardando cliente';
+    if (fluxo.aguardandoPagamento) return 'Aguardando pagamento';
+    return 'Aceito';
+  }
+
+  /// Serviço ativo em uma linha: foto + nome do cliente, status, preço e
+  /// data. Toque abre a tela certa da etapa.
+  Widget _buildLinhaAtiva(SolicitacaoRecebida item, {bool primeira = false}) {
+    final d = item.dataSolicitacao.toLocal();
+    final agendada = _formatarAgendada(
+      item.dataAgendada,
+      item.horaAgendada,
+    ).replaceAll('\n', ' ').replaceAll(RegExp(r',\s*$'), '');
+    final data = agendada.isNotEmpty
+        ? agendada
+        : '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}';
+    final linha = Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => _abrirPorStatus(item),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(10, 9, 12, 9),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _azul, width: 1.6),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 40,
+                height: 40,
+                child: FittedBox(child: _buildAvatarCliente(item)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.nomeCliente,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: _textoEscuro,
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: const BoxDecoration(
+                            color: _azul,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        Flexible(
+                          child: Text(
+                            _textoStatusAtivo(item),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: _azul,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    _formatarPreco(item.valorFinal),
+                    style: const TextStyle(
+                      color: _textoEscuro,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    data,
+                    style: TextStyle(color: _textoMuted, fontSize: 11.5),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 2),
+              Icon(Icons.chevron_right_rounded, color: _textoMuted, size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (primeira)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 4, 0, 8),
+              child: Text(
+                'SERVIÇOS ATIVOS',
+                style: TextStyle(
+                  color: _textoMuted,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: .5,
+                ),
+              ),
+            ),
+          linha,
+        ],
+      ),
+    );
+  }
+
   Widget _buildDivisoriaNovos() {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1570,7 +1739,7 @@ class _MeusServicosSolicitadosPageState
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: Text(
-              'SOLICITAÇÕES EM ABERTO',
+              'NOVAS SOLICITAÇÕES',
               style: TextStyle(
                 color: _textoMuted,
                 fontSize: 10,
@@ -1755,10 +1924,7 @@ class _MeusServicosSolicitadosPageState
         ),
       ),
     );
-    return GestureDetector(
-      onTap: () => _abrirPorStatus(item),
-      child: card,
-    );
+    return GestureDetector(onTap: () => _abrirPorStatus(item), child: card);
   }
 
   Widget _buildCardAceito(SolicitacaoRecebida item) {

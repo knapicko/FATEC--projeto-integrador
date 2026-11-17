@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'widgets/salvamento_automatico.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/icone_oficio.dart';
 import 'utils/funcao_servico.dart';
@@ -21,7 +22,12 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
 
   bool _carregando = true;
-  bool _salvando = false;
+
+  /// Cada escolha/remoção de área salva sozinha (sem botão "Salvar").
+  late final SalvamentoAutomatico _autosave = SalvamentoAutomatico(
+    _salvarAlteracoes,
+    atraso: const Duration(milliseconds: 300),
+  );
   List<Map<String, dynamic>> _oficiosDisponiveis = [];
   final List<Map<String, dynamic>> _oficiosSelecionados = [];
   final PageController _detalhesController = PageController();
@@ -36,6 +42,7 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
 
   @override
   void dispose() {
+    _autosave.dispose();
     _detalhesController.dispose();
     super.dispose();
   }
@@ -119,22 +126,28 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
     }
   }
 
-  String _caminhoImagemOficio(String nome) {
-    return 'assets/images/oficios_imgs/${nome.trim()}.jpg';
-  }
-
-  Widget _imagemDetalheOficio(String nome) {
-    return Image.asset(
-      _caminhoImagemOficio(nome),
+  /// Imagem da função vinda do banco (`funcoes.img_funcao`). Sem imagem
+  /// cadastrada (ou se falhar), mostra o ícone da função num fundo azul.
+  Widget _imagemDetalheOficio(Map<String, dynamic> oficio) {
+    final nome = oficio['funcao']?.toString() ?? '';
+    final url = oficio['img_funcao']?.toString().trim() ?? '';
+    final reserva = Container(
+      height: 194,
+      width: double.infinity,
+      color: _cardBlueBg,
+      alignment: Alignment.center,
+      child: IconeOficio.imagemPorFuncao(nome, tamanho: 54),
+    );
+    if (url.isEmpty || url == 'null') return reserva;
+    return Image.network(
+      url,
       width: double.infinity,
       height: 194,
       fit: BoxFit.cover,
-      errorBuilder: (_, _, _) => Container(
-        height: 194,
-        color: _cardBlueBg,
-        alignment: Alignment.center,
-        child: IconeOficio.imagemPorFuncao(nome, tamanho: 54),
-      ),
+      loadingBuilder: (context, child, progresso) => progresso == null
+          ? child
+          : const SkeletonBox(height: 194, borderRadius: 0),
+      errorBuilder: (_, _, _) => reserva,
     );
   }
 
@@ -218,6 +231,7 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
                             }
                           });
                           Navigator.pop(context);
+                          _autosave.agendar();
                         },
                       );
                     },
@@ -231,8 +245,14 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
                     style: TextStyle(color: Colors.red),
                   ),
                   onTap: () {
-                    setState(() => _oficiosSelecionados.removeAt(slotIndex));
+                    setState(() {
+                      _oficiosSelecionados.removeAt(slotIndex);
+                      if (_detalheAtual >= _oficiosSelecionados.length) {
+                        _detalheAtual = 0;
+                      }
+                    });
                     Navigator.pop(context);
+                    _autosave.agendar();
                   },
                 ),
             ],
@@ -242,71 +262,43 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
     );
   }
 
+  /// Grava só a diferença entre o banco e a escolha atual (chamado pelo
+  /// salvamento automático; erros aparecem no indicador).
   Future<void> _salvarAlteracoes() async {
     if (_idProfissional == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Perfil profissional não encontrado.')),
-      );
-      return;
+      throw Exception('perfil profissional não encontrado.');
     }
-
     if (_oficiosSelecionados.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Selecione pelo menos uma área de atuação.'),
-        ),
-      );
-      return;
+      throw Exception('escolha pelo menos uma área de atuação.');
     }
+    final atuais = await _supabase
+        .from('ass_oficio_profissional')
+        .select('fk_funcao')
+        .eq('fk_profissional', _idProfissional!);
+    final idsAtuais = atuais
+        .map((e) => (e['fk_funcao'] as num?)?.toInt())
+        .whereType<int>()
+        .toSet();
+    final idsNovos = _oficiosSelecionados
+        .map((o) => (o['id_funcao'] as num?)?.toInt())
+        .whereType<int>()
+        .toSet();
 
-    setState(() => _salvando = true);
+    final adicionar = idsNovos.difference(idsAtuais);
+    final remover = idsAtuais.difference(idsNovos);
 
-    try {
-      // Salva só a diferença: antes apagava tudo e reinseria um por um, e
-      // uma falha no meio deixava o profissional sem nenhuma área.
-      final atuais = await _supabase
+    if (adicionar.isNotEmpty) {
+      await _supabase.from('ass_oficio_profissional').insert([
+        for (final id in adicionar)
+          {'fk_profissional': _idProfissional, 'fk_funcao': id},
+      ]);
+    }
+    if (remover.isNotEmpty) {
+      await _supabase
           .from('ass_oficio_profissional')
-          .select('fk_funcao')
-          .eq('fk_profissional', _idProfissional!);
-      final idsAtuais = atuais
-          .map((e) => (e['fk_funcao'] as num?)?.toInt())
-          .whereType<int>()
-          .toSet();
-      final idsNovos = _oficiosSelecionados
-          .map((o) => (o['id_oficio'] as num?)?.toInt())
-          .whereType<int>()
-          .toSet();
-
-      final adicionar = idsNovos.difference(idsAtuais);
-      final remover = idsAtuais.difference(idsNovos);
-
-      if (adicionar.isNotEmpty) {
-        await _supabase.from('ass_oficio_profissional').insert([
-          for (final id in adicionar)
-            {'fk_profissional': _idProfissional, 'fk_funcao': id},
-        ]);
-      }
-      if (remover.isNotEmpty) {
-        await _supabase
-            .from('ass_oficio_profissional')
-            .delete()
-            .eq('fk_profissional', _idProfissional!)
-            .inFilter('fk_funcao', remover.toList());
-      }
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Alterações salvas com sucesso!')),
-      );
-      Navigator.pop(context);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erro ao salvar: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _salvando = false);
+          .delete()
+          .eq('fk_profissional', _idProfissional!)
+          .inFilter('fk_funcao', remover.toList());
     }
   }
 
@@ -401,11 +393,11 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
       child: Stack(
         children: [
           Positioned(
-            top: 10,
-            right: 10,
+            top: 8,
+            right: 8,
             child: Container(
-              width: 24,
-              height: 24,
+              width: 22,
+              height: 22,
               decoration: const BoxDecoration(
                 color: _blue,
                 shape: BoxShape.circle,
@@ -413,26 +405,31 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
               child: const Icon(Icons.check, color: Colors.white, size: 14),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                IconeOficio.imagemPorFuncaoAzul(nome, tamanho: 56),
-                const SizedBox(height: 8),
-                Text(
-                  nome,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: _textDark,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
+          // Ocupa o card inteiro: ícone e nome ficam no centro.
+          Positioned.fill(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 12, 10, 10),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Center(
+                    child: IconeOficio.imagemPorFuncaoAzul(nome, tamanho: 56),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  Text(
+                    nome,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _textDark,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -516,7 +513,7 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
                             borderRadius: const BorderRadius.vertical(
                               top: Radius.circular(22),
                             ),
-                            child: _imagemDetalheOficio(nome),
+                            child: _imagemDetalheOficio(oficio),
                           ),
                           if (index > 0)
                             Positioned(
@@ -644,56 +641,11 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
     );
   }
 
+  /// No lugar do antigo botão "Salvar": estado do salvamento automático.
   Widget _buildBotaoSalvar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-      child: SizedBox(
-        width: double.infinity,
-        height: 52,
-        child: ElevatedButton(
-          onPressed: _salvando ? null : _salvarAlteracoes,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: _blue,
-            disabledBackgroundColor: _blue.withValues(alpha: 0.6),
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(26),
-            ),
-          ),
-          child: _salvando
-              ? const SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
-              : Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text(
-                      'Salvar Alterações',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Container(
-                      width: 22,
-                      height: 22,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.check, color: _blue, size: 14),
-                    ),
-                  ],
-                ),
-        ),
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+      child: Center(child: IndicadorSalvamento(controle: _autosave)),
     );
   }
 

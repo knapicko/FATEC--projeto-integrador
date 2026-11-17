@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'utils/iniciais.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
+import 'widgets/skeletons_telas.dart';
 
 class PedidoPagoPage extends StatefulWidget {
   final int idSolicitacao;
@@ -13,8 +14,7 @@ class PedidoPagoPage extends StatefulWidget {
   State<PedidoPagoPage> createState() => _PedidoPagoPageState();
 }
 
-class _PedidoPagoPageState
-    extends State<PedidoPagoPage>
+class _PedidoPagoPageState extends State<PedidoPagoPage>
     with VoltarParaPedidosMixin {
   /// Voltar (botão ou sistema) leva para meus_pedidos.dart.
   @override
@@ -135,7 +135,7 @@ class _PedidoPagoPageState
       backgroundColor: _fundo,
       body: SafeArea(
         child: _carregando
-            ? const Center(child: CircularProgressIndicator(color: _azul))
+            ? const SkeletonPedidoPago()
             : _erro != null
             ? Center(
                 child: Text(_erro!, style: const TextStyle(color: Colors.red)),

@@ -11,6 +11,7 @@ import 'perguntas_frequentes.dart';
 import 'services/app_settings_controller.dart';
 import 'tela_inicial.dart';
 import 'utils/iniciais.dart';
+import 'widgets/skeleton_loading.dart';
 
 class TelaConfiguracoesClientePage extends StatefulWidget {
   const TelaConfiguracoesClientePage({super.key});
@@ -1469,7 +1470,7 @@ class _TelaConfiguracoesClientePageState
             _header(),
             Expanded(
               child: _isLoading
-                  ? const Center(child: CircularProgressIndicator(color: _blue))
+                  ? const SkeletonProfile()
                   : ListView(
                       padding: const EdgeInsets.only(bottom: 8),
                       children: [

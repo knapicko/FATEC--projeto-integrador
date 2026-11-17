@@ -7,6 +7,7 @@ import 'detalhes_pedido.dart';
 import 'tela_chat_profissional.dart';
 import 'tela_meu_perfil_cliente.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
+import 'widgets/skeletons_telas.dart';
 
 class AtendimentoNoLocalClientePage extends StatefulWidget {
   final int idSolicitacao;
@@ -248,7 +249,10 @@ class _AtendimentoNoLocalClientePageState
   @override
   Widget build(BuildContext context) {
     if (_carregando) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(
+        backgroundColor: Color(0xFFF1F5F9),
+        body: SafeArea(child: SkeletonEtapaFluxo(comMapa: false)),
+      );
     }
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FA),

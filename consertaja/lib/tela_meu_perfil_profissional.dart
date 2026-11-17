@@ -502,7 +502,9 @@ class _TelaMeuPerfilProfissionalPageState
         } else if (index == 1) {
           Navigator.of(context).push(
             AppNavigationUtil.rotaSemAnimacao(
-              SolicitacaoGeograficaProfissionalPage(isVisitante: widget.isVisitante),
+              SolicitacaoGeograficaProfissionalPage(
+                isVisitante: widget.isVisitante,
+              ),
               nome: 'SolicitacaoGeograficaProfissionalPage',
             ),
           );
@@ -662,7 +664,8 @@ class _TelaMeuPerfilProfissionalPageState
 
                           _buildProfileItem(
                             label: 'Sobre a ConsertaJá',
-                            imageAsset: 'assets/images/ConsertaJa_Cinza.png',
+                            imageAsset:
+                                'assets/images/icone/icone_consertaja.png',
                             fallbackIcon: Icons.info_outline_rounded,
                             onTap: () {
                               Navigator.push(

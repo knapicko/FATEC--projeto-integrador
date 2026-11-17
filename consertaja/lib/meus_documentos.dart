@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'widgets/skeletons_telas.dart';
 
 enum _DocumentoStatus { validado, pendente }
 
@@ -55,7 +56,7 @@ class _MeusDocumentosPageState extends State<MeusDocumentosPage> {
   /// Mapeia o tipo de documento vindo do Supabase para os dados de exibição
   /// (Pessoa Física).
   static const Map<String, ({String titulo, String subtitulo, IconData icone})>
-      _tiposDocumento = {
+  _tiposDocumento = {
     'RG': (
       titulo: 'RG',
       subtitulo: 'Registro Geral',
@@ -81,7 +82,7 @@ class _MeusDocumentosPageState extends State<MeusDocumentosPage> {
   /// Mapeia o tipo de documento vindo do Supabase para os dados de exibição
   /// (Pessoa Jurídica).
   static const Map<String, ({String titulo, String subtitulo, IconData icone})>
-      _tiposDocumentoPJ = {
+  _tiposDocumentoPJ = {
     'Cartão CNPJ': (
       titulo: 'Cartão CNPJ',
       subtitulo: 'Cartão CNPJ',
@@ -360,7 +361,9 @@ class _MeusDocumentosPageState extends State<MeusDocumentosPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Não foi possível carregar seus dados. Tente novamente.'),
+            content: Text(
+              'Não foi possível carregar seus dados. Tente novamente.',
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -385,7 +388,9 @@ class _MeusDocumentosPageState extends State<MeusDocumentosPage> {
     );
 
     if (resultado != null && resultado['validado'] == true && mounted) {
-      final docsData = List<Map<String, dynamic>>.from(resultado['docsData'] ?? []);
+      final docsData = List<Map<String, dynamic>>.from(
+        resultado['docsData'] ?? [],
+      );
 
       if (docsData.isEmpty) return;
 
@@ -398,7 +403,9 @@ class _MeusDocumentosPageState extends State<MeusDocumentosPage> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Não foi possível identificar seu perfil profissional.'),
+                content: Text(
+                  'Não foi possível identificar seu perfil profissional.',
+                ),
                 backgroundColor: Colors.red,
               ),
             );
@@ -625,10 +632,7 @@ class _MeusDocumentosPageState extends State<MeusDocumentosPage> {
             : const Icon(Icons.camera_alt_outlined, size: 20),
         label: Text(
           _salvando ? 'Salvando...' : 'Validar Agora',
-          style: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-          ),
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
         ),
       ),
     );
@@ -701,27 +705,22 @@ class _MeusDocumentosPageState extends State<MeusDocumentosPage> {
             _buildHeader(context),
             Expanded(
               child: _carregando
-                  ? const Center(
-                      child: CircularProgressIndicator(color: _blue),
-                    )
+                  ? const SkeletonDocumentos()
                   : _documentos.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'Nenhum documento encontrado.',
-                            style: TextStyle(
-                              color: _textGray,
-                              fontSize: 15,
-                            ),
-                          ),
-                        )
-                      : ListView(
-                          padding: EdgeInsets.zero,
-                          children: [
-                            _buildIntroducao(),
-                            ..._documentos.map(_buildCardDocumento),
-                            const SizedBox(height: 16),
-                          ],
-                        ),
+                  ? const Center(
+                      child: Text(
+                        'Nenhum documento encontrado.',
+                        style: TextStyle(color: _textGray, fontSize: 15),
+                      ),
+                    )
+                  : ListView(
+                      padding: EdgeInsets.zero,
+                      children: [
+                        _buildIntroducao(),
+                        ..._documentos.map(_buildCardDocumento),
+                        const SizedBox(height: 16),
+                      ],
+                    ),
             ),
           ],
         ),
@@ -762,17 +761,68 @@ class _ValidarDocumentoPageState extends State<_ValidarDocumentoPage> {
 
   // UFs e Órgãos Emissores válidos do Brasil
   static const List<String> _ufsValidas = [
-    'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO',
-    'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI',
-    'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
+    'AC',
+    'AL',
+    'AP',
+    'AM',
+    'BA',
+    'CE',
+    'DF',
+    'ES',
+    'GO',
+    'MA',
+    'MT',
+    'MS',
+    'MG',
+    'PA',
+    'PB',
+    'PR',
+    'PE',
+    'PI',
+    'RJ',
+    'RN',
+    'RS',
+    'RO',
+    'RR',
+    'SC',
+    'SP',
+    'SE',
+    'TO',
   ];
 
   static const List<String> _orgaosValidos = [
-    'SSP', 'SESP', 'SDS', 'DETRAN', 'POLÍCIA CIVIL', 'PC', 'SECRETARIA DE SEGURANÇA PÚBLICA',
-    'INSTITUTO DE IDENTIFICAÇÃO', 'IFP', 'II', 'DIC', 'DPC', 'MTB', 'CREA', 'CRC',
-    'OAB', 'CRM', 'SSP-SP', 'SSP-RJ', 'SSP-MG', 'SSP-BA', 'SSP-RS', 'SSP-PR',
-    'SSP-PE', 'SSP-CE', 'SSP-PA', 'SSP-MA', 'SSP-SC', 'SSP-GO', 'SSP-DF',
-    'SESP-PI', 'SDS-PE'
+    'SSP',
+    'SESP',
+    'SDS',
+    'DETRAN',
+    'POLÍCIA CIVIL',
+    'PC',
+    'SECRETARIA DE SEGURANÇA PÚBLICA',
+    'INSTITUTO DE IDENTIFICAÇÃO',
+    'IFP',
+    'II',
+    'DIC',
+    'DPC',
+    'MTB',
+    'CREA',
+    'CRC',
+    'OAB',
+    'CRM',
+    'SSP-SP',
+    'SSP-RJ',
+    'SSP-MG',
+    'SSP-BA',
+    'SSP-RS',
+    'SSP-PR',
+    'SSP-PE',
+    'SSP-CE',
+    'SSP-PA',
+    'SSP-MA',
+    'SSP-SC',
+    'SSP-GO',
+    'SSP-DF',
+    'SESP-PI',
+    'SDS-PE',
   ];
 
   @override
@@ -854,7 +904,9 @@ class _ValidarDocumentoPageState extends State<_ValidarDocumentoPage> {
       return _somenteDigitos(match.group(0)!);
     }
 
-    final regex4 = RegExp(r'CPF[:\s]*(\d{3}[\s\.]?\d{3}[\s\.]?\d{3}[\s\-]?\d{2})');
+    final regex4 = RegExp(
+      r'CPF[:\s]*(\d{3}[\s\.]?\d{3}[\s\.]?\d{3}[\s\-]?\d{2})',
+    );
     match = regex4.firstMatch(textoNormalizado);
     if (match != null) {
       return _somenteDigitos(match.group(1)!);
@@ -896,7 +948,9 @@ class _ValidarDocumentoPageState extends State<_ValidarDocumentoPage> {
       }
     }
 
-    final regex3 = RegExp(r'CNPJ[:\s]*(\d{2}[\s\.]?\d{3}[\s\.]?\d{3}[\s\/]?\d{4}[\s\-]?\d{2})');
+    final regex3 = RegExp(
+      r'CNPJ[:\s]*(\d{2}[\s\.]?\d{3}[\s\.]?\d{3}[\s\/]?\d{4}[\s\-]?\d{2})',
+    );
     match = regex3.firstMatch(textoNormalizado);
     if (match != null) {
       return _somenteDigitos(match.group(1)!);
@@ -915,7 +969,12 @@ class _ValidarDocumentoPageState extends State<_ValidarDocumentoPage> {
       final dia = int.tryParse(partes[0]) ?? 0;
       final mes = int.tryParse(partes[1]) ?? 0;
       final ano = int.tryParse(partes[2]) ?? 0;
-      if (ano >= 1920 && ano <= 2050 && mes >= 1 && mes <= 12 && dia >= 1 && dia <= 31) {
+      if (ano >= 1920 &&
+          ano <= 2050 &&
+          mes >= 1 &&
+          mes <= 12 &&
+          dia >= 1 &&
+          dia <= 31) {
         datas.add(DateTime(ano, mes, dia));
       }
     }
@@ -925,7 +984,12 @@ class _ValidarDocumentoPageState extends State<_ValidarDocumentoPage> {
       final ano = int.tryParse(partes[0]) ?? 0;
       final mes = int.tryParse(partes[1]) ?? 0;
       final dia = int.tryParse(partes[2]) ?? 0;
-      if (ano >= 1920 && ano <= 2050 && mes >= 1 && mes <= 12 && dia >= 1 && dia <= 31) {
+      if (ano >= 1920 &&
+          ano <= 2050 &&
+          mes >= 1 &&
+          mes <= 12 &&
+          dia >= 1 &&
+          dia <= 31) {
         datas.add(DateTime(ano, mes, dia));
       }
     }
@@ -974,17 +1038,28 @@ class _ValidarDocumentoPageState extends State<_ValidarDocumentoPage> {
     try {
       if (dataStr.contains('-')) {
         final partes = dataStr.split('-');
-        return DateTime(int.parse(partes[0]), int.parse(partes[1]), int.parse(partes[2]));
+        return DateTime(
+          int.parse(partes[0]),
+          int.parse(partes[1]),
+          int.parse(partes[2]),
+        );
       }
       if (dataStr.contains('/')) {
         final partes = dataStr.split('/');
-        return DateTime(int.parse(partes[2]), int.parse(partes[1]), int.parse(partes[0]));
+        return DateTime(
+          int.parse(partes[2]),
+          int.parse(partes[1]),
+          int.parse(partes[0]),
+        );
       }
     } catch (_) {}
     return null;
   }
 
-  DateTime? _encontrarDataNascimento(List<DateTime> datas, String? dataNascimentoEsperada) {
+  DateTime? _encontrarDataNascimento(
+    List<DateTime> datas,
+    String? dataNascimentoEsperada,
+  ) {
     if (datas.isEmpty) return null;
 
     final dataEsperada = _parseData(dataNascimentoEsperada);
@@ -1007,8 +1082,12 @@ class _ValidarDocumentoPageState extends State<_ValidarDocumentoPage> {
   Future<String> _processarOcr(File file) async {
     try {
       final inputImage = InputImage.fromFile(file);
-      final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
-      final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
+      final textRecognizer = TextRecognizer(
+        script: TextRecognitionScript.latin,
+      );
+      final RecognizedText recognizedText = await textRecognizer.processImage(
+        inputImage,
+      );
       await textRecognizer.close();
       return recognizedText.text;
     } catch (e) {
@@ -1029,7 +1108,13 @@ class _ValidarDocumentoPageState extends State<_ValidarDocumentoPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(titulo, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(
+                titulo,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 16),
               ListTile(
                 leading: const Icon(Icons.camera_alt, color: _blue),
@@ -1044,7 +1129,10 @@ class _ValidarDocumentoPageState extends State<_ValidarDocumentoPage> {
               const SizedBox(height: 8),
               TextButton(
                 onPressed: () => Navigator.pop(ctx, null),
-                child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+                child: const Text(
+                  'Cancelar',
+                  style: TextStyle(color: Colors.grey),
+                ),
               ),
             ],
           ),
@@ -1129,10 +1217,7 @@ class _ValidarDocumentoPageState extends State<_ValidarDocumentoPage> {
         final cnpjValido = cnpj != null && _validarCnpjLocal(cnpj);
 
         if (cnpjValido) {
-          docsData.add({
-            'tipo': widget.tipoDocumento,
-            'validado': true,
-          });
+          docsData.add({'tipo': widget.tipoDocumento, 'validado': true});
         }
       } else {
         // Validação para Pessoa Física
@@ -1140,23 +1225,19 @@ class _ValidarDocumentoPageState extends State<_ValidarDocumentoPage> {
         final cpfValido = cpf != null && _validarCpfLocal(cpf);
 
         if (cpfValido) {
-          docsData.add({
-            'tipo': widget.tipoDocumento,
-            'validado': true,
-          });
+          docsData.add({'tipo': widget.tipoDocumento, 'validado': true});
         }
       }
 
       if (mounted) {
         if (docsData.isNotEmpty) {
-          Navigator.pop(context, {
-            'validado': true,
-            'docsData': docsData,
-          });
+          Navigator.pop(context, {'validado': true, 'docsData': docsData});
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Não foi possível validar o documento. Tente novamente.'),
+              content: Text(
+                'Não foi possível validar o documento. Tente novamente.',
+              ),
               backgroundColor: Colors.red,
             ),
           );
@@ -1209,10 +1290,7 @@ class _ValidarDocumentoPageState extends State<_ValidarDocumentoPage> {
               child: Text(
                 'Aguarde enquanto validamos as informações do documento.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey,
-                ),
+                style: TextStyle(fontSize: 13, color: Colors.grey),
               ),
             ),
           ],

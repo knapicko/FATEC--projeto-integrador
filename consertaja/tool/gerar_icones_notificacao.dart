@@ -2,10 +2,11 @@
 //
 //   dart run tool/gerar_icones_notificacao.dart
 //
-// - ic_notificacao.png (drawable-*dpi): ícone PEQUENO da notificação. É a
-//   própria logo (icone_consertaja.png), com o fundo #0FB3FF opaco.
-//   Atenção: o Android (5+) usa só o canal alfa do ícone pequeno na barra de
-//   status — um ícone todo opaco aparece ali como um quadrado preenchido.
+// - ic_notificacao.png (drawable-*dpi): ícone PEQUENO da notificação. O
+//   Android (5+) usa SÓ o canal alfa dele: precisa ser a silhueta branca da
+//   logo sobre fundo transparente. A cor (azul #0FB3FF) vem de
+//   notificacao_azul / AndroidNotificationDetails.color. Um ícone opaco vira
+//   um quadrado preenchido (o "quadrado preto" que aparecia).
 // - notif_logo.png (drawable-nodpi): logo colorida usada como ícone GRANDE
 //   quando a notificação não tem foto.
 import 'dart:io';
@@ -39,10 +40,12 @@ void main() {
   img.fill(comFundo, color: img.ColorRgba8(0x0F, 0xB3, 0xFF, 255));
   img.compositeImage(comFundo, logo);
 
+  // Silhueta: só o branco da logo, recortada no conteúdo, com respiro.
+  final silhueta = _silhueta(logo);
   for (final entrada in _tamanhos.entries) {
     final dir = Directory('$_res/${entrada.key}')..createSync(recursive: true);
     final reduzido = img.copyResize(
-      comFundo,
+      silhueta,
       width: entrada.value,
       height: entrada.value,
       interpolation: img.Interpolation.average,
@@ -62,4 +65,27 @@ void main() {
   );
   File('${nodpi.path}/notif_logo.png').writeAsBytesSync(img.encodePng(grande));
   stdout.writeln('ok ${nodpi.path}/notif_logo.png (192px)');
+}
+
+/// Branco sobre transparente, quadrado, com ~6% de margem.
+img.Image _silhueta(img.Image logo) {
+  var x0 = logo.width, y0 = logo.height, x1 = 0, y1 = 0;
+  for (final p in logo) {
+    if (p.a < 40) continue;
+    if (p.x < x0) x0 = p.x.toInt();
+    if (p.y < y0) y0 = p.y.toInt();
+    if (p.x > x1) x1 = p.x.toInt();
+    if (p.y > y1) y1 = p.y.toInt();
+  }
+  final lado = ((x1 - x0) > (y1 - y0) ? (x1 - x0) : (y1 - y0)) + 1;
+  final margem = (lado * 0.06).round();
+  final total = lado + margem * 2;
+  final saida = img.Image(width: total, height: total, numChannels: 4);
+  final ox = margem + (lado - (x1 - x0 + 1)) ~/ 2 - x0;
+  final oy = margem + (lado - (y1 - y0 + 1)) ~/ 2 - y0;
+  for (final p in logo) {
+    if (p.a == 0) continue;
+    saida.setPixelRgba(p.x + ox, p.y + oy, 255, 255, 255, p.a.toInt());
+  }
+  return saida;
 }

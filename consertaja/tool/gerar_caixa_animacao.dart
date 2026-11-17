@@ -7,6 +7,7 @@
 // tela apareceria um quadrado. Aqui o desenho branco vira branco sobre
 // transparente (borda suave), em assets/images/caixa_animacao/transparente/.
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:image/image.dart' as img;
 
@@ -29,13 +30,16 @@ void main() {
       stderr.writeln('Não consegui ler ${entrada.key}');
       exit(1);
     }
-    // Arte que já vem com fundo transparente (ex.: Ferramentas.png com a
-    // borda azul) é usada como está: a conversão abaixo apagaria o azul.
+    // Arte que já vem com fundo transparente (Ferramentas.png, com borda
+    // azul): vira só o preenchimento branco, com as chaves separadas.
     if (original.numChannels == 4 && original.getPixel(0, 0).a == 0) {
+      final pronta = entrada.key == 'Ferramentas.png'
+          ? _separarChaves(original)
+          : original;
       File(
         '$_destino/${entrada.value}',
-      ).writeAsBytesSync(img.encodePng(original));
-      stdout.writeln('ok (como está) $_destino/${entrada.value}');
+      ).writeAsBytesSync(img.encodePng(pronta));
+      stdout.writeln('ok (borda da arte) $_destino/${entrada.value}');
       continue;
     }
     final saida = img.Image(
@@ -60,45 +64,103 @@ void main() {
   _contornarFerramentas();
 }
 
-/// Silhueta "engordada" das ferramentas (ferramentas_mascara.png). No app ela
-/// é pintada com a cor do fundo e fica por baixo das ferramentas, formando um
-/// contorno: sem ele, onde elas passam na frente da tampa (branco sobre
-/// branco) tudo vira uma mancha só.
+/// Espessura (px na arte 500×500) do contorno das ferramentas: a mesma das
+/// divisórias da caixa (ex.: entre o rosto e a lateral), que medem ~8 px de
+/// um branco ao outro. O contorno tem a cor do fundo da tela, como elas.
+const _espessuraContorno = 6.0;
+
+/// Ferramentas.png → só o preenchimento branco das ferramentas (a borda azul
+/// da arte é retirada; o contorno vem de ferramentas_mascara.png, pintada no
+/// app com a cor do fundo — igual às linhas da caixa).
+///
+/// A chave ajustável e a chave de fenda se encostam embaixo (um "V" colado):
+/// são cortadas no vértice do V e a chave ajustável é afastada um pouco.
+img.Image _separarChaves(img.Image base) {
+  final w = base.width, h = base.height;
+  const deslocX = -12, deslocY = -4;
+
+  // Par colado: flood fill a partir da chave ajustável.
+  final par = List<bool>.filled(w * h, false);
+  int? semente;
+  for (var x = 100; x < 200 && semente == null; x++) {
+    if (base.getPixel(x, 165).a > 20) semente = 165 * w + x;
+  }
+  if (semente != null) {
+    final pilha = <int>[semente];
+    par[semente] = true;
+    while (pilha.isNotEmpty) {
+      final i = pilha.removeLast();
+      final x = i % w, y = i ~/ w;
+      for (var dy = -1; dy <= 1; dy++) {
+        for (var dx = -1; dx <= 1; dx++) {
+          final xx = x + dx, yy = y + dy;
+          if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+          final j = yy * w + xx;
+          if (par[j] || base.getPixel(xx, yy).a <= 20) continue;
+          par[j] = true;
+          pilha.add(j);
+        }
+      }
+    }
+  }
+  // Corte: acima de y=200 já estão separadas; abaixo, linha que sai do
+  // vértice do V (~187, 250) e desce quase reta.
+  bool ehChaveAjustavel(int x, int y) =>
+      y < 200 ? x < 200 : x < 187 + (y - 250) * 0.15;
+
+  final saida = img.Image(width: w, height: h, numChannels: 4);
+  for (var y = 0; y < h; y++) {
+    for (var x = 0; x < w; x++) {
+      final p = base.getPixel(x, y);
+      // Branco = preenchimento; azul da borda = fora.
+      final branco = ((p.r - 30) / (240 - 30)).clamp(0.0, 1.0) * (p.a / 255);
+      if (branco <= 0) continue;
+      var xx = x, yy = y;
+      if (par[y * w + x] && ehChaveAjustavel(x, y)) {
+        xx += deslocX;
+        yy += deslocY;
+        if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+      }
+      final a = (branco * 255).round();
+      if (a > saida.getPixel(xx, yy).a) {
+        saida.setPixelRgba(xx, yy, 255, 255, 255, a);
+      }
+    }
+  }
+  return saida;
+}
+
+/// Silhueta "engordada" das ferramentas (ferramentas_mascara.png), com borda
+/// suave. No app é pintada com a cor do fundo e fica por baixo das
+/// ferramentas: vira o contorno delas, igual às linhas da caixa.
 void _contornarFerramentas() {
   final base = img.decodePng(
     File('$_destino/ferramentas.png').readAsBytesSync(),
   )!;
-  const raio = 9;
   final w = base.width, h = base.height;
-  final alfa = List<int>.generate(
+  final cheio = List<bool>.generate(
     w * h,
-    (i) => base.getPixel(i % w, i ~/ w).a.toInt(),
+    (i) => base.getPixel(i % w, i ~/ w).a >= 128,
   );
-  // Dilatação separável (máximo em x, depois em y).
-  final horizontal = List<int>.filled(w * h, 0);
-  for (var y = 0; y < h; y++) {
-    for (var x = 0; x < w; x++) {
-      var m = 0;
-      for (var d = -raio; d <= raio; d++) {
-        final xx = x + d;
-        if (xx < 0 || xx >= w) continue;
-        final v = alfa[y * w + xx];
-        if (v > m) m = v;
-      }
-      horizontal[y * w + x] = m;
-    }
-  }
+  final r = _espessuraContorno.ceil() + 1;
   final saida = img.Image(width: w, height: h, numChannels: 4);
   for (var y = 0; y < h; y++) {
     for (var x = 0; x < w; x++) {
-      var m = 0;
-      for (var d = -raio; d <= raio; d++) {
-        final yy = y + d;
-        if (yy < 0 || yy >= h) continue;
-        final v = horizontal[yy * w + x];
-        if (v > m) m = v;
+      var dist = cheio[y * w + x] ? 0.0 : double.infinity;
+      if (dist > 0) {
+        for (var dy = -r; dy <= r; dy++) {
+          final yy = y + dy;
+          if (yy < 0 || yy >= h) continue;
+          for (var dx = -r; dx <= r; dx++) {
+            final xx = x + dx;
+            if (xx < 0 || xx >= w || !cheio[yy * w + xx]) continue;
+            final d = math.sqrt(dx * dx + dy * dy);
+            if (d < dist) dist = d;
+          }
+        }
       }
-      saida.setPixelRgba(x, y, 255, 255, 255, m);
+      final a = (_espessuraContorno + 0.5 - dist).clamp(0.0, 1.0);
+      if (a > 0) saida.setPixelRgba(x, y, 255, 255, 255, (a * 255).round());
     }
   }
   File(

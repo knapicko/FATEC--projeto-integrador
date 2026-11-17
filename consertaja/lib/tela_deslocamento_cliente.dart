@@ -11,6 +11,7 @@ import 'detalhes_pedido.dart';
 import 'models/servico_profissional.dart';
 import 'services/servicos_profissional_service.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
+import 'widgets/skeletons_telas.dart';
 
 class TelaDeslocamentoClientePage extends StatefulWidget {
   const TelaDeslocamentoClientePage({super.key, required this.idSolicitacao});
@@ -142,8 +143,7 @@ class _TelaDeslocamentoClientePageState
   void _validarCodigo() {
     final informado = _codigo.map((controller) => controller.text).join();
     setState(() {
-      _codigoValido =
-          informado.length == 4 && informado == _codigoCorreto;
+      _codigoValido = informado.length == 4 && informado == _codigoCorreto;
     });
   }
 
@@ -166,9 +166,9 @@ class _TelaDeslocamentoClientePageState
             bytes,
             fileOptions: const FileOptions(contentType: 'image/jpeg'),
           );
-      final url = _supabase.storage.from('Imagens Recebimento').getPublicUrl(
-        caminho,
-      );
+      final url = _supabase.storage
+          .from('Imagens Recebimento')
+          .getPublicUrl(caminho);
       await _supabase
           .from('solicitacoes')
           .update({
@@ -182,16 +182,15 @@ class _TelaDeslocamentoClientePageState
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => DetalhesPedidoPage(
-            idSolicitacao: widget.idSolicitacao,
-          ),
+          builder: (_) =>
+              DetalhesPedidoPage(idSolicitacao: widget.idSolicitacao),
         ),
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erro ao registrar entrada: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao registrar entrada: $e')),
+        );
       }
     } finally {
       if (mounted) setState(() => _enviando = false);
@@ -203,15 +202,12 @@ class _TelaDeslocamentoClientePageState
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       body: _carregando
-          ? const Center(child: CircularProgressIndicator())
+          ? const SkeletonEtapaFluxo()
           : Stack(
               children: [
                 FlutterMap(
                   mapController: _mapController,
-                  options: MapOptions(
-                    initialCenter: _cliente,
-                    initialZoom: 14,
-                  ),
+                  options: MapOptions(initialCenter: _cliente, initialZoom: 14),
                   children: [
                     TileLayer(
                       urlTemplate:
@@ -258,10 +254,7 @@ class _TelaDeslocamentoClientePageState
                     ),
                   ),
                 ),
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: _painel(),
-                ),
+                Align(alignment: Alignment.bottomCenter, child: _painel()),
               ],
             ),
     );
@@ -324,9 +317,7 @@ class _TelaDeslocamentoClientePageState
                         counterText: '',
                         filled: true,
                         fillColor: Color(0xFFF8FAFC),
-                        border: OutlineInputBorder(
-                          borderSide: BorderSide.none,
-                        ),
+                        border: OutlineInputBorder(borderSide: BorderSide.none),
                       ),
                       onChanged: (_) => _validarCodigo(),
                     ),
@@ -362,9 +353,7 @@ class _TelaDeslocamentoClientePageState
   Widget _avatar(String? url, IconData icon) {
     return CircleAvatar(
       backgroundColor: azul,
-      backgroundImage: url != null && url.isNotEmpty
-          ? NetworkImage(url)
-          : null,
+      backgroundImage: url != null && url.isNotEmpty ? NetworkImage(url) : null,
       child: url == null || url.isEmpty
           ? Icon(icon, color: Colors.white)
           : null,

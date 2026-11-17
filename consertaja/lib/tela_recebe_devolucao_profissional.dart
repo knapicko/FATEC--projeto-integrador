@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'gestao_equipe.dart';
+import 'servico_concluido.dart';
 import 'solicitacao_em_andamento.dart';
 import 'tela_chat_profissional.dart';
 import 'tela_meu_perfil_profissional.dart';
@@ -78,6 +79,11 @@ class _TelaRecebeDevolucaoProfissionalPageState
   bool _carregando = true;
   bool _enviando = false;
   Timer? _pollingDevolucao;
+
+  /// Profissional já marcou a entrega como concluída (1ª confirmação). O
+  /// serviço só vira "Concluído" quando o cliente confirma também.
+  bool _profissionalConcluiu = false;
+  bool _marcandoConclusao = false;
   int? _fkStatus;
   int _etapaSolicitacao = 0;
 
@@ -174,10 +180,17 @@ class _TelaRecebeDevolucaoProfissionalPageState
       _pollingDevolucao?.cancel();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('O cliente confirmou o recebimento. Serviço concluído!'),
+          content: Text(
+            'O cliente confirmou o recebimento. Serviço concluído!',
+          ),
         ),
       );
-      Navigator.of(context).pop(true);
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) =>
+              ServicoConcluidoPage(idSolicitacao: widget.idSolicitacao),
+        ),
+      );
     } catch (_) {}
   }
 
@@ -224,12 +237,14 @@ class _TelaRecebeDevolucaoProfissionalPageState
           .select(
             'id_solicitacao, valor_final, detalhes, data_agendada, tipo_execucao, '
             'codigo_rec_dev, fk_usuario, fk_servico_prof, fk_servico_temp, '
-            'fk_status, etapa_solicitacao',
+            'fk_status, etapa_solicitacao, profissional_finalizado_atendimento',
           )
           .eq('id_solicitacao', widget.idSolicitacao)
           .maybeSingle();
 
       if (row != null) {
+        _profissionalConcluiu =
+            row['profissional_finalizado_atendimento'] == true;
         _fkStatus = (row['fk_status'] as num?)?.toInt();
         _etapaSolicitacao = (row['etapa_solicitacao'] as num?)?.toInt() ?? 0;
         _codigoCorreto = row['codigo_rec_dev']?.toString().trim() ?? '';
@@ -2044,7 +2059,78 @@ class _TelaRecebeDevolucaoProfissionalPageState
   // ==========================================
   /// Rodapé da devolução: o profissional entrega o produto e aguarda a
   /// confirmação do cliente (status 37 → 6, etapa 4 → 5).
+  Future<void> _marcarEntregaConcluida() async {
+    if (_profissionalConcluiu || _marcandoConclusao) return;
+    setState(() => _marcandoConclusao = true);
+    try {
+      await _supabase
+          .from('solicitacoes')
+          .update({'profissional_finalizado_atendimento': true})
+          .eq('id_solicitacao', widget.idSolicitacao);
+      if (!mounted) return;
+      setState(() => _profissionalConcluiu = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Entrega marcada como concluída. Falta o cliente confirmar.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Não foi possível concluir: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _marcandoConclusao = false);
+    }
+  }
+
   Widget _buildBottomAguardandoCliente() {
+    if (!_profissionalConcluiu) {
+      // 1ª confirmação: o profissional diz que concluiu a entrega.
+      return Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(top: BorderSide(color: _cinzaBorda, width: 1)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+            child: SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: FilledButton.icon(
+                onPressed: _marcandoConclusao ? null : _marcarEntregaConcluida,
+                icon: _marcandoConclusao
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.task_alt_rounded, size: 20),
+                label: const Text(
+                  'Concluí a entrega',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF168A52),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(26),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
