@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -91,6 +92,10 @@ class _ConversationalOnboardingScreenState
     _posesCarregadas = true;
     for (final pose in CaixaPose.values) {
       precacheImage(AssetImage(pose.asset), context).catchError((_) {});
+    }
+    // Quadros da fala: carregados antes para a boca trocar sem piscar.
+    for (final quadro in _QuadrosFala.todos) {
+      precacheImage(AssetImage(quadro), context).catchError((_) {});
     }
   }
 
@@ -1678,9 +1683,27 @@ class _ConversationalOnboardingScreenState
   }
 }
 
+/// Quadros da caixa falando (gerados por tool/gerar_caixa_fala.dart).
+class _QuadrosFala {
+  _QuadrosFala._();
+
+  static const _pasta = 'assets/images/caixa/fala';
+  static const bocas = ['fechada', 'meia', 'aberta', 'o'];
+
+  static String quadro({required bool olhosFechados, required String boca}) =>
+      '$_pasta/olhos_${olhosFechados ? 'fechados' : 'abertos'}_boca_$boca.png';
+
+  static List<String> get todos => [
+    for (final f in [false, true])
+      for (final b in bocas) quadro(olhosFechados: f, boca: b),
+  ];
+}
+
 /// Caixa de ferramentas que "fala": enquanto um balão está sendo digitado,
-/// alterna rápido entre boca aberta e boca fechada; quando termina, volta
-/// para [poseParada] (boca fechada, olhos abertos).
+/// troca a boca entre 4 formatos (fechada, meio aberta, aberta e "o") sem
+/// repetir em seguida, pisca/fecha os olhos de vez em quando (aleatório) e
+/// balança de leve (tremor suave). Ao terminar, volta para [poseParada]
+/// — sempre de olhos abertos.
 class _CaixaFalante extends StatefulWidget {
   const _CaixaFalante({required this.poseParada, required this.size});
 
@@ -1691,9 +1714,27 @@ class _CaixaFalante extends StatefulWidget {
   State<_CaixaFalante> createState() => _CaixaFalanteState();
 }
 
-class _CaixaFalanteState extends State<_CaixaFalante> {
+class _CaixaFalanteState extends State<_CaixaFalante>
+    with TickerProviderStateMixin {
+  final _sorteio = math.Random();
   Timer? _timer;
-  bool _bocaAberta = false;
+  String _boca = 'meia';
+  bool _olhosFechados = false;
+  int _quadrosOlhos = 0; // quadros que faltam até trocar o estado do olho
+
+  /// Balanço contínuo enquanto fala.
+  late final AnimationController _tremor = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 680),
+  );
+
+  /// Entra/sai suave do balanço (0 = parado, 1 = falando).
+  late final AnimationController _intensidade = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 260),
+  );
+
+  bool get _falando => _timer != null;
 
   @override
   void initState() {
@@ -1705,33 +1746,98 @@ class _CaixaFalanteState extends State<_CaixaFalante> {
   void _atualizar() {
     final falando = kBaloesDigitando.value > 0;
     if (falando && _timer == null) {
-      setState(() => _bocaAberta = true);
-      _timer = Timer.periodic(const Duration(milliseconds: 130), (_) {
-        if (mounted) setState(() => _bocaAberta = !_bocaAberta);
+      _quadrosOlhos = 6 + _sorteio.nextInt(10);
+      setState(() {
+        _boca = 'meia';
+        _olhosFechados = false;
       });
+      _timer = Timer.periodic(
+        const Duration(milliseconds: 95),
+        (_) => _proximoQuadro(),
+      );
+      _tremor.repeat();
+      _intensidade.forward();
     } else if (!falando && _timer != null) {
       _timer!.cancel();
       _timer = null;
-      if (mounted) setState(() => _bocaAberta = false);
+      _intensidade.reverse().whenComplete(() {
+        if (!_falando && mounted) _tremor.stop();
+      });
+      if (mounted) {
+        setState(() {
+          _boca = 'fechada';
+          _olhosFechados = false; // o final é sempre de olhos abertos
+        });
+      }
     }
+  }
+
+  /// Próxima boca (nunca a mesma em seguida, com pesos) e, de tempos em
+  /// tempos, abre/fecha os olhos.
+  void _proximoQuadro() {
+    if (!mounted) return;
+    const pesos = {'meia': 4, 'aberta': 4, 'o': 2, 'fechada': 2};
+    final opcoes = [
+      for (final e in pesos.entries)
+        if (e.key != _boca)
+          for (var i = 0; i < e.value; i++) e.key,
+    ];
+    final boca = opcoes[_sorteio.nextInt(opcoes.length)];
+
+    var olhos = _olhosFechados;
+    _quadrosOlhos--;
+    if (_quadrosOlhos <= 0) {
+      olhos = !olhos;
+      // Fechado dura pouco (piscada feliz); aberto dura mais.
+      _quadrosOlhos = olhos
+          ? 2 + _sorteio.nextInt(4)
+          : 8 + _sorteio.nextInt(16);
+    }
+    setState(() {
+      _boca = boca;
+      _olhosFechados = olhos;
+    });
   }
 
   @override
   void dispose() {
     kBaloesDigitando.removeListener(_atualizar);
     _timer?.cancel();
+    _tremor.dispose();
+    _intensidade.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final falando = _timer != null;
-    return CaixaCharacter(
-      asset: falando
-          ? (_bocaAberta ? CaixaAssets.falandoAberto : CaixaAssets.normal)
+    final caixa = CaixaCharacter(
+      asset: _falando
+          ? _QuadrosFala.quadro(olhosFechados: _olhosFechados, boca: _boca)
           : widget.poseParada,
       size: widget.size,
-      semTransicao: falando,
+      semTransicao: _falando,
+    );
+    return AnimatedBuilder(
+      animation: Listenable.merge([_tremor, _intensidade]),
+      builder: (context, child) {
+        final i = Curves.easeOut.transform(_intensidade.value);
+        if (i == 0) return child!;
+        final t = _tremor.value * 2 * math.pi;
+        final giro = math.sin(t) * 0.022 * i;
+        final pulo = -math.sin(t * 2).abs() * 2.4 * i;
+        final estica = math.sin(t * 2 + 0.8) * 0.014 * i;
+        return Transform.translate(
+          offset: Offset(0, pulo),
+          child: Transform(
+            alignment: Alignment.bottomCenter,
+            transform: Matrix4.identity()
+              ..rotateZ(giro)
+              ..scaleByDouble(1 - estica * 0.6, 1 + estica, 1, 1),
+            child: child,
+          ),
+        );
+      },
+      child: caixa,
     );
   }
 }
