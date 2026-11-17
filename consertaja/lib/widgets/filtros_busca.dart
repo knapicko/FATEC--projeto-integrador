@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/cor_oficio.dart';
 import '../utils/funcao_servico.dart';
 import 'tag_oficio.dart';
+import '../utils/texto_busca.dart';
 
 /// Métodos de realização existentes (mesmo texto de solicitacoes.tipo_execucao).
 const kMetodosRealizacao = [
@@ -280,12 +281,15 @@ class _FiltrosSheetState extends State<_FiltrosSheet> {
     final db = Supabase.instance.client;
     final lista = <ProfissionalFiltro>[];
     try {
-      final usuarios = await db
-          .from('usuarios')
-          .select('id_usuario, nome, foto_perfil_url')
-          .eq('tipo_conta', 'Profissional')
-          .ilike('nome', '%$texto%')
-          .limit(6);
+      // Sem acento / maiúsculas: filtra no app.
+      final usuarios =
+          (await db
+                  .from('usuarios')
+                  .select('id_usuario, nome, foto_perfil_url')
+                  .eq('tipo_conta', 'Profissional'))
+              .where((u) => textoContem([u['nome']?.toString() ?? ''], texto))
+              .take(6)
+              .toList();
       final idsUsuario = [
         for (final u in usuarios) (u['id_usuario'] as num).toInt(),
       ];
@@ -327,11 +331,16 @@ class _FiltrosSheetState extends State<_FiltrosSheet> {
           ),
         );
       }
-      final lojas = await db
-          .from('grupo_empresa')
-          .select('id_grupo_empresa, nome_empresa, foto_url_empresa')
-          .ilike('nome_empresa', '%$texto%')
-          .limit(4);
+      final lojas =
+          (await db
+                  .from('grupo_empresa')
+                  .select('id_grupo_empresa, nome_empresa, foto_url_empresa'))
+              .where(
+                (l) =>
+                    textoContem([l['nome_empresa']?.toString() ?? ''], texto),
+              )
+              .take(4)
+              .toList();
       for (final l in lojas) {
         lista.add(
           ProfissionalFiltro(

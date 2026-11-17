@@ -22,6 +22,7 @@ import 'utils/funcao_servico.dart';
 import 'widgets/avisos_bottom_sheet.dart';
 import 'widgets/filtros_busca.dart';
 import 'widgets/seletor_endereco_cliente.dart';
+import 'utils/texto_busca.dart';
 
 enum _AbaResultado { todos, servicos, profissionais }
 
@@ -303,22 +304,7 @@ class _TelaBuscaState extends State<TelaBusca> {
     );
   }
 
-  String _normalizar(String texto) {
-    return texto
-        .toLowerCase()
-        .replaceAll('á', 'a')
-        .replaceAll('à', 'a')
-        .replaceAll('ã', 'a')
-        .replaceAll('â', 'a')
-        .replaceAll('é', 'e')
-        .replaceAll('ê', 'e')
-        .replaceAll('í', 'i')
-        .replaceAll('ó', 'o')
-        .replaceAll('ô', 'o')
-        .replaceAll('õ', 'o')
-        .replaceAll('ú', 'u')
-        .replaceAll('ç', 'c');
-  }
+  String _normalizar(String texto) => normalizarBusca(texto);
 
   bool _imagemEhUrl(String? caminho) {
     if (caminho == null) return false;
@@ -354,11 +340,15 @@ class _TelaBuscaState extends State<TelaBusca> {
       List<_ProfissionalBusca> empresasEncontradas = [];
 
       // 1) Busca profissionais por NOME na tabela usuarios (sem joins)
-      final usuariosPorNome = await supabase
-          .from('usuarios')
-          .select('id_usuario, nome, foto_perfil_url')
-          .eq('tipo_conta', 'Profissional')
-          .ilike('nome', '%$termo%');
+      // Compara no app, sem acento e sem diferenciar maiúsculas
+      // ("joao" acha "João"); o ilike do banco diferencia acentos.
+      final usuariosPorNome =
+          (await supabase
+                  .from('usuarios')
+                  .select('id_usuario, nome, foto_perfil_url')
+                  .eq('tipo_conta', 'Profissional'))
+              .where((u) => textoContem([u['nome']?.toString() ?? ''], termo))
+              .toList();
 
       // 2) Busca ofícios (profissão) equivalentes ao termo
       final todosOficios = await supabase

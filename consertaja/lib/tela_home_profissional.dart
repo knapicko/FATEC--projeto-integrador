@@ -883,42 +883,65 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
       if (usuarioResponse == null) return null;
       final usuarioId = usuarioResponse['id_usuario'];
 
-      // 2. Busca a associação com endereço
+      // 2. Endereço da CONTA ATIVA, nas mesmas tabelas que meus_enderecos.dart
+      //    usa para profissional:
+      //    - Loja (grupo_empresa)  -> ass_grupo_empresa_endereco
+      //    - Independente           -> ass_profissional_endereco
+      //    (antes lia ass_usuario_endereco, onde o endereço do profissional
+      //    não fica — por isso a home não reconhecia o endereço cadastrado).
+      //    O ativo vem primeiro; ass_usuario_endereco fica só de reserva.
       dynamic fkEndereco;
-      if (_contaEmpresaAtiva) {
-        final empresa = await _buscarDadosEmpresa();
-        fkEndereco = empresa?['fk_endereco'];
-
-        if (fkEndereco == null) {
-          final assComercial = await supabase
-              .from('ass_usuario_endereco')
-              .select('fk_endereco')
-              .eq('fk_usuario', usuarioId)
-              .inFilter('tipo_endereco', [
-                'Comercial',
-                'Trabalho',
-                'Empresa',
-                'Loja',
-              ])
-              .limit(1)
-              .maybeSingle();
-          if (assComercial != null) {
-            fkEndereco = assComercial['fk_endereco'];
-          }
+      Future<dynamic> primeiroAtivo(
+        String tabela,
+        String coluna,
+        int id,
+      ) async {
+        try {
+          final rows = await supabase
+              .from(tabela)
+              .select('fk_endereco, endereco_ativo')
+              .eq(coluna, id);
+          if (rows.isEmpty) return null;
+          final ativo = rows.where((r) => r['endereco_ativo'] == true);
+          return (ativo.isNotEmpty ? ativo.first : rows.first)['fk_endereco'];
+        } catch (_) {
+          return null;
         }
       }
 
-      if (fkEndereco == null) {
-        final assResponse = await supabase
-            .from('ass_usuario_endereco')
-            .select('fk_endereco, endereco_ativo')
+      if (_contaEmpresaAtiva) {
+        final empresa = await _buscarDadosEmpresa();
+        final idGrupo = (empresa?['id_grupo_empresa'] as num?)?.toInt();
+        if (idGrupo != null) {
+          fkEndereco = await primeiroAtivo(
+            'ass_grupo_empresa_endereco',
+            'fk_grupo_empresa',
+            idGrupo,
+          );
+        }
+        fkEndereco ??= empresa?['fk_endereco'];
+      } else {
+        final dados = await supabase
+            .from('dados_profissionais')
+            .select('id_profissional')
             .eq('fk_usuario', usuarioId)
-            .order('endereco_ativo', ascending: false)
             .limit(1)
             .maybeSingle();
-        if (assResponse == null) return null;
-        fkEndereco = assResponse['fk_endereco'];
+        final idProf = (dados?['id_profissional'] as num?)?.toInt();
+        if (idProf != null) {
+          fkEndereco = await primeiroAtivo(
+            'ass_profissional_endereco',
+            'fk_profissional',
+            idProf,
+          );
+        }
       }
+
+      fkEndereco ??= await primeiroAtivo(
+        'ass_usuario_endereco',
+        'fk_usuario',
+        (usuarioId as num).toInt(),
+      );
       if (fkEndereco == null) return null;
 
       // 3. Busca o endereço
