@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -501,8 +503,10 @@ class _ConversationalOnboardingScreenState
                                     Hero(
                                       tag: 'caixa-transicao-inicial',
                                       flightShuttleBuilder: caixaHeroShuttle,
-                                      child: CaixaCharacter(
-                                        asset: _controller.pose.asset,
+                                      child: _CaixaFalante(
+                                        poseParada: isBubble
+                                            ? CaixaAssets.normal
+                                            : _controller.pose.asset,
                                         size: _caixaSizeForStep(step, context),
                                       ),
                                     ),
@@ -668,7 +672,6 @@ class _ConversationalOnboardingScreenState
 
   /// Conteúdo dos passos com balão de fala (com proximidade da caixa)
   Widget _buildBubbleContent(OnboardingStep step) {
-    final isWelcome = step == OnboardingStep.welcome;
     final temSeta =
         step != OnboardingStep.loginOrOther &&
         step != OnboardingStep.continueOrLogin;
@@ -681,7 +684,8 @@ class _ConversationalOnboardingScreenState
         ConversationBubbles(
           atual: _controller.falaAtual,
           historico: _controller.historicoFala,
-          digitar: isWelcome,
+          // Todas as falas são "digitadas" (antes só a primeira).
+          digitar: true,
           comSeta: temSeta,
         ),
 
@@ -1671,5 +1675,63 @@ class _ConversationalOnboardingScreenState
       default:
         return const SizedBox(height: 10);
     }
+  }
+}
+
+/// Caixa de ferramentas que "fala": enquanto um balão está sendo digitado,
+/// alterna rápido entre boca aberta e boca fechada; quando termina, volta
+/// para [poseParada] (boca fechada, olhos abertos).
+class _CaixaFalante extends StatefulWidget {
+  const _CaixaFalante({required this.poseParada, required this.size});
+
+  final String poseParada;
+  final double size;
+
+  @override
+  State<_CaixaFalante> createState() => _CaixaFalanteState();
+}
+
+class _CaixaFalanteState extends State<_CaixaFalante> {
+  Timer? _timer;
+  bool _bocaAberta = false;
+
+  @override
+  void initState() {
+    super.initState();
+    kBaloesDigitando.addListener(_atualizar);
+    _atualizar();
+  }
+
+  void _atualizar() {
+    final falando = kBaloesDigitando.value > 0;
+    if (falando && _timer == null) {
+      setState(() => _bocaAberta = true);
+      _timer = Timer.periodic(const Duration(milliseconds: 130), (_) {
+        if (mounted) setState(() => _bocaAberta = !_bocaAberta);
+      });
+    } else if (!falando && _timer != null) {
+      _timer!.cancel();
+      _timer = null;
+      if (mounted) setState(() => _bocaAberta = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    kBaloesDigitando.removeListener(_atualizar);
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final falando = _timer != null;
+    return CaixaCharacter(
+      asset: falando
+          ? (_bocaAberta ? CaixaAssets.falandoAberto : CaixaAssets.normal)
+          : widget.poseParada,
+      size: widget.size,
+      semTransicao: falando,
+    );
   }
 }

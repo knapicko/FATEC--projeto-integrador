@@ -746,7 +746,11 @@ class CaixaCharacter extends StatelessWidget {
     required this.asset,
     this.size = 210,
     this.offsetY = 0,
+    this.semTransicao = false,
   });
+
+  /// Troca de imagem na hora (boca abrindo/fechando ao falar).
+  final bool semTransicao;
 
   @override
   Widget build(BuildContext context) {
@@ -757,7 +761,9 @@ class CaixaCharacter extends StatelessWidget {
       height: size,
       child: Center(
         child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 340),
+          duration: semTransicao
+              ? Duration.zero
+              : const Duration(milliseconds: 340),
           switchInCurve: Curves.easeInOut,
           switchOutCurve: Curves.easeInOut,
           layoutBuilder: (currentChild, previousChildren) {
@@ -781,6 +787,7 @@ class CaixaCharacter extends StatelessWidget {
               asset,
               key: ValueKey(asset),
               fit: BoxFit.contain,
+              gaplessPlayback: true,
               errorBuilder: (_, _, _) => Icon(
                 Icons.home_repair_service_rounded,
                 key: ValueKey('fallback-$asset'),
@@ -902,6 +909,10 @@ class ConversationContentTransition extends StatelessWidget {
 ///  * ao voltar, o anterior desce e volta a ser o atual;
 ///  * se a fala não tem relação com a anterior, os antigos somem primeiro e
 ///    só então os novos entram — nada fica visualmente por cima de nada.
+/// Quantos balões estão "digitando" agora. A caixa de ferramentas mexe a
+/// boca enquanto for > 0.
+final ValueNotifier<int> kBaloesDigitando = ValueNotifier<int>(0);
+
 class ConversationBubbles extends StatefulWidget {
   const ConversationBubbles({
     super.key,
@@ -1084,7 +1095,15 @@ class _FalaBalaoState extends State<_FalaBalao> with TickerProviderStateMixin {
   );
   Timer? _atraso;
   Timer? _digitacao;
+  bool _contandoDigitacao = false;
   late String _mostrado = widget.item.digitar ? '' : widget.item.texto;
+
+  void _marcarDigitando(bool digitando) {
+    if (digitando == _contandoDigitacao) return;
+    _contandoDigitacao = digitando;
+    final atual = kBaloesDigitando.value + (digitando ? 1 : -1);
+    kBaloesDigitando.value = atual < 0 ? 0 : atual;
+  }
 
   @override
   void initState() {
@@ -1108,12 +1127,20 @@ class _FalaBalaoState extends State<_FalaBalao> with TickerProviderStateMixin {
 
   void _digitar() {
     final texto = widget.item.texto;
+    if (texto.isEmpty) return;
     var i = 0;
-    _digitacao = Timer.periodic(const Duration(milliseconds: 20), (timer) {
-      if (!mounted) return timer.cancel();
+    _marcarDigitando(true);
+    _digitacao = Timer.periodic(const Duration(milliseconds: 26), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
       i++;
       setState(() => _mostrado = texto.substring(0, i));
-      if (i >= texto.length) timer.cancel();
+      if (i >= texto.length) {
+        timer.cancel();
+        _marcarDigitando(false);
+      }
     });
   }
 
@@ -1132,6 +1159,7 @@ class _FalaBalaoState extends State<_FalaBalao> with TickerProviderStateMixin {
     if (widget.historico && _mostrado != widget.item.texto) {
       _digitacao?.cancel();
       _mostrado = widget.item.texto;
+      _marcarDigitando(false);
     }
   }
 
@@ -1139,6 +1167,7 @@ class _FalaBalaoState extends State<_FalaBalao> with TickerProviderStateMixin {
   void dispose() {
     _atraso?.cancel();
     _digitacao?.cancel();
+    _marcarDigitando(false);
     _entrada.dispose();
     _saida.dispose();
     super.dispose();
