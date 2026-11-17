@@ -9,6 +9,9 @@ import '../cadastro_profissional.dart';
 import '../esqueci_senha.dart';
 import '../services/google_auth_service.dart';
 import '../utils/app_navigation_util.dart';
+import '../services/auth_navigation.dart';
+import '../tela_inicial.dart' show BotaoGoogleCircular;
+import '../widgets/avisos_bottom_sheet.dart';
 import '../widgets/caixa_flutuante.dart';
 
 class ConversationalOnboardingScreen extends StatefulWidget {
@@ -51,6 +54,30 @@ class _ConversationalOnboardingScreenState
   }
 
   bool _posesCarregadas = false;
+  bool _entrandoComGoogle = false;
+
+  /// Login com Google a partir do formulário de login: conta já existente
+  /// vai para a home; conta nova segue o cadastro pelo Google aqui mesmo.
+  Future<void> _entrarComGoogle() async {
+    if (_entrandoComGoogle) return;
+    setState(() => _entrandoComGoogle = true);
+    try {
+      final usuario = await GoogleAuthService.signInWithGoogle();
+      if (usuario == null || !mounted) return;
+      final perfil = await GoogleAuthService.buscarPerfil(usuario.id);
+      if (!mounted) return;
+      if (perfil == null) {
+        _controller.iniciarFluxoCadastroGoogle(usuario);
+      } else {
+        await navegarPosAutenticacaoGoogle(context);
+      }
+    } catch (erro) {
+      debugPrint(GoogleAuthService.mensagemErro(erro));
+      if (mounted) await mostrarErroGoogle(context, erro);
+    } finally {
+      if (mounted) setState(() => _entrandoComGoogle = false);
+    }
+  }
 
   @override
   void didChangeDependencies() {
@@ -1387,13 +1414,24 @@ class _ConversationalOnboardingScreenState
       // 8° Imagem: Entrar
       case OnboardingStep.loginForm:
         return Padding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
-          child: PillButton(
-            label: 'Entrar',
-            background: Colors.white,
-            foreground: OnboardingColors.blue,
-            loading: _controller.carregando,
-            onTap: () => _controller.entrar(context),
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              PillButton(
+                label: 'Entrar',
+                background: Colors.white,
+                foreground: OnboardingColors.blue,
+                loading: _controller.carregando,
+                onTap: () => _controller.entrar(context),
+              ),
+              const SizedBox(height: 14),
+              // Mesmo botão redondo da tela inicial.
+              BotaoGoogleCircular(
+                carregando: _entrandoComGoogle,
+                onPressed: _entrarComGoogle,
+              ),
+            ],
           ),
         );
 

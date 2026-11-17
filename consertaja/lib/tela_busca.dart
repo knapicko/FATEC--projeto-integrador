@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'widgets/skeleton_loading.dart';
@@ -17,6 +19,9 @@ import 'models/servico_profissional.dart';
 import 'tela_servico.dart';
 import 'utils/app_navigation_util.dart';
 import 'utils/funcao_servico.dart';
+import 'widgets/avisos_bottom_sheet.dart';
+import 'widgets/filtros_busca.dart';
+import 'widgets/seletor_endereco_cliente.dart';
 
 enum _AbaResultado { todos, servicos, profissionais }
 
@@ -93,7 +98,16 @@ class _ProfissionalBusca {
 class TelaBusca extends StatefulWidget {
   final bool isVisitante;
 
-  const TelaBusca({super.key, this.isVisitante = false});
+  const TelaBusca({
+    super.key,
+    this.isVisitante = false,
+    this.termoInicial,
+    this.filtrosIniciais,
+  });
+
+  /// Abre já pesquisando (ex.: categorias da home).
+  final String? termoInicial;
+  final FiltrosBusca? filtrosIniciais;
 
   static const Color _primaryBlue = Color(0xFF0FB3FF);
 
@@ -122,13 +136,112 @@ class _TelaBuscaState extends State<TelaBusca> {
   List<String> _categorias = [];
   bool _carregandoCategorias = true;
 
+  /// Filtros ativos (bottom sheet + chips de categoria).
+  late FiltrosBusca _filtros = widget.filtrosIniciais ?? const FiltrosBusca();
+  List<OficioInfo> _funcoesFiltro = const [];
+  final Map<String, String> _categoriaPorFuncao = {};
+
+  /// Últimas buscas do cliente (guardadas no aparelho).
+  static const _chaveRecentes = 'buscas_recentes_cliente';
+  List<String> _recentes = [];
+
   @override
   void initState() {
     super.initState();
     _carregarCategorias();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _focusBusca.requestFocus();
+    _carregarRecentes();
+    carregarFuncoesFiltro().then((lista) {
+      if (!mounted) return;
+      setState(() {
+        _funcoesFiltro = lista;
+        for (final f in lista) {
+          final cat = f.categoria;
+          if (cat != null) _categoriaPorFuncao[f.funcao.toLowerCase()] = cat;
+        }
+      });
     });
+    final termo = widget.termoInicial?.trim() ?? '';
+    if (termo.isNotEmpty || (widget.filtrosIniciais?.ativo ?? false)) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _executarBusca(termo, true),
+      );
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _focusBusca.requestFocus();
+      });
+    }
+  }
+
+  Future<void> _carregarRecentes() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lista = prefs.getStringList(_chaveRecentes) ?? const [];
+      if (mounted) setState(() => _recentes = lista);
+    } catch (_) {}
+  }
+
+  Future<void> _salvarRecente(String termo) async {
+    final t = termo.trim();
+    if (t.isEmpty) return;
+    final nova = [
+      t,
+      ..._recentes.where((x) => x.toLowerCase() != t.toLowerCase()),
+    ].take(8).toList();
+    setState(() => _recentes = nova);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_chaveRecentes, nova);
+    } catch (_) {}
+  }
+
+  Future<void> _removerRecente(String termo) async {
+    final nova = _recentes.where((x) => x != termo).toList();
+    setState(() => _recentes = nova);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_chaveRecentes, nova);
+    } catch (_) {}
+  }
+
+  Future<void> _abrirFiltros() async {
+    final novos = await mostrarFiltrosBusca(
+      context,
+      atuais: _filtros,
+      funcoesDisponiveis: _funcoesFiltro,
+    );
+    if (novos == null || !mounted) return;
+    setState(() => _filtros = novos);
+    if (!_mostrandoResultados) {
+      await _executarBusca(_controllerBusca.text, true);
+    }
+  }
+
+  void _avisoVisitante() => mostrarAvisoVisitante(context);
+
+  /// Radar com o que foi pesquisado já preenchido.
+  void _abrirRadar() {
+    if (widget.isVisitante) {
+      _avisoVisitante();
+      return;
+    }
+    final funcao = _filtros.funcoes.isNotEmpty
+        ? _filtros.funcoes.first
+        : (_funcoesFiltro.any(
+                (f) => f.funcao.toLowerCase() == _termoBusca.toLowerCase(),
+              )
+              ? _termoBusca
+              : null);
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SolicitacaoGeograficaClientePage(
+          tituloInicial: _termoBusca,
+          funcaoInicial: funcao,
+          metodoInicial: _filtros.metodos.isNotEmpty
+              ? _filtros.metodos.first
+              : null,
+        ),
+      ),
+    );
   }
 
   @override
@@ -166,28 +279,27 @@ class _TelaBuscaState extends State<TelaBusca> {
     }
   }
 
+  /// Campos vazios não combinam com nada (antes `"x".contains("")` fazia
+  /// toda empresa sem tag aparecer em qualquer busca).
   bool _correspondeBusca(List<String> termos, String termo) {
-    if (termo.trim().isEmpty) return true;
-    final normalizado = _normalizar(termo);
+    final normalizado = _normalizar(termo).trim();
+    if (normalizado.isEmpty) return true;
+    final validos = termos
+        .map(_normalizar)
+        .map((t) => t.trim())
+        .where((t) => t.isNotEmpty)
+        .toList();
+    if (validos.isEmpty) return false;
+    if (validos.any((t) => t.contains(normalizado))) return true;
     final palavras = normalizado
         .split(RegExp(r'\s+'))
         .where((p) => p.length > 1)
         .toList();
-
-    bool termoCombina(String item) {
-      final itemNorm = _normalizar(item);
-      return itemNorm.contains(normalizado) || normalizado.contains(itemNorm);
-    }
-
-    if (palavras.isEmpty) {
-      return termos.any(termoCombina);
-    }
-
-    return palavras.any(
-      (palavra) => termos.any((t) {
-        final tNorm = _normalizar(t);
-        return tNorm.contains(palavra) || palavra.contains(tNorm);
-      }),
+    if (palavras.isEmpty) return false;
+    return palavras.every(
+      (palavra) => validos.any(
+        (t) => t.contains(palavra) || (t.length >= 4 && palavra.contains(t)),
+      ),
     );
   }
 
@@ -770,10 +882,47 @@ class _TelaBuscaState extends State<TelaBusca> {
     }
   }
 
-  List<_ServicoBusca> get _servicosFiltrados => _servicosSupabase;
+  List<_ServicoBusca> get _servicosFiltrados {
+    final lista = _servicosSupabase.where((s) {
+      final o = s.servicoOriginal;
+      return _filtros.aceitaServico(
+        funcao: o.funcao,
+        tipoExecucao: s.logistica,
+        preco: s.preco,
+        ehLoja: o.fkGrupoEmpresa != null || s.codigoTag != null,
+        idProfissional: o.fkProfissional,
+        idGrupoEmpresa: o.fkGrupoEmpresa,
+        categoriaDaFuncao: (f) => _categoriaPorFuncao[f],
+      );
+    }).toList();
+    switch (_filtros.ordem) {
+      case OrdemBusca.menorPreco:
+        lista.sort((a, b) => a.preco.compareTo(b.preco));
+      case OrdemBusca.maiorPreco:
+        lista.sort((a, b) => b.preco.compareTo(a.preco));
+      case OrdemBusca.relevancia:
+      case OrdemBusca.melhorAvaliados:
+        break;
+    }
+    return lista;
+  }
 
   List<_ProfissionalBusca> get _profissionaisFiltrados {
-    return [..._profissionaisSupabase, ..._empresasSupabase];
+    final lista = [..._profissionaisSupabase, ..._empresasSupabase]
+        .where(
+          (p) => _filtros.aceitaProfissional(
+            oficios: p.oficios,
+            ehLoja: p.isLoja,
+            idProfissional: p.idProfissional,
+            idGrupoEmpresa: p.idGrupoEmpresa,
+            nota: p.avaliacao,
+          ),
+        )
+        .toList();
+    if (_filtros.ordem == OrdemBusca.melhorAvaliados) {
+      lista.sort((a, b) => (b.avaliacao ?? 0).compareTo(a.avaliacao ?? 0));
+    }
+    return lista;
   }
 
   List<_ProfissionalBusca> get _perfisVerificadosFiltrados =>
@@ -784,12 +933,22 @@ class _TelaBuscaState extends State<TelaBusca> {
     return notas.reduce((total, nota) => total + nota) / notas.length;
   }
 
-  Future<void> _executarBusca([String? termo]) async {
+  Future<void> _executarBusca([
+    String? termo,
+    bool permitirVazio = false,
+  ]) async {
     final texto = (termo ?? _controllerBusca.text).trim();
-    if (texto.isEmpty) return;
+    // Sem texto só busca se houver filtro (ex.: só uma categoria).
+    if (texto.isEmpty && !(permitirVazio && _filtros.ativo)) return;
     _controllerBusca.text = texto;
+    if (texto.isNotEmpty) _salvarRecente(texto);
     setState(() {
-      _termoBusca = texto;
+      _termoBusca = texto.isNotEmpty
+          ? texto
+          : (_filtros.categoria ??
+                (_filtros.funcoes.isNotEmpty
+                    ? _filtros.funcoes.first
+                    : 'Resultados filtrados'));
       _mostrandoResultados = true;
       _abaAtiva = _AbaResultado.todos;
       _profissionaisSupabase = [];
@@ -824,15 +983,26 @@ class _TelaBuscaState extends State<TelaBusca> {
     );
   }
 
+  /// Chip de categoria: filtra a busca por ela (toque de novo tira).
   Widget _buildChip(String categoria) {
+    final ativo = _filtros.categoria == categoria;
     return GestureDetector(
-      onTap: () => _executarBusca(categoria),
-      child: Container(
+      onTap: () {
+        setState(
+          () => _filtros = _filtros.copiar(categoria: ativo ? null : categoria),
+        );
+        if (!ativo) _executarBusca(_controllerBusca.text, true);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: ativo ? _primaryBlue : Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.grey.shade400, width: 0.8),
+          border: Border.all(
+            color: ativo ? _primaryBlue : Colors.grey.shade400,
+            width: 0.8,
+          ),
         ),
         child: Text(
           categoria,
@@ -948,7 +1118,8 @@ class _TelaBuscaState extends State<TelaBusca> {
                   ),
                 ),
                 IconButton(
-                  onPressed: () {},
+                  tooltip: 'Pedir no Radar',
+                  onPressed: _abrirRadar,
                   icon: const Icon(Icons.radar, color: Colors.white),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(
@@ -963,40 +1134,38 @@ class _TelaBuscaState extends State<TelaBusca> {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             child: Row(
               children: [
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.location_on_outlined,
-                      color: Colors.white,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 4),
-                    const Text(
-                      'Adicionar Localização',
-                      style: TextStyle(color: Colors.white, fontSize: 13),
-                    ),
-                    Icon(
-                      Icons.keyboard_arrow_down,
-                      color: Colors.white.withValues(alpha: 0.9),
-                      size: 18,
-                    ),
-                  ],
+                Flexible(
+                  child: SeletorEnderecoCliente(
+                    mostrarTrocar: false,
+                    aoTocarSemPermissao: widget.isVisitante
+                        ? _avisoVisitante
+                        : null,
+                  ),
                 ),
                 const Spacer(),
-                Row(
-                  children: [
-                    const Icon(Icons.tune, color: Colors.white, size: 18),
-                    const SizedBox(width: 4),
-                    const Text(
-                      'Filtros',
-                      style: TextStyle(color: Colors.white, fontSize: 13),
-                    ),
-                    Icon(
-                      Icons.keyboard_arrow_down,
-                      color: Colors.white.withValues(alpha: 0.9),
-                      size: 18,
-                    ),
-                  ],
+                InkWell(
+                  onTap: _abrirFiltros,
+                  child: Row(
+                    children: [
+                      const Icon(Icons.tune, color: Colors.white, size: 18),
+                      const SizedBox(width: 4),
+                      Text(
+                        _filtros.ativo
+                            ? 'Filtros (${_filtros.quantidadeAtivos})'
+                            : 'Filtros',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Icon(
+                        Icons.keyboard_arrow_down,
+                        color: Colors.white.withValues(alpha: 0.9),
+                        size: 18,
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -1720,7 +1889,7 @@ class _TelaBuscaState extends State<TelaBusca> {
                       ),
                     ),
                     IconButton(
-                      onPressed: () => _executarBusca(),
+                      onPressed: () => _executarBusca(null, true),
                       icon: Icon(Icons.search, color: Colors.grey.shade700),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(
@@ -1728,10 +1897,103 @@ class _TelaBuscaState extends State<TelaBusca> {
                         minHeight: 40,
                       ),
                     ),
+                    // Filtros (bottom sheet)
+                    Badge(
+                      isLabelVisible: _filtros.ativo,
+                      label: Text('${_filtros.quantidadeAtivos}'),
+                      backgroundColor: _primaryBlue,
+                      offset: const Offset(-4, 4),
+                      child: IconButton(
+                        tooltip: 'Filtros',
+                        onPressed: _abrirFiltros,
+                        icon: Icon(
+                          Icons.tune_rounded,
+                          color: Colors.grey.shade700,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 40,
+                          minHeight: 40,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
               Divider(height: 1, thickness: 1, color: Colors.grey.shade200),
+              // Últimas buscas do cliente
+              if (_recentes.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Buscas recentes',
+                            style: TextStyle(
+                              color: Colors.grey.shade700,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const Spacer(),
+                          TextButton(
+                            onPressed: () async {
+                              setState(() => _recentes = []);
+                              try {
+                                final prefs =
+                                    await SharedPreferences.getInstance();
+                                await prefs.remove(_chaveRecentes);
+                              } catch (_) {}
+                            },
+                            child: const Text('Limpar'),
+                          ),
+                        ],
+                      ),
+                      for (final termo in _recentes.take(5))
+                        InkWell(
+                          onTap: () => _executarBusca(termo),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.history_rounded,
+                                  size: 20,
+                                  color: Colors.grey.shade500,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    termo,
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ),
+                                InkWell(
+                                  onTap: () => _removerRecente(termo),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(6),
+                                    child: Icon(
+                                      Icons.close_rounded,
+                                      size: 18,
+                                      color: Colors.grey.shade500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              if (_recentes.isNotEmpty)
+                Divider(height: 1, thickness: 1, color: Colors.grey.shade200),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                 child: Wrap(
@@ -1816,45 +2078,54 @@ class _TelaBuscaState extends State<TelaBusca> {
   @override
   Widget build(BuildContext context) {
     return AppBackHandler(
-      child: Scaffold(
-        backgroundColor: Colors.grey.shade100,
-        body: _mostrandoResultados
-            ? _buildTelaResultados()
-            : _buildTelaBuscaInicial(),
-        bottomNavigationBar: _mostrandoResultados
-            ? BottomNavigationBarCliente(
-                currentIndex: 0,
-                onTap: (index) {
-                  if (index == 0) {
-                    AppNavigationUtil.navegarAba(
-                      context,
-                      TelaHome(isVisitante: widget.isVisitante),
-                      isHome: true,
-                    );
-                  } else if (index == 1) {
-                    AppNavigationUtil.navegarAba(
-                      context,
-                      SolicitacaoGeograficaClientePage(
-                        isVisitante: widget.isVisitante,
-                      ),
-                      isHome: false,
-                    );
-                  } else if (index == 3) {
-                    AppNavigationUtil.navegarAba(
-                      context,
-                      MeusPedidosPage(isVisitante: widget.isVisitante),
-                      isHome: false,
-                    );
-                  } else if (index == 4) {
-                    AppNavigationUtil.navegarAba(
-                      context,
-                      TelaMeuPerfilClientePage(isVisitante: widget.isVisitante),
-                      isHome: false,
-                    );
-                  }
-                },
-              )
-            : null,
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light,
+        child: Scaffold(
+          backgroundColor: Colors.grey.shade100,
+          body: _mostrandoResultados
+              ? _buildTelaResultados()
+              : _buildTelaBuscaInicial(),
+          bottomNavigationBar: _mostrandoResultados
+              ? BottomNavigationBarCliente(
+                  currentIndex: 0,
+                  onTap: (index) {
+                    if (index != 0 && widget.isVisitante) {
+                      mostrarAvisoVisitante(context);
+                      return;
+                    }
+                    if (index == 0) {
+                      AppNavigationUtil.navegarAba(
+                        context,
+                        TelaHome(isVisitante: widget.isVisitante),
+                        isHome: true,
+                      );
+                    } else if (index == 1) {
+                      AppNavigationUtil.navegarAba(
+                        context,
+                        SolicitacaoGeograficaClientePage(
+                          isVisitante: widget.isVisitante,
+                        ),
+                        isHome: false,
+                      );
+                    } else if (index == 3) {
+                      AppNavigationUtil.navegarAba(
+                        context,
+                        MeusPedidosPage(isVisitante: widget.isVisitante),
+                        isHome: false,
+                      );
+                    } else if (index == 4) {
+                      AppNavigationUtil.navegarAba(
+                        context,
+                        TelaMeuPerfilClientePage(
+                          isVisitante: widget.isVisitante,
+                        ),
+                        isHome: false,
+                      );
+                    }
+                  },
+                )
+              : null,
+        ),
       ),
     );
   }

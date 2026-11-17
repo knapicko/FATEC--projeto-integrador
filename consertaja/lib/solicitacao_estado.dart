@@ -25,9 +25,9 @@ import 'utils/fluxo_solicitacao.dart';
 import 'utils/icone_oficio.dart';
 import 'utils/iniciais.dart';
 import 'widgets/avaliacao_bottom_sheet.dart';
-import 'widgets/skeleton_loading.dart';
 import 'utils/funcao_servico.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
+import 'widgets/skeletons_telas.dart';
 
 // A enum ModalidadeExecucao agora vive em utils/fluxo_solicitacao.dart e é
 // reexportada aqui para manter compatibilidade com os imports existentes.
@@ -1328,7 +1328,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
               _buildHeader(),
               Expanded(
                 child: _carregando && widget.solicitacao == null
-                    ? const SkeletonPage(layout: SkeletonLayout.request)
+                    ? const SkeletonEstadoSolicitacao()
                     : _erro != null && widget.solicitacao == null
                     ? Center(
                         child: Padding(

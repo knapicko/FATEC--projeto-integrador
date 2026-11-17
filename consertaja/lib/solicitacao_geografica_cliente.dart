@@ -31,9 +31,20 @@ enum _Etapa { formulario, solicitando, aguardando, encontrado }
 /// Aba "Radar" do cliente: cria uma solicitação geográfica que vai para os
 /// profissionais/empresas com a função escolhida num raio de 5 km.
 class SolicitacaoGeograficaClientePage extends StatefulWidget {
-  const SolicitacaoGeograficaClientePage({super.key, this.isVisitante = false});
+  const SolicitacaoGeograficaClientePage({
+    super.key,
+    this.isVisitante = false,
+    this.tituloInicial,
+    this.funcaoInicial,
+    this.metodoInicial,
+  });
 
   final bool isVisitante;
+
+  /// Vindo da busca: o pedido já abre com o que a pessoa pesquisou.
+  final String? tituloInicial;
+  final String? funcaoInicial;
+  final String? metodoInicial;
 
   @override
   State<SolicitacaoGeograficaClientePage> createState() =>
@@ -115,6 +126,11 @@ class _SolicitacaoGeograficaClientePageState
         if (_titulo.text.trim().isNotEmpty) _erroTitulo = null;
       });
     });
+    final titulo = widget.tituloInicial?.trim() ?? '';
+    if (titulo.isNotEmpty) _titulo.text = titulo;
+    if (widget.metodoInicial != null) {
+      _metodo = MetodoEntregaGeo.porValor(widget.metodoInicial);
+    }
     _iniciar();
   }
 
@@ -293,7 +309,17 @@ class _SolicitacaoGeograficaClientePageState
     final centroFuture = SolicitacaoGeograficaService.localizacaoAtual();
     try {
       final funcoes = await SolicitacaoGeograficaService.carregarFuncoes();
-      if (mounted) setState(() => _funcoes = funcoes);
+      final inicial = widget.funcaoInicial?.trim().toLowerCase();
+      if (mounted) {
+        setState(() {
+          _funcoes = funcoes;
+          if (inicial != null && inicial.isNotEmpty && _funcao == null) {
+            _funcao = funcoes
+                .where((f) => f.funcao.toLowerCase() == inicial)
+                .firstOrNull;
+          }
+        });
+      }
     } catch (e) {
       _mensagem('Não foi possível carregar as áreas: $e');
     }

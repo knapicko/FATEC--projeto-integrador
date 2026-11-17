@@ -11,7 +11,33 @@ import 'services/auth_navigation.dart';
 import 'services/google_auth_service.dart';
 import 'tela_home.dart';
 import 'utils/app_navigation_util.dart';
+import 'widgets/avisos_bottom_sheet.dart';
 import 'widgets/caixa_flutuante.dart';
+
+/// Visitante escolheu entrar/cadastrar (bottom sheet de visitante): vai
+/// para o onboarding e, ao voltar, para a tela inicial.
+void abrirEntradaVisitante(BuildContext context, {required bool login}) {
+  SessaoVisitante.ativo = false;
+  unawaited(OnboardingController.instance.limparRascunho());
+  if (login) {
+    OnboardingController.instance.iniciarFluxoLogin();
+  } else {
+    OnboardingController.instance.iniciarFluxoCadastro();
+  }
+  Navigator.of(context).pushAndRemoveUntil(
+    MaterialPageRoute(
+      builder: (_) => ConversationalOnboardingScreen(
+        iniciarLogin: login,
+        iniciarCadastro: !login,
+        onVoltarInicio: (ctx) => Navigator.of(ctx).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const TelaInicial()),
+          (route) => false,
+        ),
+      ),
+    ),
+    (route) => false,
+  );
+}
 
 class TelaInicial extends StatefulWidget {
   const TelaInicial({super.key});
@@ -87,6 +113,8 @@ class _TelaInicialState extends State<TelaInicial>
   @override
   void initState() {
     super.initState();
+    aoEscolherEntrarVisitante = abrirEntradaVisitante;
+    SessaoVisitante.ativo = false;
     // Aquece em momento ocioso (após o primeiro frame) tudo que a primeira
     // transição precisa: imagens da caixa/logo e SharedPreferences.
     // Sem isso, esse custo cai no frame do toque e só a 1ª transição trava.
@@ -272,17 +300,8 @@ class _TelaInicialState extends State<TelaInicial>
         await navegarPosAutenticacaoGoogle(context);
       }
     } catch (erro) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Não foi possível entrar com Google.\n'
-              '${GoogleAuthService.mensagemErro(erro)}',
-            ),
-            backgroundColor: const Color(0xFFB42318),
-          ),
-        );
-      }
+      debugPrint(GoogleAuthService.mensagemErro(erro));
+      if (mounted) await mostrarErroGoogle(context, erro);
     } finally {
       if (mounted) setState(() => _autenticandoGoogle = false);
     }
@@ -415,7 +434,7 @@ class _TelaInicialState extends State<TelaInicial>
                                       onPressed: () => _abrirFluxo(login: true),
                                     ),
                                     const SizedBox(height: 14),
-                                    _BotaoGoogle(
+                                    BotaoGoogleCircular(
                                       carregando: _autenticandoGoogle,
                                       onPressed: _entrarComGoogle,
                                     ),
@@ -515,11 +534,14 @@ class _BotaoInicial extends StatelessWidget {
   }
 }
 
-class _BotaoGoogle extends StatelessWidget {
+class BotaoGoogleCircular extends StatelessWidget {
   final bool carregando;
   final VoidCallback onPressed;
 
-  const _BotaoGoogle({required this.carregando, required this.onPressed});
+  const BotaoGoogleCircular({
+    required this.carregando,
+    required this.onPressed,
+  });
 
   @override
   Widget build(BuildContext context) {
