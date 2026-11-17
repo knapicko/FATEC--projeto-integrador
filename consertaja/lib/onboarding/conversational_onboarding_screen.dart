@@ -1810,18 +1810,49 @@ class _CaixaFalanteState extends State<_CaixaFalante>
 
   @override
   Widget build(BuildContext context) {
-    final caixa = CaixaCharacter(
-      asset: _falando
-          ? _QuadrosFala.quadro(olhosFechados: _olhosFechados, boca: _boca)
-          : widget.poseParada,
-      size: widget.size,
-      semTransicao: _falando,
+    // Sem piscar: os 8 quadros da fala e a pose parada ficam SEMPRE
+    // montados (e com a imagem já decodificada); só a opacidade muda. Antes,
+    // cada troca de boca criava uma imagem nova, que podia ficar um quadro
+    // em branco até carregar.
+    final atual = _QuadrosFala.quadro(
+      olhosFechados: _olhosFechados,
+      boca: _boca,
+    );
+    final caixa = Stack(
+      alignment: Alignment.center,
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 520),
+          curve: Curves.easeInOutCubic,
+          width: widget.size,
+          height: widget.size,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              for (final quadro in _QuadrosFala.todos)
+                Opacity(
+                  opacity: _falando && quadro == atual ? 1 : 0,
+                  child: Image.asset(
+                    quadro,
+                    fit: BoxFit.contain,
+                    gaplessPlayback: true,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        Opacity(
+          opacity: _falando ? 0 : 1,
+          child: CaixaCharacter(asset: widget.poseParada, size: widget.size),
+        ),
+      ],
     );
     return AnimatedBuilder(
       animation: Listenable.merge([_tremor, _intensidade]),
       builder: (context, child) {
+        // Sempre a mesma estrutura (Transform mesmo parado): trocar o
+        // formato da árvore recriava a caixa e fazia ela piscar.
         final i = Curves.easeOut.transform(_intensidade.value);
-        if (i == 0) return child!;
         final t = _tremor.value * 2 * math.pi;
         final giro = math.sin(t) * 0.022 * i;
         final pulo = -math.sin(t * 2).abs() * 2.4 * i;
