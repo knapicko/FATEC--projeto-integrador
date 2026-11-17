@@ -39,7 +39,9 @@ class VoltarFluxoSolicitacao {
     final Widget lista = profissional
         ? const MeusServicosSolicitadosPage()
         : const MeusPedidosPage();
-    final nome = profissional ? 'MeusServicosSolicitadosPage' : 'MeusPedidosPage';
+    final nome = profissional
+        ? 'MeusServicosSolicitadosPage'
+        : 'MeusPedidosPage';
     navegador.pushAndRemoveUntil(
       AppNavigationUtil.rotaSemAnimacao(lista, nome: nome),
       (rota) => rota.isFirst,

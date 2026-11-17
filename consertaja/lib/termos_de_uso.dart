@@ -529,9 +529,7 @@ Caso alguma disposição destes Termos seja considerada inválida ou inaplicáve
             ),
           ],
         ),
-        child: SingleChildScrollView(
-          child: DocumentoMarkdown(data: _conteudo),
-        ),
+        child: SingleChildScrollView(child: DocumentoMarkdown(data: _conteudo)),
       ),
     );
   }

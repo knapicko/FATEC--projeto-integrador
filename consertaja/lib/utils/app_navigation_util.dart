@@ -10,7 +10,8 @@ class AppRouteObserver extends NavigatorObserver {
 
   List<Route<dynamic>> get history => List.unmodifiable(_history);
 
-  Route<dynamic>? get currentRoute => _history.isNotEmpty ? _history.last : null;
+  Route<dynamic>? get currentRoute =>
+      _history.isNotEmpty ? _history.last : null;
 
   Route<dynamic>? get previousRoute =>
       _history.length >= 2 ? _history[_history.length - 2] : null;
@@ -169,9 +170,7 @@ class AppNavigationUtil {
       if (Navigator.of(context).canPop()) {
         Navigator.of(context).popUntil((route) => route.isFirst);
       } else {
-        Navigator.of(context).pushReplacement(
-          rotaSemAnimacao(novaTela),
-        );
+        Navigator.of(context).pushReplacement(rotaSemAnimacao(novaTela));
       }
       return;
     }
@@ -191,9 +190,7 @@ class AppNavigationUtil {
     }
 
     // Caso contrário, empilha a nova aba preservando o histórico de navegação
-    Navigator.of(context).push(
-      rotaSemAnimacao(novaTela, nome: routeName),
-    );
+    Navigator.of(context).push(rotaSemAnimacao(novaTela, nome: routeName));
   }
 }
 

@@ -60,8 +60,7 @@ class SolicitacaoEmAndamentoPage extends StatefulWidget {
       _SolicitacaoEmAndamentoPageState();
 }
 
-class _SolicitacaoEmAndamentoPageState
-    extends State<SolicitacaoEmAndamentoPage>
+class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
     with VoltarParaPedidosMixin {
   /// Voltar (botão ou sistema) leva para meus_servicos_solicitados.dart.
   @override

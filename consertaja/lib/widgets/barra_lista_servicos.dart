@@ -7,7 +7,8 @@ class BarraListaServicosWidget extends StatefulWidget {
   const BarraListaServicosWidget({super.key});
 
   @override
-  State<BarraListaServicosWidget> createState() => _BarraListaServicosWidgetState();
+  State<BarraListaServicosWidget> createState() =>
+      _BarraListaServicosWidgetState();
 }
 
 class _BarraListaServicosWidgetState extends State<BarraListaServicosWidget> {
@@ -43,9 +44,7 @@ class _BarraListaServicosWidgetState extends State<BarraListaServicosWidget> {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => const ListaServicos(),
-                ),
+                MaterialPageRoute(builder: (_) => const ListaServicos()),
               ).then((_) {
                 // Ao retornar da tela de lista de serviços, atualiza os dados
                 ListaServicosService.instance.atualizar();

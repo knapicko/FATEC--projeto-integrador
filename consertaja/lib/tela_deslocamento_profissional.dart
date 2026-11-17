@@ -789,7 +789,9 @@ class _TelaDeslocamentoProfissionalPageState
     ).profissionalDevolveNoCliente) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Nesta modalidade o cliente retira o produto no local.'),
+          content: Text(
+            'Nesta modalidade o cliente retira o produto no local.',
+          ),
         ),
       );
       return;
@@ -2001,14 +2003,14 @@ class _TelaDeslocamentoProfissionalPageState
                 ],
               ),
               if (_janelaHorarioTexto().isNotEmpty)
-              Text(
-                'Janela: ${_janelaHorarioTexto()}',
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: cinzaTexto,
+                Text(
+                  'Janela: ${_janelaHorarioTexto()}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: cinzaTexto,
+                  ),
                 ),
-              ),
             ],
           ),
         ],
@@ -2110,14 +2112,14 @@ class _TelaDeslocamentoProfissionalPageState
                     ],
                   ),
                   if (_janelaHorarioTexto().isNotEmpty)
-                  Text(
-                    'Janela: ${_janelaHorarioTexto()}',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: cinzaTexto,
+                    Text(
+                      'Janela: ${_janelaHorarioTexto()}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: cinzaTexto,
+                      ),
                     ),
-                  ),
                 ],
               ),
             ],

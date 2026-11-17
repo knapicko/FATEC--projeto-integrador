@@ -20,8 +20,7 @@ class ProfissionalEquipeService {
     String accessToken = sessaoAtual.accessToken;
     try {
       final respostaAtualizada = await _client.auth.refreshSession();
-      accessToken =
-          respostaAtualizada.session?.accessToken ?? accessToken;
+      accessToken = respostaAtualizada.session?.accessToken ?? accessToken;
     } on AuthException {
       throw Exception('Sua sessão expirou. Faça login novamente.');
     }
@@ -29,11 +28,7 @@ class ProfissionalEquipeService {
     final response = await _client.functions.invoke(
       'criar-profissional-equipe',
       headers: {'Authorization': 'Bearer $accessToken'},
-      body: {
-        'cpf': cpf,
-        'senha': senha,
-        'id_grupo_empresa': idGrupoEmpresa,
-      },
+      body: {'cpf': cpf, 'senha': senha, 'id_grupo_empresa': idGrupoEmpresa},
     );
     if (response.data is Map && response.data['error'] != null) {
       throw Exception(response.data['error']);
@@ -53,7 +48,7 @@ class CriarProfissionalPopover extends StatefulWidget {
   final String cpf;
 
   @override
-    State<CriarProfissionalPopover> createState() =>
+  State<CriarProfissionalPopover> createState() =>
       _CriarProfissionalPopoverState();
 }
 
@@ -101,7 +96,9 @@ class _CriarProfissionalPopoverState extends State<CriarProfissionalPopover> {
             texto,
             style: TextStyle(
               fontSize: 12,
-              color: concluido ? Colors.green.shade700 : const Color(0xFF64748B),
+              color: concluido
+                  ? Colors.green.shade700
+                  : const Color(0xFF64748B),
             ),
           ),
         ],
@@ -230,7 +227,10 @@ class _CriarProfissionalPopoverState extends State<CriarProfissionalPopover> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.badge_outlined, color: Color(0xFF64748B)),
+                      const Icon(
+                        Icons.badge_outlined,
+                        color: Color(0xFF64748B),
+                      ),
                       const SizedBox(width: 10),
                       Text(
                         'CPF: ${widget.cpf}',
@@ -253,7 +253,8 @@ class _CriarProfissionalPopoverState extends State<CriarProfissionalPopover> {
                       icon: Icon(
                         _ocultarSenha ? Icons.visibility : Icons.visibility_off,
                       ),
-                      onPressed: () => setState(() => _ocultarSenha = !_ocultarSenha),
+                      onPressed: () =>
+                          setState(() => _ocultarSenha = !_ocultarSenha),
                     ),
                   ),
                   validator: _validarSenha,

@@ -1834,7 +1834,9 @@ class _TelaBuscaState extends State<TelaBusca> {
                   } else if (index == 1) {
                     AppNavigationUtil.navegarAba(
                       context,
-                      SolicitacaoGeograficaClientePage(isVisitante: widget.isVisitante),
+                      SolicitacaoGeograficaClientePage(
+                        isVisitante: widget.isVisitante,
+                      ),
                       isHome: false,
                     );
                   } else if (index == 3) {

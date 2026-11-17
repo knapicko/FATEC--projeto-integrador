@@ -31,8 +31,8 @@ class ServicoCatalogo {
         ? oficioMap['funcao']?.toString()
         : null;
     final cor = oficioMap is Map<String, dynamic>
-      ? (oficioMap['cor'] ?? oficioMap['cod_cor'])?.toString()
-      : null;
+        ? (oficioMap['cor'] ?? oficioMap['cod_cor'])?.toString()
+        : null;
 
     return ServicoCatalogo(
       id: (map['id_catalogo'] as num).toInt(),

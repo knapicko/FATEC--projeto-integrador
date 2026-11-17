@@ -113,7 +113,9 @@ class _EsqueciSenhaPageState extends State<EsqueciSenhaPage> {
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 360),
-            child: _emailEnviado ? _buildTelaSucesso() : _buildFormularioEmail(),
+            child: _emailEnviado
+                ? _buildTelaSucesso()
+                : _buildFormularioEmail(),
           ),
         ),
       ),

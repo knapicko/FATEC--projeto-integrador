@@ -1007,7 +1007,9 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
     } else if (index == 1 && _isProfissional) {
       Navigator.of(context).push(
         AppNavigationUtil.rotaSemAnimacao(
-          SolicitacaoGeograficaProfissionalPage(isVisitante: widget.isVisitante),
+          SolicitacaoGeograficaProfissionalPage(
+            isVisitante: widget.isVisitante,
+          ),
           nome: 'SolicitacaoGeograficaProfissionalPage',
         ),
       );

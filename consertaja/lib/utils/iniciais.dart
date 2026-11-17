@@ -8,7 +8,10 @@ String obterIniciais(String nome) {
     return 'N';
   }
 
-  final partes = limpo.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  final partes = limpo
+      .split(RegExp(r'\s+'))
+      .where((p) => p.isNotEmpty)
+      .toList();
 
   if (partes.isEmpty) return 'N';
 

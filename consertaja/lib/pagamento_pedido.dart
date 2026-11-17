@@ -71,8 +71,7 @@ class _DadosCartao {
   });
 }
 
-class _PagamentoPedidoPageState
-    extends State<PagamentoPedidoPage>
+class _PagamentoPedidoPageState extends State<PagamentoPedidoPage>
     with VoltarParaPedidosMixin {
   /// Voltar (botão ou sistema) leva para meus_pedidos.dart.
   @override

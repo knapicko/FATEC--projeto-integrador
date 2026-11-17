@@ -1368,7 +1368,9 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
       if (index == 1) {
         Navigator.of(context).push(
           AppNavigationUtil.rotaSemAnimacao(
-            SolicitacaoGeograficaProfissionalPage(isVisitante: widget.isVisitante),
+            SolicitacaoGeograficaProfissionalPage(
+              isVisitante: widget.isVisitante,
+            ),
             nome: 'SolicitacaoGeograficaProfissionalPage',
           ),
         );

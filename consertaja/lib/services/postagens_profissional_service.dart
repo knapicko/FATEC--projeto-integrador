@@ -48,7 +48,11 @@ class PostagensProfissionalService {
       debugPrint('📝 [criarPostagem] idPerfil: $idPerfil');
       if (idPerfil == null) {
         debugPrint('❌ [criarPostagem] idPerfil é null!');
-        return (sucesso: false, idPostagem: null, erro: 'Perfil não encontrado. Verifique seus dados profissionais.');
+        return (
+          sucesso: false,
+          idPostagem: null,
+          erro: 'Perfil não encontrado. Verifique seus dados profissionais.',
+        );
       }
 
       final supabase = Supabase.instance.client;
@@ -56,7 +60,11 @@ class PostagensProfissionalService {
       debugPrint('📝 [criarPostagem] user: ${user?.id}');
       if (user == null) {
         debugPrint('❌ [criarPostagem] user é null!');
-        return (sucesso: false, idPostagem: null, erro: 'Usuário não autenticado.');
+        return (
+          sucesso: false,
+          idPostagem: null,
+          erro: 'Usuário não autenticado.',
+        );
       }
 
       // 1. Faz upload das imagens para o bucket 'Postagens'
@@ -65,11 +73,15 @@ class PostagensProfissionalService {
       for (final imagem in imagens) {
         final fileName =
             '${user.id}_${DateTime.now().millisecondsSinceEpoch}_${urlsImagens.length}.jpg';
-        debugPrint('📤 [criarPostagem] Upload: $fileName (bucket: $bucketPostagens)');
+        debugPrint(
+          '📤 [criarPostagem] Upload: $fileName (bucket: $bucketPostagens)',
+        );
 
         if (kIsWeb) {
           final bytes = await imagem.readAsBytes();
-          await supabase.storage.from(bucketPostagens).uploadBinary(
+          await supabase.storage
+              .from(bucketPostagens)
+              .uploadBinary(
                 fileName,
                 bytes,
                 fileOptions: const FileOptions(
@@ -78,7 +90,9 @@ class PostagensProfissionalService {
                 ),
               );
         } else {
-          await supabase.storage.from(bucketPostagens).upload(
+          await supabase.storage
+              .from(bucketPostagens)
+              .upload(
                 fileName,
                 File(imagem.path),
                 fileOptions: const FileOptions(
@@ -96,10 +110,7 @@ class PostagensProfissionalService {
 
       // 2. Monta o conteúdo (texto + URLs das imagens)
       final texto = conteudo.trim();
-      final linhas = <String>[
-        if (texto.isNotEmpty) texto,
-        ...urlsImagens,
-      ];
+      final linhas = <String>[if (texto.isNotEmpty) texto, ...urlsImagens];
       final conteudoFinal = linhas.join('\n');
       debugPrint('📝 [criarPostagem] conteudoFinal: $conteudoFinal');
       if (conteudoFinal.isEmpty) {
@@ -111,8 +122,9 @@ class PostagensProfissionalService {
       // tipo_autor: 'profissional' (CNPJ individual) ou 'empresa' (grupo_empresa).
       // fk_grupo_empresa: preenchido só quando a postagem é da empresa.
       debugPrint('📝 [criarPostagem] Inserindo no banco...');
-      final tipoAutorNormalizado =
-          tipoAutor == 'empresa' ? 'empresa' : 'profissional';
+      final tipoAutorNormalizado = tipoAutor == 'empresa'
+          ? 'empresa'
+          : 'profissional';
       Map<String, dynamic>? response;
       Object? ultimoErroInsert;
 
@@ -126,14 +138,15 @@ class PostagensProfissionalService {
               'arquivado': false,
               'fk_perfil': idPerfil,
               'tipo_autor': tipoAutorNormalizado,
-              if (idGrupoEmpresa != null)
-                'fk_grupo_empresa': idGrupoEmpresa,
+              if (idGrupoEmpresa != null) 'fk_grupo_empresa': idGrupoEmpresa,
             })
             .select('id_postagem')
             .single();
       } catch (e) {
         ultimoErroInsert = e;
-        debugPrint('ℹ️ [criarPostagem] Insert com tipo_autor falhou ($e). Tentando sem as colunas novas...');
+        debugPrint(
+          'ℹ️ [criarPostagem] Insert com tipo_autor falhou ($e). Tentando sem as colunas novas...',
+        );
         response = null;
       }
 
@@ -174,7 +187,9 @@ class PostagensProfissionalService {
             });
           }
           await supabase.from('imagens_postagens').insert(linhas);
-          debugPrint('✅ [criarPostagem] imagens_postagens OK (${linhas.length})');
+          debugPrint(
+            '✅ [criarPostagem] imagens_postagens OK (${linhas.length})',
+          );
         } catch (e) {
           debugPrint(
             'ℹ️ [criarPostagem] imagens_postagens indisponível ($e). '
@@ -187,11 +202,7 @@ class PostagensProfissionalService {
     } catch (e) {
       debugPrint('❌ [criarPostagem] ERRO GERAL: $e');
       debugPrint('❌ [criarPostagem] StackTrace: ${StackTrace.current}');
-      return (
-        sucesso: false,
-        idPostagem: null,
-        erro: 'Erro ao publicar: $e',
-      );
+      return (sucesso: false, idPostagem: null, erro: 'Erro ao publicar: $e');
     }
   }
 
@@ -218,7 +229,9 @@ class PostagensProfissionalService {
 
       final idProfissional = (dadosProf['id_profissional'] as num?)?.toInt();
       final fkPerfil = (dadosProf['fk_perfil'] as num?)?.toInt();
-      debugPrint('📝 [buscarIdPerfil] id_profissional: $idProfissional | fk_perfil atual: $fkPerfil');
+      debugPrint(
+        '📝 [buscarIdPerfil] id_profissional: $idProfissional | fk_perfil atual: $fkPerfil',
+      );
 
       // 0. Se já tem fk_perfil preenchido, verifica se ele existe na tabela perfil
       if (fkPerfil != null) {
@@ -232,9 +245,13 @@ class PostagensProfissionalService {
             debugPrint('✅ [buscarIdPerfil] fk_perfil já válido: $fkPerfil');
             return fkPerfil;
           }
-          debugPrint('ℹ️ [buscarIdPerfil] fk_perfil $fkPerfil não existe mais na tabela perfil. Criando novo...');
+          debugPrint(
+            'ℹ️ [buscarIdPerfil] fk_perfil $fkPerfil não existe mais na tabela perfil. Criando novo...',
+          );
         } catch (e) {
-          debugPrint('ℹ️ [buscarIdPerfil] Falha ao verificar perfil (sem permissão de leitura?): $e');
+          debugPrint(
+            'ℹ️ [buscarIdPerfil] Falha ao verificar perfil (sem permissão de leitura?): $e',
+          );
         }
       }
 
@@ -242,7 +259,9 @@ class PostagensProfissionalService {
 
       // 1. Tentativa: INSERT direto (sem mexer em descricao/banner_url → autoincrement)
       try {
-        debugPrint('📝 [buscarIdPerfil] Tentativa 1: INSERT na tabela perfil (autoincrement)...');
+        debugPrint(
+          '📝 [buscarIdPerfil] Tentativa 1: INSERT na tabela perfil (autoincrement)...',
+        );
         final perfilResponse = await supabase
             .from('perfil')
             .insert({})
@@ -255,7 +274,9 @@ class PostagensProfissionalService {
             .from('dados_profissionais')
             .update({'fk_perfil': novoId})
             .eq('id_profissional', idProfissional!);
-        debugPrint('✅ [buscarIdPerfil] dados_profissionais.fk_perfil atualizado para $novoId');
+        debugPrint(
+          '✅ [buscarIdPerfil] dados_profissionais.fk_perfil atualizado para $novoId',
+        );
 
         return novoId;
       } catch (e1) {
@@ -264,20 +285,26 @@ class PostagensProfissionalService {
 
       // 2. Tentativa: INSERT com id_perfil = id_profissional
       try {
-        debugPrint('📝 [buscarIdPerfil] Tentativa 2: INSERT com id_perfil = $idProfissional...');
+        debugPrint(
+          '📝 [buscarIdPerfil] Tentativa 2: INSERT com id_perfil = $idProfissional...',
+        );
         final perfilResponse = await supabase
             .from('perfil')
             .insert({'id_perfil': idProfissional!})
             .select('id_perfil')
             .single();
         final novoId2 = (perfilResponse['id_perfil'] as num).toInt();
-        debugPrint('✅ [buscarIdPerfil] Perfil criado com id explícito: $novoId2');
+        debugPrint(
+          '✅ [buscarIdPerfil] Perfil criado com id explícito: $novoId2',
+        );
 
         await supabase
             .from('dados_profissionais')
             .update({'fk_perfil': novoId2})
             .eq('id_profissional', idProfissional);
-        debugPrint('✅ [buscarIdPerfil] dados_profissionais.fk_perfil atualizado para $novoId2');
+        debugPrint(
+          '✅ [buscarIdPerfil] dados_profissionais.fk_perfil atualizado para $novoId2',
+        );
 
         return novoId2;
       } catch (e2) {
@@ -295,14 +322,18 @@ class PostagensProfissionalService {
             .from('dados_profissionais')
             .update({'fk_perfil': novoId3})
             .eq('id_profissional', idProfissional!);
-        debugPrint('✅ [buscarIdPerfil] dados_profissionais.fk_perfil atualizado para $novoId3');
+        debugPrint(
+          '✅ [buscarIdPerfil] dados_profissionais.fk_perfil atualizado para $novoId3',
+        );
 
         return novoId3;
       } catch (e3) {
         debugPrint('❌ [buscarIdPerfil] Tentativa 3 (RPC) falhou: $e3');
       }
 
-      debugPrint('❌ [buscarIdPerfil] Não foi possível criar o perfil automaticamente.');
+      debugPrint(
+        '❌ [buscarIdPerfil] Não foi possível criar o perfil automaticamente.',
+      );
       return null;
     } catch (e) {
       debugPrint('❌ [buscarIdPerfil] ERRO GERAL: $e');
@@ -406,7 +437,9 @@ class PostagensProfissionalService {
           comColunasNovas: true,
         );
       } catch (e) {
-        debugPrint('ℹ️ [buscarPostagensPorPerfil] Sem colunas novas ($e). Usando query legada.');
+        debugPrint(
+          'ℹ️ [buscarPostagensPorPerfil] Sem colunas novas ($e). Usando query legada.',
+        );
         temColunasNovas = false;
         rows = await _executarQueryPostagens(
           supabase: supabase,
@@ -451,8 +484,7 @@ class PostagensProfissionalService {
               .order('ordem', ascending: true)
               .limit(1);
           if (imgs.isNotEmpty) {
-            imagemViaTabela =
-                (imgs.first as Map)['url_imagem']?.toString();
+            imagemViaTabela = (imgs.first as Map)['url_imagem']?.toString();
           }
         } catch (_) {
           // Tabela ainda não criada — ignora e usa só o conteudo.
@@ -519,7 +551,9 @@ class PostagensProfissionalService {
           .select('id_postagem');
 
       final sucesso = removidas.isNotEmpty;
-      debugPrint('🗑️ [apagarPostagem] id=$idPostagem sucesso=$sucesso linhas=${removidas.length}');
+      debugPrint(
+        '🗑️ [apagarPostagem] id=$idPostagem sucesso=$sucesso linhas=${removidas.length}',
+      );
       return sucesso;
     } catch (e) {
       debugPrint('❌ [apagarPostagem] ERRO: $e');
@@ -539,7 +573,9 @@ class PostagensProfissionalService {
           .select('id_postagem');
 
       final sucesso = atualizadas.isNotEmpty;
-      debugPrint('📦 [arquivarPostagem] id=$idPostagem sucesso=$sucesso linhas=${atualizadas.length}');
+      debugPrint(
+        '📦 [arquivarPostagem] id=$idPostagem sucesso=$sucesso linhas=${atualizadas.length}',
+      );
       return sucesso;
     } catch (e) {
       debugPrint('❌ [arquivarPostagem] ERRO: $e');

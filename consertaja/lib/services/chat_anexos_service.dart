@@ -208,21 +208,25 @@ class ChatAnexosService {
         if (tamanho > tamanhoMaximoBytes) {
           return (sucesso: false, linha: null, erro: _mensagemArquivoGrande);
         }
-        await _supabase.storage.from(bucketAnexos).upload(
-          caminho,
-          arquivoLocal,
-          fileOptions: FileOptions(contentType: contentType, upsert: true),
-        );
+        await _supabase.storage
+            .from(bucketAnexos)
+            .upload(
+              caminho,
+              arquivoLocal,
+              fileOptions: FileOptions(contentType: contentType, upsert: true),
+            );
       } else {
         final bytes = await leitorBytes();
         if (bytes.length > tamanhoMaximoBytes) {
           return (sucesso: false, linha: null, erro: _mensagemArquivoGrande);
         }
-        await _supabase.storage.from(bucketAnexos).uploadBinary(
-          caminho,
-          bytes,
-          fileOptions: FileOptions(contentType: contentType, upsert: true),
-        );
+        await _supabase.storage
+            .from(bucketAnexos)
+            .uploadBinary(
+              caminho,
+              bytes,
+              fileOptions: FileOptions(contentType: contentType, upsert: true),
+            );
       }
 
       final url = _supabase.storage.from(bucketAnexos).getPublicUrl(caminho);
@@ -270,7 +274,9 @@ class ChatAnexosService {
           'audio_${DateTime.now().millisecondsSinceEpoch}.$extensao';
       final caminho = _construirCaminho(idConversa, nomeArquivo);
 
-      await _supabase.storage.from(bucketAnexos).uploadBinary(
+      await _supabase.storage
+          .from(bucketAnexos)
+          .uploadBinary(
             caminho,
             bytes,
             fileOptions: FileOptions(contentType: contentType),
@@ -348,9 +354,10 @@ class ChatAnexosService {
 
   /// Caminho do arquivo dentro do bucket: uma pasta por conversa.
   static String _construirCaminho(int idConversa, String nomeArquivo) {
-    final nomeLimpo = nomeArquivo
-        .trim()
-        .replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+    final nomeLimpo = nomeArquivo.trim().replaceAll(
+      RegExp(r'[^A-Za-z0-9._-]'),
+      '_',
+    );
     final carimbo = DateTime.now().millisecondsSinceEpoch;
     return 'conversa_$idConversa/${carimbo}_$nomeLimpo';
   }

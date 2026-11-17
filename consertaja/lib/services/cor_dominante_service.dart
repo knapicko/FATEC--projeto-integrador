@@ -62,14 +62,12 @@ class CorDominanteService {
         }
       }
 
-      final mapa =
-          saturadas.isNotEmpty ? saturadas : todas;
+      final mapa = saturadas.isNotEmpty ? saturadas : todas;
       if (mapa.isEmpty) return corPadrao;
 
       final cor = mapa.entries
           .reduce(
-            (atual, proxima) =>
-                proxima.value > atual.value ? proxima : atual,
+            (atual, proxima) => proxima.value > atual.value ? proxima : atual,
           )
           .key;
       return '0xFF${cor.toRadixString(16).padLeft(6, '0').toUpperCase()}';
@@ -135,8 +133,8 @@ class CorDominanteService {
     final normalizado = texto.startsWith('#')
         ? texto.substring(1)
         : texto.startsWith('0x') || texto.startsWith('0X')
-            ? texto.substring(2)
-            : texto;
+        ? texto.substring(2)
+        : texto;
     final numero = int.tryParse(normalizado, radix: 16);
     if (numero == null) return corPadraoColor;
     if (normalizado.length == 6) return Color(0xFF000000 | numero);
@@ -144,4 +142,3 @@ class CorDominanteService {
     return corPadraoColor;
   }
 }
-
