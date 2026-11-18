@@ -8,6 +8,7 @@ import '../detalhes_pedido.dart';
 import '../meus_servicos_solicitados.dart';
 import '../tela_deslocamento_cliente.dart';
 import 'fluxo_solicitacao.dart';
+import '../servico_concluido_cliente.dart';
 
 /// Abre a tela certa de uma solicitação conforme o status e o método de
 /// entrega — a mesma regra de meus_pedidos.dart (cliente) e
@@ -56,9 +57,10 @@ Future<void> abrirSolicitacaoPorStatus(
         DestinoCliente.confirmarRetirada => ConfirmarRetiradaClientePage(
           idSolicitacao: idSolicitacao,
         ),
-        DestinoCliente.detalhes => DetalhesPedidoPage(
-          idSolicitacao: idSolicitacao,
-        ),
+        DestinoCliente.detalhes =>
+          fluxo.estaConcluido
+              ? ServicoConcluidoClientePage(idSolicitacao: idSolicitacao)
+              : DetalhesPedidoPage(idSolicitacao: idSolicitacao),
       };
     }
   } catch (_) {}

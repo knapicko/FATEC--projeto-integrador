@@ -72,6 +72,33 @@ class AvaliacoesPendentes {
     }
   }
 
+  /// Abre a avaliação de um pedido concluído específico (histórico, tela de
+  /// serviço concluído). Devolve true se o cliente enviou a avaliação.
+  static Future<bool> avaliar(BuildContext context, int idSolicitacao) async {
+    final c = await _db
+        .from('solicitacoes')
+        .select(
+          'id_solicitacao, fk_profissional, fk_grupo_empresa, '
+          'fk_servico_prof, fk_servico_temp',
+        )
+        .eq('id_solicitacao', idSolicitacao)
+        .maybeSingle();
+    if (c == null || !context.mounted) return false;
+    final pedido = await _montar(c);
+    if (!context.mounted) return false;
+    _jaOferecidos.add(idSolicitacao);
+    final r = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (_) => SheetAvaliarServico(pedido: pedido),
+    );
+    return r == true;
+  }
+
   static Future<PedidoParaAvaliar?> _proximoPendente() async {
     try {
       final user = _db.auth.currentUser;
@@ -278,7 +305,7 @@ class _SheetAvaliarServicoState extends State<SheetAvaliarServico> {
         midias: _midias,
       );
       if (!mounted) return;
-      Navigator.pop(context);
+      Navigator.pop(context, true);
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         const SnackBar(
           content: Text('Avaliação enviada. Obrigado!'),
@@ -330,15 +357,44 @@ class _SheetAvaliarServicoState extends State<SheetAvaliarServico> {
                 ),
               ),
               const SizedBox(height: 18),
-              CircleAvatar(
-                radius: 32,
-                backgroundColor: _azul,
-                backgroundImage: p.foto != null ? NetworkImage(p.foto!) : null,
-                child: p.foto == null
-                    ? const Icon(Icons.handyman_rounded, color: Colors.white)
-                    : null,
+              // Foto e nome de quem fez o serviço.
+              Container(
+                padding: const EdgeInsets.all(3),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFE0F2FE),
+                  shape: BoxShape.circle,
+                ),
+                child: CircleAvatar(
+                  radius: 36,
+                  backgroundColor: _azul,
+                  backgroundImage: p.foto != null
+                      ? NetworkImage(p.foto!)
+                      : null,
+                  child: p.foto == null
+                      ? Text(
+                          p.prestador.trim().isEmpty
+                              ? '?'
+                              : p.prestador.trim()[0].toUpperCase(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 26,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        )
+                      : null,
+                ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
+              Text(
+                p.prestador,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: _texto,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 12),
               const Text(
                 'Como foi o serviço?',
                 style: TextStyle(
@@ -349,7 +405,7 @@ class _SheetAvaliarServicoState extends State<SheetAvaliarServico> {
               ),
               const SizedBox(height: 4),
               Text(
-                '${p.titulo} • ${p.prestador}',
+                p.titulo,
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: _sec),
               ),

@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders, json, marcarSolicitacaoComoPaga, qrData, stripeRequest, supabasePublishableKey, supabaseSecretKey } from '../_shared/stripe.ts';
+import { corsHeaders, json, marcarSolicitacaoComoPaga, pagamentoAprovado, qrData, stripeRequest, supabasePublishableKey, supabaseSecretKey } from '../_shared/stripe.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const serviceKey = supabaseSecretKey();
@@ -156,6 +156,9 @@ Deno.serve(async (request) => {
         }, 400);
       }
       params.set('payment_method', paymentMethodTeste);
+      // Cartão: o valor fica AUTORIZADO e retido; a captura (cobrança de
+      // fato) acontece só quando o serviço é concluído pelos dois lados.
+      params.set('capture_method', 'manual');
     }
     params.set('confirm', 'true');
     params.set('description', `ConsertaJá - solicitação ${idSolicitacao}`);
@@ -172,7 +175,7 @@ Deno.serve(async (request) => {
     );
     const qr = qrData(intent);
 
-    if (intent.status === 'succeeded') {
+    if (pagamentoAprovado(intent.status)) {
       await marcarSolicitacaoComoPaga(admin, idSolicitacao);
     }
 
@@ -192,7 +195,7 @@ Deno.serve(async (request) => {
     // aprovado. Antes, um cartão aprovado na hora era marcado como Pago (3)
     // e logo em seguida voltava para 2. O filtro neq(3) também evita
     // sobrescrever um "Pago" gravado pelo webhook em paralelo.
-    if (intent.status !== 'succeeded') {
+    if (!pagamentoAprovado(intent.status)) {
       const { error: statusError } = await admin
         .from('solicitacoes')
         .update({ fk_status: 2 })

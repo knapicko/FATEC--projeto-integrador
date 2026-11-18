@@ -63,6 +63,21 @@ class StripePagamentoService {
     return StripePagamentoStatus.fromMap(data);
   }
 
+  /// Pedido concluído pelos dois lados: captura o cartão retido (ou marca o
+  /// Pix retido como liberado) para o profissional. Não faz nada se ainda não
+  /// estiver concluído; erros só vão para o log.
+  static Future<void> liberarPagamento(int idSolicitacao) async {
+    try {
+      await _supabase.functions.invoke(
+        'liberar-pagamento-stripe',
+        body: {'id_solicitacao': idSolicitacao},
+      );
+    } catch (e) {
+      // ignore: avoid_print
+      print('[Stripe] liberar pagamento $idSolicitacao: $e');
+    }
+  }
+
   static Map<String, dynamic> _mapResponse(dynamic raw) {
     if (raw is Map<String, dynamic>) return raw;
     if (raw is Map) return Map<String, dynamic>.from(raw);

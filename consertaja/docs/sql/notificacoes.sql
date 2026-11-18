@@ -510,6 +510,11 @@ BEGIN
   IF NEW.fk_status IS NOT DISTINCT FROM OLD.fk_status THEN
     RETURN NEW;
   END IF;
+  -- "Pago" só é avisado uma vez: quando o profissional volta uma etapa para
+  -- "Pago", ninguém recebe de novo (parecia que tinha pago duas vezes).
+  IF NEW.fk_status = 3 AND coalesce(NEW.aviso_pago_enviado, false) THEN
+    RETURN NEW;
+  END IF;
 
   SELECT s.status::text, s.tipo_status::text INTO v_status, v_tipo
   FROM public.status s WHERE s.id_status = NEW.fk_status;
@@ -556,8 +561,12 @@ BEGIN
     WHEN 38 THEN 'Você está a caminho'
     ELSE coalesce(v_status, 'Pedido atualizado')
   END;
-  v_texto := concat_ws(' • ', v_servico, coalesce(v_prof_nome, 'Profissional'),
-                       'Status: ' || coalesce(v_status, '—'));
+  v_texto := CASE NEW.fk_status
+    WHEN 3 THEN v_servico || ': pagamento confirmado. O valor fica retido com segurança e só é liberado para '
+                || coalesce(v_prof_nome, 'o profissional') || ' quando o serviço for concluído.'
+    ELSE concat_ws(' • ', v_servico, coalesce(v_prof_nome, 'Profissional'),
+                   'Status: ' || coalesce(v_status, '—'))
+  END;
 
   PERFORM public.criar_notificacao(
     NEW.fk_usuario, 'Solicitação', v_titulo, v_texto,
@@ -572,17 +581,22 @@ BEGIN
     format('sol_status:%s:%s>%s:%s:%s', NEW.id_solicitacao, OLD.fk_status,
            NEW.fk_status, NEW.fk_usuario, v_minuto));
 
-  -- Profissional: só Pago (3), Aguardando Cliente (5) e Cliente Deslocando (38).
-  IF NEW.fk_status IN (3, 5, 38) THEN
+  -- Profissional: Pago (3), Aguardando Cliente (5), Concluído (6, pagamento
+  -- liberado) e Cliente Deslocando (38).
+  IF NEW.fk_status IN (3, 5, 6, 38) THEN
     v_titulo := CASE NEW.fk_status
-      WHEN 3  THEN 'Pagamento recebido!'
+      WHEN 3  THEN 'Pagamento garantido'
       WHEN 5  THEN coalesce(v_cliente.nome, 'O cliente') || ' está aguardando você'
+      WHEN 6  THEN 'Serviço concluído: pagamento liberado'
       WHEN 38 THEN coalesce(v_cliente.nome, 'O cliente') || ' está a caminho'
     END;
     v_texto := CASE NEW.fk_status
       WHEN 3 THEN coalesce(v_cliente.nome, 'O cliente') || ' pagou ' || v_servico ||
                   coalesce(' (' || public.notif_formatar_reais(NEW.valor_final) || ')', '') ||
-                  '. Já pode começar!'
+                  '. O valor fica retido e é liberado para você quando o serviço for concluído. Já pode começar!'
+      WHEN 6 THEN v_servico ||
+                  coalesce(' (' || public.notif_formatar_reais(NEW.valor_final) || ')', '') ||
+                  ' foi concluído pelos dois lados e o valor foi liberado para você.'
       ELSE concat_ws(' • ', v_servico, 'Status: ' || v_status)
     END;
 
@@ -605,6 +619,12 @@ BEGIN
         format('sol_status:%s:%s>%s:%s:%s', NEW.id_solicitacao, OLD.fk_status,
                NEW.fk_status, v_dest, v_minuto));
     END LOOP;
+  END IF;
+
+  IF NEW.fk_status = 3 THEN
+    -- Não muda fk_status: este UPDATE não dispara o trigger de novo.
+    UPDATE public.solicitacoes SET aviso_pago_enviado = true
+    WHERE id_solicitacao = NEW.id_solicitacao;
   END IF;
 
   RETURN NEW;
@@ -663,11 +683,11 @@ BEGIN
   END IF;
   v_previa := CASE
     WHEN v_json ? 'titulo' AND lower(coalesce(v_json->>'tipo', '')) LIKE '%proposta%'
-      THEN '💼 Enviou uma proposta: ' || (v_json->>'titulo')
-    WHEN lower(NEW.tipo_mensagem) = 'proposta' THEN '💼 Enviou uma proposta'
-    WHEN NEW.tipo_mensagem = 'Imagem'    THEN '📷 Imagem'
-    WHEN NEW.tipo_mensagem = 'Audio'     THEN '🎤 Mensagem de voz'
-    WHEN NEW.tipo_mensagem = 'Documento' THEN '📄 Documento'
+      THEN 'Enviou uma proposta: ' || (v_json->>'titulo')
+    WHEN lower(NEW.tipo_mensagem) = 'proposta' THEN 'Enviou uma proposta'
+    WHEN NEW.tipo_mensagem = 'Imagem'    THEN 'Imagem'
+    WHEN NEW.tipo_mensagem = 'Audio'     THEN 'Mensagem de voz'
+    WHEN NEW.tipo_mensagem = 'Documento' THEN 'Documento'
     WHEN char_length(v_previa) > 160 THEN left(v_previa, 157) || '...'
     ELSE v_previa
   END;

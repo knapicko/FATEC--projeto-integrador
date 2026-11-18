@@ -26,6 +26,7 @@ import 'widgets/imagem_servico.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/funcao_servico.dart';
 import 'solicitacao_geografica_profissional.dart';
+import 'servico_concluido.dart';
 
 /// Solicitação de serviço recebida pelo profissional (conta independente ou
 /// conta empresa). Cada linha de `solicitacoes` vira um card.
@@ -738,6 +739,18 @@ class _MeusServicosSolicitadosPageState
         _abrirSolicitacaoEmAndamento(item);
         break;
       case DestinoProfissional.estado:
+        if (_fluxo(item).estaConcluido) {
+          // Concluído: tela de conclusão (valor recebido, fotos, avaliação).
+          Navigator.of(context)
+              .push(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      ServicoConcluidoPage(idSolicitacao: item.idSolicitacao),
+                ),
+              )
+              .then((_) => _carregar());
+          break;
+        }
         _abrirSolicitacaoEstado(item);
         break;
     }

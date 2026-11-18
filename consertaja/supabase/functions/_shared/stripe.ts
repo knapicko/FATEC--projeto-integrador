@@ -76,6 +76,13 @@ export function qrData(paymentIntent: Record<string, any>) {
   };
 }
 
+/// Pagamento aprovado: capturado (Pix) ou autorizado e RETIDO (cartão com
+/// captura manual, "requires_capture"). O dinheiro só é capturado/liberado
+/// ao profissional na conclusão (liberar-pagamento-stripe).
+export function pagamentoAprovado(status: unknown) {
+  return status === 'succeeded' || status === 'requires_capture';
+}
+
 export async function marcarSolicitacaoComoPaga(
   supabase: any,
   idSolicitacao: number,
@@ -83,7 +90,10 @@ export async function marcarSolicitacaoComoPaga(
   const { error } = await supabase
     .from('solicitacoes')
     .update({ fk_status: 3 })
-    .eq('id_solicitacao', idSolicitacao);
+    .eq('id_solicitacao', idSolicitacao)
+    // Só quem ainda não estava pago (aberto/aceito/aguardando pagamento):
+    // o webhook da captura na conclusão não pode voltar o pedido para "Pago".
+    .in('fk_status', [1, 2, 31]);
   if (error) {
     throw new Error(`NÃ£o foi possÃ­vel marcar a solicitaÃ§Ã£o como paga: ${error.message}`);
   }

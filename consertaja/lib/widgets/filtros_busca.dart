@@ -367,6 +367,138 @@ class _FiltrosSheetState extends State<_FiltrosSheet> {
     }
   }
 
+  final Set<String> _expandidos = {};
+
+  /// Funções agrupadas pelo ofício, na ordem em que vieram (já ordenadas).
+  List<(String, Color, List<OficioInfo>)> _gruposPorOficio() {
+    final grupos = <String, List<OficioInfo>>{};
+    for (final o in _funcoes) {
+      grupos.putIfAbsent(o.categoria ?? 'Outros', () => []).add(o);
+    }
+    return [
+      for (final e in grupos.entries)
+        (e.key, CorOficio.parse(e.value.first.cor), e.value),
+    ];
+  }
+
+  /// Chip do ofício (seleciona/desmarca todas as funções dele) + seta que
+  /// expande a lista de funções para escolher uma a uma.
+  Widget _blocoOficio((String, Color, List<OficioInfo>) grupo) {
+    final (nome, cor, funcoes) = grupo;
+    final nomes = {for (final f in funcoes) f.funcao};
+    final marcadas = nomes.where(_f.funcoes.contains).length;
+    final todas = marcadas == nomes.length;
+    final aberto = _expandidos.contains(nome);
+    final escura = CorOficio.corTexto(cor);
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: marcadas > 0 ? cor.withValues(alpha: 0.12) : _campo,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: marcadas > 0 ? cor.withValues(alpha: 0.6) : Colors.transparent,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () {
+              final novo = {..._f.funcoes};
+              if (todas) {
+                novo.removeAll(nomes);
+              } else {
+                novo.addAll(nomes);
+              }
+              setState(() => _f = _f.copiar(funcoes: novo));
+            },
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 6, 4, 6),
+              child: Row(
+                children: [
+                  Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: todas ? cor : Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: cor, width: 2),
+                    ),
+                    child: todas
+                        ? const Icon(Icons.check, size: 14, color: Colors.white)
+                        : (marcadas > 0
+                              ? Icon(Icons.remove, size: 14, color: cor)
+                              : null),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      nome,
+                      style: TextStyle(
+                        color: marcadas > 0 ? escura : _texto,
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  if (marcadas > 0 && !todas)
+                    Text(
+                      '$marcadas/${nomes.length}',
+                      style: TextStyle(
+                        color: escura,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  IconButton(
+                    tooltip: aberto ? 'Esconder funções' : 'Ver funções',
+                    onPressed: () => setState(() {
+                      if (!_expandidos.remove(nome)) _expandidos.add(nome);
+                    }),
+                    icon: AnimatedRotation(
+                      turns: aberto ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 180),
+                      child: Icon(Icons.expand_more_rounded, color: escura),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: aberto
+                ? Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final o in funcoes)
+                          _chip(
+                            o.funcao,
+                            _f.funcoes.contains(o.funcao),
+                            () {
+                              final novo = {..._f.funcoes};
+                              if (!novo.remove(o.funcao)) novo.add(o.funcao);
+                              setState(() => _f = _f.copiar(funcoes: novo));
+                            },
+                            cor: cor,
+                          ),
+                      ],
+                    ),
+                  )
+                : const SizedBox(width: double.infinity),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _titulo(String t) => Padding(
     padding: const EdgeInsets.fromLTRB(0, 20, 0, 10),
     child: Text(
@@ -527,22 +659,11 @@ class _FiltrosSheetState extends State<_FiltrosSheet> {
                   ],
                 ),
 
-                _titulo('Funções'),
+                _titulo('Ofícios'),
                 if (_funcoes.isEmpty)
                   const Text('Carregando…', style: TextStyle(color: _sec))
                 else
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final o in _funcoes)
-                        _chip(o.funcao, _f.funcoes.contains(o.funcao), () {
-                          final novo = {..._f.funcoes};
-                          if (!novo.remove(o.funcao)) novo.add(o.funcao);
-                          setState(() => _f = _f.copiar(funcoes: novo));
-                        }, cor: CorOficio.parse(o.cor)),
-                    ],
-                  ),
+                  for (final grupo in _gruposPorOficio()) _blocoOficio(grupo),
 
                 _titulo('Profissionais'),
                 _caixa(
