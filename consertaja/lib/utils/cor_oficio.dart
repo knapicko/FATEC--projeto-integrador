@@ -34,16 +34,22 @@ class CorOficio {
 
   static const Color _corPadrao = Color(0xFF7B5EA7);
 
+  /// Cor de cada ofício: tons suaves que lembram a área. A coluna `cor` do
+  /// banco é um enum com nomes antigos — cada nome identifica UM ofício:
+  /// vermelho = Reparos domésticos, marrom = Móveis e interiores,
+  /// azul escuro = Segurança, vinho = Vidros e estruturas,
+  /// verde = Reparos pessoais, azul claro = Limpeza especializada,
+  /// cinza = Serviços tradicionais (ver docs/sql/v0_5_ajustes.sql).
   static const Map<String, Color> _coresNomeadas = {
-    'vinho': Color(0xFF722F37),
-    'roxo': Color(0xFF7B5EA7),
-    'magenta': Color(0xFFB606B6),
-    'azul escuro': Color(0xFF0C06FF),
-    'verde': Color(0xFF43A047),
-    'vermelho': Color(0xFFE53935),
-    'marrom': Color(0xFF6D4C41),
-    'cinza': Color(0xFF676768),
-    'azul claro': Color(0xFF0FB3FF),
+    'vermelho': Color(0xFFF2A27E),
+    'marrom': Color(0xFFC9A27E),
+    'azul escuro': Color(0xFF8FA3D9),
+    'vinho': Color(0xFF8CC7D6),
+    'verde': Color(0xFFE8A3BE),
+    'azul claro': Color(0xFF86D3B5),
+    'cinza': Color(0xFFD9BE7A),
+    'roxo': Color(0xFFB9A3D9),
+    'magenta': Color(0xFFD9A3D0),
   };
 
   /// `cod_cor` gravado em `oficios` → mesma cor da paleta do nome (`cor`).

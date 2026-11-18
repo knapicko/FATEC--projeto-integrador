@@ -24,6 +24,7 @@ import 'utils/cor_oficio.dart';
 import 'widgets/tag_oficio.dart';
 import 'utils/funcao_servico.dart';
 import 'solicitacao_geografica_profissional.dart';
+import 'services/requisitos_conta.dart';
 
 class GestaoEquipePage extends StatefulWidget {
   const GestaoEquipePage({super.key});
@@ -2721,6 +2722,12 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
               onPressed: _idGrupoEmpresa == null
                   ? null
                   : () async {
+                      if (!await RequisitosConta.garantirProntoParaServicos(
+                        context,
+                      )) {
+                        return;
+                      }
+                      if (!context.mounted) return;
                       final atualizou = await Navigator.push<bool>(
                         context,
                         MaterialPageRoute(

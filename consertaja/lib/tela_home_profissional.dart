@@ -38,6 +38,7 @@ import 'solicitacao_geografica_profissional.dart';
 import 'widgets/previa_radar_profissional.dart';
 import 'minhas_notificacoes.dart';
 import 'widgets/contador_notificacoes.dart';
+import 'widgets/permissoes_iniciais.dart';
 
 class TelaHomeProfissional extends StatefulWidget {
   final bool isVisitante;
@@ -202,8 +203,9 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     _inicializarFutures();
     // Pré-carrega as infos das contas em 2º plano para a troca abrir na hora.
     _precarregarInfosContas();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _mostrarCompletamentoEquipeSeNecessario();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await PermissoesIniciais.pedirSePrimeiraVez(context);
+      if (mounted) _mostrarCompletamentoEquipeSeNecessario();
     });
   }
 

@@ -27,6 +27,7 @@ import 'widgets/contador_notificacoes.dart';
 import 'widgets/filtros_busca.dart';
 import 'widgets/seletor_endereco_cliente.dart';
 import 'widgets/skeleton_loading.dart';
+import 'widgets/permissoes_iniciais.dart';
 
 /// Home do cliente (e do visitante).
 class TelaHome extends StatefulWidget {
@@ -57,6 +58,11 @@ class _TelaHomeState extends State<TelaHome> {
     super.initState();
     SessaoVisitante.ativo = widget.isVisitante;
     _carregarTudo();
+    if (!widget.isVisitante) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => PermissoesIniciais.pedirSePrimeiraVez(context),
+      );
+    }
   }
 
   Future<void> _carregarTudo() async {

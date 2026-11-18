@@ -24,6 +24,7 @@ import 'utils/iniciais.dart';
 import 'widgets/camada_mapa.dart';
 import 'widgets/carregamento_segmentado.dart';
 import 'widgets/sonar_pulso.dart';
+import 'services/requisitos_conta.dart';
 
 /// formulario → solicitando → aguardando → encontrado (profissional aceitou).
 enum _Etapa { formulario, solicitando, aguardando, encontrado }
@@ -1418,6 +1419,7 @@ class _SolicitacaoGeograficaClientePageState
     if (DateTime.now().isBefore(_ignorarEnvioAte)) return;
     if (_etapa != _Etapa.formulario || !_formularioCompleto) return;
     _desfocar();
+    if (!await RequisitosConta.garantirEnderecoCliente(context)) return;
     if (!_validar()) return;
     final centro = _centro;
     final funcao = _funcao;
