@@ -5,6 +5,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/icone_oficio.dart';
 import 'utils/funcao_servico.dart';
+import 'tela_inicial.dart';
+import 'widgets/avisos_bottom_sheet.dart';
 
 class ConfiguracoesEmpresaPage extends StatefulWidget {
   const ConfiguracoesEmpresaPage({super.key});
@@ -712,6 +714,29 @@ class _ConfiguracoesEmpresaPageState extends State<ConfiguracoesEmpresaPage> {
             fontWeight: FontWeight.bold,
           ),
         ),
+        actions: [
+          // Sai da conta de usuário (não só da empresa).
+          TextButton.icon(
+            onPressed: () async {
+              if (!await confirmarSairDaConta(context)) return;
+              await Supabase.instance.client.auth.signOut();
+              if (!context.mounted) return;
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const TelaInicial()),
+                (route) => false,
+              );
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFFDC2626),
+            ),
+            icon: const Icon(Icons.logout_rounded, size: 20),
+            label: const Text(
+              'Sair',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+          const SizedBox(width: 6),
+        ],
       ),
       body: _carregando
           ? const SkeletonPage(layout: SkeletonLayout.form)

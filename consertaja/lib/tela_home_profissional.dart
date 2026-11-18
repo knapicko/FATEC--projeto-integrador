@@ -1362,6 +1362,29 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                   .limit(1);
         if (enderecos.isEmpty) pendencias.add('enderecos');
       } catch (_) {}
+      // Empresa (conta Loja ativa): sem "sobre", com anos de mercado no
+      // padrão ou sem nenhum certificado → aviso em "Gerenciar Empresa".
+      if (_contaEmpresaAtiva && idGrupo != null) {
+        try {
+          final g = await db
+              .from('grupo_empresa')
+              .select('descricao_empresa, anos_mercado')
+              .eq('id_grupo_empresa', idGrupo)
+              .maybeSingle();
+          final certs = await db
+              .from('certificados_profissional')
+              .select('id_certificado')
+              .eq('fk_grupo_empresa', idGrupo)
+              .limit(1);
+          final anos = g?['anos_mercado']?.toString().trim() ?? '';
+          if (vazio(g?['descricao_empresa']) ||
+              anos.isEmpty ||
+              anos == '1' ||
+              certs.isEmpty) {
+            pendencias.add('empresa');
+          }
+        } catch (_) {}
+      }
     } catch (e) {
       debugPrint('[pendencias] $e');
     }
@@ -3312,76 +3335,6 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
               ),
               const SizedBox(height: 20),
 
-              // ================= BOTÃO GERENCIAR EMPRESA (SÓ CONTA EMPRESA) =================
-              // Aparece apenas quando a conta ativa é a da empresa
-              // (_contaEmpresaAtiva == true). Na conta do profissional
-              // independente (CNPJ) fica oculto.
-              if (_contaEmpresaAtiva)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 20),
-                  child: Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: _primaryBlue,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _primaryBlue.withValues(alpha: 0.3),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(16),
-                        onTap: () async {
-                          await Navigator.of(
-                            context,
-                          ).push(_rotaSemAnimacao(const GestaoEquipePage()));
-                          if (mounted) {
-                            setState(() {
-                              _tipoPerfilFuture = _buscarTipoPerfil();
-                            });
-                          }
-                        },
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(
-                            vertical: 14,
-                            horizontal: 16,
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.storefront_rounded,
-                                color: Colors.white,
-                                size: 22,
-                              ),
-                              SizedBox(width: 10),
-                              Text(
-                                'Gerenciar Empresa',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              SizedBox(width: 8),
-                              Icon(
-                                Icons.arrow_forward_ios_rounded,
-                                color: Colors.white,
-                                size: 14,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
               // ================= ATALHOS / PAINEL DE AÇÕES =================
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -3493,6 +3446,25 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                             ),
                           ),
                         ),
+                        if (_contaEmpresaAtiva)
+                          Expanded(
+                            child: _buildQuickOption(
+                              Icons.storefront_rounded,
+                              'Gerenciar\nEmpresa',
+                              pendente: _pendencias.contains('empresa'),
+                              onTap: () async {
+                                await Navigator.of(context).push(
+                                  _rotaSemAnimacao(const GestaoEquipePage()),
+                                );
+                                if (mounted) {
+                                  setState(() {
+                                    _tipoPerfilFuture = _buscarTipoPerfil();
+                                  });
+                                  unawaited(_atualizarPendencias());
+                                }
+                              },
+                            ),
+                          ),
                         if (!_contaEmpresaAtiva)
                           Expanded(
                             child: _buildQuickOption(
