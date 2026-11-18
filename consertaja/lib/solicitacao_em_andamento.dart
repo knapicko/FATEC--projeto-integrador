@@ -16,6 +16,7 @@ import 'tela_meu_perfil_profissional.dart';
 import 'utils/iniciais.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
+import 'widgets/dialogo_sheet.dart';
 
 class SolicitacaoEmAndamentoPage extends StatefulWidget {
   final int idSolicitacao;
@@ -766,7 +767,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
       if (!mounted) return;
 
       final recebaEmCasa = modalidade == ModalidadeExecucao.recebaEmCasa;
-      showDialog(
+      mostrarDialogoComoSheet(
         context: context,
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(

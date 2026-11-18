@@ -17,6 +17,7 @@ import 'utils/iniciais.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
 import 'widgets/codigo_flutuante.dart';
+import 'widgets/dialogo_sheet.dart';
 
 class TelaRecebeDevolucaoProfissionalPage extends StatefulWidget {
   final int idSolicitacao;
@@ -493,7 +494,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
       if (!mounted) return;
 
       // 3. Exibir confirmação e levar para bancada técnica
-      showDialog(
+      mostrarDialogoComoSheet(
         context: context,
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(

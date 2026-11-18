@@ -417,15 +417,18 @@ class ServicosProfissionalService {
       if (row == null) return null;
 
       final servico = ServicoProfissional.fromMap(row);
-      final dadosProf = await _supabase
-          .from('dados_profissionais')
-          .select('id_profissional, fk_usuario, fk_grupo_empresa, fk_perfil')
-          .eq('id_profissional', servico.fkProfissional)
-          .maybeSingle();
-      if (dadosProf == null) return null;
+      // Visitante (sem login) pode não ter acesso a algumas tabelas: cada
+      // consulta abaixo é opcional e não derruba os dados do serviço.
+      final dadosProf = await _opcional(
+        () => _supabase
+            .from('dados_profissionais')
+            .select('id_profissional, fk_usuario, fk_grupo_empresa, fk_perfil')
+            .eq('id_profissional', servico.fkProfissional)
+            .maybeSingle(),
+      );
 
-      final idPerfilProf = (dadosProf['fk_perfil'] as num?)?.toInt();
-      final idUsuarioProf = (dadosProf['fk_usuario'] as num?)?.toInt();
+      final idPerfilProf = (dadosProf?['fk_perfil'] as num?)?.toInt();
+      final idUsuarioProf = (dadosProf?['fk_usuario'] as num?)?.toInt();
       // A identidade exibida é determinada pelo próprio serviço. Um vínculo
       // do profissional com uma empresa não transforma automaticamente um
       // serviço independente em serviço da empresa.
@@ -433,22 +436,26 @@ class ServicosProfissionalService {
 
       Map<String, dynamic>? grupo;
       if (idGrupo != null) {
-        grupo = await _supabase
-            .from('grupo_empresa')
-            .select(
-              'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, fk_perfil',
-            )
-            .eq('id_grupo_empresa', idGrupo)
-            .maybeSingle();
+        grupo = await _opcional<Map<String, dynamic>?>(
+          () => _supabase
+              .from('grupo_empresa')
+              .select(
+                'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, fk_perfil',
+              )
+              .eq('id_grupo_empresa', idGrupo)
+              .maybeSingle(),
+        );
       }
 
       String tipoPerfil = '';
       if (idPerfilProf != null) {
-        final perfil = await _supabase
-            .from('perfil')
-            .select('tipo_perfil')
-            .eq('id_perfil', idPerfilProf)
-            .maybeSingle();
+        final perfil = await _opcional(
+          () => _supabase
+              .from('perfil')
+              .select('tipo_perfil')
+              .eq('id_perfil', idPerfilProf)
+              .maybeSingle(),
+        );
         tipoPerfil =
             perfil?['tipo_perfil']?.toString().trim().toLowerCase() ?? '';
       }
@@ -497,39 +504,48 @@ class ServicosProfissionalService {
         idPerfilPrestador =
             (grupo['fk_perfil'] as num?)?.toInt() ?? idPerfilProf;
         if (idPerfilPrestador != null) {
-          final dono = await _supabase
-              .from('dados_profissionais')
-              .select('fk_usuario')
-              .eq('fk_perfil', idPerfilPrestador)
-              .maybeSingle();
+          final dono = await _opcional(
+            () => _supabase
+                .from('dados_profissionais')
+                .select('fk_usuario')
+                .eq('fk_perfil', idPerfilPrestador!)
+                .limit(1)
+                .maybeSingle(),
+          );
           idUsuarioEndereco =
               (dono?['fk_usuario'] as num?)?.toInt() ?? idUsuarioProf;
         }
       } else if (idUsuarioProf != null) {
-        final usuario = await _supabase
-            .from('usuarios')
-            .select('nome, foto_perfil_url')
-            .eq('id_usuario', idUsuarioProf)
-            .maybeSingle();
+        final usuario = await _opcional(
+          () => _supabase
+              .from('usuarios')
+              .select('nome, foto_perfil_url')
+              .eq('id_usuario', idUsuarioProf)
+              .maybeSingle(),
+        );
         nomePrestador = usuario?['nome']?.toString().trim() ?? nomePrestador;
         fotoPrestador = usuario?['foto_perfil_url']?.toString();
       }
 
       int seguidores = 0;
       if (idPerfilPrestador != null) {
-        final lista = await _supabase
-            .from('seguidores_profissional')
-            .select('id_seguidor_profissional')
-            .eq('fk_perfil', idPerfilPrestador);
-        seguidores = lista.length;
+        final lista = await _opcional(
+          () => _supabase
+              .from('seguidores_profissional')
+              .select('id_seguidor_profissional')
+              .eq('fk_perfil', idPerfilPrestador!),
+        );
+        seguidores = lista?.length ?? 0;
       }
 
-      final endereco = await _buscarEnderecoPrestador(
-        ehLoja: ehLoja,
-        tipoPrestador: tipoPrestador,
-        idGrupo: idGrupo,
-        idProfissional: servico.fkProfissional,
-        idUsuarioFallback: idUsuarioEndereco,
+      final endereco = await _opcional(
+        () => _buscarEnderecoPrestador(
+          ehLoja: ehLoja,
+          tipoPrestador: tipoPrestador,
+          idGrupo: idGrupo,
+          idProfissional: servico.fkProfissional,
+          idUsuarioFallback: idUsuarioEndereco,
+        ),
       );
 
       String? tagEmpresa = grupo?['tag_empresa']?.toString().trim();
@@ -561,6 +577,16 @@ class ServicosProfissionalService {
       );
     } catch (e) {
       debugPrint('❌ [ServicosSvc] buscarDetalhePublico ERROR: $e');
+      return null;
+    }
+  }
+
+  /// Consulta opcional: erro (ex.: RLS para visitante) vira null.
+  static Future<T?> _opcional<T>(Future<T> Function() consulta) async {
+    try {
+      return await consulta();
+    } catch (e) {
+      debugPrint('[ServicosSvc] consulta opcional: $e');
       return null;
     }
   }

@@ -25,6 +25,7 @@ import 'widgets/camada_mapa.dart';
 import 'widgets/carregamento_segmentado.dart';
 import 'widgets/sonar_pulso.dart';
 import 'services/requisitos_conta.dart';
+import 'widgets/dialogo_sheet.dart';
 
 /// formulario → solicitando → aguardando → encontrado (profissional aceitou).
 enum _Etapa { formulario, solicitando, aguardando, encontrado }
@@ -1507,7 +1508,7 @@ class _SolicitacaoGeograficaClientePageState
     required String texto,
     required String botao,
   }) {
-    return showDialog<bool>(
+    return mostrarDialogoComoSheet<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),

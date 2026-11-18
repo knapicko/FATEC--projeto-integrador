@@ -5,6 +5,7 @@ import 'utils/cor_oficio.dart';
 import 'utils/icone_oficio.dart';
 import 'utils/iniciais.dart';
 import 'utils/funcao_servico.dart';
+import 'widgets/dialogo_sheet.dart';
 
 class EmpresaAssociadaPage extends StatefulWidget {
   const EmpresaAssociadaPage({super.key});
@@ -221,7 +222,7 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
   }
 
   Future<void> _confirmarSaidaEmpresa() async {
-    final confirmou = await showDialog<bool>(
+    final confirmou = await mostrarDialogoComoSheet<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(

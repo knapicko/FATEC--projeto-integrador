@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'documento_markdown.dart';
+import 'dialogo_sheet.dart';
 
 /// Exibe um pop-up (dialog) com o conteúdo de um documento legal
 /// (Termos de Uso ou Política de Privacidade).
@@ -11,7 +12,7 @@ Future<void> mostrarDialogoDocumento(
   required String titulo,
   required String conteudo,
 }) {
-  return showDialog<void>(
+  return mostrarDialogoComoSheet<void>(
     context: context,
     barrierDismissible: true,
     builder: (dialogContext) {

@@ -12,6 +12,7 @@ import 'alterar_tema_chat.dart';
 import 'tela_midia_chat.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/funcao_servico.dart';
+import 'widgets/dialogo_sheet.dart';
 
 class ChatContatoInfo extends StatefulWidget {
   final int? idConversa;
@@ -444,7 +445,7 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
   }
 
   void _confirmarBloqueio() {
-    showDialog(
+    mostrarDialogoComoSheet(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -485,7 +486,7 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
   }
 
   void _confirmarDenuncia() {
-    showDialog(
+    mostrarDialogoComoSheet(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

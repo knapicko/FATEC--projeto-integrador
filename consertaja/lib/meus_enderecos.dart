@@ -22,6 +22,7 @@ import 'utils/bottom_navigation_bar_profissional.dart';
 import 'utils/app_navigation_util.dart';
 import 'widgets/skeleton_loading.dart';
 import 'solicitacao_geografica_profissional.dart';
+import 'widgets/dialogo_sheet.dart';
 
 /// Constantes dos nomes das tabelas no Supabase
 const String _tabelaEndereco = 'enderecos';
@@ -733,7 +734,7 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
   }
 
   Future<void> _confirmarExclusaoEndereco(_EnderecoItem endereco) async {
-    final confirmar = await showDialog<bool>(
+    final confirmar = await mostrarDialogoComoSheet<bool>(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -938,7 +939,7 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
   }
 
   Future<void> _mostrarDialogoPrincipal(_EnderecoItem endereco) async {
-    final confirmar = await showDialog<bool>(
+    final confirmar = await mostrarDialogoComoSheet<bool>(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

@@ -11,6 +11,7 @@ import 'widgets/skeleton_loading.dart';
 import 'services/formatacao_data.dart';
 import 'utils/iniciais.dart';
 import 'widgets/seletor_ddi.dart';
+import 'widgets/dialogo_sheet.dart';
 
 class EditarInformacoesPage extends StatefulWidget {
   const EditarInformacoesPage({super.key});
@@ -489,7 +490,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
     final controller = TextEditingController(text: valorAtual);
     final formKey = GlobalKey<FormState>();
 
-    final resultado = await showDialog<String>(
+    final resultado = await mostrarDialogoComoSheet<String>(
       context: context,
       builder: (context) {
         return TweenAnimationBuilder<double>(
@@ -772,7 +773,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
     final confirmarSenhaController = TextEditingController();
     final formKey = GlobalKey<FormState>();
 
-    await showDialog<void>(
+    await mostrarDialogoComoSheet<void>(
       context: context,
       builder: (context) {
         return TweenAnimationBuilder<double>(

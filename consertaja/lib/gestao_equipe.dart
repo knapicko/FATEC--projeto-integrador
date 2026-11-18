@@ -26,6 +26,7 @@ import 'utils/funcao_servico.dart';
 import 'solicitacao_geografica_profissional.dart';
 import 'services/requisitos_conta.dart';
 import 'certificados.dart';
+import 'widgets/dialogo_sheet.dart';
 
 class GestaoEquipePage extends StatefulWidget {
   const GestaoEquipePage({super.key});
@@ -2245,7 +2246,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
       orElse: () => _membros.first,
     );
 
-    showDialog(
+    mostrarDialogoComoSheet(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -2928,7 +2929,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
   }
 
   Future<void> _excluirServicoEmpresa(ServicoProfissional servico) async {
-    final confirmar = await showDialog<bool>(
+    final confirmar = await mostrarDialogoComoSheet<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Excluir serviço?'),
