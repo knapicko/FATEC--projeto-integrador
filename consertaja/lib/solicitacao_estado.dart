@@ -1156,28 +1156,6 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
     if (mounted) await _avaliarCliente();
   }
 
-  void _salvarNaAgenda() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.check_circle, color: Colors.white),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Serviço agendado para $_dataExibicao às $_horaExibicao salvo na sua agenda!',
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: const Color(0xFF10B981),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-  }
-
   void _relatarImprevisto() {
     showModalBottomSheet(
       context: context,
@@ -3968,19 +3946,19 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         const SizedBox(height: 12),
         Row(
           children: [
-            if (_temDataAgendada)
-              Expanded(
+            Expanded(
                 child: SizedBox(
                   height: 48,
                   child: FilledButton.icon(
-                    onPressed: _salvarNaAgenda,
+                    // Antes "Salvar na Agenda": agora abre o chat do cliente.
+                    onPressed: _abrirChat,
                     icon: const Icon(
-                      Icons.calendar_today_outlined,
+                      Icons.chat_bubble_outline_rounded,
                       color: _textoEscuro,
                       size: 18,
                     ),
                     label: const Text(
-                      'Salvar na Agenda',
+                      'Chat com o cliente',
                       style: TextStyle(
                         color: _textoEscuro,
                         fontWeight: FontWeight.w800,

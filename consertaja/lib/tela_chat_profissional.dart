@@ -115,6 +115,10 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
   int? _idProfissionalConversa;
   bool _souProfissionalNaConversa = false;
   bool _souEmpresaNaConversa = false;
+
+  /// Cliente da conversa (conversas.fk_usuario). No chat da empresa, tudo
+  /// que não foi ele que mandou é "nosso" (de qualquer membro da empresa).
+  int? _idClienteConversa;
   int? _idGrupoEmpresaConversa;
   bool _modoPesquisa = false;
   final _pesquisaController = TextEditingController();
@@ -2227,6 +2231,19 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     if (conversa != null) {
       _idConversa = (conversa['id_conversa'] as num?)?.toInt();
       await _carregarPapelNaConversa();
+      return;
+    }
+    // Ainda não há conversa: cria pelo servidor (o profissional não pode
+    // inserir em conversas diretamente).
+    try {
+      final id = await _supabase.rpc(
+        'abrir_conversa_da_solicitacao',
+        params: {'p_id_solicitacao': idSolicitacao},
+      );
+      _idConversa = (id as num?)?.toInt();
+      if (_idConversa != null) await _carregarPapelNaConversa();
+    } catch (e) {
+      debugPrint('Erro ao criar conversa da solicitação: $e');
     }
   }
 
@@ -2403,6 +2420,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
           .maybeSingle();
       if (conversa == null) return;
       final fkUsuario = (conversa['fk_usuario'] as num?)?.toInt();
+      _idClienteConversa = fkUsuario;
       final fkProfissional = (conversa['fk_profissional'] as num?)?.toInt();
       final fkGrupo = temColunaGrupo
           ? (conversa['fk_grupo_empresa'] as num?)?.toInt()
@@ -2463,6 +2481,14 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
 
   /// Verifica se o usuário logado é membro do grupo_empresa (dono/funcionário).
   Future<bool> _souMembroDoGrupo(int idGrupo) async {
+    // Funcionário OU dono do CNPJ (docs/sql/v0_6_ajustes.sql).
+    try {
+      final r = await _supabase.rpc(
+        'sou_membro_empresa',
+        params: {'p_grupo': idGrupo},
+      );
+      if (r == true) return true;
+    } catch (_) {}
     try {
       if (_idUsuarioLogado == null) return false;
       final vinculo = await _supabase
@@ -2745,7 +2771,10 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       dataEnvio: dataRaw == null
           ? DateTime.now()
           : DateTime.tryParse(dataRaw)?.toLocal() ?? DateTime.now(),
-      ehRemetente: idRemetente == _idUsuarioLogado,
+      // Empresa = conta única: mensagens de qualquer membro ficam do nosso lado.
+      ehRemetente: _souEmpresaNaConversa && _idClienteConversa != null
+          ? idRemetente != _idClienteConversa
+          : idRemetente == _idUsuarioLogado,
       tipoMensagem: ehProposta ? 'proposta' : rawTipo,
       lida: msg['lida'] == true,
       urlArquivo: msg['url_arquivo']?.toString(),
@@ -3157,12 +3186,17 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     NotificacaoService.instance.conversaEmTela = _idConversa;
     NotificacaoExibicao.limparConversa(_idConversa!);
     try {
-      await _supabase
+      final cliente = _souEmpresaNaConversa ? _idClienteConversa : null;
+      var marcar = _supabase
           .from('mensagens')
           .update({'lida': true})
           .eq('fk_conversa', _idConversa!)
-          .neq('fk_remitente_usuario', _idUsuarioLogado!)
           .eq('lida', false);
+      // Na empresa, só as mensagens do cliente (não as dos colegas).
+      marcar = cliente != null
+          ? marcar.eq('fk_remitente_usuario', cliente)
+          : marcar.neq('fk_remitente_usuario', _idUsuarioLogado!);
+      await marcar;
       NotificacaoService.instance.atualizarContadores();
     } catch (e) {
       debugPrint('Erro ao marcar mensagens como lidas: $e');
@@ -3242,7 +3276,21 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                             });
                             _inicializarChat();
                           },
-                          child: const Text('Tentar de novo'),
+                          // Azul claro do app com texto branco.
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _primaryBlue,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 12,
+                            ),
+                            shape: const StadiumBorder(),
+                          ),
+                          child: const Text(
+                            'Tentar de novo',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
                         ),
                       ],
                     ),
