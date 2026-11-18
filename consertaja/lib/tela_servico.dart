@@ -18,6 +18,7 @@ import 'utils/iniciais.dart';
 import 'widgets/skeleton_loading.dart';
 import 'widgets/avisos_bottom_sheet.dart';
 import 'services/requisitos_conta.dart';
+import 'widgets/secao_avaliacoes.dart';
 
 class TelaServico extends StatefulWidget {
   final int? idServico;
@@ -202,6 +203,13 @@ class _TelaServicoState extends State<TelaServico> {
                               _buildDetalhes(servico),
                               const SizedBox(height: 26),
                               _buildEnderecoProfissional(detalhe),
+                              const SizedBox(height: 26),
+                              // Avaliações (comentários) deste serviço.
+                              SecaoAvaliacoes(
+                                idServico: servico.id,
+                                padding: EdgeInsets.zero,
+                              ),
+                              const SizedBox(height: 20),
                             ],
                           ),
                         ),

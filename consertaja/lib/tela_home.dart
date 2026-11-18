@@ -28,6 +28,8 @@ import 'widgets/filtros_busca.dart';
 import 'widgets/seletor_endereco_cliente.dart';
 import 'widgets/skeleton_loading.dart';
 import 'widgets/permissoes_iniciais.dart';
+import 'main.dart' show navigatorKey;
+import 'services/avaliacoes_pendentes.dart';
 
 /// Home do cliente (e do visitante).
 class TelaHome extends StatefulWidget {
@@ -59,9 +61,12 @@ class _TelaHomeState extends State<TelaHome> {
     SessaoVisitante.ativo = widget.isVisitante;
     _carregarTudo();
     if (!widget.isVisitante) {
-      WidgetsBinding.instance.addPostFrameCallback(
-        (_) => PermissoesIniciais.pedirSePrimeiraVez(context),
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await PermissoesIniciais.pedirSePrimeiraVez(context);
+        // Pedidos concluídos sem avaliação: pede agora e sempre que um
+        // pedido for concluído (em qualquer tela).
+        AvaliacoesPendentes.iniciar(navigatorKey);
+      });
     }
   }
 
