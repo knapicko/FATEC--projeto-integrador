@@ -52,6 +52,13 @@ CREATE POLICY avaliacoes_insere_proprio ON public.avaliacoes_solicitacao
     fk_avaliador IN (SELECT id_usuario FROM public.usuarios WHERE auth_id = auth.uid())
   );
 
+-- Quem avaliou pode anexar as fotos/vídeos (coluna midias) depois.
+DROP POLICY IF EXISTS avaliacoes_atualiza_proprio ON public.avaliacoes_solicitacao;
+CREATE POLICY avaliacoes_atualiza_proprio ON public.avaliacoes_solicitacao
+  FOR UPDATE TO authenticated
+  USING (fk_avaliador IN (SELECT id_usuario FROM public.usuarios WHERE auth_id = auth.uid()))
+  WITH CHECK (fk_avaliador IN (SELECT id_usuario FROM public.usuarios WHERE auth_id = auth.uid()));
+
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('Avaliacoes', 'Avaliacoes', true)
 ON CONFLICT (id) DO UPDATE SET public = true;

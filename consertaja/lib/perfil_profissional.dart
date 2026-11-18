@@ -17,6 +17,9 @@ import 'utils/iniciais.dart';
 import 'utils/funcao_servico.dart';
 import 'widgets/skeletons_telas.dart';
 import 'widgets/avisos_bottom_sheet.dart';
+import 'certificados.dart';
+import 'servicos_do_profissional.dart';
+import 'widgets/secao_avaliacoes.dart';
 
 class _DadosEnderecoProfissional {
   final String apelido;
@@ -2329,10 +2332,11 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
             clipBehavior: Clip.none,
             slivers: [
               SliverToBoxAdapter(child: _buildCabecalhoVisual()),
+              // Certificados (no lugar da antiga barra de busca de serviços).
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 8, bottom: 8),
-                  child: _buildBarraBusca(),
+                child: SecaoCertificados(
+                  key: ValueKey('cert-$_idProfissional'),
+                  idProfissional: _idProfissional,
                 ),
               ),
               SliverPersistentHeader(
@@ -2910,30 +2914,6 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
   }
 
   // 3. Barra de Pesquisa
-  Widget _buildBarraBusca() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: const Color(0xFFD1D5DB)),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        child: const TextField(
-          decoration: InputDecoration(
-            hintText: 'Buscar serviços',
-            hintStyle: TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
-            prefixIcon: Icon(Icons.search, color: Color(0xFF9CA3AF), size: 22),
-            suffixIcon: Icon(Icons.tune, color: Color(0xFF64748B), size: 22),
-            border: InputBorder.none,
-            contentPadding: EdgeInsets.symmetric(vertical: 12),
-          ),
-        ),
-      ),
-    );
-  }
-
   // 5. Conteúdo das Abas: Seção de Disponibilidade (Calendário com Exceções reais do Supabase)
   Widget _buildSecaoDisponibilidade() {
     final diasSemanaCabecalho = [
@@ -4129,6 +4109,13 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
               );
             },
           ),
+          const SizedBox(height: 24),
+          // Avaliações dos clientes (como comentários do perfil).
+          SecaoAvaliacoes(
+            idProfissional: _idGrupoEmpresa == null ? _idProfissional : null,
+            idGrupoEmpresa: _idGrupoEmpresa,
+            padding: EdgeInsets.zero,
+          ),
         ],
       ),
     );
@@ -4437,13 +4424,31 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Serviços Oferecidos',
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.bold,
-              color: _textDark,
-            ),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Serviços Oferecidos',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: _textDark,
+                  ),
+                ),
+              ),
+              if (_servicos.isNotEmpty)
+                TextButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ServicosDoProfissionalPage(
+                        servicos: _servicos,
+                        nome: _nome.isNotEmpty ? _nome : widget.nomeInicial,
+                      ),
+                    ),
+                  ),
+                  child: Text('Ver todos (${_servicos.length})'),
+                ),
+            ],
           ),
           const SizedBox(height: 12),
           if (_carregandoServicos)
@@ -4539,19 +4544,19 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
                 ),
               )
             else
-              // Grid de Cards verticais de serviço
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 14,
-                  crossAxisSpacing: 14,
-                  childAspectRatio: 0.68,
+              // Linha rolável na horizontal com até 10 serviços.
+              SizedBox(
+                height: 262,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: servicosFiltrados.length.clamp(0, 10),
+                  separatorBuilder: (_, _) => const SizedBox(width: 14),
+                  itemBuilder: (context, index) => SizedBox(
+                    width: 178,
+                    child: _buildCardServicoVisual(servicosFiltrados[index]),
+                  ),
                 ),
-                itemCount: servicosFiltrados.length,
-                itemBuilder: (context, index) =>
-                    _buildCardServicoVisual(servicosFiltrados[index]),
               ),
           ],
         ],
