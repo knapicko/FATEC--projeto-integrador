@@ -200,3 +200,51 @@ class SessaoVisitante {
     return false;
   }
 }
+
+/// Confirmação antes de sair da conta.
+Future<bool> confirmarSairDaConta(BuildContext context) async {
+  final r = await mostrarAvisoBottomSheet<bool>(
+    context,
+    icone: Icons.logout_rounded,
+    corIcone: const Color(0xFFDC2626),
+    titulo: 'Sair da conta?',
+    mensagem:
+        'Você vai precisar entrar de novo para pedir serviços, ver mensagens '
+        'e acompanhar seus pedidos.',
+    textoBotao: 'Sim, sair',
+    valorBotao: true,
+    textoSecundario: 'Continuar conectado',
+    valorSecundario: false,
+  );
+  return r == true;
+}
+
+/// Bolinha laranja com "!" (algo importante a configurar).
+class SeloPendente extends StatelessWidget {
+  const SeloPendente({super.key, this.tamanho = 20});
+
+  final double tamanho;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: tamanho,
+      height: tamanho,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF59E0B),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 2),
+      ),
+      child: Text(
+        '!',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: tamanho * 0.55,
+          fontWeight: FontWeight.w900,
+          height: 1,
+        ),
+      ),
+    );
+  }
+}

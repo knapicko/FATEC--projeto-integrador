@@ -19,6 +19,8 @@ import 'utils/app_navigation_util.dart';
 import 'widgets/skeleton_loading.dart';
 import 'minhas_notificacoes.dart';
 import 'widgets/contador_notificacoes.dart';
+import 'services/requisitos_conta.dart';
+import 'widgets/avisos_bottom_sheet.dart';
 
 class TelaMeuPerfilClientePage extends StatefulWidget {
   final bool isVisitante;
@@ -61,6 +63,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
   }
 
   Future<void> _carregarDadosPerfil() async {
+    _atualizarPendencias();
     if (widget.isVisitante) return;
 
     try {
@@ -90,6 +93,20 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
           .eq('auth_id', user.id)
           .maybeSingle();
 
+      // Pessoa física (CPF)? Só ela precisa de data de nascimento.
+      var pessoaFisica = false;
+      try {
+        final idTipo = data?['fk_tipo_pessoa'];
+        if (idTipo != null) {
+          final ass = await _supabase
+              .from('ass_tipo_pessoa')
+              .select('fk_pessoa_fisica')
+              .eq('id_tipo_pessoa', idTipo)
+              .maybeSingle();
+          pessoaFisica = ass?['fk_pessoa_fisica'] != null;
+        }
+      } catch (_) {}
+
       if (!mounted) return;
 
       setState(() {
@@ -102,17 +119,21 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                 .toString();
         _fotoPerfilUrl = data?['foto_perfil_url']?.toString();
 
+        // Colunas reais de usuarios (antes procurava "cpf", "telefone" e
+        // "email", que não existem nessa tabela — o aviso nunca sumia).
+        // Data de nascimento só é exigida de pessoa física.
         final bool dadosFaltando =
-            _campoVazio(data?['cpf']) ||
-            _campoVazio(data?['telefone']) ||
-            _campoVazio(data?['dataNascimento']) ||
-            _campoVazio(data?['data_nascimento']) ||
             _campoVazio(data?['nome']) ||
-            _campoVazio(data?['email']);
+            data?['fk_email'] == null ||
+            data?['fk_telefone'] == null ||
+            data?['fk_tipo_pessoa'] == null ||
+            (pessoaFisica && _campoVazio(data?['data_nascimento']));
 
         if (dadosFaltando) _avisosAtivos.add('dados');
-        if (user.emailConfirmedAt == null) _avisosAtivos.add('email');
-        if (user.phoneConfirmedAt == null) _avisosAtivos.add('telefone');
+        if (user.emailConfirmedAt == null &&
+            (user.email ?? '').trim().isNotEmpty) {
+          _avisosAtivos.add('email');
+        }
 
         _avisosAtivos.shuffle();
         _isLoading = false;
@@ -125,6 +146,15 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
         });
       }
     }
+  }
+
+  /// Sem endereço cadastrado → aviso "!" em Meus Endereços.
+  bool _semEndereco = false;
+
+  Future<void> _atualizarPendencias() async {
+    if (widget.isVisitante) return;
+    final tem = await RequisitosConta.clienteTemEndereco();
+    if (mounted) setState(() => _semEndereco = !tem);
   }
 
   bool _campoVazio(dynamic value) {
@@ -321,6 +351,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
     bool semIcone = false,
     VoidCallback? onTap,
     Widget? trailing,
+    bool pendente = false,
   }) {
     if (semIcone) {
       return InkWell(
@@ -382,6 +413,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
               ),
             ),
             if (trailing != null) ...[trailing, const SizedBox(width: 6)],
+            if (pendente) ...[const SeloPendente(), const SizedBox(width: 6)],
             const Icon(Icons.chevron_right, color: Color(0xFFB0B0B0), size: 20),
           ],
         ),
@@ -460,6 +492,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
   }
 
   Future<void> _sairDaConta() async {
+    if (!await confirmarSairDaConta(context)) return;
     await _supabase.auth.signOut();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
@@ -552,6 +585,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                           _buildSectionTitle('Sua Atividade'),
                           _buildProfileItem(
                             label: 'Meus Endereços',
+                            pendente: _semEndereco,
                             fallbackIcon: Icons.location_on_outlined,
                             onTap: () {
                               Navigator.push(
@@ -561,7 +595,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                                     isVisitante: widget.isVisitante,
                                   ),
                                 ),
-                              );
+                              ).then((_) => _atualizarPendencias());
                             },
                           ),
                           // Antes era a aba "Seguindo" do bottom nav (agora Radar).

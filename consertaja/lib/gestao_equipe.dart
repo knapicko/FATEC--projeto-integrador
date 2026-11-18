@@ -25,6 +25,7 @@ import 'widgets/tag_oficio.dart';
 import 'utils/funcao_servico.dart';
 import 'solicitacao_geografica_profissional.dart';
 import 'services/requisitos_conta.dart';
+import 'certificados.dart';
 
 class GestaoEquipePage extends StatefulWidget {
   const GestaoEquipePage({super.key});
@@ -1733,6 +1734,37 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                     }).toList(),
               ),
               const SizedBox(height: 18),
+              const Divider(color: Color(0xFFF1F5F9), height: 1, thickness: 1),
+              // Certificados da empresa (aparecem no perfil da loja).
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE0F2FE),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.workspace_premium_outlined,
+                    color: Color(0xFF0FB3FF),
+                  ),
+                ),
+                title: const Text(
+                  'Certificados',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+                subtitle: const Text('Cursos e certificações da empresa'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: _idGrupoEmpresa == null
+                    ? null
+                    : () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              CertificadosPage(idGrupoEmpresa: _idGrupoEmpresa),
+                        ),
+                      ),
+              ),
               const Divider(color: Color(0xFFF1F5F9), height: 1, thickness: 1),
             ],
           ),
