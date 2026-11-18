@@ -294,6 +294,19 @@ class AppSettingsController extends ChangeNotifier {
     ThemeData(
       primaryColor: _primaria,
       scaffoldBackgroundColor: const Color(0xFFF8F9FA),
+      // Sem colorScheme o Material 3 usa roxo: rótulos focados, calendário,
+      // cursores e indicadores ficavam roxos. Agora tudo no azul do app.
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: const Color(0xFF0FB3FF),
+        primary: const Color(0xFF0FB3FF),
+        onPrimary: Colors.white,
+        surface: Colors.white,
+        surfaceTint: Colors.transparent,
+      ),
+      textSelectionTheme: const TextSelectionThemeData(
+        cursorColor: Color(0xFF0FB3FF),
+        selectionHandleColor: Color(0xFF0FB3FF),
+      ),
     ),
   );
 

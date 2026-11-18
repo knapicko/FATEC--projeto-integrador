@@ -1,3 +1,5 @@
+import 'package:flutter/services.dart';
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -560,10 +562,13 @@ class _FormCertificadoState extends State<_FormCertificado> {
   PlatformFile? _arquivo;
   bool _enviando = false;
   String? _erro;
+  bool _avisoAnexo = false;
+  Timer? _timerAviso;
 
   @override
   void dispose() {
     _titulo.dispose();
+    _timerAviso?.cancel();
     super.dispose();
   }
 
@@ -572,8 +577,61 @@ class _FormCertificadoState extends State<_FormCertificado> {
       type: FileType.custom,
       allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
     );
-    if (r != null) setState(() => _arquivo = r);
+    if (r == null || !mounted) return;
+    HapticFeedback.lightImpact();
+    setState(() {
+      _arquivo = r;
+      _avisoAnexo = true;
+    });
+    _timerAviso?.cancel();
+    _timerAviso = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _avisoAnexo = false);
+    });
   }
+
+  /// Aviso verde que sobe e pode ser arrastado para baixo (dispensado).
+  Widget _avisoAnexado() => AnimatedSize(
+    duration: const Duration(milliseconds: 220),
+    curve: Curves.easeOutCubic,
+    child: !_avisoAnexo
+        ? const SizedBox(width: double.infinity)
+        : Dismissible(
+            key: const ValueKey('aviso_anexo'),
+            direction: DismissDirection.down,
+            onDismissed: (_) => setState(() => _avisoAnexo = false),
+            child: Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF16A34A),
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF16A34A).withValues(alpha: 0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.check_circle_rounded, color: Colors.white),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Documento anexado com sucesso!',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+  );
 
   Future<void> _escolherData() async {
     final hoje = DateTime.now();
@@ -583,6 +641,28 @@ class _FormCertificadoState extends State<_FormCertificado> {
       firstDate: DateTime(1970),
       lastDate: hoje,
       helpText: 'Data de emissão',
+      // Azul do app (antes vinha roxo do tema padrão).
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: Theme.of(ctx).colorScheme.copyWith(
+            primary: _azul,
+            onPrimary: Colors.white,
+            surface: Colors.white,
+            onSurface: _texto,
+            surfaceTint: Colors.transparent,
+          ),
+          datePickerTheme: const DatePickerThemeData(
+            backgroundColor: Colors.white,
+            headerBackgroundColor: _azul,
+            headerForegroundColor: Colors.white,
+            surfaceTintColor: Colors.transparent,
+          ),
+          textButtonTheme: TextButtonThemeData(
+            style: TextButton.styleFrom(foregroundColor: _azul),
+          ),
+        ),
+        child: child!,
+      ),
     );
     if (d != null) setState(() => _data = d);
   }
@@ -653,11 +733,21 @@ class _FormCertificadoState extends State<_FormCertificado> {
               ),
             ),
             const SizedBox(height: 14),
+            _avisoAnexado(),
             TextField(
               controller: _titulo,
               maxLength: 120,
+              cursorColor: _azul,
               decoration: InputDecoration(
-                labelText: 'Título (ex.: NR-10, Curso de Eletricista)',
+                labelText: 'Título (ex.: NR-10, Curso de Elétrica)',
+                floatingLabelStyle: const TextStyle(
+                  color: _azul,
+                  fontWeight: FontWeight.w600,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: _azul, width: 1.6),
+                ),
                 filled: true,
                 fillColor: const Color(0xFFF3F5F8),
                 border: OutlineInputBorder(
@@ -694,9 +784,12 @@ class _FormCertificadoState extends State<_FormCertificado> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              trailing: const Text(
-                'Anexar',
-                style: TextStyle(color: _azul, fontWeight: FontWeight.w700),
+              trailing: Text(
+                _arquivo == null ? 'Anexar' : 'Alterar',
+                style: const TextStyle(
+                  color: _azul,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               onTap: _escolherArquivo,
             ),

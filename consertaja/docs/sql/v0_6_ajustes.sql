@@ -9,6 +9,8 @@
 --  4. Serviços favoritados pelo cliente.
 --  5. Pagamento retido até a conclusão (colunas de controle).
 --  6. Notificações sem emoji; "Pago" avisado uma vez só.
+--  7. Empresa como conta única: chat e solicitações para todos os membros.
+--  8. Abrir/criar a conversa de uma solicitação (botão de chat do profissional).
 -- ============================================================================
 
 BEGIN;
@@ -347,5 +349,158 @@ EXCEPTION WHEN others THEN
   RETURN NEW;
 END;
 $$;
+
+-- 7) EMPRESA = UMA CONTA SÓ ------------------------------------------------------
+-- Funcionários (dados_profissionais.fk_grupo_empresa) E o dono do CNPJ
+-- (grupo_empresa.fk_perfil = dados_profissionais.fk_perfil) são membros da
+-- empresa: veem e respondem o MESMO chat e as MESMAS solicitações. Para o
+-- cliente é tudo a empresa (o nome de quem digitou não aparece).
+CREATE OR REPLACE FUNCTION public.sou_membro_empresa(p_grupo bigint)
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT p_grupo IS NOT NULL AND EXISTS (
+    SELECT 1
+    FROM public.dados_profissionais dp
+    LEFT JOIN public.grupo_empresa g ON g.id_grupo_empresa = p_grupo
+    WHERE dp.fk_usuario = public.meu_id_usuario()
+      AND (dp.fk_grupo_empresa = p_grupo
+           OR (g.fk_perfil IS NOT NULL AND dp.fk_perfil = g.fk_perfil))
+  );
+$$;
+GRANT EXECUTE ON FUNCTION public.sou_membro_empresa(bigint) TO authenticated;
+
+DROP POLICY IF EXISTS "conversas_select_empresa" ON public.conversas;
+CREATE POLICY "conversas_select_empresa"
+  ON public.conversas FOR SELECT TO authenticated
+  USING (fk_grupo_empresa IS NOT NULL AND (fk_usuario = public.meu_id_usuario() OR public.sou_membro_empresa(fk_grupo_empresa)));
+
+DROP POLICY IF EXISTS "conversas_insert_empresa" ON public.conversas;
+CREATE POLICY "conversas_insert_empresa"
+  ON public.conversas FOR INSERT TO authenticated
+  WITH CHECK (fk_grupo_empresa IS NOT NULL AND (fk_usuario = public.meu_id_usuario() OR public.sou_membro_empresa(fk_grupo_empresa)));
+
+DROP POLICY IF EXISTS "conversas_update_empresa" ON public.conversas;
+CREATE POLICY "conversas_update_empresa"
+  ON public.conversas FOR UPDATE TO authenticated
+  USING (fk_grupo_empresa IS NOT NULL AND (fk_usuario = public.meu_id_usuario() OR public.sou_membro_empresa(fk_grupo_empresa)))
+  WITH CHECK (fk_grupo_empresa IS NOT NULL AND (fk_usuario = public.meu_id_usuario() OR public.sou_membro_empresa(fk_grupo_empresa)));
+
+DROP POLICY IF EXISTS "mensagens_select_empresa" ON public.mensagens;
+CREATE POLICY "mensagens_select_empresa"
+  ON public.mensagens FOR SELECT TO authenticated
+  USING (EXISTS (
+    SELECT 1 FROM public.conversas c
+    WHERE c.id_conversa = mensagens.fk_conversa
+      AND c.fk_grupo_empresa IS NOT NULL
+      AND (c.fk_usuario = public.meu_id_usuario() OR public.sou_membro_empresa(c.fk_grupo_empresa))));
+
+DROP POLICY IF EXISTS "mensagens_insert_empresa" ON public.mensagens;
+CREATE POLICY "mensagens_insert_empresa"
+  ON public.mensagens FOR INSERT TO authenticated
+  WITH CHECK (fk_remitente_usuario = public.meu_id_usuario() AND EXISTS (
+    SELECT 1 FROM public.conversas c
+    WHERE c.id_conversa = mensagens.fk_conversa
+      AND c.fk_grupo_empresa IS NOT NULL
+      AND (c.fk_usuario = public.meu_id_usuario() OR public.sou_membro_empresa(c.fk_grupo_empresa))));
+
+DROP POLICY IF EXISTS "mensagens_update_empresa" ON public.mensagens;
+CREATE POLICY "mensagens_update_empresa"
+  ON public.mensagens FOR UPDATE TO authenticated
+  USING (EXISTS (
+    SELECT 1 FROM public.conversas c
+    WHERE c.id_conversa = mensagens.fk_conversa
+      AND c.fk_grupo_empresa IS NOT NULL
+      AND (c.fk_usuario = public.meu_id_usuario() OR public.sou_membro_empresa(c.fk_grupo_empresa))))
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM public.conversas c
+    WHERE c.id_conversa = mensagens.fk_conversa
+      AND c.fk_grupo_empresa IS NOT NULL
+      AND (c.fk_usuario = public.meu_id_usuario() OR public.sou_membro_empresa(c.fk_grupo_empresa))));
+
+-- Solicitações da empresa: qualquer membro acessa (o dono também).
+CREATE OR REPLACE FUNCTION public.profissional_pode_acessar_solicitacao(
+  p_fk_profissional bigint,
+  p_fk_grupo_empresa bigint
+)
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.dados_profissionais dp
+    WHERE dp.fk_usuario = public.meu_id_usuario()
+      AND dp.id_profissional = p_fk_profissional
+  ) OR public.sou_membro_empresa(p_fk_grupo_empresa);
+$$;
+
+-- Avisos da empresa vão para TODOS os membros (antes só o dono recebia).
+CREATE OR REPLACE FUNCTION public.notif_usuarios_profissionais(
+  p_id_profissional  bigint,
+  p_id_grupo_empresa bigint
+)
+RETURNS TABLE (fk_usuario bigint)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  -- Pedido de empresa: todos os membros (funcionários + dono).
+  SELECT dp.fk_usuario
+  FROM public.grupo_empresa g
+  JOIN public.dados_profissionais dp
+    ON dp.fk_grupo_empresa = g.id_grupo_empresa OR dp.fk_perfil = g.fk_perfil
+  WHERE p_id_grupo_empresa IS NOT NULL AND g.id_grupo_empresa = p_id_grupo_empresa
+  UNION
+  -- Pedido de profissional independente: só ele.
+  SELECT dp.fk_usuario FROM public.dados_profissionais dp
+  WHERE p_id_grupo_empresa IS NULL AND p_id_profissional IS NOT NULL
+    AND dp.id_profissional = p_id_profissional;
+$$;
+REVOKE ALL ON FUNCTION public.notif_usuarios_profissionais(bigint, bigint) FROM PUBLIC, anon, authenticated;
+
+NOTIFY pgrst, 'reload schema';
+
+-- 8) CONVERSA DA SOLICITAÇÃO ----------------------------------------------------
+-- O profissional não pode criar conversas (só o cliente). Esta função abre ou
+-- cria a conversa cliente x profissional/empresa de um pedido para qualquer um
+-- dos lados (botão "Chat" da solicitação).
+CREATE OR REPLACE FUNCTION public.abrir_conversa_da_solicitacao(p_id_solicitacao bigint)
+RETURNS bigint
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_sol public.solicitacoes%ROWTYPE;
+  v_id  bigint;
+BEGIN
+  SELECT * INTO v_sol FROM public.solicitacoes WHERE id_solicitacao = p_id_solicitacao;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Solicitação não encontrada.';
+  END IF;
+  IF v_sol.fk_usuario IS DISTINCT FROM public.meu_id_usuario()
+     AND NOT public.profissional_pode_acessar_solicitacao(v_sol.fk_profissional, v_sol.fk_grupo_empresa) THEN
+    RAISE EXCEPTION 'Solicitação não encontrada.';
+  END IF;
+
+  IF v_sol.fk_grupo_empresa IS NOT NULL THEN
+    SELECT id_conversa INTO v_id FROM public.conversas
+    WHERE fk_usuario = v_sol.fk_usuario AND fk_grupo_empresa = v_sol.fk_grupo_empresa
+    ORDER BY id_conversa LIMIT 1;
+  ELSE
+    SELECT id_conversa INTO v_id FROM public.conversas
+    WHERE fk_usuario = v_sol.fk_usuario AND fk_profissional = v_sol.fk_profissional
+      AND fk_grupo_empresa IS NULL
+    ORDER BY id_conversa LIMIT 1;
+  END IF;
+
+  IF v_id IS NULL THEN
+    INSERT INTO public.conversas (fk_usuario, fk_profissional, fk_grupo_empresa, fk_solicitacao)
+    VALUES (v_sol.fk_usuario,
+            CASE WHEN v_sol.fk_grupo_empresa IS NULL THEN v_sol.fk_profissional END,
+            v_sol.fk_grupo_empresa,
+            v_sol.id_solicitacao)
+    RETURNING id_conversa INTO v_id;
+  ELSE
+    UPDATE public.conversas SET fk_solicitacao = v_sol.id_solicitacao
+    WHERE id_conversa = v_id;
+  END IF;
+  RETURN v_id;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.abrir_conversa_da_solicitacao(bigint) TO authenticated;
+
+NOTIFY pgrst, 'reload schema';
 
 COMMIT;

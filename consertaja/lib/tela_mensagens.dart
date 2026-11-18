@@ -245,7 +245,26 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
 
       if (isProfissional) {
         final idProf = (dadosProfMeu?['id_profissional'] as num?)?.toInt();
-        final idGrupoMeu = (dadosProfMeu?['fk_grupo_empresa'] as num?)?.toInt();
+        var idGrupoMeu = (dadosProfMeu?['fk_grupo_empresa'] as num?)?.toInt();
+        // Dono do CNPJ: a empresa é a do mesmo perfil (fk_perfil).
+        if (idGrupoMeu == null && _contaEmpresaAtiva) {
+          try {
+            final dp = await _supabase
+                .from('dados_profissionais')
+                .select('fk_perfil')
+                .eq('fk_usuario', idUsuario)
+                .maybeSingle();
+            final perfil = dp?['fk_perfil'];
+            if (perfil != null) {
+              final g = await _supabase
+                  .from('grupo_empresa')
+                  .select('id_grupo_empresa')
+                  .eq('fk_perfil', perfil)
+                  .maybeSingle();
+              idGrupoMeu = (g?['id_grupo_empresa'] as num?)?.toInt();
+            }
+          } catch (_) {}
+        }
         if (idProf == null && idGrupoMeu == null) {
           _aplicarLista([]);
           return;
