@@ -23,6 +23,7 @@ import 'widgets/avaliacao_bottom_sheet.dart';
 import 'utils/funcao_servico.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
 import 'widgets/skeletons_telas.dart';
+import 'servico_concluido_cliente.dart';
 
 class DetalhesPedidoPage extends StatefulWidget {
   final int idSolicitacao;
@@ -235,6 +236,18 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
 
       _etapaSolicitacao = (sol['etapa_solicitacao'] as num?)?.toInt() ?? 0;
       _fkStatus = (sol['fk_status'] as num?)?.toInt() ?? 1;
+      // Pedido concluído: o cliente vê a tela de serviço concluído.
+      if (_fkStatus == StatusSolicitacao.concluido) {
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) =>
+                  ServicoConcluidoClientePage(idSolicitacao: _idSolicitacao),
+            ),
+          );
+        }
+        return;
+      }
 
       // Buscar texto do status na tabela 'status'
       try {
@@ -1065,6 +1078,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
         'confirmar_conclusao_solicitacao',
         params: {'p_id_solicitacao': _idSolicitacao},
       );
+      StripePagamentoService.liberarPagamento(_idSolicitacao);
       await _carregarDadosCompletos();
       if (mounted) await _avaliarPedidoCliente();
     } catch (e) {

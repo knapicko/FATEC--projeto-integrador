@@ -68,15 +68,42 @@ class IconeOficio {
     return _iconesPorCategoria[categoria.trim().toLowerCase()];
   }
 
-  static String? caminhoParaFuncao(String? funcao) {
-    final chave = (funcao ?? '').trim().toLowerCase();
-    return _iconesPorFuncao[chave];
+  /// Nome do serviço (v0.6) → nome antigo do profissional (nome do ícone).
+  static const Map<String, String> _nomeAntigo = {
+    'encanamento': 'encanador',
+    'elétrica': 'eletricista',
+    'desentupimento': 'desentupidor',
+    'reparos gerais': 'reparador geral',
+    'montagem de móveis': 'montador de móveis',
+    'marcenaria': 'marceneiro',
+    'tapeçaria': 'tapeceiro',
+    'chaves e aberturas': 'chaveiro',
+    'instalação de fechaduras': 'instalador de fechadura',
+    'vidraçaria': 'vidraceiro',
+    'serralheria': 'serralheiro',
+    'sapataria': 'sapateiro',
+    'costura': 'costureira',
+    'alfaiataria': 'costureira',
+    'bordado': 'costureira',
+    'lavagem de tapetes': 'lavador de tapete',
+    'higienização de colchões': 'lavador de colchão',
+    'conserto de panelas': 'paneleiro',
+    'afiação': 'afiador',
+    'solda de utensílios': 'soldador de utensílios',
+    'funilaria': 'funileiro',
+    'ferraria': 'serralheiro',
+  };
+
+  static String _chave(String? funcao) {
+    final c = (funcao ?? '').trim().toLowerCase();
+    return _nomeAntigo[c] ?? c;
   }
 
-  static String? caminhoParaFuncaoAzul(String? funcao) {
-    final chave = (funcao ?? '').trim().toLowerCase();
-    return _iconesPorFuncaoAzul[chave];
-  }
+  static String? caminhoParaFuncao(String? funcao) =>
+      _iconesPorFuncao[_chave(funcao)];
+
+  static String? caminhoParaFuncaoAzul(String? funcao) =>
+      _iconesPorFuncaoAzul[_chave(funcao)];
 
   static Widget imagem(String? categoria, {double tamanho = 30}) {
     final caminho = caminhoParaCategoria(categoria);

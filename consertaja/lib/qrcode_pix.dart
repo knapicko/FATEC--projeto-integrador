@@ -134,7 +134,8 @@ class _QrcodePixPageState extends State<QrcodePixPage>
         _qrCodeUrl ??= response.pixQrCodeUrl;
         _statusPagamento = _textoStatus(response.status);
       });
-      if (response.status == 'succeeded') {
+      if (response.status == 'succeeded' ||
+          response.status == 'requires_capture') {
         _statusTimer?.cancel();
         await _abrirPagamentoConcluido();
       }

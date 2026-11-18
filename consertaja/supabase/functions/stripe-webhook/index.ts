@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders, marcarSolicitacaoComoPaga, supabaseSecretKey } from '../_shared/stripe.ts';
+import { corsHeaders, marcarSolicitacaoComoPaga, pagamentoAprovado, supabaseSecretKey } from '../_shared/stripe.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -61,7 +61,10 @@ Deno.serve(async (request) => {
       ultimo_evento_stripe: event.id ?? event.type,
       data_atualizacao: new Date().toISOString(),
     };
-    if (status === 'succeeded') {
+    // Aprovado (Pix capturado ou cartão autorizado e retido): "Pago".
+    // A captura do cartão na conclusão também chega aqui como "succeeded";
+    // marcarSolicitacaoComoPaga não volta um pedido já concluído.
+    if (pagamentoAprovado(status)) {
       updates.data_pagamento = new Date().toISOString();
       await marcarSolicitacaoComoPaga(supabase, pagamento.data.fk_solicitacao);
     }

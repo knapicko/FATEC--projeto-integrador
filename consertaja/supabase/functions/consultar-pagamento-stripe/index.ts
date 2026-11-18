@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders, json, marcarSolicitacaoComoPaga, supabasePublishableKey, supabaseSecretKey } from '../_shared/stripe.ts';
+import { corsHeaders, json, marcarSolicitacaoComoPaga, pagamentoAprovado, supabasePublishableKey, supabaseSecretKey } from '../_shared/stripe.ts';
 
 const url = Deno.env.get('SUPABASE_URL')!;
 const serviceKey = supabaseSecretKey();
@@ -26,7 +26,7 @@ Deno.serve(async (request) => {
     if (!pagamento.data || Number(pagamento.data.solicitacoes?.fk_usuario) !== Number(usuario.data?.id_usuario)) {
       return json({ error: 'Pagamento não encontrado.' }, 404);
     }
-    if (pagamento.data.status === 'succeeded') {
+    if (pagamentoAprovado(pagamento.data.status)) {
       await marcarSolicitacaoComoPaga(admin, id);
     }
     return json(pagamento.data);

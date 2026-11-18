@@ -20,6 +20,7 @@ import 'widgets/skeleton_loading.dart';
 import 'utils/funcao_servico.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
 import 'widgets/codigo_flutuante.dart';
+import 'services/stripe_pagamento_service.dart';
 
 class AcompanharDeslocamentoPage extends StatefulWidget {
   final int idSolicitacao;
@@ -2133,6 +2134,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
           .eq('id_solicitacao', widget.idSolicitacao)
           .select('id_solicitacao')
           .single();
+      StripePagamentoService.liberarPagamento(widget.idSolicitacao);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

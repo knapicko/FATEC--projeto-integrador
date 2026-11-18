@@ -625,7 +625,8 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage>
       if (mounted) Navigator.of(context).pop();
       await processamento;
       if (!mounted) return;
-      if (pagamento.status != 'succeeded') {
+      if (pagamento.status != 'succeeded' &&
+          pagamento.status != 'requires_capture') {
         throw Exception(
           'O pagamento nÃ£o foi concluÃ­do. Status: ${pagamento.status}',
         );

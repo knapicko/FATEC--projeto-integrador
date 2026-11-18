@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+export 'servico_concluido_cliente.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'tela_home_profissional.dart';

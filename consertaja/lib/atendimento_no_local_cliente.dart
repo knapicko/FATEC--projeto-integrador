@@ -9,6 +9,7 @@ import 'tela_meu_perfil_cliente.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
 import 'widgets/skeletons_telas.dart';
 import 'widgets/codigo_flutuante.dart';
+import 'services/stripe_pagamento_service.dart';
 
 class AtendimentoNoLocalClientePage extends StatefulWidget {
   final int idSolicitacao;
@@ -216,6 +217,7 @@ class _AtendimentoNoLocalClientePageState
           .from('solicitacoes')
           .update({'fk_status': 6, 'etapa_solicitacao': 4})
           .eq('id_solicitacao', widget.idSolicitacao);
+      StripePagamentoService.liberarPagamento(widget.idSolicitacao);
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(

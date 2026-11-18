@@ -18,6 +18,7 @@ import 'widgets/skeleton_loading.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
 import 'widgets/codigo_flutuante.dart';
 import 'widgets/dialogo_sheet.dart';
+import 'services/stripe_pagamento_service.dart';
 
 class TelaRecebeDevolucaoProfissionalPage extends StatefulWidget {
   final int idSolicitacao;
@@ -490,6 +491,9 @@ class _TelaRecebeDevolucaoProfissionalPageState
           .eq('id_solicitacao', widget.idSolicitacao)
           .select('id_solicitacao')
           .single();
+      if (_ehDevolucao) {
+        StripePagamentoService.liberarPagamento(widget.idSolicitacao);
+      }
 
       if (!mounted) return;
 

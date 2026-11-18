@@ -23,6 +23,7 @@ import 'utils/iniciais.dart';
 import 'widgets/avaliacao_bottom_sheet.dart';
 import 'utils/funcao_servico.dart';
 import 'widgets/contador_notificacoes.dart';
+import 'servico_concluido_cliente.dart';
 
 class PedidoCliente {
   final int id;
@@ -506,6 +507,42 @@ class MeusPedidosState extends State<MeusPedidosPage>
         v.contains('cancel');
   }
 
+  bool _concluido(PedidoCliente p) {
+    final v = p.status.trim().toLowerCase();
+    return p.fkStatus == 6 || v.contains('conclu') || v.contains('finaliz');
+  }
+
+  Widget _divisorConcluidos() => Padding(
+    padding: const EdgeInsets.fromLTRB(4, 10, 4, 14),
+    child: Row(
+      children: [
+        const Expanded(child: Divider(color: Color(0xFFD1D5DB))),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.task_alt_rounded,
+                size: 16,
+                color: Color(0xFF16A34A),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Concluídos',
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Expanded(child: Divider(color: Color(0xFFD1D5DB))),
+      ],
+    ),
+  );
+
   bool ehRecusado(String s) {
     return s.trim().toLowerCase().contains('recus');
   }
@@ -755,6 +792,7 @@ class MeusPedidosState extends State<MeusPedidosPage>
         'confirmar_conclusao_solicitacao',
         params: {'p_id_solicitacao': pedido.id},
       );
+      StripePagamentoService.liberarPagamento(pedido.id);
       await carregar(loading: false);
       if (mounted) await _avaliarPedidoCliente(pedido.id);
     } catch (e) {
@@ -836,7 +874,13 @@ class MeusPedidosState extends State<MeusPedidosPage>
         children: [
           visaoGeral(),
           const SizedBox(height: 12),
-          for (final p in listaFiltrada) card(p),
+          // Em aberto/andamento primeiro; concluídos por último, depois de
+          // uma divisória.
+          for (final p in listaFiltrada.where((p) => !_concluido(p))) card(p),
+          if (listaFiltrada.any(_concluido)) ...[
+            _divisorConcluidos(),
+            for (final p in listaFiltrada.where(_concluido)) card(p),
+          ],
           if (listaFiltrada.isEmpty) vazio(),
         ],
       ),
@@ -1146,7 +1190,9 @@ class MeusPedidosState extends State<MeusPedidosPage>
         destino = ConfirmarRetiradaClientePage(idSolicitacao: p.id);
         break;
       case DestinoCliente.detalhes:
-        destino = DetalhesPedidoPage(idSolicitacao: p.id, pedidoResumo: p);
+        destino = _concluido(p)
+            ? ServicoConcluidoClientePage(idSolicitacao: p.id)
+            : DetalhesPedidoPage(idSolicitacao: p.id, pedidoResumo: p);
         break;
     }
     Navigator.of(context)

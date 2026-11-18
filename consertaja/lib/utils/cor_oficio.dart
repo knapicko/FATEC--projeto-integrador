@@ -10,9 +10,8 @@ class OficioInfo {
   factory OficioInfo.fromMap(Map<String, dynamic> map) {
     final funcao = map['funcao']?.toString().trim() ?? '';
     final categoriaRaw = map['categoria']?.toString().trim();
-    // `cor` (nome: "Vermelho", "Azul Escuro"...) é a fonte oficial; `cod_cor`
-    // (hex do banco) só entra se o nome não vier na consulta.
-    final corRaw = map['cor'] ?? map['Cor'] ?? map['cod_cor'];
+    // `cod_cor` (hex) é a fonte; `cor` guarda o mesmo hex (antes era enum).
+    final corRaw = map['cod_cor'] ?? map['cor'] ?? map['Cor'];
     final cor = corRaw?.toString().trim();
     return OficioInfo(
       funcao: funcao,
@@ -34,26 +33,23 @@ class CorOficio {
 
   static const Color _corPadrao = Color(0xFF7B5EA7);
 
-  /// Cor de cada ofício: tons suaves que lembram a área. A coluna `cor` do
-  /// banco é um enum com nomes antigos — cada nome identifica UM ofício:
-  /// vermelho = Reparos domésticos, marrom = Móveis e interiores,
-  /// azul escuro = Segurança, vinho = Vidros e estruturas,
-  /// verde = Reparos pessoais, azul claro = Limpeza especializada,
-  /// cinza = Serviços tradicionais (ver docs/sql/v0_5_ajustes.sql).
+  /// Cor de cada ofício. A fonte é o hex `cod_cor` (docs/sql/v0_6_ajustes.sql
+  /// copia o mesmo hex na coluna `cor`). Os nomes abaixo só servem para
+  /// registros antigos que ainda tragam o nome do enum.
   static const Map<String, Color> _coresNomeadas = {
-    'vermelho': Color(0xFFF2A27E),
-    'marrom': Color(0xFFC9A27E),
-    'azul escuro': Color(0xFF8FA3D9),
-    'vinho': Color(0xFF8CC7D6),
-    'verde': Color(0xFFE8A3BE),
-    'azul claro': Color(0xFF86D3B5),
-    'cinza': Color(0xFFD9BE7A),
-    'roxo': Color(0xFFB9A3D9),
-    'magenta': Color(0xFFD9A3D0),
+    'vermelho': Color(0xFFE53935),
+    'marrom': Color(0xFF8D5524),
+    'azul escuro': Color(0xFF1E3A8A),
+    'vinho': Color(0xFF8E1B3A),
+    'verde': Color(0xFF2E9E4F),
+    'azul claro': Color(0xFF29B6F6),
+    'cinza': Color(0xFF64748B),
+    'roxo': Color(0xFF7C3AED),
+    'laranja': Color(0xFFF97316),
+    'magenta': Color(0xFFD946EF),
   };
 
-  /// `cod_cor` gravado em `oficios` → mesma cor da paleta do nome (`cor`).
-  /// Assim o ofício tem a mesma cor em todas as telas, venha o nome ou o hex.
+  /// Hex antigos de `cod_cor` → nome da paleta atual.
   static const Map<String, String> _hexDoBanco = {
     'ff0000': 'vermelho',
     '8b4513': 'marrom',
@@ -62,6 +58,14 @@ class CorOficio {
     '008000': 'verde',
     'add8e6': 'azul claro',
     '808080': 'cinza',
+    // tons pastel da v0.5
+    'f2a27e': 'vermelho',
+    'c9a27e': 'marrom',
+    '8fa3d9': 'azul escuro',
+    '8cc7d6': 'vinho',
+    'e8a3be': 'verde',
+    '86d3b5': 'azul claro',
+    'd9be7a': 'cinza',
   };
 
   /// Converte a cor de um ofício (nome da coluna `cor` ou hex de `cod_cor`)
