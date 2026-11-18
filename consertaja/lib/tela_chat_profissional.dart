@@ -11,7 +11,7 @@ import 'package:flutter/foundation.dart'
     show debugPrint, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
-    show Clipboard, ClipboardData, MissingPluginException;
+    show Clipboard, ClipboardData, HapticFeedback, MissingPluginException;
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart'
     show ImagePicker, ImageSource, XFile;
@@ -41,6 +41,9 @@ import 'services/notificacoes/notificacao_exibicao.dart';
 import 'services/notificacoes/notificacao_service.dart';
 import 'utils/abrir_solicitacao.dart';
 import 'widgets/fundos_chat.dart';
+import 'widgets/chat_pedido_extras.dart';
+import 'services/solicitacao_geografica_service.dart';
+import 'widgets/avisos_bottom_sheet.dart';
 
 class TelaChatProfissional extends StatefulWidget {
   final String nomeProfissional;
@@ -133,6 +136,9 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
   Timer? _timerDigitandoTimeout;
   Timer? _debounceDigitandoEnvio;
   _ResumoSolicitacao? _resumoSolicitacao;
+  PropostaRadarChat? _propostaRadar;
+  bool _respondendoRadar = false;
+  DateTime _ultimaConsultaRadar = DateTime.fromMillisecondsSinceEpoch(0);
 
   // ---- Gravação de áudio (estilo WhatsApp) ----
   final _gravador = AudioRecorder();
@@ -781,6 +787,16 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       return;
     }
 
+    // Proposta do Radar aguardando o cliente: só foto/nome, valor e a
+    // imagem que o cliente anexou.
+    final radar = await PropostaRadarChat.daConversa(_idConversa!);
+    if (!mounted) return;
+    if (radar != null && !radar.souCliente) {
+      setState(() => _propostaRadar = radar);
+      await _alterarPropostaRadar();
+      return;
+    }
+
     try {
       // 1. Identifica o cliente destinatário da conversa e os dados do profissional
       final conversa = await _supabase
@@ -847,11 +863,22 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
 
       if (!mounted) return;
 
-      // 2. Se houver solicitação ativa cujo status NÃO seja "Aberto",
-      // exibe o bottom sheet estilizado de bloqueio informando o ocorrido
-      if (solicitacaoAtiva != null &&
-          nomeStatusAtivo != null &&
-          nomeStatusAtivo.toLowerCase() != 'aberto') {
+      // Ainda não pago (Aberto, Aceito ou Aguardando Pagamento): dá para
+      // editar a solicitação mandando uma nova proposta.
+      final statusAtivoId = (solicitacaoAtiva?['fk_status'] as num?)?.toInt();
+      final nomeAtivo = nomeStatusAtivo?.toLowerCase() ?? '';
+      final editavel =
+          solicitacaoAtiva != null &&
+          (statusAtivoId == 1 ||
+              statusAtivoId == 2 ||
+              statusAtivoId == 31 ||
+              nomeAtivo == 'aberto' ||
+              nomeAtivo == 'aceito' ||
+              nomeAtivo.contains('aguardando pagamento'));
+
+      // 2. Se houver solicitação ativa já paga/em andamento, exibe o bottom
+      // sheet estilizado de bloqueio informando o ocorrido
+      if (solicitacaoAtiva != null && nomeStatusAtivo != null && !editavel) {
         _mostrarBottomSheetBloqueioSolicitacao(
           status: nomeStatusAtivo,
           idSolicitacao: (solicitacaoAtiva['id_solicitacao'] as num).toInt(),
@@ -861,11 +888,12 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
 
       // 3. Se houver solicitação com status "Aberto", já virá com o switch ligado
       // e os dados do serviço dessa solicitação pré-carregados para edição
-      final bool temSolicitacaoAberta =
-          solicitacaoAtiva != null &&
-          (nomeStatusAtivo?.toLowerCase() == 'aberto');
+      final bool temSolicitacaoAberta = editavel;
       final int? idServicoProfOrigem = temSolicitacaoAberta
           ? (solicitacaoAtiva['fk_servico_prof'] as num?)?.toInt()
+          : null;
+      final int? idServicoTempOrigem = temSolicitacaoAberta
+          ? (solicitacaoAtiva['fk_servico_temp'] as num?)?.toInt()
           : null;
       final int? idSolicitacaoOrigem = temSolicitacaoAberta
           ? (solicitacaoAtiva['id_solicitacao'] as num?)?.toInt()
@@ -879,8 +907,10 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
         ultimaConexao: _ultimaConexaoContato,
         idProfissional: idProf,
         idGrupoEmpresa: idGrupo,
-        baseadoEmServicoInicial: temSolicitacaoAberta,
+        baseadoEmServicoInicial:
+            temSolicitacaoAberta && idServicoProfOrigem != null,
         idServicoProfInicial: idServicoProfOrigem,
+        idServicoTempInicial: idServicoTempOrigem,
         idSolicitacaoOrigem: idSolicitacaoOrigem,
         onEnviar:
             ({
@@ -2214,6 +2244,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
 
   Future<void> _carregarResumoSolicitacao() async {
     if (_idConversa == null) return;
+    _carregarPropostaRadar();
 
     try {
       var idSolicitacao = widget.idSolicitacao;
@@ -2262,7 +2293,10 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
 
       final solicitacao = await _supabase
           .from('solicitacoes')
-          .select('id_solicitacao, fk_status, fk_servico_prof, fk_servico_temp')
+          .select(
+            'id_solicitacao, fk_status, fk_servico_prof, fk_servico_temp, '
+            'tipo_execucao, etapa_solicitacao',
+          )
           .eq('id_solicitacao', idSolicitacao)
           .maybeSingle();
       if (solicitacao == null) return;
@@ -2313,6 +2347,9 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
               ? nomeServico!
               : 'Solicitação de serviço',
           status: statusExibido,
+          fkStatus: idStatus,
+          tipoExecucao: solicitacao['tipo_execucao']?.toString(),
+          etapa: (solicitacao['etapa_solicitacao'] as num?)?.toInt() ?? 0,
         );
       });
     } catch (e) {
@@ -2718,6 +2755,9 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
 
   Future<void> _buscarMensagensSilencioso() async {
     if (_idConversa == null || !mounted) return;
+    if (DateTime.now().difference(_ultimaConsultaRadar).inSeconds >= 12) {
+      _carregarPropostaRadar();
+    }
     try {
       List<Map<String, dynamic>> mensagens;
       try {
@@ -3213,6 +3253,14 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                     Column(
                       children: [
                         Expanded(child: _buildListaMensagens()),
+                        if (_propostaRadar case final p?)
+                          BarraPropostaRadar(
+                            proposta: p,
+                            ocupado: _respondendoRadar,
+                            onAceitar: () => _responderPropostaRadar(true),
+                            onRecusar: () => _responderPropostaRadar(false),
+                            onAlterar: _alterarPropostaRadar,
+                          ),
                         _buildBarraInput(),
                       ],
                     ),
@@ -3862,20 +3910,114 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     }
   }
 
+  // ---- Proposta do Radar (solicitação geográfica) ----
+
+  Future<void> _carregarPropostaRadar() async {
+    final id = _idConversa;
+    if (id == null) return;
+    _ultimaConsultaRadar = DateTime.now();
+    final p = await PropostaRadarChat.daConversa(id);
+    if (!mounted) return;
+    if (p?.idProposta != _propostaRadar?.idProposta ||
+        p?.valor != _propostaRadar?.valor) {
+      setState(() => _propostaRadar = p);
+    }
+  }
+
+  Future<void> _responderPropostaRadar(bool aceitar) async {
+    final p = _propostaRadar;
+    if (p == null || _respondendoRadar) return;
+    if (!aceitar) {
+      final ok = await confirmarBottomSheet(
+        context,
+        titulo: 'Recusar proposta?',
+        mensagem:
+            'O pedido volta para o Radar e outros profissionais podem '
+            'enviar novas propostas.',
+        textoConfirmar: 'Recusar',
+        destrutivo: true,
+      );
+      if (!ok || !mounted) return;
+    }
+    setState(() => _respondendoRadar = true);
+    try {
+      final idSolicitacao =
+          await SolicitacaoGeograficaService.responderProposta(
+            idProposta: p.idProposta,
+            aceitar: aceitar,
+          );
+      if (!mounted) return;
+      HapticFeedback.mediumImpact();
+      setState(() => _propostaRadar = null);
+      if (aceitar && idSolicitacao != null) {
+        try {
+          await _supabase
+              .from('conversas')
+              .update({'fk_solicitacao': idSolicitacao})
+              .eq('id_conversa', _idConversa!);
+        } catch (_) {}
+        _mostrarAviso('Proposta aceita! Agora é só pagar para começar.');
+        await _carregarResumoSolicitacao();
+        if (!mounted) return;
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => DetalhesPedidoPage(idSolicitacao: idSolicitacao),
+          ),
+        );
+        if (mounted) _carregarResumoSolicitacao();
+      } else {
+        _mostrarAviso('Proposta recusada. Seu pedido continua no Radar.');
+      }
+    } catch (e) {
+      _mostrarAviso(e.toString().replaceFirst('Exception: ', ''));
+      _carregarPropostaRadar();
+    } finally {
+      if (mounted) setState(() => _respondendoRadar = false);
+    }
+  }
+
+  Future<void> _alterarPropostaRadar() async {
+    final p = _propostaRadar;
+    if (p == null) return;
+    final alterou = await abrirSheetPropostaRadar(
+      context,
+      nomeCliente: _nomeContato ?? 'Cliente',
+      fotoCliente: _fotoContato,
+      proposta: p,
+    );
+    if (alterou == true && mounted) {
+      _mostrarAviso('Valor da proposta atualizado.');
+      _carregarPropostaRadar();
+    }
+  }
+
   Widget _buildResumoSolicitacao(_ResumoSolicitacao resumo) {
     // Toque: abre a tela da etapa (status + método de entrega), igual às
     // listas de pedidos/serviços.
     return Material(
       color: Colors.white,
       child: InkWell(
-        onTap: () =>
-            abrirSolicitacaoPorStatus(
-              context,
-              resumo.idSolicitacao,
-              comoProfissional: _souProfissionalNaConversa,
-            ).then((_) {
-              if (mounted) _carregarResumoSolicitacao();
-            }),
+        // Toque: etapas do pedido (feitas e as que faltam) + botão que leva
+        // para a tela da etapa atual.
+        onTap: () => abrirSheetEtapasPedido(
+          context,
+          codigo: resumo.codigo,
+          nomeServico: resumo.nomeServico,
+          status: resumo.status,
+          tipoExecucao: resumo.tipoExecucao,
+          fkStatus: resumo.fkStatus,
+          etapa: resumo.etapa,
+          comoProfissional: _souProfissionalNaConversa,
+          onIrParaPedido: () =>
+              abrirSolicitacaoPorStatus(
+                context,
+                resumo.idSolicitacao,
+                comoProfissional: _souProfissionalNaConversa,
+              ).then((_) {
+                if (mounted) _carregarResumoSolicitacao();
+              }),
+        ),
         child: _conteudoResumoSolicitacao(resumo),
       ),
     );
@@ -5014,12 +5156,18 @@ class _ResumoSolicitacao {
   final String codigo;
   final String nomeServico;
   final String status;
+  final int? fkStatus;
+  final String? tipoExecucao;
+  final int etapa;
 
   const _ResumoSolicitacao({
     required this.idSolicitacao,
     required this.codigo,
     required this.nomeServico,
     required this.status,
+    this.fkStatus,
+    this.tipoExecucao,
+    this.etapa = 0,
   });
 }
 

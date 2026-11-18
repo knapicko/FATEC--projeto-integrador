@@ -22,6 +22,9 @@ class BottomSheetServicoPersonalizado extends StatefulWidget {
   final int? idGrupoEmpresa;
   final bool baseadoEmServicoInicial;
   final int? idServicoProfInicial;
+
+  /// Serviço temporário (proposta do chat já aceita): os campos vêm dele.
+  final int? idServicoTempInicial;
   final int? idSolicitacaoOrigem;
   final Future<void> Function({
     required String titulo,
@@ -46,6 +49,7 @@ class BottomSheetServicoPersonalizado extends StatefulWidget {
     this.idGrupoEmpresa,
     this.baseadoEmServicoInicial = false,
     this.idServicoProfInicial,
+    this.idServicoTempInicial,
     this.idSolicitacaoOrigem,
     required this.onEnviar,
   });
@@ -61,6 +65,7 @@ class BottomSheetServicoPersonalizado extends StatefulWidget {
     int? idGrupoEmpresa,
     bool baseadoEmServicoInicial = false,
     int? idServicoProfInicial,
+    int? idServicoTempInicial,
     int? idSolicitacaoOrigem,
     required Future<void> Function({
       required String titulo,
@@ -92,6 +97,7 @@ class BottomSheetServicoPersonalizado extends StatefulWidget {
             idGrupoEmpresa: idGrupoEmpresa,
             baseadoEmServicoInicial: baseadoEmServicoInicial,
             idServicoProfInicial: idServicoProfInicial,
+            idServicoTempInicial: idServicoTempInicial,
             idSolicitacaoOrigem: idSolicitacaoOrigem,
             onEnviar: onEnviar,
           ),
@@ -318,11 +324,53 @@ class _BottomSheetServicoPersonalizadoState
 
         if (servicoInicial != null) {
           _selecionarServicoBase(servicoInicial, atualizarEstado: true);
+        } else if (widget.idServicoTempInicial != null) {
+          await _preencherComServicoTemp(widget.idServicoTempInicial!);
         }
       }
     } catch (e) {
       debugPrint('Erro ao inicializar dados da proposta: $e');
       if (mounted) setState(() => _carregandoInicial = false);
+    }
+  }
+
+  /// Edição de um pedido aceito (ainda não pago): campos do serviço temporário.
+  Future<void> _preencherComServicoTemp(int id) async {
+    try {
+      final t = await _supabase
+          .from('servicos_chat_temporarios')
+          .select()
+          .eq('id_servico_temp', id)
+          .maybeSingle();
+      if (t == null || !mounted) return;
+      setState(() {
+        _baseadoEmServicoExistente = false;
+        _nomeController.text = t['titulo']?.toString() ?? '';
+        _descricaoController.text = t['descricao']?.toString() ?? '';
+        final valor = double.tryParse(t['valor']?.toString() ?? '');
+        if (valor != null) {
+          _valorController.text = NumberFormat(
+            '#,##0.00',
+            'pt_BR',
+          ).format(valor);
+        }
+        final funcao = (t['fk_funcao'] as num?)?.toInt();
+        if (funcao != null && _oficios.any((o) => o.id == funcao)) {
+          _oficioSelecionadoId = funcao;
+        }
+        final metodo = t['tipo_execucao']?.toString() ?? '';
+        if (metodo.isNotEmpty &&
+            _metodoEstaPermitido(metodo, _metodosPermitidos)) {
+          _tipoAtendimentoSelecionado = _todosMetodos.firstWhere(
+            (m) => _metodoEstaPermitido(m, {metodo}),
+            orElse: () => metodo,
+          );
+        }
+        final img = t['imagem_url']?.toString() ?? '';
+        _imagemUrlExistente = img.isEmpty ? null : img;
+      });
+    } catch (e) {
+      debugPrint('Erro ao carregar serviço temporário: $e');
     }
   }
 

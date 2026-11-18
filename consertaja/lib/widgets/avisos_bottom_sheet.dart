@@ -13,6 +13,7 @@ Future<T?> mostrarAvisoBottomSheet<T>(
   required String titulo,
   required String mensagem,
   Color corIcone = _azul,
+  Color? corBotao,
   String textoBotao = 'Entendi',
   T? valorBotao,
   String? textoSecundario,
@@ -87,7 +88,7 @@ Future<T?> mostrarAvisoBottomSheet<T>(
               child: FilledButton(
                 onPressed: () => Navigator.pop(ctx, valorBotao),
                 style: FilledButton.styleFrom(
-                  backgroundColor: _azul,
+                  backgroundColor: corBotao ?? _azul,
                   shape: const StadiumBorder(),
                 ),
                 child: Text(
@@ -107,8 +108,8 @@ Future<T?> mostrarAvisoBottomSheet<T>(
                 child: OutlinedButton(
                   onPressed: () => Navigator.pop(ctx, valorSecundario),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: _azul,
-                    side: const BorderSide(color: _azul, width: 1.4),
+                    foregroundColor: _textoSec,
+                    side: const BorderSide(color: Color(0xFFD1D5DB), width: 1.4),
                     shape: const StadiumBorder(),
                   ),
                   child: Text(
@@ -201,6 +202,35 @@ class SessaoVisitante {
   }
 }
 
+/// Confirmação genérica (substitui os AlertDialog de "tem certeza?").
+/// [destrutivo]: ícone e botão em vermelho.
+Future<bool> confirmarBottomSheet(
+  BuildContext context, {
+  required String titulo,
+  required String mensagem,
+  String textoConfirmar = 'Confirmar',
+  String textoCancelar = 'Cancelar',
+  IconData? icone,
+  bool destrutivo = false,
+}) async {
+  const vermelho = Color(0xFFDC2626);
+  final r = await mostrarAvisoBottomSheet<bool>(
+    context,
+    icone:
+        icone ??
+        (destrutivo ? Icons.warning_amber_rounded : Icons.help_outline_rounded),
+    corIcone: destrutivo ? vermelho : _azul,
+    corBotao: destrutivo ? vermelho : null,
+    titulo: titulo,
+    mensagem: mensagem,
+    textoBotao: textoConfirmar,
+    valorBotao: true,
+    textoSecundario: textoCancelar,
+    valorSecundario: false,
+  );
+  return r == true;
+}
+
 /// Confirmação antes de sair da conta.
 Future<bool> confirmarSairDaConta(BuildContext context) async {
   final r = await mostrarAvisoBottomSheet<bool>(
@@ -211,6 +241,7 @@ Future<bool> confirmarSairDaConta(BuildContext context) async {
     mensagem:
         'Você vai precisar entrar de novo para pedir serviços, ver mensagens '
         'e acompanhar seus pedidos.',
+    corBotao: const Color(0xFFDC2626),
     textoBotao: 'Sim, sair',
     valorBotao: true,
     textoSecundario: 'Continuar conectado',
