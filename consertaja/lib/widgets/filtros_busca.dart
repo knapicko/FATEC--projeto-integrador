@@ -212,12 +212,18 @@ Future<List<OficioInfo>> carregarFuncoesFiltro() async {
         .select(kColunasFuncaoComoOficio)
         .order('funcao');
     final vistas = <String>{};
-    return [
+    final lista = [
       for (final r in rows)
         if (OficioInfo.fromMap(r) case final o
             when o.funcao.isNotEmpty && vistas.add(o.funcao.toLowerCase()))
           o,
     ];
+    // Agrupadas por ofício (categoria) e, dentro dele, por nome.
+    lista.sort((a, b) {
+      final c = (a.categoria ?? '').compareTo(b.categoria ?? '');
+      return c != 0 ? c : a.funcao.compareTo(b.funcao);
+    });
+    return lista;
   } catch (_) {
     return const [];
   }
@@ -373,26 +379,37 @@ class _FiltrosSheetState extends State<_FiltrosSheet> {
     ),
   );
 
-  Widget _chip(String texto, bool ativo, VoidCallback aoTocar) => InkWell(
-    onTap: aoTocar,
-    borderRadius: BorderRadius.circular(20),
-    child: AnimatedContainer(
-      duration: const Duration(milliseconds: 160),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: ativo ? _azul : _campo,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        texto,
-        style: TextStyle(
-          color: ativo ? Colors.white : const Color(0xFF374151),
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
+  /// [cor]: cor do ofício (funções) — fundo claro na cor e, selecionado,
+  /// a cor cheia.
+  Widget _chip(String texto, bool ativo, VoidCallback aoTocar, {Color? cor}) {
+    final base = cor ?? _azul;
+    final fundo = ativo
+        ? (cor == null ? _azul : CorOficio.corTexto(base))
+        : (cor == null ? _campo : base.withValues(alpha: 0.22));
+    final letra = ativo
+        ? Colors.white
+        : (cor == null ? const Color(0xFF374151) : CorOficio.corTexto(base));
+    return InkWell(
+      onTap: aoTocar,
+      borderRadius: BorderRadius.circular(20),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: fundo,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          texto,
+          style: TextStyle(
+            color: letra,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 
   Widget _caixa(String texto, bool marcado, ValueChanged<bool> mudar) =>
       InkWell(
@@ -523,7 +540,7 @@ class _FiltrosSheetState extends State<_FiltrosSheet> {
                           final novo = {..._f.funcoes};
                           if (!novo.remove(o.funcao)) novo.add(o.funcao);
                           setState(() => _f = _f.copiar(funcoes: novo));
-                        }),
+                        }, cor: CorOficio.parse(o.cor)),
                     ],
                   ),
 
