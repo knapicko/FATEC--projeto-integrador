@@ -19,6 +19,7 @@ import 'utils/iniciais.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/funcao_servico.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
+import 'widgets/codigo_flutuante.dart';
 
 class AcompanharDeslocamentoPage extends StatefulWidget {
   final int idSolicitacao;
@@ -164,6 +165,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
   @override
   void initState() {
     super.initState();
+    CodigoFlutuante.entrarNaTelaDoCodigo();
     _codigoPedido =
         '#PED-2026-${widget.idSolicitacao.toString().padLeft(4, '0')}';
     _sonarController = AnimationController(
@@ -191,6 +193,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
     if (_canalRealtimeSolicitacao != null) {
       supabase.removeChannel(_canalRealtimeSolicitacao!);
     }
+    CodigoFlutuante.sairDaTelaDoCodigo();
     super.dispose();
   }
 

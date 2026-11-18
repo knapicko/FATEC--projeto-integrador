@@ -11,6 +11,7 @@ import 'onboarding/onboarding_controller.dart';
 import 'tela_inicial.dart';
 import 'services/verificacao_online.dart';
 import 'utils/app_navigation_util.dart';
+import 'widgets/codigo_flutuante.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
@@ -118,9 +119,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         // ser de um usuário que não existe mais; aí abria a home com o
         // usuário "não reconhecido". Sem conta válida → tela inicial.
         try {
-          final valido = await Supabase.instance.client.auth
-              .getUser()
-              .timeout(const Duration(seconds: 8));
+          final valido = await Supabase.instance.client.auth.getUser().timeout(
+            const Duration(seconds: 8),
+          );
           if (valido.user == null) throw const AuthException('sem usuário');
         } on AuthException {
           // Sessão recusada pelo servidor: sai da conta guardada.
@@ -183,7 +184,16 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         theme: settings.tema,
         // Aplica as configurações do cliente (fonte, negrito, contraste,
         // daltonismo, modo escuro, animações) em todas as rotas.
-        builder: settings.envolverApp,
+        // Código de entrega/recebimento flutuante por cima de todas as telas.
+        builder: (context, child) => settings.envolverApp(
+          context,
+          Stack(
+            children: [
+              child ?? const SizedBox.shrink(),
+              const CodigoFlutuante(),
+            ],
+          ),
+        ),
 
         localizationsDelegates: const [
           GlobalMaterialLocalizations.delegate,

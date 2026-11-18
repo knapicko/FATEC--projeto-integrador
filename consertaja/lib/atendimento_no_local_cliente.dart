@@ -8,6 +8,7 @@ import 'tela_chat_profissional.dart';
 import 'tela_meu_perfil_cliente.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
 import 'widgets/skeletons_telas.dart';
+import 'widgets/codigo_flutuante.dart';
 
 class AtendimentoNoLocalClientePage extends StatefulWidget {
   final int idSolicitacao;
@@ -54,6 +55,7 @@ class _AtendimentoNoLocalClientePageState
   @override
   void initState() {
     super.initState();
+    CodigoFlutuante.entrarNaTelaDoCodigo();
     _carregar();
     // Mantém a tela sincronizada com o profissional: início do atendimento
     // (código validado) e finalização (profissional_finalizado_atendimento).
@@ -66,6 +68,7 @@ class _AtendimentoNoLocalClientePageState
   @override
   void dispose() {
     _polling?.cancel();
+    CodigoFlutuante.sairDaTelaDoCodigo();
     super.dispose();
   }
 

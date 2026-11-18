@@ -207,7 +207,18 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
             res['data_inicio_andamento'].toString(),
           );
         }
-        _dataInicio ??= DateTime.now();
+        if (_dataInicio == null) {
+          // Sem início gravado: marca agora para o tempo não recomeçar a
+          // cada vez que a tela abre.
+          _dataInicio = DateTime.now();
+          _supabase
+              .from('solicitacoes')
+              .update({
+                'data_inicio_andamento': _dataInicio!.toUtc().toIso8601String(),
+              })
+              .eq('id_solicitacao', widget.idSolicitacao)
+              .then((_) {}, onError: (_) {});
+        }
 
         if (_pausado) {
           _segundosAndamento = duracaoSalva;
@@ -268,12 +279,17 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
       _iniciarCronometro();
     }
 
+    // Tempo total = duracao_servico (acumulado até a última pausa) + tempo
+    // desde data_inicio_andamento. Ao retomar, o início passa a ser agora.
+    if (!novoEstado) _dataInicio = DateTime.now();
     try {
       await _supabase
           .from('solicitacoes')
           .update({
             'andamento_pausado': novoEstado,
             'duracao_servico': _segundosAndamento,
+            if (!novoEstado)
+              'data_inicio_andamento': _dataInicio!.toUtc().toIso8601String(),
           })
           .eq('id_solicitacao', widget.idSolicitacao);
     } catch (e) {
@@ -562,7 +578,8 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
     }
   }
 
-  void _abrirChat() {
+  /// [mensagem]: texto já escrito no campo (opções do "Notificar Cliente").
+  void _abrirChat({String? mensagem}) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => TelaChatProfissional(
@@ -574,6 +591,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
           idProfissional: widget.isEmpresa ? null : null,
           idGrupoEmpresa: widget.idGrupoEmpresa,
           idSolicitacao: widget.idSolicitacao,
+          mensagemInicial: mensagem,
         ),
       ),
     );
@@ -690,26 +708,9 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
     );
   }
 
-  Future<void> _enviarMensagemRapida(String mensagem) async {
-    try {
-      await _supabase.from('mensagens').insert({
-        'fk_solicitacao': widget.idSolicitacao,
-        'mensagem': mensagem,
-        'criado_em': DateTime.now().toIso8601String(),
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Notificação enviada ao cliente com sucesso!'),
-            backgroundColor: Color(0xFF16A34A),
-          ),
-        );
-      }
-    } catch (_) {
-      // Se a tabela mensagens for diferente, abre o chat direto
-      _abrirChat();
-    }
-  }
+  /// Abre o chat do cliente com a mensagem da opção já escrita, para o
+  /// profissional revisar e enviar.
+  void _enviarMensagemRapida(String mensagem) => _abrirChat(mensagem: mensagem);
 
   bool get _requisitosAtendidos {
     final temDiagnostico =

@@ -22,6 +22,9 @@ import 'utils/fluxo_solicitacao.dart';
 import 'utils/iniciais.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
+import 'services/solicitacao_geografica_service.dart';
+import 'widgets/avisos_bottom_sheet.dart';
+import 'widgets/codigo_flutuante.dart';
 
 /// Configuração do Mapbox
 class MapboxConfig {
@@ -135,6 +138,7 @@ class _TelaDeslocamentoProfissionalPageState
   @override
   void initState() {
     super.initState();
+    CodigoFlutuante.entrarNaTelaDoCodigo();
     // Destino é rigorosamente o endereço do cliente
     _destinoCoordenadas = widget.destino;
     _enderecoPrincipal = widget.enderecoPrincipal;
@@ -158,6 +162,7 @@ class _TelaDeslocamentoProfissionalPageState
   void dispose() {
     _posicao?.cancel();
     _compass?.cancel();
+    CodigoFlutuante.sairDaTelaDoCodigo();
     super.dispose();
   }
 
@@ -386,13 +391,35 @@ class _TelaDeslocamentoProfissionalPageState
       _tituloServico = nomeServico;
       _categoriaServico = nomeServico;
 
-      // 3. Endereço completo do CLIENTE (Destino)
-      final idEndereco = (sol['fk_endereco'] as num?)?.toInt();
+      // 3. Endereço completo do CLIENTE (Destino). Sem fk_endereco no pedido,
+      // usa o endereço ativo do cliente.
+      var idEndereco = (sol['fk_endereco'] as num?)?.toInt();
+      if (idEndereco == null && idCliente != null) {
+        try {
+          final ass = await supabase
+              .from('ass_usuario_endereco')
+              .select('fk_endereco, endereco_ativo')
+              .eq('fk_usuario', idCliente);
+          final lista = List<Map<String, dynamic>>.from(ass as List);
+          lista.sort(
+            (a, b) => (b['endereco_ativo'] == true ? 1 : 0).compareTo(
+              a['endereco_ativo'] == true ? 1 : 0,
+            ),
+          );
+          if (lista.isNotEmpty) {
+            idEndereco = (lista.first['fk_endereco'] as num?)?.toInt();
+          }
+        } catch (e) {
+          debugPrint('Endereço ativo do cliente indisponível: $e');
+        }
+      }
       if (idEndereco != null) {
+        // Sem coordenadas: geocodifica e grava antes de traçar a rota.
+        await SolicitacaoGeograficaService.garantirCoordenadas([idEndereco]);
         final end = await supabase
             .from('enderecos')
             .select(
-              'logradouro, numero, complemento, bairro, cidade, estado, cep, latitude, longitude',
+              'logradouro, numero, complemento, bairro, fk_cidade, cep, latitude, longitude',
             )
             .eq('id_endereco', idEndereco)
             .maybeSingle();
@@ -402,8 +429,28 @@ class _TelaDeslocamentoProfissionalPageState
           final numStr = end['numero']?.toString().trim() ?? '';
           final comp = end['complemento']?.toString().trim() ?? '';
           final bai = end['bairro']?.toString().trim() ?? '';
-          final cid = end['cidade']?.toString().trim() ?? '';
-          final uf = end['estado']?.toString().trim() ?? '';
+          var cid = '';
+          var uf = '';
+          final idCidade = (end['fk_cidade'] as num?)?.toInt();
+          if (idCidade != null) {
+            try {
+              final c = await supabase
+                  .from('cidades')
+                  .select('nome_cidade, fk_estado')
+                  .eq('id_cidade', idCidade)
+                  .maybeSingle();
+              cid = c?['nome_cidade']?.toString().trim() ?? '';
+              final idEstado = (c?['fk_estado'] as num?)?.toInt();
+              if (idEstado != null) {
+                final e = await supabase
+                    .from('estados')
+                    .select('sigla_estado')
+                    .eq('id_estado', idEstado)
+                    .maybeSingle();
+                uf = e?['sigla_estado']?.toString().trim() ?? '';
+              }
+            } catch (_) {}
+          }
 
           final lat = double.tryParse(end['latitude']?.toString() ?? '');
           final lon = double.tryParse(end['longitude']?.toString() ?? '');
@@ -417,7 +464,7 @@ class _TelaDeslocamentoProfissionalPageState
           }
           final compList = <String>[];
           if (bai.isNotEmpty) compList.add(bai);
-          if (cid.isNotEmpty) compList.add('$cid - $uf');
+          if (cid.isNotEmpty) compList.add(uf.isEmpty ? cid : '$cid - $uf');
           if (comp.isNotEmpty) compList.add(comp);
           if (compList.isNotEmpty) {
             _enderecoComplementar = compList.join(' • ');
@@ -433,6 +480,13 @@ class _TelaDeslocamentoProfissionalPageState
       }
 
       if (mounted) setState(() {});
+      // A rota pode ter sido traçada antes do destino real chegar: refaz a
+      // partir da posição GPS atual do profissional.
+      final atual = _atual;
+      if (atual != null && mounted) {
+        _proximoLogradouro = _enderecoPrincipal.split(',').first.trim();
+        await _atualizarRota(atual);
+      }
     } catch (e) {
       debugPrint('Erro ao carregar solicitação para deslocamento: $e');
     } finally {
@@ -780,6 +834,62 @@ class _TelaDeslocamentoProfissionalPageState
               ),
       ),
     );
+  }
+
+  bool _voltandoEtapa = false;
+
+  /// Texto do botão "voltar etapa" (null quando não há etapa anterior aqui).
+  String? get _rotuloVoltarEtapa => switch (_fkStatus) {
+    33 || 32 => 'Voltar etapa (ainda não saí)',
+    36 => 'Voltar etapa (aguardando devolução)',
+    35 => 'Voltar etapa (serviço em andamento)',
+    _ => null,
+  };
+
+  /// Desfaz o último avanço: deslocando → pago; devolução deslocando →
+  /// aguardando devolução; aguardando devolução → em andamento.
+  Future<void> _voltarEtapa() async {
+    final (int status, int etapa, String texto) = switch (_fkStatus) {
+      36 => (35, 4, 'O deslocamento da devolução será cancelado.'),
+      35 => (4, 3, 'O pedido volta para "Em andamento".'),
+      _ => (
+        3,
+        1,
+        'O deslocamento será cancelado e o pedido volta para "Pago".',
+      ),
+    };
+    final ok = await confirmarBottomSheet(
+      context,
+      titulo: 'Voltar uma etapa?',
+      mensagem: '$texto O cliente verá a mudança na hora.',
+      textoConfirmar: 'Voltar etapa',
+      icone: Icons.undo_rounded,
+    );
+    if (!ok || !mounted) return;
+    setState(() => _voltandoEtapa = true);
+    try {
+      await supabase
+          .from('solicitacoes')
+          .update({'fk_status': status, 'etapa_solicitacao': etapa})
+          .eq('id_solicitacao', widget.idSolicitacao);
+      if (!mounted) return;
+      if (status == 35) {
+        // Continua aqui, com o botão "Iniciar Deslocamento".
+        setState(() {
+          _fkStatus = 35;
+          _etapaSolicitacao = 4;
+          _voltandoEtapa = false;
+        });
+        return;
+      }
+      Navigator.of(context).maybePop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _voltandoEtapa = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Não foi possível voltar a etapa: $e')),
+      );
+    }
   }
 
   Future<void> _iniciarDeslocamentoDevolucao() async {
@@ -1867,6 +1977,26 @@ class _TelaDeslocamentoProfissionalPageState
                           ),
                         ],
                       ),
+                      if (_rotuloVoltarEtapa != null) ...[
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _voltandoEtapa ? null : _voltarEtapa,
+                            icon: const Icon(Icons.undo_rounded, size: 18),
+                            label: Text(_rotuloVoltarEtapa!),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFFB45309),
+                              backgroundColor: Colors.white,
+                              side: const BorderSide(color: Color(0xFFFCD34D)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 14),
 
                       // SUPORTE OPERACIONAL CONSERTAJÁ
