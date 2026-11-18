@@ -5,6 +5,7 @@
 --  2. Função "Funileiro" no ofício certo
 --  3. Avaliações com fotos/vídeos (coluna + bucket "Avaliacoes")
 --  4. Certificados dos profissionais (tabela + bucket "Certificados Profissional")
+--  5. Proposta do Radar no chat (consultar e alterar o valor)
 -- ============================================================================
 
 BEGIN;
@@ -129,5 +130,70 @@ CREATE POLICY "certificados_apagar" ON storage.objects
 DROP POLICY IF EXISTS "certificados_leitura" ON storage.objects;
 CREATE POLICY "certificados_leitura" ON storage.objects
   FOR SELECT USING (bucket_id = 'Certificados Profissional');
+
+-- 5) PROPOSTA DO RADAR NO CHAT ---------------------------------------------------
+-- Proposta pendente (44) entre o cliente e o profissional/empresa da conversa.
+-- Serve aos dois lados: o cliente aceita/recusa e o profissional ajusta o valor.
+CREATE OR REPLACE FUNCTION public.proposta_radar_da_conversa(p_id_conversa bigint)
+RETURNS TABLE (
+  id_proposta bigint,
+  valor numeric,
+  id_solicitacao_geografica bigint,
+  titulo text,
+  descricao text,
+  img_solicitacao text[],
+  metodo_entrega text,
+  sou_cliente boolean
+)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT p.id_proposta, p.valor, sg.id_solicitacao_geografica,
+         sg.titulo::text, sg.descricao::text, sg.img_solicitacao,
+         sg.metodo_entrega::text,
+         c.fk_usuario = public.meu_id_usuario()
+  FROM public.conversas c
+  JOIN public.solicitacoes_geograficas sg ON sg.fk_usuario = c.fk_usuario
+  JOIN public.propostas_geograficas p
+    ON p.fk_solicitacao_geografica = sg.id_solicitacao_geografica
+   AND p.fk_status = 44
+   AND (CASE WHEN c.fk_grupo_empresa IS NOT NULL
+             THEN p.fk_grupo_empresa = c.fk_grupo_empresa
+             ELSE p.fk_grupo_empresa IS NULL AND p.fk_profissional = c.fk_profissional END)
+  WHERE c.id_conversa = p_id_conversa
+    AND (c.fk_usuario = public.meu_id_usuario()
+         OR public.profissional_pode_acessar_solicitacao(c.fk_profissional, c.fk_grupo_empresa))
+  ORDER BY p.data_envio DESC
+  LIMIT 1;
+$$;
+GRANT EXECUTE ON FUNCTION public.proposta_radar_da_conversa(bigint) TO authenticated;
+
+-- O profissional altera o valor enquanto o cliente ainda não respondeu.
+CREATE OR REPLACE FUNCTION public.atualizar_valor_proposta_geografica(
+  p_id_proposta bigint,
+  p_valor numeric
+)
+RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_prop public.propostas_geograficas%ROWTYPE;
+BEGIN
+  IF p_valor IS NULL OR p_valor <= 0 THEN
+    RAISE EXCEPTION 'Informe o valor do serviço.';
+  END IF;
+  SELECT * INTO v_prop FROM public.propostas_geograficas
+  WHERE id_proposta = p_id_proposta FOR UPDATE;
+  IF NOT FOUND OR NOT public.profissional_pode_acessar_solicitacao(
+       v_prop.fk_profissional, v_prop.fk_grupo_empresa) THEN
+    RAISE EXCEPTION 'Proposta não encontrada.';
+  END IF;
+  IF v_prop.fk_status <> 44 THEN
+    RAISE EXCEPTION 'O cliente já respondeu esta proposta.';
+  END IF;
+  UPDATE public.propostas_geograficas
+  SET valor = round(p_valor, 2), data_envio = now()
+  WHERE id_proposta = p_id_proposta;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.atualizar_valor_proposta_geografica(bigint, numeric)
+  TO authenticated;
 
 COMMIT;
