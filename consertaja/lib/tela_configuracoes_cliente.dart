@@ -12,6 +12,7 @@ import 'services/app_settings_controller.dart';
 import 'tela_inicial.dart';
 import 'utils/iniciais.dart';
 import 'widgets/skeleton_loading.dart';
+import 'widgets/dialogo_sheet.dart';
 
 class TelaConfiguracoesClientePage extends StatefulWidget {
   const TelaConfiguracoesClientePage({super.key});
@@ -827,7 +828,7 @@ class _TelaConfiguracoesClientePageState
   }) async {
     final controller = TextEditingController();
     final formKey = GlobalKey<FormState>();
-    final submitted = await showDialog<String>(
+    final submitted = await mostrarDialogoComoSheet<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(
@@ -900,7 +901,7 @@ class _TelaConfiguracoesClientePageState
   }
 
   Future<void> _clearTemporaryCache() async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await mostrarDialogoComoSheet<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Limpar cache do aplicativo?'),
@@ -939,7 +940,7 @@ class _TelaConfiguracoesClientePageState
   }
 
   Future<void> _signOut() async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await mostrarDialogoComoSheet<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Sair da conta'),

@@ -44,6 +44,7 @@ import 'widgets/fundos_chat.dart';
 import 'widgets/chat_pedido_extras.dart';
 import 'services/solicitacao_geografica_service.dart';
 import 'widgets/avisos_bottom_sheet.dart';
+import 'widgets/dialogo_sheet.dart';
 
 class TelaChatProfissional extends StatefulWidget {
   final String nomeProfissional;
@@ -3885,7 +3886,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     required String mensagem,
     required String acao,
   }) async {
-    final confirmar = await showDialog<bool>(
+    final confirmar = await mostrarDialogoComoSheet<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(titulo),

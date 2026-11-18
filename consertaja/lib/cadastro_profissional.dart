@@ -37,6 +37,7 @@ import 'completar_cadastro.dart';
 import 'tela_home.dart';
 import 'utils/funcao_servico.dart';
 import 'widgets/check_animado.dart';
+import 'widgets/dialogo_sheet.dart';
 
 // ================= TELA 01: CADASTRO DO PROFISSIONAL (ETAPA 1) =================
 class CadastroProfissionalPage extends StatefulWidget {
@@ -1810,7 +1811,7 @@ class _CadastroProfissionalEtapa3PageState
   }
 
   Future<void> _mostrarCadastroFacialJaFeito() async {
-    await showDialog<void>(
+    await mostrarDialogoComoSheet<void>(
       context: context,
       builder: (context) {
         return AlertDialog(
@@ -4940,7 +4941,7 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
   }
 
   void _mostrarOpcoesDocumentoValido(_DocType doc) {
-    showDialog(
+    mostrarDialogoComoSheet(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(

@@ -39,6 +39,7 @@ import 'widgets/previa_radar_profissional.dart';
 import 'minhas_notificacoes.dart';
 import 'widgets/contador_notificacoes.dart';
 import 'widgets/permissoes_iniciais.dart';
+import 'widgets/dialogo_sheet.dart';
 
 class TelaHomeProfissional extends StatefulWidget {
   final bool isVisitante;
@@ -1620,7 +1621,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   }
 
   void _mostrarPopupExcecao(_DiaAgendaCalendario dia) {
-    showDialog<void>(
+    mostrarDialogoComoSheet<void>(
       context: context,
       barrierDismissible: true,
       builder: (context) {

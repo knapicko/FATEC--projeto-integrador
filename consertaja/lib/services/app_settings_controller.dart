@@ -167,14 +167,25 @@ class AppSettingsController extends ChangeNotifier {
       [0.426, 0.43, 0.144],
       [0.426, 1.43, -0.856],
     ];
-    const piso = 21.0;
+    const piso = 30.0;
     const k = (255 - piso) / 255;
-    return <double>[
+    final inversao = <double>[
       for (var i = 0; i < 3; i++) ...[
         -k * h[i][0], -k * h[i][1], -k * h[i][2], 0, 255 * k + piso, //
       ],
       0, 0, 0, 1, 0, //
     ];
+    // Contraste extra depois da inversão (pivô 50): os textos cinza viram
+    // quase brancos e os escuros, brancos; o fundo fica perto de #181818.
+    const c = 1.3;
+    const pivo = 50.0;
+    const contraste = <double>[
+      c, 0, 0, 0, pivo * (1 - c), //
+      0, c, 0, 0, pivo * (1 - c), //
+      0, 0, c, 0, pivo * (1 - c), //
+      0, 0, 0, 1, 0, //
+    ];
+    return _combinar(contraste, inversao);
   }();
 
   static const double _c = 1.25;

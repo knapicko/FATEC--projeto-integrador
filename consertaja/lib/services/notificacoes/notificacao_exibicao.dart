@@ -9,6 +9,7 @@
 // =============================================================================
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
@@ -105,6 +106,64 @@ class NotificacaoExibicao {
     return DateTime.now().millisecondsSinceEpoch % 0x7FFFFFFF;
   }
 
+  static img.Image? _silhuetaLogo;
+
+  /// Ícone grande sem foto: logo BRANCA (independe do tema claro/escuro do
+  /// celular) num círculo com a cor da notificação.
+  static Future<Uint8List?> _logoNaCor(Color cor) async {
+    try {
+      var silhueta = _silhuetaLogo;
+      if (silhueta == null) {
+        final dados = await rootBundle.load(
+          'assets/images/icone/icone_consertaja.png',
+        );
+        final logo = img.decodePng(dados.buffer.asUint8List());
+        if (logo == null) return null;
+        // Só o canal alfa: tudo que é logo vira branco.
+        final branca = img.Image(
+          width: logo.width,
+          height: logo.height,
+          numChannels: 4,
+        );
+        for (final px in logo) {
+          if (px.a == 0) continue;
+          branca.setPixelRgba(px.x, px.y, 255, 255, 255, px.a.toInt());
+        }
+        silhueta = _silhuetaLogo = img.copyResize(
+          branca,
+          width: 132,
+          height: 132,
+          interpolation: img.Interpolation.average,
+        );
+      }
+      const lado = 192;
+      final saida = img.Image(width: lado, height: lado, numChannels: 4);
+      img.fillCircle(
+        saida,
+        x: lado ~/ 2,
+        y: lado ~/ 2,
+        radius: lado ~/ 2,
+        color: img.ColorRgba8(
+          (cor.r * 255).round(),
+          (cor.g * 255).round(),
+          (cor.b * 255).round(),
+          255,
+        ),
+        antialias: true,
+      );
+      img.compositeImage(
+        saida,
+        silhueta,
+        dstX: (lado - silhueta.width) ~/ 2,
+        dstY: (lado - silhueta.height) ~/ 2,
+      );
+      return Uint8List.fromList(img.encodePng(saida));
+    } catch (e) {
+      debugPrint('[Notificacoes] logo: $e');
+      return null;
+    }
+  }
+
   /// Baixa a foto e recorta em círculo (ícone grande). Falhou → null.
   static Future<Uint8List?> _fotoRedonda(String? url) async {
     if (url == null || url.isEmpty || !url.startsWith('http')) return null;
@@ -139,9 +198,12 @@ class NotificacaoExibicao {
 
     final cor = Color(n.corArgb);
     final foto = await _fotoRedonda(n.imagemUrl);
+    final logo = foto == null ? await _logoNaCor(cor) : null;
     final AndroidBitmap<Object> iconeGrande = foto != null
         ? ByteArrayAndroidBitmap(foto)
-        : const DrawableResourceAndroidBitmap('notif_logo');
+        : (logo != null
+              ? ByteArrayAndroidBitmap(logo)
+              : const DrawableResourceAndroidBitmap('notif_logo'));
     final resumo = n.textoStatus ?? n.tipo.rotulo;
 
     StyleInformation estilo;

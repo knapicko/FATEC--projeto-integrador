@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'models/postagem_resumo.dart';
 import 'services/postagens_profissional_service.dart';
 import 'widgets/skeleton_loading.dart';
+import 'widgets/dialogo_sheet.dart';
 
 class MinhasPostagensProfissionalPage extends StatefulWidget {
   const MinhasPostagensProfissionalPage({super.key});
@@ -210,7 +211,7 @@ class _MinhasPostagensProfissionalPageState
   }
 
   Future<void> _confirmarApagarPostagem(PostagemResumo postagem) async {
-    final confirmou = await showDialog<bool>(
+    final confirmou = await mostrarDialogoComoSheet<bool>(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -284,7 +285,7 @@ class _MinhasPostagensProfissionalPageState
   }
 
   Future<void> _confirmarArquivarPostagem(PostagemResumo postagem) async {
-    final confirmou = await showDialog<bool>(
+    final confirmou = await mostrarDialogoComoSheet<bool>(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

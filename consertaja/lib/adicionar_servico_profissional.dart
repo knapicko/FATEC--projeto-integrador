@@ -14,6 +14,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/cor_oficio.dart';
+import 'widgets/dialogo_sheet.dart';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 // Cor do ofício: mesma regra do app inteiro (nome `cor` ou hex `cod_cor`).
@@ -218,7 +219,7 @@ class _AdicionarServicoProfissionalPageState
   }
 
   Future<void> _confirmarExclusao(ServicoProfissional s) async {
-    final ok = await showDialog<bool>(
+    final ok = await mostrarDialogoComoSheet<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
