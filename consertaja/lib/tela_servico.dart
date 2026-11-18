@@ -17,6 +17,7 @@ import 'utils/icone_oficio.dart';
 import 'utils/iniciais.dart';
 import 'widgets/skeleton_loading.dart';
 import 'widgets/avisos_bottom_sheet.dart';
+import 'services/requisitos_conta.dart';
 
 class TelaServico extends StatefulWidget {
   final int? idServico;
@@ -1978,8 +1979,21 @@ class _TelaServicoState extends State<TelaServico> {
     }
   }
 
+  /// Já confirmou que o cliente tem endereço (vale para esta tela).
+  bool _enderecoConferido = false;
+
   void _abrirSheetAdicionarServico() {
     if (!SessaoVisitante.permitir(context)) return;
+    // Sem endereço cadastrado o cliente não pede nem monta a lista.
+    if (!_enderecoConferido) {
+      RequisitosConta.garantirEnderecoCliente(context).then((ok) {
+        if (ok && mounted) {
+          _enderecoConferido = true;
+          _abrirSheetAdicionarServico();
+        }
+      });
+      return;
+    }
     if (!_sheetDadosCarregados) {
       _carregarDadosSheet();
     }

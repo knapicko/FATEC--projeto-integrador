@@ -12,6 +12,7 @@ import 'utils/fluxo_solicitacao.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/funcao_servico.dart';
 import 'services/notificacoes/notificacao_feedback.dart';
+import 'services/requisitos_conta.dart';
 
 class EnderecoItemLista {
   final int idEndereco;
@@ -866,6 +867,7 @@ class _ListaServicosState extends State<ListaServicos> {
   // com os dados do serviço, depois apaga os itens da lista.
   Future<void> _enviarSolicitacoes() async {
     if (_itens.isEmpty || _enviandoSolicitacao) return;
+    if (!await RequisitosConta.garantirEnderecoCliente(context)) return;
     setState(() => _enviandoSolicitacao = true);
     try {
       final user = _supabase.auth.currentUser;

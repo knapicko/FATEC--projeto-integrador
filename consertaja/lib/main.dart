@@ -113,6 +113,22 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     if (session != null) {
       VerificacaoOnline.instance.iniciar();
       try {
+        // Confere a sessão NO SERVIDOR antes de abrir qualquer home. Uma
+        // sessão restaurada (ex.: reinstalou o app) pode estar vencida ou
+        // ser de um usuário que não existe mais; aí abria a home com o
+        // usuário "não reconhecido". Sem conta válida → tela inicial.
+        try {
+          final valido = await Supabase.instance.client.auth
+              .getUser()
+              .timeout(const Duration(seconds: 8));
+          if (valido.user == null) throw const AuthException('sem usuário');
+        } on AuthException {
+          // Sessão recusada pelo servidor: sai da conta guardada.
+          await Supabase.instance.client.auth.signOut(
+            scope: SignOutScope.local,
+          );
+          rethrow;
+        }
         final response = await GoogleAuthService.buscarPerfil(session.user.id);
 
         if (response == null) {

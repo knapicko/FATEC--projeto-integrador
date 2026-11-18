@@ -13,7 +13,9 @@
     <application
         android:label="ConsertaJá"
         android:name="${applicationName}"
-        android:icon="@mipmap/launcher_icon">
+        android:icon="@mipmap/launcher_icon"
+        android:allowBackup="false"
+        android:fullBackupContent="false">
 
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"

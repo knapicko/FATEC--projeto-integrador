@@ -8,6 +8,7 @@ import 'services/servicos_profissional_service.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/cor_oficio.dart';
+import 'services/requisitos_conta.dart';
 
 // ── Helper ──────────────────────────────────────────────────────────────────
 // Cor do ofício: mesma regra do app inteiro (nome `cor` ou hex `cod_cor`).
@@ -154,6 +155,12 @@ class _MeusServicosProfissionalPageState
     ServicoProfissional? servicoParaEditar,
   }) async {
     if (_ehMembroEmpresa) return;
+    // Criar serviço exige método de entrega, PIX, endereço e disponibilidade.
+    if (servicoParaEditar == null &&
+        !await RequisitosConta.garantirProntoParaServicos(context)) {
+      return;
+    }
+    if (!mounted) return;
     final mudou = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => AdicionarServicoProfissionalPage(
