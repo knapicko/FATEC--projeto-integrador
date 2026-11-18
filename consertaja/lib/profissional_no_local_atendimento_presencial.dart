@@ -11,6 +11,7 @@ import 'tela_chat_profissional.dart';
 import 'tela_meu_perfil_profissional.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
 import 'widgets/skeletons_telas.dart';
+import 'widgets/codigo_flutuante.dart';
 
 class ProfissionalNoLocalAtendimentoPresencialPage extends StatefulWidget {
   final int idSolicitacao;
@@ -83,6 +84,7 @@ class _ProfissionalNoLocalAtendimentoPresencialPageState
   @override
   void initState() {
     super.initState();
+    CodigoFlutuante.entrarNaTelaDoCodigo();
     _carregar();
   }
 
@@ -94,6 +96,7 @@ class _ProfissionalNoLocalAtendimentoPresencialPageState
     for (final controller in _codigoControllers) {
       controller.dispose();
     }
+    CodigoFlutuante.sairDaTelaDoCodigo();
     super.dispose();
   }
 

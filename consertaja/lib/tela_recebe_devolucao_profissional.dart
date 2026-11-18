@@ -16,6 +16,7 @@ import 'tela_meu_perfil_profissional.dart';
 import 'utils/iniciais.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
+import 'widgets/codigo_flutuante.dart';
 
 class TelaRecebeDevolucaoProfissionalPage extends StatefulWidget {
   final int idSolicitacao;
@@ -109,10 +110,6 @@ class _TelaRecebeDevolucaoProfissionalPageState
 
   // Fotos de registro
   final List<XFile?> _fotos = [null, null];
-  final List<String> _titulosSlots = [
-    '1. Painel Frontal',
-    '2. Traseira / Série',
-  ];
 
   // Observações
   final TextEditingController _obsController = TextEditingController();
@@ -131,6 +128,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
   @override
   void initState() {
     super.initState();
+    CodigoFlutuante.entrarNaTelaDoCodigo();
 
     _scrollController.addListener(_aoRolar);
 
@@ -208,6 +206,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
     for (final f in _codigoFocusNodes) {
       f.dispose();
     }
+    CodigoFlutuante.sairDaTelaDoCodigo();
     super.dispose();
   }
 
@@ -417,7 +416,6 @@ class _TelaRecebeDevolucaoProfissionalPageState
   void _adicionarSlotOpcional() {
     setState(() {
       _fotos.add(null);
-      _titulosSlots.add('${_fotos.length}. Foto Opcional');
     });
   }
 
@@ -425,7 +423,6 @@ class _TelaRecebeDevolucaoProfissionalPageState
     setState(() {
       if (index >= 2) {
         _fotos.removeAt(index);
-        _titulosSlots.removeAt(index);
       } else {
         _fotos[index] = null;
       }
@@ -473,7 +470,9 @@ class _TelaRecebeDevolucaoProfissionalPageState
 
       // 2. Salvar na tabela solicitacoes
       final obs = _obsController.text.trim();
-      final agoraIso = DateTime.now().toIso8601String();
+      // UTC: sem o fuso, o Postgres lia a hora local como UTC e o cronômetro
+      // do "em andamento" começava adiantado.
+      final agoraIso = DateTime.now().toUtc().toIso8601String();
       await _supabase
           .from('solicitacoes')
           .update({
@@ -482,7 +481,9 @@ class _TelaRecebeDevolucaoProfissionalPageState
             'obs_do_prof': obs,
             'fk_status': _ehDevolucao ? 6 : 4,
             'etapa_solicitacao': _ehDevolucao ? 5 : 3,
-            'data_inicio_andamento': agoraIso,
+            // O cronômetro conta a partir da mudança para "Em andamento".
+            if (!_ehDevolucao) 'data_inicio_andamento': agoraIso,
+            if (!_ehDevolucao) 'duracao_servico': 0,
             'andamento_pausado': false,
           })
           .eq('id_solicitacao', widget.idSolicitacao)
@@ -1600,9 +1601,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
               itemBuilder: (context, index) {
                 final foto = _fotos[index];
                 final obrigatoria = index < 2;
-                final titulo = _titulosSlots[index];
-
-                return _buildSlotFoto(index, foto, obrigatoria, titulo);
+                return _buildSlotFoto(index, foto, obrigatoria);
               },
             ),
           ),
@@ -1673,12 +1672,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
     );
   }
 
-  Widget _buildSlotFoto(
-    int index,
-    XFile? foto,
-    bool obrigatoria,
-    String titulo,
-  ) {
+  Widget _buildSlotFoto(int index, XFile? foto, bool obrigatoria) {
     if (foto != null) {
       return SizedBox(
         width: 140,
@@ -1713,7 +1707,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
-                        titulo,
+                        'Foto ${index + 1}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(

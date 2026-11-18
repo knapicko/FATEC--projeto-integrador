@@ -12,6 +12,7 @@ import 'models/servico_profissional.dart';
 import 'services/servicos_profissional_service.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
 import 'widgets/skeletons_telas.dart';
+import 'widgets/codigo_flutuante.dart';
 
 class TelaDeslocamentoClientePage extends StatefulWidget {
   const TelaDeslocamentoClientePage({super.key, required this.idSolicitacao});
@@ -55,6 +56,7 @@ class _TelaDeslocamentoClientePageState
   @override
   void initState() {
     super.initState();
+    CodigoFlutuante.entrarNaTelaDoCodigo();
     _carregar();
   }
 
@@ -64,6 +66,7 @@ class _TelaDeslocamentoClientePageState
     for (final controller in _codigo) {
       controller.dispose();
     }
+    CodigoFlutuante.sairDaTelaDoCodigo();
     super.dispose();
   }
 
@@ -175,7 +178,8 @@ class _TelaDeslocamentoClientePageState
             'imagens_recebimento': [url],
             'fk_status': 4,
             'etapa_solicitacao': 3,
-            'data_inicio_andamento': DateTime.now().toIso8601String(),
+            'data_inicio_andamento': DateTime.now().toUtc().toIso8601String(),
+            'duracao_servico': 0,
             'andamento_pausado': false,
           })
           .eq('id_solicitacao', widget.idSolicitacao);

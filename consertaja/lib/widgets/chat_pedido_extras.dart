@@ -888,9 +888,7 @@ class _ItemEtapaState extends State<_ItemEtapa>
                         child: Text(
                           widget.titulo,
                           style: TextStyle(
-                            color: widget.feita || widget.atual
-                                ? _texto
-                                : _sec,
+                            color: widget.feita || widget.atual ? _texto : _sec,
                             fontSize: 15,
                             fontWeight: FontWeight.w800,
                           ),

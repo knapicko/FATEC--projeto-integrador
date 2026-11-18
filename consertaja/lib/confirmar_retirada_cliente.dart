@@ -8,6 +8,7 @@ import 'services/servicos_profissional_service.dart';
 import 'utils/fluxo_solicitacao.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
 import 'widgets/skeletons_telas.dart';
+import 'widgets/codigo_flutuante.dart';
 
 /// Retirado no Local — etapa 4 → etapa 5.
 ///
@@ -56,6 +57,7 @@ class _ConfirmarRetiradaClientePageState
   @override
   void initState() {
     super.initState();
+    CodigoFlutuante.entrarNaTelaDoCodigo();
     _carregar();
   }
 
@@ -64,6 +66,7 @@ class _ConfirmarRetiradaClientePageState
     for (final c in _codigo) {
       c.dispose();
     }
+    CodigoFlutuante.sairDaTelaDoCodigo();
     super.dispose();
   }
 
