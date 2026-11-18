@@ -435,10 +435,10 @@ class _TelaHomeState extends State<TelaHome> {
     }
     final largura = MediaQuery.sizeOf(context).width - 56;
     return SizedBox(
-      height: 196,
+      height: 236,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
         itemCount: pedidos.length,
         separatorBuilder: (_, _) => const SizedBox(width: 12),
         itemBuilder: (_, i) =>
@@ -769,7 +769,7 @@ class _TelaHomeState extends State<TelaHome> {
     return _tileCategoria(
       f.funcao,
       ColorFiltered(
-        colorFilter: ColorFilter.mode(cor, BlendMode.srcIn),
+        colorFilter: ColorFilter.mode(CorOficio.corTexto(cor), BlendMode.srcIn),
         child: IconeOficio.imagemPorFuncao(f.funcao, tamanho: 26),
       ),
       cor,
@@ -1015,13 +1015,12 @@ class _BordaGradienteAnimadaState extends State<_BordaGradienteAnimada>
         height: 5,
         decoration: BoxDecoration(
           gradient: LinearGradient(
+            // Azul principal, branco e cinza claro.
             colors: const [
-              Color(0xFFFBBF24),
-              Color(0xFF34D399),
-              Color(0xFF22D3EE),
               Color(0xFF0FB3FF),
-              Color(0xFF6366F1),
-              Color(0xFFFBBF24),
+              Color(0xFFFFFFFF),
+              Color(0xFFE2E8F0),
+              Color(0xFF0FB3FF),
             ],
             tileMode: TileMode.repeated,
             transform: _Deslizar(_c.value),

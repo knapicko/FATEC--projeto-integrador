@@ -22,6 +22,7 @@ import 'utils/cor_oficio.dart';
 import 'utils/iniciais.dart';
 import 'widgets/avaliacao_bottom_sheet.dart';
 import 'utils/funcao_servico.dart';
+import 'widgets/contador_notificacoes.dart';
 
 class PedidoCliente {
   final int id;
@@ -871,34 +872,18 @@ class MeusPedidosState extends State<MeusPedidosPage>
             }),
             icon: const Icon(Icons.search, color: azul, size: 24),
           ),
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              IconButton(
-                onPressed: () {},
-                icon: const Icon(
-                  Icons.notifications_outlined,
-                  color: azul,
-                  size: 24,
-                ),
-              ),
-              Positioned(
-                right: 10,
-                top: 10,
-                child: Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: badgeRed,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 1.5),
-                  ),
-                ),
-              ),
-            ],
-          ),
+          // Contador real de notificações; toque abre as notificações.
+          const SinoNotificacoes(cor: azul, tamanho: 24),
           const SizedBox(width: 4),
-          avatarCli(),
+          InkWell(
+            customBorder: const CircleBorder(),
+            onTap: () => AppNavigationUtil.navegarAba(
+              context,
+              const TelaMeuPerfilClientePage(),
+              isHome: false,
+            ),
+            child: avatarCli(),
+          ),
         ],
       ),
     );
