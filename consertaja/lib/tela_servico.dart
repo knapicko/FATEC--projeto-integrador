@@ -19,6 +19,8 @@ import 'widgets/skeleton_loading.dart';
 import 'widgets/avisos_bottom_sheet.dart';
 import 'services/requisitos_conta.dart';
 import 'widgets/secao_avaliacoes.dart';
+import 'services/pedidos_cliente_service.dart';
+import 'widgets/formas_pagamento.dart';
 
 class TelaServico extends StatefulWidget {
   final int? idServico;
@@ -239,8 +241,46 @@ class _TelaServicoState extends State<TelaServico> {
     );
   }
 
+  bool _favorito = false;
+  bool _favoritoCarregado = false;
+
+  Future<void> _carregarFavorito() async {
+    final id = widget.idServico ?? widget.servicoInicial?.id;
+    if (id == null || _favoritoCarregado) return;
+    _favoritoCarregado = true;
+    final f = await FavoritosService.ehFavorito(id);
+    if (mounted) setState(() => _favorito = f);
+  }
+
+  Future<void> _alternarFavorito() async {
+    if (!SessaoVisitante.permitir(context)) return;
+    final id = widget.idServico ?? widget.servicoInicial?.id;
+    if (id == null) return;
+    final novo = !_favorito;
+    setState(() => _favorito = novo);
+    HapticFeedback.lightImpact();
+    try {
+      await FavoritosService.alternar(id, favoritar: novo);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            novo
+                ? 'Serviço salvo nos favoritos.'
+                : 'Serviço removido dos favoritos.',
+          ),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (mounted) setState(() => _favorito = !novo);
+    }
+  }
+
   // 1. Cabeçalho Superior
   Widget _buildCabecalho(String titulo) {
+    _carregarFavorito();
     return Container(
       color: _azul,
       child: SafeArea(
@@ -269,7 +309,24 @@ class _TelaServicoState extends State<TelaServico> {
                   ),
                 ),
               ),
-              const SizedBox(width: 16),
+              // Favoritar (salvo em servicos_favoritos).
+              IconButton(
+                tooltip: _favorito ? 'Remover dos favoritos' : 'Favoritar',
+                onPressed: _alternarFavorito,
+                icon: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  transitionBuilder: (c, a) =>
+                      ScaleTransition(scale: a, child: c),
+                  child: Icon(
+                    _favorito
+                        ? Icons.favorite_rounded
+                        : Icons.favorite_border_rounded,
+                    key: ValueKey(_favorito),
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -432,29 +489,10 @@ class _TelaServicoState extends State<TelaServico> {
     );
   }
 
-  /// Nome bonito de uma forma de pagamento salva pelo profissional.
-  String _rotuloPagamento(String bruto) {
-    final t = bruto.trim().toLowerCase();
-    if (t.contains('pix')) return 'Pix';
-    if (t.contains('credito') || t.contains('crédito'))
-      return 'Cartão de crédito';
-    if (t.contains('debito') || t.contains('débito')) return 'Cartão de débito';
-    if (t.contains('cart')) return 'Cartão';
-    if (t.contains('boleto')) return 'Boleto';
-    if (t.contains('dinheiro')) return 'Dinheiro';
-    return bruto.trim().isEmpty
-        ? bruto
-        : bruto.trim()[0].toUpperCase() + bruto.trim().substring(1);
-  }
-
   /// Formas de pagamento que o profissional/empresa realmente aceita
   /// (pagamento_aceito), sem dados de exemplo.
   Widget _buildFormasPagamento() {
-    final pagamentos = _sheetPagamentosDisponiveis
-        .map(_rotuloPagamento)
-        .where((p) => p.isNotEmpty)
-        .toSet()
-        .toList();
+    final pagamentos = formasDePagamento(_sheetPagamentosDisponiveis);
     if (!_sheetDadosCarregados) {
       return const SkeletonBox(width: 220, height: 26, borderRadius: 6);
     }
@@ -476,22 +514,7 @@ class _TelaServicoState extends State<TelaServico> {
           ),
         ),
         const SizedBox(height: 8),
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: pagamentos
-              .map(
-                (pagamento) => _pagamentoChip(
-                  iconeWidget: const Icon(
-                    Icons.payments_outlined,
-                    size: 14,
-                    color: Color(0xFF64748B),
-                  ),
-                  label: pagamento,
-                ),
-              )
-              .toList(),
-        ),
+        ChipsPagamento(formas: pagamentos),
       ],
     );
   }
@@ -2545,26 +2568,44 @@ class _TelaServicoState extends State<TelaServico> {
                   counterText: '',
                 ),
               ),
-              const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: OutlinedButton.icon(
-                  onPressed: () => _selecionarImagensAnexadas(setSheetState),
-                  icon: const Icon(Icons.add_photo_alternate_outlined),
-                  label: Text(
-                    _sheetImagensAnexadas.isEmpty
-                        ? 'Adicionar imagens'
-                        : '${_sheetImagensAnexadas.length} imagem(ns) anexada(s)',
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  // Ícone de imagem (com a quantidade anexada).
+                  Badge(
+                    isLabelVisible: _sheetImagensAnexadas.isNotEmpty,
+                    label: Text('${_sheetImagensAnexadas.length}'),
+                    backgroundColor: _azul,
+                    child: InkWell(
+                      onTap: () => _selecionarImagensAnexadas(setSheetState),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Tooltip(
+                        message: 'Anexar imagens',
+                        child: Container(
+                          padding: const EdgeInsets.all(7),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE0F2FE),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.image_outlined,
+                            color: _azul,
+                            size: 22,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              Text(
-                '${_sheetDetalhesController.text.length}/500',
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: Color(0xFF94A3B8),
-                  fontWeight: FontWeight.w500,
-                ),
+                  const Spacer(),
+                  Text(
+                    '${_sheetDetalhesController.text.length}/500',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF94A3B8),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

@@ -13,6 +13,9 @@ import 'widgets/skeleton_loading.dart';
 import 'utils/funcao_servico.dart';
 import 'services/notificacoes/notificacao_feedback.dart';
 import 'services/requisitos_conta.dart';
+import 'widgets/formas_pagamento.dart';
+import 'tela_chat_profissional.dart';
+import 'tela_mensagens.dart';
 
 class EnderecoItemLista {
   final int idEndereco;
@@ -53,6 +56,9 @@ class ItemServicoLista {
   final String? fotoPrestador;
   final String enderecoPrestador;
 
+  /// Formas de pagamento que o profissional/empresa aceita.
+  final List<String> pagamentos;
+
   bool get ehEmpresa => tipoPrestador == 'empresa' || ehLoja;
   bool get ehIndependente => tipoPrestador == 'independente';
   bool get ehCpf => tipoPrestador == 'cpf';
@@ -85,6 +91,7 @@ class ItemServicoLista {
     required this.nomePrestador,
     this.fotoPrestador,
     required this.enderecoPrestador,
+    this.pagamentos = const [],
   });
 }
 
@@ -232,6 +239,20 @@ class _ListaServicosState extends State<ListaServicos> {
           }
         } catch (_) {}
 
+        // Formas de pagamento reais da conta que oferece o serviço.
+        var pagamentos = const <String>[];
+        try {
+          final conta = await _supabase
+              .from(idGrupoEmpresa != null ? 'grupo_empresa' : 'dados_profissionais')
+              .select('pagamento_aceito')
+              .eq(
+                idGrupoEmpresa != null ? 'id_grupo_empresa' : 'id_profissional',
+                idGrupoEmpresa ?? idProfissional ?? -1,
+              )
+              .maybeSingle();
+          pagamentos = formasDePagamento(conta?['pagamento_aceito']);
+        } catch (_) {}
+
         listaMontada.add(
           ItemServicoLista(
             fkLista: fkLista,
@@ -255,6 +276,7 @@ class _ListaServicosState extends State<ListaServicos> {
             nomePrestador: nomePrestador,
             fotoPrestador: fotoPrestador,
             enderecoPrestador: enderecoPrestador,
+            pagamentos: pagamentos,
           ),
         );
       }
@@ -943,6 +965,9 @@ class _ListaServicosState extends State<ListaServicos> {
         NotificacaoFeedback.solicitacaoEnviada(quantidade: solicitacoes.length),
       );
 
+      // Para o botão "Conversar no chat" do aviso de envio.
+      final enviados = List<ItemServicoLista>.of(_itens);
+
       if (_idLista != null) {
         await _supabase
             .from('ass_servicos_lista')
@@ -963,7 +988,7 @@ class _ListaServicosState extends State<ListaServicos> {
       // A home é a primeira rota; o sheet é exibido sobre ela.
       Future.delayed(const Duration(milliseconds: 350), () {
         if (!mounted) return;
-        _exibirSheetSolicitacaoEnviada();
+        _exibirSheetSolicitacaoEnviada(enviados);
       });
     } catch (e) {
       if (mounted) {
@@ -978,7 +1003,31 @@ class _ListaServicosState extends State<ListaServicos> {
     }
   }
 
-  void _exibirSheetSolicitacaoEnviada() {
+  /// Abre o chat com o profissional/loja do pedido (se forem vários
+  /// profissionais, abre a lista de conversas).
+  void _conversarNoChat(List<ItemServicoLista> enviados) {
+    final contas = {
+      for (final i in enviados)
+        i.idGrupoEmpresa != null ? 'g${i.idGrupoEmpresa}' : 'p${i.idProfissional}':
+            i,
+    };
+    final Widget destino;
+    if (contas.length == 1) {
+      final i = contas.values.first;
+      destino = TelaChatProfissional(
+        nomeProfissional: i.nomePrestador,
+        fotoProfissional: i.fotoPrestador ?? '',
+        oficioPrincipal: i.funcao ?? '',
+        idProfissional: i.idGrupoEmpresa == null ? i.idProfissional : null,
+        idGrupoEmpresa: i.idGrupoEmpresa,
+      );
+    } else {
+      destino = const TelaMensagensPage();
+    }
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => destino));
+  }
+
+  void _exibirSheetSolicitacaoEnviada(List<ItemServicoLista> enviados) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -1029,6 +1078,47 @@ class _ListaServicosState extends State<ListaServicos> {
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 14, color: _textoMuted, height: 1.4),
               ),
+              const SizedBox(height: 12),
+              // Ênfase: dúvidas → falar com o profissional.
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF7ED),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFED7AA)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(
+                      Icons.chat_bubble_outline_rounded,
+                      color: Color(0xFFEA580C),
+                      size: 20,
+                    ),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text.rich(
+                        TextSpan(
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            color: Color(0xFF7C2D12),
+                            height: 1.35,
+                          ),
+                          children: [
+                            TextSpan(
+                              text: 'Qualquer dúvida, é muito importante ',
+                            ),
+                            TextSpan(
+                              text: 'entrar em contato com o profissional',
+                              style: TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                            TextSpan(text: ' pelo chat.'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
@@ -1046,6 +1136,29 @@ class _ListaServicosState extends State<ListaServicos> {
                   child: const Text(
                     'Entendido',
                     style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _conversarNoChat(enviados);
+                  },
+                  icon: const Icon(Icons.chat_rounded, size: 20),
+                  label: const Text(
+                    'Conversar no chat',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _azul,
+                    side: const BorderSide(color: _azul, width: 1.4),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                 ),
               ),
@@ -1425,26 +1538,12 @@ class _ListaServicosState extends State<ListaServicos> {
                       ),
                     ),
                     const SizedBox(width: 10),
-                    // Símbolo Pix (losango inclinado)
-                    Transform.rotate(
-                      angle: 0.785,
-                      child: const Icon(
-                        Icons.crop_square_rounded,
-                        size: 13,
-                        color: Color(0xFF475569),
+                    // Ícones das formas que o profissional aceita.
+                    Expanded(
+                      child: ChipsPagamento(
+                        formas: item.pagamentos,
+                        compacto: true,
                       ),
-                    ),
-                    const SizedBox(width: 6),
-                    const Icon(
-                      Icons.credit_card_outlined,
-                      size: 16,
-                      color: Color(0xFF475569),
-                    ),
-                    const SizedBox(width: 6),
-                    const Icon(
-                      Icons.qr_code_2_rounded,
-                      size: 17,
-                      color: Color(0xFF475569),
                     ),
                   ],
                 ),
@@ -1743,7 +1842,7 @@ class _ListaServicosState extends State<ListaServicos> {
       borda = const Color(0xFFCBD5E1);
       texto = const Color(0xFF475569);
       icone = Icons.person_outline;
-      rotulo = 'AutÃ´nomo';
+      rotulo = 'Autônomo';
     }
 
     return Container(
@@ -1809,7 +1908,9 @@ class _ListaServicosState extends State<ListaServicos> {
     }
 
     return PopupMenuButton<int>(
-      tooltip: 'Selecionar endereÃ§o',
+      tooltip: 'Selecionar endereço',
+      color: Colors.white,
+      surfaceTintColor: Colors.white,
       offset: const Offset(0, 32),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       onSelected: (idEndereco) async {
@@ -1885,7 +1986,7 @@ class _ListaServicosState extends State<ListaServicos> {
                 Icon(Icons.add_location_alt_outlined, color: _azul, size: 18),
                 SizedBox(width: 8),
                 Text(
-                  'Gerenciar endereÃ§os',
+                  'Gerenciar endereços',
                   style: TextStyle(
                     color: _azul,
                     fontWeight: FontWeight.w600,
