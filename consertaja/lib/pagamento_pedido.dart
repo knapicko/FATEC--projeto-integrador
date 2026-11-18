@@ -628,7 +628,7 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage>
       if (pagamento.status != 'succeeded' &&
           pagamento.status != 'requires_capture') {
         throw Exception(
-          'O pagamento nÃ£o foi concluÃ­do. Status: ${pagamento.status}',
+          'O pagamento não foi concluído. Status: ${pagamento.status}',
         );
       }
       await Navigator.of(context).pushReplacement(

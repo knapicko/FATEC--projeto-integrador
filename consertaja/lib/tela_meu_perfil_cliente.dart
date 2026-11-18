@@ -21,6 +21,9 @@ import 'minhas_notificacoes.dart';
 import 'widgets/contador_notificacoes.dart';
 import 'services/requisitos_conta.dart';
 import 'widgets/avisos_bottom_sheet.dart';
+import 'historico_pedidos_cliente.dart';
+import 'meus_servicos_avaliados_cliente.dart';
+import 'servicos_favoritos_cliente.dart';
 
 class TelaMeuPerfilClientePage extends StatefulWidget {
   final bool isVisitante;
@@ -343,6 +346,12 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
     );
   }
 
+  /// Abre uma página do perfil (visitante vê o aviso para entrar).
+  void _abrirPagina(Widget pagina) {
+    if (!SessaoVisitante.permitir(context)) return;
+    Navigator.push(context, MaterialPageRoute(builder: (_) => pagina));
+  }
+
   Widget _buildProfileItem({
     required String label,
     String? imageAsset,
@@ -617,11 +626,17 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                           _buildProfileItem(
                             label: 'Histórico de Pedidos',
                             fallbackIcon: Icons.inventory_2_outlined,
+                            onTap: () => _abrirPagina(
+                              const HistoricoPedidosClientePage(),
+                            ),
                           ),
                           _buildProfileItem(
                             label: 'Avaliações de Serviços',
                             fallbackIcon: Icons.star_rounded,
                             useRoundedIcon: true,
+                            onTap: () => _abrirPagina(
+                              const MeusServicosAvaliadosClientePage(),
+                            ),
                           ),
                           _buildProfileItem(
                             label: 'Notificações',
@@ -640,6 +655,9 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                           _buildProfileItem(
                             label: 'Serviços Favoritados',
                             fallbackIcon: Icons.favorite_border_rounded,
+                            onTap: () => _abrirPagina(
+                              const ServicosFavoritosClientePage(),
+                            ),
                           ),
 
                           const Divider(
