@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../lista_servicos.dart';
 import '../services/lista_servicos_service.dart';
+import '../utils/app_navigation_util.dart';
 
 class BarraListaServicosWidget extends StatefulWidget {
   const BarraListaServicosWidget({super.key});
@@ -41,7 +42,12 @@ class _BarraListaServicosWidgetState extends State<BarraListaServicosWidget> {
         return Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: () {
+            onTap: () async {
+              // Sem endereço: o aviso aparece antes e a lista não abre.
+              if (!await AppNavigationUtil.exigirEnderecoCliente(context) ||
+                  !context.mounted) {
+                return;
+              }
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const ListaServicos()),

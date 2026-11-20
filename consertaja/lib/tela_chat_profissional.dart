@@ -86,7 +86,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
   static const Color _chatBackground = Color(0xFFF6F8FA);
 
   String _corBaloesHex = '0xFF0FB3FF';
-  String _planoFundo = 'assets/images/plano_fundo_chat/doodle_default.png';
+  String _planoFundo = 'assets/images/plano_fundo_chat/doodle_default.jpg';
   double _desfoqueFundo = 0.0;
   double _opacidadeFundo = 35.0;
 
@@ -3400,7 +3400,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
 
   Widget _buildDoodleChatWidget() {
     return Image.asset(
-      'assets/images/plano_fundo_chat/doodle_default.png',
+      'assets/images/plano_fundo_chat/doodle_default.jpg',
       fit: BoxFit.cover,
       repeat: ImageRepeat.repeat,
       errorBuilder: (_, __, ___) => Container(color: const Color(0xFFF8FAFC)),

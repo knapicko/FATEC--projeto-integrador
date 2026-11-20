@@ -17,6 +17,11 @@ import 'utils/iniciais.dart';
 import 'utils/funcao_servico.dart';
 import 'widgets/skeletons_telas.dart';
 import 'widgets/avisos_bottom_sheet.dart';
+import 'services/cor_dominante_service.dart';
+import 'certificados.dart';
+import 'widgets/secao_avaliacoes.dart';
+import 'widgets/calendario_disponibilidade.dart';
+import 'servicos_do_profissional.dart';
 
 // Cores temáticas fiéis ao design
 const Color _kPrimaryCyan = Color(0xFF0FB3FF);
@@ -163,6 +168,56 @@ class _PerfilLojaState extends State<PerfilLoja> {
   String? _bannerUrlEmpresa;
   String? _tagEmpresa;
   Color? _corTagEmpresa = const Color(0xFF0288D1);
+
+  /// Cor do banner tirada da foto da empresa (igual ao perfil do
+  /// profissional), usada num gradiente com uma versão mais escura.
+  Color? _corBanner;
+
+  /// Avaliações da empresa (média e total).
+  double? _notaMedia;
+  int _totalAvaliacoes = 0;
+
+  Future<void> _definirCorBanner(String? foto) async {
+    try {
+      final hex = await CorDominanteService.extrairDaUrl(foto);
+      if (mounted)
+        setState(() => _corBanner = CorDominanteService.paraColor(hex));
+    } catch (_) {}
+  }
+
+  Future<void> _carregarAvaliacoes(int idGrupo) async {
+    try {
+      final db = Supabase.instance.client;
+      final sols = await db
+          .from('solicitacoes')
+          .select('id_solicitacao')
+          .eq('fk_grupo_empresa', idGrupo);
+      final ids = [for (final s in sols) (s['id_solicitacao'] as num).toInt()];
+      if (ids.isEmpty) return;
+      final avs = await db
+          .from('avaliacoes_solicitacao')
+          .select('nota')
+          .eq('tipo_avaliacao', 'profissional')
+          .inFilter('fk_solicitacao', ids);
+      final notas = [
+        for (final a in avs)
+          if (a['nota'] != null) (a['nota'] as num).toDouble(),
+      ];
+      if (notas.isEmpty || !mounted) return;
+      setState(() {
+        _totalAvaliacoes = notas.length;
+        _notaMedia = notas.reduce((a, b) => a + b) / notas.length;
+      });
+    } catch (e) {
+      debugPrint('[perfil loja] avaliações: $e');
+    }
+  }
+
+  Color get _corBannerEscura {
+    final c = _corBanner ?? _kDarkBlueStart;
+    final hsl = HSLColor.fromColor(c);
+    return hsl.withLightness((hsl.lightness * 0.55).clamp(0.08, 0.4)).toColor();
+  }
 
   bool _compartilharFuncionarios = false;
   bool _carregandoProfissionais = true;
@@ -338,6 +393,8 @@ class _PerfilLojaState extends State<PerfilLoja> {
               _corTagEmpresa = CorOficio.parse(corHex);
             }
             if (foto != null && foto.isNotEmpty) _fotoUrlEmpresa = foto;
+            if (idGrupo != null) _carregarAvaliacoes(idGrupo);
+            _definirCorBanner(foto);
             if (banner != null && banner.isNotEmpty) {
               _bannerUrlEmpresa = banner;
             }
@@ -663,26 +720,52 @@ class _PerfilLojaState extends State<PerfilLoja> {
     return false;
   }
 
+  /// Dias de atendimento resumidos: "Seg a Sex", "Seg a Sex e Sáb",
+  /// "Ter e Qui", "Seg a Qua, Sex e Dom".
+  String _resumoDias() {
+    const ordem = [
+      ('segunda-feira', 'Seg'),
+      ('terça-feira', 'Ter'),
+      ('quarta-feira', 'Qua'),
+      ('quinta-feira', 'Qui'),
+      ('sexta-feira', 'Sex'),
+      ('sábado', 'Sáb'),
+      ('domingo', 'Dom'),
+    ];
+    bool abre(String d) {
+      final h = _horariosPorDia[d];
+      return h != null && h.isNotEmpty && h != 'Fechado';
+    }
+
+    final grupos = <String>[];
+    var i = 0;
+    while (i < ordem.length) {
+      if (!abre(ordem[i].$1)) {
+        i++;
+        continue;
+      }
+      var j = i;
+      while (j + 1 < ordem.length && abre(ordem[j + 1].$1)) {
+        j++;
+      }
+      final tam = j - i + 1;
+      if (tam >= 3) {
+        grupos.add('${ordem[i].$2} a ${ordem[j].$2}');
+      } else {
+        for (var k = i; k <= j; k++) {
+          grupos.add(ordem[k].$2);
+        }
+      }
+      i = j + 1;
+    }
+    if (grupos.isEmpty) return '';
+    if (grupos.length == 1) return grupos.first;
+    return '${grupos.sublist(0, grupos.length - 1).join(', ')} e ${grupos.last}';
+  }
+
   String _textoStatusDisponibilidade() {
-    final diasAbertos = _ordemDiasSemana
-        .where((d) {
-          final h = _horariosPorDia[d];
-          return h != null && h.isNotEmpty && h != 'Fechado';
-        })
-        .map((d) {
-          const mapa = {
-            'segunda-feira': 'Seg',
-            'terça-feira': 'Ter',
-            'quarta-feira': 'Qua',
-            'quinta-feira': 'Qui',
-            'sexta-feira': 'Sex',
-          };
-          return mapa[d] ?? d;
-        })
-        .toList();
-    final diasTexto = diasAbertos.isEmpty
-        ? ''
-        : ' (${diasAbertos.join(' a ')})';
+    final resumo = _resumoDias();
+    final diasTexto = resumo.isEmpty ? '' : ' ($resumo)';
     final aberto = _estaAbertoAgora();
     return '${aberto ? 'Aberto agora' : 'Fechado agora'} • $_faixaHorarioDisponibilidade$diasTexto';
   }
@@ -1147,110 +1230,135 @@ class _PerfilLojaState extends State<PerfilLoja> {
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: Colors.white,
-        body: CustomScrollView(
-          controller: _scrollController,
-          physics: const AlwaysScrollableScrollPhysics(
-            parent: BouncingScrollPhysics(),
+        // Arrastar para baixo recarrega (o banner acompanha o arrasto).
+        body: RefreshIndicator(
+          color: const Color(0xFF0FB3FF),
+          onRefresh: () async {
+            await _carregarDadosEmpresaEProfissionais();
+            if (_idGrupoEmpresa != null) {
+              await _carregarAvaliacoes(_idGrupoEmpresa!);
+            }
+          },
+          child: CustomScrollView(
+            controller: _scrollController,
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
+            slivers: [
+              // 1. Cabeçalho, Informações, Métricas e Busca
+              SliverToBoxAdapter(
+                child: Column(
+                  children: [
+                    _buildCabecalhoSuperiorComLogo(),
+                    const SizedBox(height: 52),
+                    _buildInformacoesLoja(),
+                    const SizedBox(height: 16),
+                    _buildMetricasLoja(),
+                    const SizedBox(height: 12),
+                    // Certificados da empresa (onde ficava a busca).
+                    SecaoCertificados(idGrupoEmpresa: _idGrupoEmpresa),
+                    const SizedBox(height: 6),
+                  ],
+                ),
+              ),
+
+              // 2. Abas Sticky Pinned (grudam no topo ao rolar a tela, igual perfil_profissional.dart)
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _AbasLojaDelegate(
+                  abaAtiva: _abaAtiva,
+                  onAbaTap: (aba, key) => _scrollParaAba(aba, key),
+                  equipeKey: _equipeKey,
+                  servicosKey: _servicosKey,
+                  sobreKey: _sobreKey,
+                  avaliacoesKey: _avaliacoesKey,
+                  mostrarEquipe: _compartilharFuncionarios,
+                ),
+              ),
+
+              // 3. Seção: Equipe de Especialistas (exibida apenas se compartilhar_funcionarios == true)
+              if (_compartilharFuncionarios)
+                SliverToBoxAdapter(key: _equipeKey, child: _buildSecaoEquipe()),
+
+              // 4. Seção: Localização e Atendimento
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  child: Column(
+                    children: [
+                      if (_idGrupoEmpresa != null) ...[
+                        CalendarioDisponibilidade(
+                          idGrupoEmpresa: _idGrupoEmpresa,
+                        ),
+                        const SizedBox(height: 18),
+                      ],
+                      _buildSecaoLocalizacao(),
+                    ],
+                  ),
+                ),
+              ),
+
+              // 5. Seção: Serviços Oferecidos (Catálogo em Grid 2x2 com preço em _kDarkBlueEnd)
+              SliverToBoxAdapter(
+                key: _servicosKey,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  child: _buildServicosEmLinha(),
+                ),
+              ),
+
+              // 6. Seção: Sobre a Loja / Empresa (com Tipos de serviços dinâmicos e Galeria)
+              SliverToBoxAdapter(
+                key: _sobreKey,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSecaoSobre(),
+                      const SizedBox(height: 28),
+                      _buildSecaoTiposServicos(),
+                      const SizedBox(height: 28),
+                      _buildSecaoGaleria(),
+                    ],
+                  ),
+                ),
+              ),
+
+              // 7. Seção: Avaliações e Rodapé Persistente
+              SliverToBoxAdapter(
+                key: _avaliacoesKey,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_idGrupoEmpresa != null)
+                        SecaoAvaliacoes(
+                          idGrupoEmpresa: _idGrupoEmpresa,
+                          padding: EdgeInsets.zero,
+                        ),
+                      const SizedBox(height: 20),
+                      _buildBarraAcaoRodape(),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-          slivers: [
-            // 1. Cabeçalho, Informações, Métricas e Busca
-            SliverToBoxAdapter(
-              child: Column(
-                children: [
-                  _buildCabecalhoSuperiorComLogo(),
-                  const SizedBox(height: 52),
-                  _buildInformacoesLoja(),
-                  const SizedBox(height: 16),
-                  _buildMetricasLoja(),
-                  const SizedBox(height: 18),
-                  _buildBarraPesquisa(),
-                  const SizedBox(height: 6),
-                ],
-              ),
-            ),
-
-            // 2. Abas Sticky Pinned (grudam no topo ao rolar a tela, igual perfil_profissional.dart)
-            SliverPersistentHeader(
-              pinned: true,
-              delegate: _AbasLojaDelegate(
-                abaAtiva: _abaAtiva,
-                onAbaTap: (aba, key) => _scrollParaAba(aba, key),
-                equipeKey: _equipeKey,
-                servicosKey: _servicosKey,
-                sobreKey: _sobreKey,
-                avaliacoesKey: _avaliacoesKey,
-                mostrarEquipe: _compartilharFuncionarios,
-              ),
-            ),
-
-            // 3. Seção: Equipe de Especialistas (exibida apenas se compartilhar_funcionarios == true)
-            if (_compartilharFuncionarios)
-              SliverToBoxAdapter(key: _equipeKey, child: _buildSecaoEquipe()),
-
-            // 4. Seção: Localização e Atendimento
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                child: _buildSecaoLocalizacao(),
-              ),
-            ),
-
-            // 5. Seção: Serviços Oferecidos (Catálogo em Grid 2x2 com preço em _kDarkBlueEnd)
-            SliverToBoxAdapter(
-              key: _servicosKey,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                child: _buildSecaoServicosOferecidos(),
-              ),
-            ),
-
-            // 6. Seção: Sobre a Loja / Empresa (com Tipos de serviços dinâmicos e Galeria)
-            SliverToBoxAdapter(
-              key: _sobreKey,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSecaoSobre(),
-                    const SizedBox(height: 28),
-                    _buildSecaoTiposServicos(),
-                    const SizedBox(height: 28),
-                    _buildSecaoGaleria(),
-                  ],
-                ),
-              ),
-            ),
-
-            // 7. Seção: Avaliações e Rodapé Persistente
-            SliverToBoxAdapter(
-              key: _avaliacoesKey,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Avaliações indisponíveis nesta tela.'),
-                    const SizedBox(height: 20),
-                    _buildBarraAcaoRodape(),
-                    const SizedBox(height: 24),
-                  ],
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );
@@ -1277,10 +1385,10 @@ class _PerfilLojaState extends State<PerfilLoja> {
           decoration: BoxDecoration(
             gradient: usaBannerRede
                 ? null
-                : const LinearGradient(
+                : LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [_kDarkBlueStart, Color(0xFF003D7A), _kDarkBlueEnd],
+                    colors: [_corBanner ?? _kDarkBlueStart, _corBannerEscura],
                   ),
             image: usaBannerRede
                 ? DecorationImage(
@@ -1466,7 +1574,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
               SizedBox(width: 5),
               Flexible(
                 child: Text(
-                  'Oficina e Prestadores Especializados • Loja Registrada',
+                  'Conta de Empresa',
                   style: TextStyle(
                     fontSize: 12.5,
                     color: _kTextMuted,
@@ -1688,6 +1796,15 @@ class _PerfilLojaState extends State<PerfilLoja> {
         child: Row(
           children: [
             _buildColunaMetrica(
+              icone: Icons.star_rounded,
+              corIcone: const Color(0xFFF59E0B),
+              valor: _notaMedia == null
+                  ? '—'
+                  : _notaMedia!.toStringAsFixed(1).replaceAll('.', ','),
+              subtitulo: '$_totalAvaliacoes avaliações',
+            ),
+            _buildDivisorVertical(),
+            _buildColunaMetrica(
               icone: Icons.business_center_outlined,
               corIcone: const Color(0xFF475569),
               valor: _anosMercado.isEmpty ? '—' : _anosMercado,
@@ -1755,50 +1872,6 @@ class _PerfilLojaState extends State<PerfilLoja> {
   // =========================================================================
   // BARRA DE PESQUISA INTERNA
   // =========================================================================
-  Widget _buildBarraPesquisa() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _kBorderColor),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.search_rounded,
-              color: Color(0xFF94A3B8),
-              size: 22,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: TextField(
-                onChanged: (val) {
-                  setState(() {
-                    _filtroServicos = val.trim().toLowerCase();
-                  });
-                },
-                decoration: const InputDecoration(
-                  hintText: 'Buscar serviços neste perfil...',
-                  hintStyle: TextStyle(
-                    color: Color(0xFF94A3B8),
-                    fontSize: 13.5,
-                  ),
-                  border: InputBorder.none,
-                  isDense: true,
-                  contentPadding: EdgeInsets.symmetric(vertical: 12),
-                ),
-              ),
-            ),
-            const Icon(Icons.tune_rounded, color: Color(0xFF94A3B8), size: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
   // =========================================================================
   // 2. SEÇÃO: EQUIPE DE ESPECIALISTAS (TAG RESPONSÁVEL / FUNCIONÁRIO)
   // =========================================================================
@@ -2594,7 +2667,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Galeria de serviços',
+                  'Postagens',
                   style: TextStyle(
                     fontSize: 16.5,
                     fontWeight: FontWeight.bold,
@@ -2740,6 +2813,77 @@ class _PerfilLojaState extends State<PerfilLoja> {
   // =========================================================================
   // 7. SEÇÃO: SERVIÇOS OFERECIDOS (PLACEHOLDER DE MEUS_SERVICOS E PREÇO EM _kDarkBlueEnd)
   // =========================================================================
+  /// Mesma seção do perfil do profissional: até 10 em linha + "Ver todos".
+  Widget _buildServicosEmLinha() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Serviços Oferecidos',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+            ),
+            if (_servicosLoja.isNotEmpty)
+              TextButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ServicosDoProfissionalPage(
+                      servicos: _servicosLoja,
+                      nome: _nomeEmpresa,
+                    ),
+                  ),
+                ),
+                child: Text('Ver todos (${_servicosLoja.length})'),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (_carregandoServicos)
+          const SizedBox(
+            height: 120,
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          )
+        else if (_servicosLoja.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: const Text(
+              'Esta empresa ainda não oferece nenhum serviço',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+            ),
+          )
+        else
+          SizedBox(
+            height: 262,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              itemCount: _servicosLoja.length.clamp(0, 10),
+              separatorBuilder: (_, _) => const SizedBox(width: 14),
+              itemBuilder: (_, i) => SizedBox(
+                width: 178,
+                child: _buildCardServicoCatalogo(_servicosLoja[i]),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  // ignore: unused_element
   Widget _buildSecaoServicosOferecidos() {
     final categorias = [
       'Todos',

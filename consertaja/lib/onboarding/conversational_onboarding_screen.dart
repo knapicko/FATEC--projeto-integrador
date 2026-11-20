@@ -426,6 +426,10 @@ class _ConversationalOnboardingScreenState
                                           ),
                                           curve: Curves.easeInOutCubic,
                                           alignment: Alignment.bottomCenter,
+                                          // Sem recorte: enquanto o balão
+                                          // cresce (digitação) o topo dele e
+                                          // o do anterior ficavam cortados.
+                                          clipBehavior: Clip.none,
                                           child: AnimatedSwitcher(
                                             duration: const Duration(
                                               milliseconds: 600,
@@ -484,10 +488,14 @@ class _ConversationalOnboardingScreenState
                                                                     step,
                                                                   ),
                                                             ),
-                                                        child: FittedBox(
-                                                          fit: BoxFit.scaleDown,
-                                                          alignment: Alignment
-                                                              .bottomCenter,
+                                                        // Rola em vez de
+                                                        // encolher: antes o
+                                                        // FittedBox reduzia
+                                                        // todos os inputs
+                                                        // quando surgia uma
+                                                        // mensagem de erro.
+                                                        child: SingleChildScrollView(
+                                                          reverse: true,
                                                           child: SizedBox(
                                                             width: constraints
                                                                 .maxWidth,

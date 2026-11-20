@@ -1807,7 +1807,16 @@ class _CampoTexto extends StatelessWidget {
         readOnly: readOnly,
         onTap: onTap,
         decoration: InputDecoration(
-          labelText: label,
+          // Rótulo com fundo branco: quando sobe para cima do campo (focado
+          // ou preenchido) ele fica sobre o fundo azul e sumia.
+          label: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(label),
+          ),
           errorText: errorText,
           prefixIcon: prefixWidget,
           suffixIcon: suffixIcon != null

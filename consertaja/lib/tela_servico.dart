@@ -2013,8 +2013,28 @@ class _TelaServicoState extends State<TelaServico> {
   /// Já confirmou que o cliente tem endereço (vale para esta tela).
   bool _enderecoConferido = false;
 
+  /// O profissional/loja tirou o endereço: o serviço fica indisponível.
+  bool get _prestadorSemEndereco {
+    final e = _detalhe?.enderecoFormatado.trim() ?? '';
+    return _detalhe != null &&
+        (e.isEmpty || e == 'Endereço não cadastrado');
+  }
+
   void _abrirSheetAdicionarServico() {
     if (!SessaoVisitante.permitir(context)) return;
+    if (_prestadorSemEndereco) {
+      mostrarAvisoBottomSheet<void>(
+        context,
+        icone: Icons.location_off_outlined,
+        corIcone: const Color(0xFFF59E0B),
+        titulo: 'Serviço indisponível',
+        mensagem:
+            'Este profissional ainda não tem um endereço cadastrado, então '
+            'o serviço está indisponível no momento. Tente mais tarde ou '
+            'converse com ele pelo chat.',
+      );
+      return;
+    }
     // Sem endereço cadastrado o cliente não pede nem monta a lista.
     if (!_enderecoConferido) {
       RequisitosConta.garantirEnderecoCliente(context).then((ok) {

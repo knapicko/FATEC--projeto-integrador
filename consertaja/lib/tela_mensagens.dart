@@ -23,6 +23,9 @@ import 'utils/iniciais.dart';
 import 'utils/app_navigation_util.dart';
 import 'utils/funcao_servico.dart';
 import 'solicitacao_geografica_profissional.dart';
+import 'utils/cor_status.dart';
+import 'utils/cor_oficio.dart';
+import 'widgets/borda_gradiente_animada.dart';
 
 /// Tela "Mensagens": lista de conversas do usuário logado (cliente ou profissional),
 /// com visual moderno, atualização em tempo real, indicador de presença online,
@@ -66,6 +69,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
   /// Foto/nome da MINHA conta (empresa ou profissional) — avatar no topo.
   String? _minhaFotoConta;
   String _meuNomeConta = '';
+  bool _souDonoEmpresa = false;
 
   RealtimeChannel? _canalLista;
   Timer? _pollingLista;
@@ -120,21 +124,36 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
 
       String? fotoEmpresa;
       String nomeEmpresa = '';
+      var souDono = false;
+      var empresa = false;
       if (idUsuario != null) {
         final dadosProf = await _supabase
             .from('dados_profissionais')
-            .select('id_profissional, fk_grupo_empresa')
+            .select('id_profissional, fk_grupo_empresa, fk_perfil')
             .eq('fk_usuario', idUsuario)
             .maybeSingle();
         if (dadosProf != null) {
           ehProfissional = true;
-          final idGrupo = (dadosProf['fk_grupo_empresa'] as num?)?.toInt();
-          if (idGrupo != null && ativa) {
-            final grupo = await _supabase
-                .from('grupo_empresa')
-                .select('nome_empresa, foto_url_empresa')
-                .eq('id_grupo_empresa', idGrupo)
-                .maybeSingle();
+          if (ativa) {
+            // Dono do CNPJ (mesmo perfil) ou funcionário (fk_grupo_empresa).
+            Map<String, dynamic>? grupo;
+            if (dadosProf['fk_perfil'] != null) {
+              grupo = await _supabase
+                  .from('grupo_empresa')
+                  .select('nome_empresa, foto_url_empresa')
+                  .eq('fk_perfil', dadosProf['fk_perfil'])
+                  .maybeSingle();
+              souDono = grupo != null;
+            }
+            final idGrupo = (dadosProf['fk_grupo_empresa'] as num?)?.toInt();
+            if (grupo == null && idGrupo != null) {
+              grupo = await _supabase
+                  .from('grupo_empresa')
+                  .select('nome_empresa, foto_url_empresa')
+                  .eq('id_grupo_empresa', idGrupo)
+                  .maybeSingle();
+            }
+            empresa = grupo != null;
             fotoEmpresa = (grupo?['foto_url_empresa'] as String?)?.trim();
             if (fotoEmpresa != null && fotoEmpresa.isEmpty) fotoEmpresa = null;
             nomeEmpresa = (grupo?['nome_empresa'] as String?)?.trim() ?? '';
@@ -146,7 +165,10 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
       setState(() {
         _isProfissional = ehProfissional;
         _contaEmpresaAtiva = ativa;
-        if (ativa && fotoEmpresa != null) {
+        _souDonoEmpresa = souDono;
+        if (ativa && empresa) {
+          // Conta de empresa: foto da empresa ou iniciais dela (nunca a
+          // foto pessoal do profissional).
           _minhaFotoConta = fotoEmpresa;
           _meuNomeConta = nomeEmpresa.isNotEmpty ? nomeEmpresa : 'Empresa';
         } else {
@@ -585,6 +607,13 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
             remetenteUltima != null && remetenteUltima == idUsuario;
         final ultimaRecebida =
             remetenteUltima != null && remetenteUltima != idUsuario;
+        // Do meu lado da conversa (na empresa, qualquer membro).
+        final ladoMeu = isProfissional
+            ? remetenteUltima != null &&
+                  remetenteUltima != clientePorConversa[idConv]
+            : ultimaEnviadaPorMim;
+        final previa = _previaMensagem(ultima, enviadaPorMim: ladoMeu);
+        final ehProposta = _ehProposta(ultima);
 
         if (isProfissional) {
           final idCliente = clientePorConversa[idConv];
@@ -611,7 +640,8 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
               ultimaConexaoContato: DateTime.tryParse(
                 contato?['ultima_conexao']?.toString() ?? '',
               ),
-              ultimaMensagem: _previaMensagem(ultima),
+              ultimaMensagem: previa,
+              ehProposta: ehProposta,
               tipoUltimaMensagem: ultima?['tipo_mensagem']?.toString(),
               dataUltimaMensagem: DateTime.tryParse(
                 ultima?['data_envio']?.toString() ?? '',
@@ -638,7 +668,8 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
               ehChatEmpresa: true,
               servicoAssociado: servicoPorConversa[idConv],
               ultimaConexaoContato: null,
-              ultimaMensagem: _previaMensagem(ultima),
+              ultimaMensagem: previa,
+              ehProposta: ehProposta,
               tipoUltimaMensagem: ultima?['tipo_mensagem']?.toString(),
               dataUltimaMensagem: DateTime.tryParse(
                 ultima?['data_envio']?.toString() ?? '',
@@ -672,7 +703,8 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
             ultimaConexaoContato: DateTime.tryParse(
               contato['ultima_conexao']?.toString() ?? '',
             ),
-            ultimaMensagem: _previaMensagem(ultima),
+            ultimaMensagem: previa,
+            ehProposta: ehProposta,
             tipoUltimaMensagem: ultima?['tipo_mensagem']?.toString(),
             dataUltimaMensagem: DateTime.tryParse(
               ultima?['data_envio']?.toString() ?? '',
@@ -689,6 +721,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
         _aplicarLista([]);
         return;
       }
+      await _completarExtras(resultado, isProfissional, idUsuario);
 
       final unicasPorCliente = <int, _ConversaResumo>{};
       final semCliente = <_ConversaResumo>[];
@@ -833,11 +866,184 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
   }
 
   /// Prévia amigável da última mensagem (foto, documento, áudio ou texto).
-  String? _previaMensagem(Map<String, dynamic>? ultima) {
+  /// Funções/tag do profissional ou da loja (visão do cliente) e a
+  /// solicitação em curso de cada conversa (título + status).
+  Future<void> _completarExtras(
+    List<_ConversaResumo> lista,
+    bool isProfissional,
+    int idUsuario,
+  ) async {
+    final funcoesProf = <int, List<String>>{};
+    final funcoesGrupo = <int, List<String>>{};
+    final tagGrupo = <int, (String?, String?)>{};
+    if (!isProfissional) {
+      final idsProf = {
+        for (final c in lista)
+          if (!c.ehChatEmpresa && c.idProfissional != null) c.idProfissional!,
+      };
+      final idsGrupo = {
+        for (final c in lista)
+          if (c.ehChatEmpresa && c.idGrupoEmpresa != null) c.idGrupoEmpresa!,
+      };
+      try {
+        if (idsProf.isNotEmpty) {
+          final r = await _supabase
+              .from('ass_oficio_profissional')
+              .select('fk_profissional, funcoes(funcao)')
+              .inFilter('fk_profissional', idsProf.toList());
+          for (final x in r) {
+            final f = x['funcoes'];
+            final nome = f is Map ? f['funcao']?.toString() : null;
+            if (nome == null || nome.isEmpty) continue;
+            final l = funcoesProf.putIfAbsent(
+              (x['fk_profissional'] as num).toInt(),
+              () => [],
+            );
+            if (!l.contains(nome)) l.add(nome);
+          }
+        }
+        if (idsGrupo.isNotEmpty) {
+          final r = await _supabase
+              .from('ass_oficio_grupo_empresa')
+              .select('fk_grupo_empresa, funcoes(funcao)')
+              .inFilter('fk_grupo_empresa', idsGrupo.toList());
+          for (final x in r) {
+            final f = x['funcoes'];
+            final nome = f is Map ? f['funcao']?.toString() : null;
+            if (nome == null || nome.isEmpty) continue;
+            final l = funcoesGrupo.putIfAbsent(
+              (x['fk_grupo_empresa'] as num).toInt(),
+              () => [],
+            );
+            if (!l.contains(nome)) l.add(nome);
+          }
+          final g = await _supabase
+              .from('grupo_empresa')
+              .select('id_grupo_empresa, tag_empresa, cor_tag_empresa')
+              .inFilter('id_grupo_empresa', idsGrupo.toList());
+          for (final x in g) {
+            final t = x['tag_empresa']?.toString().trim() ?? '';
+            tagGrupo[(x['id_grupo_empresa'] as num).toInt()] = (
+              t.isEmpty ? null : (t.startsWith('#') ? t : '#$t').toUpperCase(),
+              x['cor_tag_empresa']?.toString(),
+            );
+          }
+        }
+      } catch (e) {
+        debugPrint('[mensagens] funções: $e');
+      }
+    }
+
+    // Solicitações em curso (não concluídas/canceladas/recusadas).
+    final ativas = <String, (String, EstiloStatus)>{};
+    try {
+      var q = _supabase
+          .from('solicitacoes')
+          .select(
+            'id_solicitacao, fk_status, tipo_execucao, etapa_solicitacao, '
+            'fk_usuario, fk_profissional, fk_grupo_empresa, '
+            'servicos_profissional(titulo), servicos_chat_temporarios(titulo)',
+          )
+          .not('fk_status', 'in', '(6,7,30)');
+      if (isProfissional) {
+        final clientes = {
+          for (final c in lista)
+            if (c.idCliente != null) c.idCliente!,
+        };
+        if (clientes.isEmpty)
+          return _aplicarExtras(
+            lista,
+            funcoesProf,
+            funcoesGrupo,
+            tagGrupo,
+            ativas,
+          );
+        q = q.inFilter('fk_usuario', clientes.toList());
+      } else {
+        q = q.eq('fk_usuario', idUsuario);
+      }
+      final rows = await q.order('data_solicitacao', ascending: false);
+      for (final r in rows) {
+        final sp = r['servicos_profissional'];
+        final st = r['servicos_chat_temporarios'];
+        final titulo =
+            (sp is Map ? sp['titulo'] : null)?.toString() ??
+            (st is Map ? st['titulo'] : null)?.toString() ??
+            'Serviço';
+        final estilo = EstiloStatus.de(
+          fkStatus: (r['fk_status'] as num?)?.toInt(),
+          tipoExecucao: r['tipo_execucao']?.toString(),
+          etapa: (r['etapa_solicitacao'] as num?)?.toInt() ?? 0,
+        );
+        final grupo = (r['fk_grupo_empresa'] as num?)?.toInt();
+        final chave = isProfissional
+            ? 'c${r['fk_usuario']}|${grupo ?? 'p${r['fk_profissional']}'}'
+            : (grupo != null ? 'g$grupo' : 'p${r['fk_profissional']}');
+        ativas.putIfAbsent(chave, () => (titulo, estilo));
+      }
+    } catch (e) {
+      debugPrint('[mensagens] solicitações ativas: $e');
+    }
+    _aplicarExtras(lista, funcoesProf, funcoesGrupo, tagGrupo, ativas);
+  }
+
+  void _aplicarExtras(
+    List<_ConversaResumo> lista,
+    Map<int, List<String>> funcoesProf,
+    Map<int, List<String>> funcoesGrupo,
+    Map<int, (String?, String?)> tagGrupo,
+    Map<String, (String, EstiloStatus)> ativas,
+  ) {
+    for (var i = 0; i < lista.length; i++) {
+      final c = lista[i];
+      final String chave;
+      if (_isProfissional) {
+        // Conversa da empresa x conversa individual do profissional.
+        final lado = c.ehChatEmpresa ? '${c.idGrupoEmpresa}' : null;
+        chave = lado != null
+            ? 'c${c.idCliente}|$lado'
+            : ativas.keys.firstWhere(
+                (k) => k.startsWith('c${c.idCliente}|p'),
+                orElse: () => '',
+              );
+      } else {
+        chave = c.ehChatEmpresa
+            ? 'g${c.idGrupoEmpresa}'
+            : 'p${c.idProfissional}';
+      }
+      final ativa = ativas[chave];
+      final tag = c.idGrupoEmpresa != null ? tagGrupo[c.idGrupoEmpresa] : null;
+      lista[i] = c.comExtras(
+        funcoes: c.ehChatEmpresa
+            ? funcoesGrupo[c.idGrupoEmpresa]
+            : funcoesProf[c.idProfissional],
+        tagEmpresa: tag?.$1,
+        corTagEmpresa: tag?.$2,
+        tituloAtiva: ativa?.$1,
+        estiloAtiva: ativa?.$2,
+      );
+    }
+  }
+
+  bool _ehProposta(Map<String, dynamic>? ultima) {
+    if (ultima == null) return false;
+    final tipo = (ultima['tipo_mensagem']?.toString() ?? '').toLowerCase();
+    final conteudo = ultima['conteudo']?.toString() ?? '';
+    return tipo == 'proposta' ||
+        conteudo.contains('"tipo":"proposta_personalizada"');
+  }
+
+  String? _previaMensagem(
+    Map<String, dynamic>? ultima, {
+    bool enviadaPorMim = false,
+  }) {
     if (ultima == null) return null;
 
     final tipo = (ultima['tipo_mensagem']?.toString() ?? 'Texto').toLowerCase();
     final conteudo = ultima['conteudo']?.toString() ?? '';
+    if (_ehProposta(ultima)) {
+      return enviadaPorMim ? 'Proposta enviada' : 'Proposta recebida';
+    }
 
     if (tipo == 'imagem') return 'Foto';
     if (tipo == 'audio') return 'Áudio';
@@ -877,7 +1083,12 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
           actions: [
             Padding(
               padding: const EdgeInsets.only(right: 12),
-              child: Center(child: _buildAvatarMinhaConta()),
+              child: Center(
+                child: GestureDetector(
+                  onTap: _abrirMinhaConta,
+                  child: _buildAvatarMinhaConta(),
+                ),
+              ),
             ),
           ],
         ),
@@ -932,6 +1143,24 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
         return _buildCard(conversas[index]);
       },
     );
+  }
+
+  /// Foto da minha conta: perfil do cliente/profissional ou gestão da
+  /// empresa (dono). Funcionário da empresa não vai para lugar nenhum.
+  void _abrirMinhaConta() {
+    final Widget? destino;
+    if (!_isProfissional) {
+      destino = const TelaMeuPerfilClientePage();
+    } else if (_contaEmpresaAtiva) {
+      destino = _souDonoEmpresa ? const GestaoEquipePage() : null;
+    } else {
+      destino = const TelaMeuPerfilProfissionalPage(isVisitante: false);
+    }
+    if (destino == null) return;
+    final pagina = destino;
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => pagina))
+        .then((_) => _carregarContaAtivaEMinhaFoto());
   }
 
   Widget _buildAvatarMinhaConta() {
@@ -1240,116 +1469,188 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
           if (!mounted) return;
           _carregarConversas();
         },
-        child: Ink(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.035),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                _buildAvatar(conversa),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Linha 1: Nome e Horário
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              conversa.nomeContato,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15.5,
-                                color: _titleDark,
-                              ),
-                            ),
-                          ),
-                          if (textoDataHora.isNotEmpty) ...[
-                            const SizedBox(width: 8),
-                            Text(
-                              textoDataHora,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: destaqueNaoLida
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
-                                color: corHorario,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      // Linha 2: Categoria / Serviço
-                      const SizedBox(height: 3),
-                      Text(
-                        conversa.subtituloServico,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: destaqueNaoLida
-                              ? FontWeight.w600
-                              : FontWeight.w400,
-                          color: corServico,
-                        ),
-                      ),
-                      // Linha 3: Mensagem prévia e Badge numérico
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          // Visto único/duplo: aparece SOMENTE nas mensagens
-                          // ENVIADAS pelo usuário logado (última mensagem da
-                          // conversa enviada por mim), para mostrar se foi
-                          // lida (azul duplo) ou não (cinza).
-                          if (conversa.ultimaMensagemEnviadaPorMim &&
-                              (conversa.ultimaMensagem?.trim().isNotEmpty ==
-                                  true)) ...[
-                            Icon(
-                              conversa.ultimaMensagemLida
-                                  ? Icons.done_all
-                                  : Icons.done,
-                              size: 16,
-                              color: conversa.ultimaMensagemLida
-                                  ? _primaryBlue
-                                  : Colors.grey.shade400,
-                            ),
-                            const SizedBox(width: 4),
-                          ],
-                          Expanded(
-                            child: _buildPreviewMensagem(
-                              conversa,
-                              corMensagem,
-                              destaqueNaoLida,
-                            ),
-                          ),
-                          if (conversa.mensagensNaoLidas > 0) ...[
-                            const SizedBox(width: 8),
-                            _buildBadgeNaoLidas(conversa.mensagensNaoLidas),
-                          ],
-                        ],
-                      ),
-                    ],
-                  ),
+        child: BordaGradienteAnimada(
+          ativa: conversa.estiloAtiva != null,
+          cor: conversa.estiloAtiva?.cor ?? _primaryBlue,
+          raio: 16,
+          child: Ink(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.035),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
                 ),
               ],
             ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  _buildAvatar(conversa),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Linha 1: Nome e Horário
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                conversa.nomeContato,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15.5,
+                                  color: _titleDark,
+                                ),
+                              ),
+                            ),
+                            if (textoDataHora.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              Text(
+                                textoDataHora,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: destaqueNaoLida
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  color: corHorario,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        // Linha 2: solicitação em curso, pills do
+                        // profissional/loja ou a categoria.
+                        const SizedBox(height: 3),
+                        _buildLinhaServico(
+                          conversa,
+                          corServico,
+                          destaqueNaoLida,
+                        ),
+                        // Linha 3: Mensagem prévia e Badge numérico
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            // Visto único/duplo: aparece SOMENTE nas mensagens
+                            // ENVIADAS pelo usuário logado (última mensagem da
+                            // conversa enviada por mim), para mostrar se foi
+                            // lida (azul duplo) ou não (cinza).
+                            if (conversa.ultimaMensagemEnviadaPorMim &&
+                                (conversa.ultimaMensagem?.trim().isNotEmpty ==
+                                    true)) ...[
+                              Icon(
+                                conversa.ultimaMensagemLida
+                                    ? Icons.done_all
+                                    : Icons.done,
+                                size: 16,
+                                color: conversa.ultimaMensagemLida
+                                    ? _primaryBlue
+                                    : Colors.grey.shade400,
+                              ),
+                              const SizedBox(width: 4),
+                            ],
+                            Expanded(
+                              child: _buildPreviewMensagem(
+                                conversa,
+                                corMensagem,
+                                destaqueNaoLida,
+                              ),
+                            ),
+                            if (conversa.mensagensNaoLidas > 0) ...[
+                              const SizedBox(width: 8),
+                              _buildBadgeNaoLidas(conversa.mensagensNaoLidas),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
+      ),
+    );
+  }
+
+  /// Linha abaixo do nome.
+  Widget _buildLinhaServico(
+    _ConversaResumo conversa,
+    Color corServico,
+    bool destaqueNaoLida,
+  ) {
+    final estilo = conversa.estiloAtiva;
+    if (estilo != null) {
+      return Row(
+        children: [
+          Icon(estilo.icone, size: 15, color: estilo.cor),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              '${conversa.tituloAtiva ?? 'Serviço'} - ${estilo.rotulo}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: estilo.texto,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+    final pills = <(String, Color)>[
+      if (conversa.tagEmpresa != null)
+        (conversa.tagEmpresa!, CorOficio.parse(conversa.corTagEmpresa)),
+      for (final f in conversa.funcoes) (f, const Color(0xFF64748B)),
+    ];
+    if (!_isProfissional && pills.isNotEmpty) {
+      return SizedBox(
+        height: 22,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: pills.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 5),
+          itemBuilder: (_, i) {
+            final (texto, cor) = pills[i];
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: cor.withValues(alpha: 0.7)),
+              ),
+              child: Text(
+                texto,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: CorOficio.corTexto(cor),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    }
+    return Text(
+      conversa.subtituloServico,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 13,
+        fontWeight: destaqueNaoLida ? FontWeight.w600 : FontWeight.w400,
+        color: corServico,
       ),
     );
   }
@@ -1360,6 +1661,30 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
     bool destaqueNaoLida,
   ) {
     final tipo = conversa.tipoUltimaMensagem?.toLowerCase();
+    if (conversa.ehProposta) {
+      return Row(
+        children: [
+          const Icon(
+            Icons.request_quote_outlined,
+            size: 17,
+            color: _primaryBlue,
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              conversa.ultimaMensagem ?? 'Proposta',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: _primaryBlue,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
     final icone = tipo == 'imagem'
         ? Icons.image_outlined
         : tipo == 'audio'
@@ -1500,6 +1825,20 @@ class _ConversaResumo {
   final bool ultimaMensagemLida;
   final bool ultimaMensagemEnviadaPorMim;
 
+  /// Última mensagem é uma proposta (prévia em azul).
+  final bool ehProposta;
+
+  /// Funções do profissional/empresa (pills com borda) — visão do cliente.
+  final List<String> funcoes;
+
+  /// Tag da loja (#XXXX) e a cor dela.
+  final String? tagEmpresa;
+  final String? corTagEmpresa;
+
+  /// Solicitação em curso entre os dois (título + estilo do status).
+  final String? tituloAtiva;
+  final EstiloStatus? estiloAtiva;
+
   const _ConversaResumo({
     required this.idConversa,
     this.idCliente,
@@ -1520,7 +1859,47 @@ class _ConversaResumo {
     this.ultimaMensagemRecebida = false,
     this.ultimaMensagemLida = false,
     this.ultimaMensagemEnviadaPorMim = false,
+    this.ehProposta = false,
+    this.funcoes = const [],
+    this.tagEmpresa,
+    this.corTagEmpresa,
+    this.tituloAtiva,
+    this.estiloAtiva,
   });
+
+  _ConversaResumo comExtras({
+    List<String>? funcoes,
+    String? tagEmpresa,
+    String? corTagEmpresa,
+    String? tituloAtiva,
+    EstiloStatus? estiloAtiva,
+  }) => _ConversaResumo(
+    idConversa: idConversa,
+    idCliente: idCliente,
+    idSolicitacao: idSolicitacao,
+    nomeContato: nomeContato,
+    fotoUrl: fotoUrl,
+    oficioContato: oficioContato,
+    idProfissional: idProfissional,
+    idGrupoEmpresa: idGrupoEmpresa,
+    ehChatEmpresa: ehChatEmpresa,
+    servicoAssociado: servicoAssociado,
+    ultimaConexaoContato: ultimaConexaoContato,
+    ultimaMensagem: ultimaMensagem,
+    tipoUltimaMensagem: tipoUltimaMensagem,
+    dataUltimaMensagem: dataUltimaMensagem,
+    mensagensNaoLidas: mensagensNaoLidas,
+    forcarDestaqueNaoLida: forcarDestaqueNaoLida,
+    ultimaMensagemRecebida: ultimaMensagemRecebida,
+    ultimaMensagemLida: ultimaMensagemLida,
+    ultimaMensagemEnviadaPorMim: ultimaMensagemEnviadaPorMim,
+    ehProposta: ehProposta,
+    funcoes: funcoes ?? this.funcoes,
+    tagEmpresa: tagEmpresa ?? this.tagEmpresa,
+    corTagEmpresa: corTagEmpresa ?? this.corTagEmpresa,
+    tituloAtiva: tituloAtiva ?? this.tituloAtiva,
+    estiloAtiva: estiloAtiva ?? this.estiloAtiva,
+  );
 
   bool get temNaoLidas => mensagensNaoLidas > 0 || forcarDestaqueNaoLida;
 

@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../meus_enderecos.dart';
+import '../services/solicitacao_geografica_service.dart';
 
 /// Um endereço do cliente (ass_usuario_endereco + enderecos).
 class EnderecoCliente {
@@ -101,8 +102,9 @@ class EnderecosCliente {
             apelido: t(a['apelido_endereco']).isEmpty
                 ? null
                 : t(a['apelido_endereco']),
-            latitude: (e['latitude'] as num?)?.toDouble(),
-            longitude: (e['longitude'] as num?)?.toDouble(),
+            // Aceita número ou texto ("-23,55"); 0/vazio = sem coordenada.
+            latitude: SolicitacaoGeograficaService.coordenada(e['latitude']),
+            longitude: SolicitacaoGeograficaService.coordenada(e['longitude']),
             ativo: a['endereco_ativo'] == true,
           ),
         );

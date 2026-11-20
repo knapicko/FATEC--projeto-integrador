@@ -843,7 +843,12 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
           tarefas.add(_carregarSeguimento(fkPerfil));
         }
         if (idUsuarioProf != null) {
-          tarefas.add(_carregarEnderecoProfissional(idUsuarioProf));
+          tarefas.add(
+            _carregarEnderecoProfissional(
+              idUsuarioProf,
+              idProfissional: idProfissional,
+            ),
+          );
         } else {
           if (mounted) {
             setState(() => _enderecoCarregado = true);
@@ -981,19 +986,42 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
     return resultado;
   }
 
-  Future<void> _carregarEnderecoProfissional(int idUsuario) async {
+  Future<void> _carregarEnderecoProfissional(
+    int idUsuario, {
+    int? idProfissional,
+  }) async {
     try {
       final supabase = Supabase.instance.client;
 
-      // 1. Busca associação de endereço ativo do usuário na ass_usuario_endereco
-      final assList = await supabase
-          .from('ass_usuario_endereco')
-          .select(
-            'fk_endereco, apelido_endereco, tipo_endereco, endereco_ativo',
-          )
-          .eq('fk_usuario', idUsuario)
-          .eq('endereco_ativo', true)
-          .limit(1);
+      // 1. Endereço do profissional: o comercial (ass_profissional_endereco,
+      // onde o meus_enderecos.dart salva o do independente) e, se não
+      // houver, o do usuário (ass_usuario_endereco). Ativo primeiro.
+      List<Map<String, dynamic>> assList = [];
+      if (idProfissional != null) {
+        try {
+          final r = await supabase
+              .from('ass_profissional_endereco')
+              .select()
+              .eq('fk_profissional', idProfissional);
+          assList = List<Map<String, dynamic>>.from(r);
+        } catch (e) {
+          debugPrint('[PerfilProfissional] ass_profissional_endereco: $e');
+        }
+      }
+      if (assList.isEmpty) {
+        final r = await supabase
+            .from('ass_usuario_endereco')
+            .select(
+              'fk_endereco, apelido_endereco, tipo_endereco, endereco_ativo',
+            )
+            .eq('fk_usuario', idUsuario);
+        assList = List<Map<String, dynamic>>.from(r);
+      }
+      assList.sort(
+        (a, b) => (b['endereco_ativo'] == true ? 1 : 0).compareTo(
+          a['endereco_ativo'] == true ? 1 : 0,
+        ),
+      );
 
       if (assList.isEmpty) {
         if (mounted) {

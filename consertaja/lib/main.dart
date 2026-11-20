@@ -12,10 +12,16 @@ import 'tela_inicial.dart';
 import 'services/verificacao_online.dart';
 import 'utils/app_navigation_util.dart';
 import 'widgets/codigo_flutuante.dart';
+import 'package:flutter/services.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // O app funciona só em retrato (virar o celular não gira a tela).
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
 
   await Supabase.initialize(
     url: 'https://woqhicdlnkoksypipyoz.supabase.co',

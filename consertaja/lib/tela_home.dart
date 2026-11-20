@@ -94,8 +94,16 @@ class _TelaHomeState extends State<TelaHome> {
   Future<void> _carregarRegiao() async {
     LatLng? centro;
     if (!widget.isVisitante) {
-      final lista = await EnderecosCliente.carregar();
-      final escolhido = await EnderecosCliente.escolhido(lista);
+      var lista = await EnderecosCliente.carregar();
+      var escolhido = await EnderecosCliente.escolhido(lista);
+      // Endereço salvo sem latitude/longitude: geocodifica e grava antes de
+      // buscar (senão a busca usava o GPS, que pode estar longe dali).
+      if (escolhido != null &&
+          (escolhido.latitude == null || escolhido.longitude == null)) {
+        await SolicitacaoGeograficaService.garantirCoordenadas([escolhido.id]);
+        lista = await EnderecosCliente.carregar();
+        escolhido = await EnderecosCliente.escolhido(lista);
+      }
       if (mounted) setState(() => _endereco = escolhido);
       if (escolhido?.latitude != null && escolhido?.longitude != null) {
         centro = LatLng(escolhido!.latitude!, escolhido.longitude!);

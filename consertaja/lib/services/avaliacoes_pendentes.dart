@@ -239,11 +239,16 @@ class AvaliacoesPendentes {
       },
     );
     if (urls.isNotEmpty) {
-      await _db
+      final atualizadas = await _db
           .from('avaliacoes_solicitacao')
           .update({'midias': urls})
           .eq('fk_solicitacao', idSolicitacao)
-          .inFilter('tipo_avaliacao', ['servico', 'profissional']);
+          .inFilter('tipo_avaliacao', ['servico', 'profissional'])
+          .select('id_avaliacao');
+      if ((atualizadas as List).isEmpty) {
+        // Sem a policy de update (docs/sql/v0_5_ajustes.sql) nada é salvo.
+        throw Exception('As fotos não foram salvas na avaliação.');
+      }
     }
   }
 }
@@ -276,16 +281,76 @@ class _SheetAvaliarServicoState extends State<SheetAvaliarServico> {
     super.dispose();
   }
 
+  /// Fotos (várias), vídeo ou câmera. Antes usava pickMultipleMedia com
+  /// limite, que falha em vários Androids sem avisar nada.
   Future<void> _anexar() async {
+    final origem = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined, color: _azul),
+              title: const Text('Fotos da galeria'),
+              onTap: () => Navigator.pop(ctx, 'fotos'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined, color: _azul),
+              title: const Text('Tirar foto'),
+              onTap: () => Navigator.pop(ctx, 'camera'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.videocam_outlined, color: _azul),
+              title: const Text('Vídeo da galeria'),
+              onTap: () => Navigator.pop(ctx, 'video'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (origem == null || !mounted) return;
     try {
-      final novos = await ImagePicker().pickMultipleMedia(limit: 6);
-      if (novos.isNotEmpty) {
+      final picker = ImagePicker();
+      final novos = <XFile>[];
+      if (origem == 'fotos') {
+        novos.addAll(await picker.pickMultiImage(imageQuality: 85));
+      } else if (origem == 'camera') {
+        final f = await picker.pickImage(
+          source: ImageSource.camera,
+          imageQuality: 85,
+        );
+        if (f != null) novos.add(f);
+      } else {
+        final f = await picker.pickVideo(
+          source: ImageSource.gallery,
+          maxDuration: const Duration(minutes: 2),
+        );
+        if (f != null) novos.add(f);
+      }
+      if (novos.isNotEmpty && mounted) {
         setState(() {
           _midias.addAll(novos);
           if (_midias.length > 6) _midias.removeRange(6, _midias.length);
+          _erro = null;
         });
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[avaliações] anexar: $e');
+      if (mounted) {
+        setState(
+          () => _erro =
+              'Não foi possível abrir a galeria/câmera. Confira a permissão '
+              'de fotos do app.',
+        );
+      }
+    }
   }
 
   Future<void> _enviar() async {

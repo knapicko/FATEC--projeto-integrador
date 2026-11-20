@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../widgets/barra_lista_servicos.dart';
 import '../widgets/contador_notificacoes.dart';
+import '../widgets/icone_aba_pendente.dart';
 
 class BottomNavigationBarCliente extends StatelessWidget {
   final int currentIndex;
@@ -33,7 +34,11 @@ class BottomNavigationBarCliente extends StatelessWidget {
       icon: Icon(Icons.receipt_long_outlined),
       label: 'Pedidos',
     ),
-    BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Perfil'),
+    // Selo "!" enquanto faltar o endereço.
+    BottomNavigationBarItem(
+      icon: IconeAbaPendente(icone: Icons.person_outline, profissional: false),
+      label: 'Perfil',
+    ),
   ];
 
   @override

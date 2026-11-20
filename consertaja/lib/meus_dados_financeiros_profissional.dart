@@ -6,6 +6,7 @@ import 'gestao_equipe.dart';
 import 'tela_meu_perfil_profissional.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
 import 'widgets/skeletons_telas.dart';
+import 'widgets/aviso_obrigatorio.dart';
 
 class MeusDadosFinanceirosProfissionalPage extends StatefulWidget {
   const MeusDadosFinanceirosProfissionalPage({super.key});
@@ -857,6 +858,16 @@ class _MeusDadosFinanceirosProfissionalPageState
                             _buildPillsStatus(),
                             const SizedBox(height: 16),
                             _buildTituloPrincipal(),
+                            if (_pixSemChave) ...[
+                              const SizedBox(height: 14),
+                              const AvisoObrigatorio(
+                                titulo: 'Cadastre sua chave PIX',
+                                texto:
+                                    'É por ela que você recebe. Sem a chave '
+                                    'PIX não é possível adicionar serviços.',
+                                margem: EdgeInsets.zero,
+                              ),
+                            ],
                             const SizedBox(height: 20),
                             _buildCardPix(),
                             const SizedBox(height: 14),
@@ -1049,12 +1060,13 @@ class _MeusDadosFinanceirosProfissionalPageState
 
   Widget _buildCardPix() {
     final temChave = _chavePix != null && _chavePix!.trim().isNotEmpty;
+    final corBorda = temChave ? _borderLight : corObrigatorio;
 
     return Container(
       decoration: BoxDecoration(
         color: _cardBg,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _borderLight, width: 1.5),
+        border: Border.all(color: corBorda, width: 1.5),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),

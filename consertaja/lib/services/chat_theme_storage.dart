@@ -27,14 +27,23 @@ class ChatThemeData {
   factory ChatThemeData.fromJson(Map<String, dynamic> json) {
     return ChatThemeData(
       corBaloes: json['cor_baloes']?.toString() ?? '0xFF0FB3FF',
-      planoFundo:
-          json['plano_fundo']?.toString() ??
-          'assets/images/plano_fundo_chat/doodle_default.png',
+      planoFundo: _migrarFundo(
+        json['plano_fundo']?.toString() ??
+            'assets/images/plano_fundo_chat/doodle_default.jpg',
+      ),
       desfoqueFundo: (json['desfoque_fundo'] as num?)?.toDouble() ?? 0.0,
       opacidadeFundo: (json['opacidade_fundo'] as num?)?.toDouble() ?? 35.0,
     );
   }
 }
+
+/// Os fundos do chat passaram de .png para .jpg (app menor): temas salvos
+/// antes continuam apontando para a imagem certa.
+String _migrarFundo(String caminho) =>
+    caminho.startsWith('assets/images/plano_fundo_chat/') &&
+        caminho.endsWith('.png')
+    ? '${caminho.substring(0, caminho.length - 4)}.jpg'
+    : caminho;
 
 class ChatThemeStorage {
   static const _preferencesKey = 'chat_themes_v1';
@@ -42,7 +51,7 @@ class ChatThemeStorage {
 
   static ChatThemeData get defaultTheme => const ChatThemeData(
     corBaloes: '0xFF0FB3FF',
-    planoFundo: 'assets/images/plano_fundo_chat/doodle_default.png',
+    planoFundo: 'assets/images/plano_fundo_chat/doodle_default.jpg',
     desfoqueFundo: 0.0,
     opacidadeFundo: 35.0,
   );

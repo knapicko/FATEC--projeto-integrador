@@ -1553,7 +1553,7 @@ class _ListaServicosState extends State<ListaServicos> {
                 Row(
                   children: [
                     const Text(
-                      'Entregue em até 5 dias - ',
+                      'Método de entrega escolhido: ',
                       style: TextStyle(
                         color: _textoMuted,
                         fontSize: 13,

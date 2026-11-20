@@ -24,6 +24,9 @@ import 'widgets/contador_notificacoes.dart';
 import 'services/requisitos_conta.dart';
 import 'widgets/avisos_bottom_sheet.dart';
 import 'certificados.dart';
+import 'minhas_avaliacoes_profissional.dart';
+import 'tela_configuracoes_cliente.dart';
+import 'meu_historico_servico_profissional.dart';
 
 class TelaMeuPerfilProfissionalPage extends StatefulWidget {
   final bool isVisitante;
@@ -607,13 +610,27 @@ class _TelaMeuPerfilProfissionalPageState
                             },
                           ),
                           _buildProfileItem(
-                            label: 'Histórico de Pedidos',
+                            label: 'Histórico de Serviços',
                             fallbackIcon: Icons.inventory_2_outlined,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    const MeuHistoricoServicoProfissionalPage(),
+                              ),
+                            ),
                           ),
                           _buildProfileItem(
                             label: 'Minhas Avaliações',
                             fallbackIcon: Icons.star_rounded,
                             useRoundedIcon: true,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    const MinhasAvaliacoesProfissionalPage(),
+                              ),
+                            ),
                           ),
                           _buildProfileItem(
                             label: 'Minha Área de Atuação',
@@ -676,7 +693,9 @@ class _TelaMeuPerfilProfissionalPageState
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) =>
-                                      const MinhasNotificacoesPage(),
+                                      const MinhasNotificacoesPage(
+                                        soDaContaProfissionalAtiva: true,
+                                      ),
                                 ),
                               );
                             },
@@ -731,6 +750,13 @@ class _TelaMeuPerfilProfissionalPageState
                           _buildProfileItem(
                             label: 'Configurações',
                             fallbackIcon: Icons.settings_outlined,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    const TelaConfiguracoesClientePage(),
+                              ),
+                            ),
                           ),
                           _buildProfileItem(
                             label: 'Termos de Uso',

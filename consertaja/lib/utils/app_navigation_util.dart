@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/requisitos_conta.dart';
 
 /// Observer responsável por registrar a pilha de rotas ativas na aplicação.
 class AppRouteObserver extends NavigatorObserver {
@@ -160,7 +162,37 @@ class AppNavigationUtil {
   }
 
   /// Navega entre as abas da barra de navegação preservando o histórico para o botão voltar.
+  /// Telas do cliente que exigem endereço cadastrado (Radar e lista).
+  static const _exigemEndereco = {
+    'SolicitacaoGeograficaClientePage',
+    'ListaServicos',
+  };
+
+  /// Cliente logado sem endereço: mostra o aviso (com o botão de cadastrar)
+  /// e devolve false — a tela nem chega a abrir.
+  static Future<bool> exigirEnderecoCliente(BuildContext context) async {
+    if (Supabase.instance.client.auth.currentUser == null) return true;
+    return RequisitosConta.garantirEnderecoCliente(context);
+  }
+
   static void navegarAba(
+    BuildContext context,
+    Widget novaTela, {
+    required bool isHome,
+  }) {
+    if (!isHome &&
+        _exigemEndereco.contains(novaTela.runtimeType.toString())) {
+      exigirEnderecoCliente(context).then((ok) {
+        if (ok && context.mounted) {
+          _navegarAba(context, novaTela, isHome: isHome);
+        }
+      });
+      return;
+    }
+    _navegarAba(context, novaTela, isHome: isHome);
+  }
+
+  static void _navegarAba(
     BuildContext context,
     Widget novaTela, {
     required bool isHome,

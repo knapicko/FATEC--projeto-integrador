@@ -27,6 +27,7 @@ import 'solicitacao_geografica_profissional.dart';
 import 'services/requisitos_conta.dart';
 import 'certificados.dart';
 import 'widgets/dialogo_sheet.dart';
+import 'widgets/aviso_obrigatorio.dart';
 
 class GestaoEquipePage extends StatefulWidget {
   const GestaoEquipePage({super.key});
@@ -1400,6 +1401,12 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
     }
   }
 
+  /// Tag ainda no padrão (TAG/LOJA) ou nenhum ofício de atuação definido.
+  bool get _configPendente {
+    final t = _tagEmpresa.trim().toUpperCase();
+    return t.isEmpty || t == 'TAG' || t == 'LOJA' || _oficiosEquipe.isEmpty;
+  }
+
   Widget _buildSecaoSobreEmpresa() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1460,12 +1467,19 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
               ),
               const SizedBox(height: 12),
 
-              // 2. Textarea com borda arredondada
+              // 2. Textarea com borda arredondada (amarela enquanto vazia)
               Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  border: Border.all(
+                    color: _descricaoEmpresaController.text.trim().isEmpty
+                        ? corObrigatorio
+                        : const Color(0xFFE2E8F0),
+                    width: _descricaoEmpresaController.text.trim().isEmpty
+                        ? 1.6
+                        : 1,
+                  ),
                 ),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
@@ -1531,7 +1545,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
               ),
               const SizedBox(height: 14),
 
-              // Stepper card cinza
+              // Stepper card cinza (borda amarela enquanto no padrão)
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
@@ -1539,6 +1553,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                 ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF1F4F9),
+                  border: bordaObrigatoria(_anosMercadoNumero <= 1),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Row(
@@ -2366,7 +2381,21 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings_outlined, color: _primaryBlue),
+            tooltip: _configPendente
+                ? 'Defina a tag personalizada e os ofícios da empresa'
+                : 'Configurações',
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(Icons.settings_outlined, color: _primaryBlue),
+                if (_configPendente)
+                  const Positioned(
+                    top: -6,
+                    right: -7,
+                    child: SeloObrigatorio(tamanho: 16),
+                  ),
+              ],
+            ),
             onPressed: () async {
               final atualizou = await Navigator.push<bool>(
                 context,

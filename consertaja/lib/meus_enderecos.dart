@@ -23,6 +23,9 @@ import 'utils/app_navigation_util.dart';
 import 'widgets/skeleton_loading.dart';
 import 'solicitacao_geografica_profissional.dart';
 import 'widgets/dialogo_sheet.dart';
+import 'widgets/aviso_obrigatorio.dart';
+import 'widgets/avisos_bottom_sheet.dart';
+import 'services/requisitos_conta.dart';
 
 /// Constantes dos nomes das tabelas no Supabase
 const String _tabelaEndereco = 'enderecos';
@@ -1466,6 +1469,16 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
       ),
       body: Column(
         children: [
+          // Sem endereço: não pede/oferece serviços nem usa o Radar.
+          if (!_carregando && !_erro && _enderecos.isEmpty)
+            AvisoObrigatorio(
+              titulo: 'Adicione um endereço',
+              texto: widget.isProfissional
+                  ? 'Sem endereço você não pode adicionar serviços, seus '
+                        'serviços ficam indisponíveis e o Radar fica bloqueado.'
+                  : 'Sem endereço você não pode pedir serviços, montar sua '
+                        'lista nem usar o Radar.',
+            ),
           _buildBarraPesquisa(),
           Expanded(
             child: _carregando
@@ -1708,12 +1721,7 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
 
     final cep = _cepController.text.replaceAll(RegExp(r'\D'), '');
     if (cep.length != 8) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Informe um CEP válido com 8 dígitos.'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      _avisar('Informe um CEP válido com 8 dígitos.');
       return;
     }
 
@@ -1765,15 +1773,10 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
           _mapLng = null;
           _buscandoCep = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              resposta.statusCode == 404
-                  ? 'CEP não encontrado. Verifique e tente novamente.'
-                  : 'CEP inválido. Informe apenas os 8 números.',
-            ),
-            duration: const Duration(seconds: 3),
-          ),
+        _avisar(
+          resposta.statusCode == 404
+              ? 'CEP não encontrado. Verifique e tente novamente.'
+              : 'CEP inválido. Informe apenas os 8 números.',
         );
       }
     } catch (_) {
@@ -1783,13 +1786,8 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
           _mapLng = null;
           _buscandoCep = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Erro ao buscar o CEP. Verifique sua conexão e tente novamente.',
-            ),
-            duration: Duration(seconds: 3),
-          ),
+        _avisar(
+          'Erro ao buscar o CEP. Verifique sua conexão e tente novamente.',
         );
       }
     }
@@ -1873,31 +1871,40 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
         : int.tryParse(usuarioResponse['id_usuario']?.toString() ?? '');
   }
 
+  /// Aviso estilizado (bottom sheet) no lugar da faixa cinza.
+  void _avisar(String mensagem, {String titulo = 'Atenção'}) {
+    mostrarAvisoBottomSheet<void>(
+      context,
+      icone: Icons.location_on_outlined,
+      corIcone: const Color(0xFFF59E0B),
+      titulo: titulo,
+      mensagem: mensagem,
+    );
+  }
+
   Future<void> _salvarEndereco() async {
     FocusScope.of(context).unfocus();
 
     if (_logradouroController.text.trim().isEmpty ||
+        _numeroController.text.trim().isEmpty ||
         _cidadeController.text.trim().isEmpty ||
         _estadoSelecionado == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Preencha os campos obrigatórios: logradouro, cidade e estado.',
-          ),
-          duration: Duration(seconds: 3),
-        ),
+      final faltando = [
+        if (_logradouroController.text.trim().isEmpty) 'logradouro',
+        if (_numeroController.text.trim().isEmpty) 'número',
+        if (_cidadeController.text.trim().isEmpty) 'cidade',
+        if (_estadoSelecionado == null) 'estado',
+      ];
+      _avisar(
+        'Preencha os campos obrigatórios: ${faltando.join(', ')}.',
+        titulo: 'Faltam dados do endereço',
       );
       return;
     }
 
     if (_usaApelidoPersonalizado &&
         _apelidoOutroController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Informe um apelido para o endereço.'),
-          duration: Duration(seconds: 3),
-        ),
-      );
+      _avisar('Informe um apelido para o endereço.');
       return;
     }
 
@@ -1910,14 +1917,7 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
       if (user == null) {
         if (mounted) {
           setState(() => _salvando = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Você precisa estar logado para salvar um endereço.',
-              ),
-              duration: Duration(seconds: 3),
-            ),
-          );
+          _avisar('Você precisa estar logado para salvar um endereço.');
         }
         return;
       }
@@ -1926,12 +1926,7 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
       if (usuarioId == null) {
         if (mounted) {
           setState(() => _salvando = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Usuário não encontrado no sistema.'),
-              duration: Duration(seconds: 3),
-            ),
-          );
+          _avisar('Usuário não encontrado no sistema.');
         }
         return;
       }
@@ -2008,14 +2003,7 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
         // Profissional independente: mantem 1 endereco comercial.
         if (mounted) {
           setState(() => _salvando = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Profissionais podem cadastrar apenas um endereço.',
-              ),
-              duration: Duration(seconds: 3),
-            ),
-          );
+          _avisar('Profissionais podem cadastrar apenas um endereço.');
         }
         return;
       }
@@ -2180,6 +2168,13 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
         }
       }
 
+      // Atualiza o selo "!" da aba Perfil/Empresa.
+      unawaited(
+        RequisitosConta.atualizarAbaPendente(profissional: false, forcar: true),
+      );
+      unawaited(
+        RequisitosConta.atualizarAbaPendente(profissional: true, forcar: true),
+      );
       if (mounted) {
         setState(() => _salvando = false);
         Navigator.pop(context);
@@ -2197,12 +2192,7 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
     } catch (e) {
       if (mounted) {
         setState(() => _salvando = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao salvar endereço: $e'),
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        _avisar('Erro ao salvar endereço: $e');
       }
     }
   }

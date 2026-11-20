@@ -6,6 +6,8 @@ import 'widgets/skeleton_loading.dart';
 
 import 'models/metodo_entrega.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
+import 'widgets/aviso_obrigatorio.dart';
+import 'services/requisitos_conta.dart';
 
 class MetodoEntregaProfissionalPage extends StatefulWidget {
   const MetodoEntregaProfissionalPage({super.key});
@@ -24,6 +26,9 @@ class _MetodoEntregaProfissionalPageState
   static const Color _cardFill = Color(0xFFF5F8FB);
 
   final Set<String> _selecionadas = <String>{};
+
+  /// Ainda não definiu os métodos (só o padrão do cadastro).
+  bool _pendente = false;
   bool _carregando = true;
 
   /// Cada toque salva sozinho (sem botão "Salvar").
@@ -48,6 +53,10 @@ class _MetodoEntregaProfissionalPageState
   void initState() {
     super.initState();
     _carregarPreferencias();
+    RequisitosConta.pendenciasProfissional().then((p) {
+      if (mounted)
+        setState(() => _pendente = p.contains(RequisitosConta.entrega));
+    });
   }
 
   Future<bool> _lerContaEmpresaAtiva() async {
@@ -233,6 +242,7 @@ class _MetodoEntregaProfissionalPageState
             .from('grupo_empresa')
             .update({'metodo_entrega_empresa': valorFinal})
             .eq('id_grupo_empresa', idGrupo);
+        await _marcarDefinido('grupo_empresa', 'id_grupo_empresa', idGrupo);
       } catch (_) {
         throw Exception(
           'banco sem a coluna metodo_entrega_empresa (rode '
@@ -245,6 +255,20 @@ class _MetodoEntregaProfissionalPageState
           .from('dados_profissionais')
           .update({'metodo_entrega': valorFinal})
           .eq('fk_usuario', usuarioId);
+      await _marcarDefinido('dados_profissionais', 'fk_usuario', usuarioId);
+    }
+    if (mounted) setState(() => _pendente = false);
+  }
+
+  /// O profissional escolheu os métodos (não é mais o padrão do cadastro).
+  Future<void> _marcarDefinido(String tabela, String coluna, Object id) async {
+    try {
+      await Supabase.instance.client
+          .from(tabela)
+          .update({'metodo_entrega_definido': true})
+          .eq(coluna, id);
+    } catch (_) {
+      // Banco sem a coluna (docs/sql/v0_7_ajustes.sql ainda não rodado).
     }
   }
 
@@ -376,6 +400,14 @@ class _MetodoEntregaProfissionalPageState
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          if (_pendente)
+                            const AvisoObrigatorio(
+                              titulo: 'Defina seus métodos de entrega',
+                              texto:
+                                  'Escolha e salve como você atende. Sem isso '
+                                  'não é possível adicionar serviços.',
+                              margem: EdgeInsets.only(top: 12),
+                            ),
                           const SizedBox(height: 12),
                           const Text(
                             'Configurações de Atendimento\ne Entrega',

@@ -24,6 +24,7 @@ import 'widgets/avaliacao_bottom_sheet.dart';
 import 'utils/funcao_servico.dart';
 import 'widgets/contador_notificacoes.dart';
 import 'servico_concluido_cliente.dart';
+import 'utils/cor_status.dart';
 
 class PedidoCliente {
   final int id;
@@ -1583,7 +1584,31 @@ class MeusPedidosState extends State<MeusPedidosPage>
     );
   }
 
+  /// Rótulo/ícone de cada caso + cor única do status (utils/cor_status.dart,
+  /// a mesma de meus_servicos_solicitados e da tela de mensagens).
   StatusEstilo estiloStatus(
+    String status, [
+    int? fkStatus,
+    FluxoSolicitacao? fluxo,
+  ]) {
+    final base = _estiloStatusBase(status, fkStatus, fluxo);
+    final cor = EstiloStatus.de(
+      fkStatus: fkStatus,
+      tipoExecucao: fluxo?.modalidade.valorBanco,
+      etapa: fluxo?.etapa ?? 0,
+      statusTexto: status,
+    );
+    return StatusEstilo(
+      rotulo: base.rotulo,
+      fundo: cor.fundo,
+      texto: cor.texto,
+      borda: cor.borda,
+      icone: base.icone,
+      piscar: base.piscar,
+    );
+  }
+
+  StatusEstilo _estiloStatusBase(
     String status, [
     int? fkStatus,
     FluxoSolicitacao? fluxo,

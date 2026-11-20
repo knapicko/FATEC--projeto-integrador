@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'widgets/salvamento_automatico.dart';
 import 'widgets/skeleton_loading.dart';
+import 'widgets/aviso_obrigatorio.dart';
+import 'services/requisitos_conta.dart';
 
 /// Dados de uma exceção de calendário (dia bloqueado total ou parcialmente).
 class _DadosExcecao {
@@ -63,6 +65,19 @@ class AlterarDisponibilidadePage extends StatefulWidget {
 
 class _AlterarDisponibilidadePageState
     extends State<AlterarDisponibilidadePage> {
+  /// Ainda sem disponibilidade salva (aviso amarelo).
+  bool _pendente = false;
+
+  void _verificarPendente() {
+    RequisitosConta.pendenciasProfissional(
+      contaEmpresa: widget.isEmpresa,
+    ).then((p) {
+      if (mounted) {
+        setState(() => _pendente = p.contains(RequisitosConta.disponibilidade));
+      }
+    });
+  }
+
   static const Color _blue = Color(0xFF0FB3FF);
   static const Color _background = Color(0xFFF8F9FA);
   static const Color _textDark = Color(0xFF1A1A1A);
@@ -152,6 +167,7 @@ class _AlterarDisponibilidadePageState
   @override
   void initState() {
     super.initState();
+    _verificarPendente();
     _carregarDisponibilidade();
   }
 
@@ -2339,6 +2355,14 @@ class _AlterarDisponibilidadePageState
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          if (_pendente)
+                            const AvisoObrigatorio(
+                              titulo: 'Ajuste sua disponibilidade',
+                              texto:
+                                  'Defina os dias e horários em que você '
+                                  'atende e salve. Sem isso não é possível '
+                                  'adicionar serviços.',
+                            ),
                           _buildIntroducao(),
                           _buildCardRecorrente(),
                           const SizedBox(height: 16),

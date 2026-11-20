@@ -25,13 +25,22 @@ class ProfissionalEquipeService {
       throw Exception('Sua sessão expirou. Faça login novamente.');
     }
 
-    final response = await _client.functions.invoke(
-      'criar-profissional-equipe',
-      headers: {'Authorization': 'Bearer $accessToken'},
-      body: {'cpf': cpf, 'senha': senha, 'id_grupo_empresa': idGrupoEmpresa},
-    );
-    if (response.data is Map && response.data['error'] != null) {
-      throw Exception(response.data['error']);
+    try {
+      final response = await _client.functions.invoke(
+        'criar-profissional-equipe',
+        headers: {'Authorization': 'Bearer $accessToken'},
+        body: {'cpf': cpf, 'senha': senha, 'id_grupo_empresa': idGrupoEmpresa},
+      );
+      if (response.data is Map && response.data['error'] != null) {
+        throw Exception(response.data['error']);
+      }
+    } on FunctionException catch (e) {
+      // Respostas 4xx/5xx chegam como exceção: mostra a mensagem do servidor.
+      final detalhes = e.details;
+      final msg = detalhes is Map && detalhes['error'] != null
+          ? detalhes['error'].toString()
+          : (e.reasonPhrase ?? 'Falha ao criar a conta (${e.status}).');
+      throw Exception(msg);
     }
   }
 }

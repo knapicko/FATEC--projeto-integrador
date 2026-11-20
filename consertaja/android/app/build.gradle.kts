@@ -38,8 +38,13 @@ android {
         release {
             signingConfig = signingConfigs.getByName("debug")
 
-            isMinifyEnabled = false
-            isShrinkResources = false
+            // App menor: R8 remove código e recursos que não são usados.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }

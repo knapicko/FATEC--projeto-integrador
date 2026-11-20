@@ -6,6 +6,8 @@ import 'utils/icone_oficio.dart';
 import 'utils/iniciais.dart';
 import 'utils/funcao_servico.dart';
 import 'widgets/dialogo_sheet.dart';
+import 'certificados.dart';
+import 'models/servico_profissional.dart';
 
 class EmpresaAssociadaPage extends StatefulWidget {
   const EmpresaAssociadaPage({super.key});
@@ -17,12 +19,17 @@ class EmpresaAssociadaPage extends StatefulWidget {
 class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
   static const _blue = Color(0xFF0FB3FF);
   static const _dark = Color(0xFF202124);
-  static const _background = Color(0xFFF9F7FF);
+  // Branco (antes um lilás padrão do tema).
+  static const _background = Colors.white;
 
   Map<String, dynamic>? _empresa;
   List<_MembroEmpresa> _membros = [];
   List<OficioInfo> _oficios = [];
+  List<ServicoProfissional> _servicos = [];
   bool _carregando = true;
+
+  /// O dono do CNPJ não vê as opções de "sair da empresa".
+  bool _souDono = false;
 
   void _marcarSemEmpresa() {
     if (!mounted) return;
@@ -70,7 +77,9 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
       final perfilId = (profissional['fk_perfil'] as num?)?.toInt();
       Map<String, dynamic>? grupo;
       const campos =
-          'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, foto_url_empresa, banner_url_empresa, fk_perfil';
+          'id_grupo_empresa, nome_empresa, tag_empresa, cor_tag_empresa, '
+          'foto_url_empresa, banner_url_empresa, fk_perfil, descricao_empresa, '
+          'anos_mercado';
       if (grupoId != null) {
         grupo = await client
             .from('grupo_empresa')
@@ -92,6 +101,46 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
 
       final idGrupo = (grupo['id_grupo_empresa'] as num?)?.toInt();
       final fkPerfilGrupo = (grupo['fk_perfil'] as num?)?.toInt();
+      final souDono = perfilId != null && perfilId == fkPerfilGrupo;
+
+      // Ofícios e serviços que a EMPRESA oferece (dados reais).
+      var oficiosEmpresa = <OficioInfo>[];
+      var servicosEmpresa = <ServicoProfissional>[];
+      if (idGrupo != null) {
+        try {
+          final ass = await client
+              .from('ass_oficio_grupo_empresa')
+              .select('fk_funcao')
+              .eq('fk_grupo_empresa', idGrupo);
+          final ids = [
+            for (final a in ass)
+              if (a['fk_funcao'] != null) (a['fk_funcao'] as num).toInt(),
+          ];
+          if (ids.isNotEmpty) {
+            oficiosEmpresa =
+                (await client
+                        .from('funcoes')
+                        .select(kColunasFuncaoComoOficio)
+                        .inFilter('id_funcao', ids))
+                    .map<OficioInfo>(OficioInfo.fromMap)
+                    .where((o) => o.funcao.isNotEmpty)
+                    .toList();
+          }
+        } catch (e) {
+          debugPrint('[empresa associada] ofícios: $e');
+        }
+        try {
+          final s = await client
+              .from('servicos_profissional')
+              .select('*, $kSelectFuncao')
+              .eq('fk_grupo_empresa', idGrupo)
+              .eq('ativo', true)
+              .order('data_criacao', ascending: false);
+          servicosEmpresa = s.map(ServicoProfissional.fromMap).toList();
+        } catch (e) {
+          debugPrint('[empresa associada] serviços: $e');
+        }
+      }
       final membros = <_MembroEmpresa>[];
       final vistos = <int>{};
       final todosOficios = <OficioInfo>[];
@@ -159,14 +208,19 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
         setState(() {
           _empresa = grupo;
           _membros = membros;
-          _oficios = todosOficios.fold<List<OficioInfo>>([], (lista, oficio) {
-            if (!lista.any(
-              (item) =>
-                  item.funcao.toLowerCase() == oficio.funcao.toLowerCase(),
-            ))
-              lista.add(oficio);
-            return lista;
-          });
+          _souDono = souDono;
+          _servicos = servicosEmpresa;
+          _oficios =
+              (oficiosEmpresa.isNotEmpty ? oficiosEmpresa : <OficioInfo>[])
+                  .fold<List<OficioInfo>>([], (lista, oficio) {
+                    if (!lista.any(
+                      (item) =>
+                          item.funcao.toLowerCase() ==
+                          oficio.funcao.toLowerCase(),
+                    ))
+                      lista.add(oficio);
+                    return lista;
+                  });
           _carregando = false;
         });
       }
@@ -297,6 +351,7 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
       backgroundColor: _background,
       appBar: AppBar(
         backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: _blue),
@@ -307,7 +362,8 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
           'Empresa associada',
           style: TextStyle(color: _blue, fontWeight: FontWeight.bold),
         ),
-        actions: _empresa == null
+        // O dono do CNPJ não tem a opção de sair da própria empresa.
+        actions: _empresa == null || _souDono
             ? const []
             : [
                 IconButton(
@@ -332,22 +388,42 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          _empresa!['nome_empresa']?.toString() ??
-                              'Empresa associada',
-                          style: const TextStyle(
-                            fontSize: 29,
-                            height: 1.15,
-                            fontWeight: FontWeight.bold,
-                            color: _dark,
-                          ),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 6,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(
+                              _empresa!['nome_empresa']?.toString() ??
+                                  'Empresa associada',
+                              style: const TextStyle(
+                                fontSize: 29,
+                                height: 1.15,
+                                fontWeight: FontWeight.bold,
+                                color: _dark,
+                              ),
+                            ),
+                            if (_anos != null)
+                              _pill(
+                                _anos == 1
+                                    ? '1 ano de experiência'
+                                    : '$_anos anos de experiência',
+                                const Color(0xFFE0F2FE),
+                                const Color(0xFF0369A1),
+                              ),
+                          ],
                         ),
                         const SizedBox(height: 7),
-                        const Text(
-                          'Soluções completas em manutenção predial e residencial.',
+                        Text(
+                          _descricao ?? 'Descrição ainda não definida.',
                           style: TextStyle(
                             fontSize: 16,
-                            color: Color(0xFF52525B),
+                            color: _descricao == null
+                                ? const Color(0xFF9CA3AF)
+                                : const Color(0xFF52525B),
+                            fontStyle: _descricao == null
+                                ? FontStyle.italic
+                                : FontStyle.normal,
                             height: 1.35,
                           ),
                         ),
@@ -371,6 +447,11 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
                         ),
                         const SizedBox(height: 12),
                         ..._buildCardsServicos(),
+                        const SizedBox(height: 18),
+                        SecaoCertificados(
+                          idGrupoEmpresa:
+                              (_empresa!['id_grupo_empresa'] as num?)?.toInt(),
+                        ),
                       ],
                     ),
                   ),
@@ -512,7 +593,7 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
             width: 145,
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
             decoration: BoxDecoration(
-              color: const Color(0xFFE9E2EC),
+              color: const Color(0xFFF1F5F9),
               borderRadius: BorderRadius.circular(11),
               border: membro.isResponsavel
                   ? Border.all(color: _blue, width: 2)
@@ -566,7 +647,37 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
     );
   }
 
+  String? get _descricao {
+    final d = _empresa?['descricao_empresa']?.toString().trim() ?? '';
+    return d.isEmpty ? null : d;
+  }
+
+  int? get _anos {
+    final n = int.tryParse(_empresa?['anos_mercado']?.toString().trim() ?? '');
+    return n == null || n < 1 ? null : n;
+  }
+
+  Widget _naoDefinido(String texto) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF8FAFC),
+      border: Border.all(color: const Color(0xFFE5E7EB)),
+      borderRadius: BorderRadius.circular(11),
+    ),
+    child: Text(
+      texto,
+      style: const TextStyle(
+        color: Color(0xFF9CA3AF),
+        fontStyle: FontStyle.italic,
+      ),
+    ),
+  );
+
   List<Widget> _buildServicos() {
+    if (_oficios.isEmpty) {
+      return [_naoDefinido('A empresa ainda não definiu os ofícios.')];
+    }
     final grupos = <String, List<String>>{};
     for (final oficio in _oficios) {
       final categoria = oficio.categoria?.trim();
@@ -595,8 +706,8 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
-          color: const Color(0xFFFCFBFC),
-          border: Border.all(color: const Color(0xFFE2DEE4)),
+          color: Colors.white,
+          border: Border.all(color: const Color(0xFFE5E7EB)),
           borderRadius: BorderRadius.circular(11),
         ),
         child: Row(
@@ -638,37 +749,42 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
   }
 
   List<Widget> _buildCardsServicos() {
-    return _oficios.take(3).map((oficio) {
-      final membro = _membros.isEmpty
-          ? 'Equipe'
-          : _membros
-                .firstWhere(
-                  (m) => m.oficios.any((o) => o.funcao == oficio.funcao),
-                  orElse: () => _membros.first,
-                )
-                .nome;
+    if (_servicos.isEmpty) {
+      return [_naoDefinido('A empresa ainda não cadastrou serviços.')];
+    }
+    final tag = _empresa!['tag_empresa']?.toString().trim() ?? '';
+    final corTag = CorOficio.parse(_empresa!['cor_tag_empresa']?.toString());
+    return _servicos.take(6).map((s) {
+      final img = s.imagemUrl ?? '';
+      final preco = s.valor <= 0
+          ? 'Sob consulta'
+          : 'R\$ ${s.valor.toStringAsFixed(2).replaceAll('.', ',')}';
       return Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: const Color(0xFFFCFBFC),
-          border: Border.all(color: const Color(0xFFE2DEE4)),
+          color: Colors.white,
+          border: Border.all(color: const Color(0xFFE5E7EB)),
           borderRadius: BorderRadius.circular(11),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 78,
-              height: 78,
-              decoration: BoxDecoration(
-                color: const Color(0xFFDDEAF0),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.handyman_outlined,
-                color: _blue,
-                size: 34,
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: SizedBox(
+                width: 78,
+                height: 78,
+                child: img.startsWith('http')
+                    ? Image.network(img, fit: BoxFit.cover)
+                    : Container(
+                        color: const Color(0xFFDDEAF0),
+                        child: const Icon(
+                          Icons.handyman_outlined,
+                          color: _blue,
+                          size: 34,
+                        ),
+                      ),
               ),
             ),
             const SizedBox(width: 14),
@@ -676,31 +792,52 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _pill('#FATEC', const Color(0xFF07518C), Colors.white),
+                  Wrap(
+                    spacing: 6,
+                    children: [
+                      if (tag.isNotEmpty)
+                        _pill(
+                          tag.startsWith('#') ? tag : '#$tag',
+                          corTag,
+                          CorOficio.corTextoContraste(corTag),
+                        ),
+                      if ((s.funcao ?? '').isNotEmpty)
+                        _pill(
+                          s.funcao!,
+                          CorOficio.parse(s.cor).withValues(alpha: 0.2),
+                          CorOficio.corTexto(CorOficio.parse(s.cor)),
+                        ),
+                    ],
+                  ),
                   const SizedBox(height: 6),
                   Text(
-                    oficio.funcao,
+                    s.titulo,
                     style: const TextStyle(
                       fontSize: 16,
                       color: _dark,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 5),
-                  const Text(
-                    'Manutenção, instalação e reparos realizados por profissionais da equipe.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF52525B),
-                      height: 1.3,
+                  if (s.descricao.trim().isNotEmpty) ...[
+                    const SizedBox(height: 5),
+                    Text(
+                      s.descricao.trim(),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF52525B),
+                        height: 1.3,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 9),
+                  ],
+                  const SizedBox(height: 7),
                   Text(
-                    'Oferecido por: $membro',
+                    preco,
                     style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF52525B),
+                      fontSize: 14,
+                      color: _dark,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                 ],

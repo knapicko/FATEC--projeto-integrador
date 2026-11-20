@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/contador_notificacoes.dart';
 import '../services/notificacoes/notificacao_service.dart';
+import '../widgets/icone_aba_pendente.dart';
 
 class BottomNavigationBarProfissional extends StatefulWidget {
   final int currentIndex;
@@ -153,13 +154,16 @@ class _BottomNavigationBarProfissionalState
     if (_isEmpresa)
       const BottomNavigationBarItem(
         key: ValueKey('abaEmpresa'),
-        icon: Icon(Icons.storefront_outlined),
+        icon: IconeAbaPendente(
+          icone: Icons.storefront_outlined,
+          profissional: true,
+        ),
         label: 'Empresa',
       )
     else
       const BottomNavigationBarItem(
         key: ValueKey('abaPerfil'),
-        icon: Icon(Icons.person_outline),
+        icon: IconeAbaPendente(icone: Icons.person_outline, profissional: true),
         label: 'Perfil',
       ),
   ];

@@ -27,6 +27,7 @@ import 'widgets/skeleton_loading.dart';
 import 'utils/funcao_servico.dart';
 import 'solicitacao_geografica_profissional.dart';
 import 'servico_concluido.dart';
+import 'utils/cor_status.dart';
 
 /// Solicitação de serviço recebida pelo profissional (conta independente ou
 /// conta empresa). Cada linha de `solicitacoes` vira um card.
@@ -134,7 +135,14 @@ enum FiltroSolicitacao {
 }
 
 class MeusServicosSolicitadosPage extends StatefulWidget {
-  const MeusServicosSolicitadosPage({super.key, this.abrirIdSolicitacao});
+  const MeusServicosSolicitadosPage({
+    super.key,
+    this.abrirIdSolicitacao,
+    this.filtroInicial,
+  });
+
+  /// Filtro já selecionado ao abrir (ex.: atalho "Histórico de serviços").
+  final FiltroSolicitacao? filtroInicial;
 
   /// Ao carregar, abre direto a tela da etapa desta solicitação (ex.: vindo
   /// da linha "solicitação ativa" do chat).
@@ -164,7 +172,8 @@ class _MeusServicosSolicitadosPageState
   late final AnimationController _animacaoDevolucao;
 
   List<SolicitacaoRecebida> _todas = [];
-  FiltroSolicitacao _filtro = FiltroSolicitacao.novos;
+  late FiltroSolicitacao _filtro =
+      widget.filtroInicial ?? FiltroSolicitacao.novos;
 
   @override
   void initState() {
@@ -1217,6 +1226,9 @@ class _MeusServicosSolicitadosPageState
   Future<void> _verificarPromptAvaliacaoCliente(
     SolicitacaoRecebida item,
   ) async {
+    // O profissional não avalia o cliente.
+    return;
+    // ignore: dead_code
     if (item.avaliouCliente || !mounted) return;
     final authId = _supabase.auth.currentUser?.id ?? 'anon';
     final preferencias = await SharedPreferences.getInstance();
@@ -1600,6 +1612,14 @@ class _MeusServicosSolicitadosPageState
     );
   }
 
+  /// Cor/ícone do status (utils/cor_status.dart, igual em todo o app).
+  EstiloStatus _estilo(SolicitacaoRecebida item) => EstiloStatus.de(
+    fkStatus: item.fkStatus,
+    tipoExecucao: item.tipoExecucao,
+    etapa: item.etapaSolicitacao,
+    statusTexto: item.statusTexto,
+  );
+
   /// Texto do status de um serviço ativo (aceito / em andamento / etc).
   String _textoStatusAtivo(SolicitacaoRecebida item) {
     final status = item.statusTexto?.trim().toLowerCase() ?? '';
@@ -1640,7 +1660,7 @@ class _MeusServicosSolicitadosPageState
           padding: const EdgeInsets.fromLTRB(10, 9, 12, 9),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _azul, width: 1.6),
+            border: Border.all(color: _estilo(item).cor, width: 1.6),
           ),
           child: Row(
             children: [
@@ -1667,22 +1687,19 @@ class _MeusServicosSolicitadosPageState
                     const SizedBox(height: 2),
                     Row(
                       children: [
-                        Container(
-                          width: 7,
-                          height: 7,
-                          decoration: const BoxDecoration(
-                            color: _azul,
-                            shape: BoxShape.circle,
-                          ),
+                        Icon(
+                          _estilo(item).icone,
+                          size: 13,
+                          color: _estilo(item).cor,
                         ),
-                        const SizedBox(width: 5),
+                        const SizedBox(width: 4),
                         Flexible(
                           child: Text(
                             _textoStatusAtivo(item),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: _azul,
+                            style: TextStyle(
+                              color: _estilo(item).texto,
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
                             ),
@@ -1929,10 +1946,7 @@ class _MeusServicosSolicitadosPageState
             if (_filtro == FiltroSolicitacao.novos)
               _buildBotoes(item)
             else if (_filtro == FiltroSolicitacao.aceitos)
-              _buildBotoesAceito(item)
-            else if (status == FiltroSolicitacao.concluidos &&
-                !item.avaliouCliente)
-              _botaoAvaliarCliente(item),
+              _buildBotoesAceito(item),
           ],
         ),
       ),
@@ -1978,9 +1992,7 @@ class _MeusServicosSolicitadosPageState
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
             decoration: BoxDecoration(
-              color: aguardandoDevolucao
-                  ? Colors.orange.withValues(alpha: .14)
-                  : _azul.withValues(alpha: .14),
+              color: _estilo(item).fundo,
               borderRadius: BorderRadius.circular(18),
             ),
             child: AnimatedBuilder(
@@ -2417,35 +2429,6 @@ class _MeusServicosSolicitadosPageState
         backgroundColor: const Color(0xFF168A52),
         foregroundColor: Colors.white,
         padding: EdgeInsets.symmetric(vertical: verticalPadding),
-      ),
-    );
-  }
-
-  Widget _botaoAvaliarCliente(SolicitacaoRecebida item) {
-    final avaliando = _avaliandoClientes.contains(item.idSolicitacao);
-    return SizedBox(
-      width: double.infinity,
-      height: 44,
-      child: FilledButton.icon(
-        onPressed: avaliando ? null : () => _avaliarCliente(item),
-        icon: avaliando
-            ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
-            : const Icon(Icons.star_outline_rounded, size: 18),
-        label: Text(avaliando ? 'Enviando...' : 'Avaliar cliente'),
-        style: FilledButton.styleFrom(
-          backgroundColor: const Color(0xFF168A52),
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
       ),
     );
   }
