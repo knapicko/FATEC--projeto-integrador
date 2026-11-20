@@ -10,6 +10,8 @@ import 'widgets/salvamento_automatico.dart';
 import 'widgets/skeleton_loading.dart';
 import 'services/cor_dominante_service.dart';
 import 'utils/iniciais.dart';
+import 'widgets/aviso_obrigatorio.dart';
+import 'services/requisitos_conta.dart';
 
 class ModificarContaProfissionalPage extends StatefulWidget {
   const ModificarContaProfissionalPage({super.key});
@@ -114,11 +116,9 @@ class _ModificarContaProfissionalPageState
       }
 
       if (_idUsuario != null) {
-        final dadosProf = await _supabase
-            .from('dados_profissionais')
-            .select('id_profissional, fk_perfil, anos_experiencia')
-            .eq('fk_usuario', _idUsuario!)
-            .maybeSingle();
+        final dadosProf = await RequisitosConta.dadosProfissionalLogado(
+          'id_profissional, fk_perfil, anos_experiencia',
+        );
 
         _idProfissional = (dadosProf?['id_profissional'] as num?)?.toInt();
         _idPerfil = (dadosProf?['fk_perfil'] as num?)?.toInt();
@@ -359,6 +359,14 @@ class _ModificarContaProfissionalPageState
                   children: [
                     _buildHeader(),
                     _buildBannerAndProfile(),
+                    if (_descricaoController.text.trim().isEmpty ||
+                        (_anosExperienciaSelecionado ?? '').trim().isEmpty)
+                      const AvisoObrigatorio(
+                        titulo: 'Complete sua conta',
+                        texto:
+                            'Preencha a descrição e os anos de experiência. '
+                            'Eles aparecem no seu perfil para os clientes.',
+                      ),
                     const SizedBox(height: 18),
                     _buildForm(),
                   ],

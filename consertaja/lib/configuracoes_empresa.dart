@@ -136,16 +136,32 @@ class _ConfiguracoesEmpresaPageState extends State<ConfiguracoesEmpresaPage> {
 
       // 2. Carrega dados profissionais
       if (_idUsuario != null) {
-        final dadosProf = await _supabase
+        // Pode haver mais de uma linha (conta independente + empresa).
+        final linhas = await _supabase
             .from('dados_profissionais')
             .select('id_profissional, fk_perfil, fk_grupo_empresa')
-            .eq('fk_usuario', _idUsuario!)
-            .maybeSingle();
+            .eq('fk_usuario', _idUsuario!);
+        final dadosProf = linhas.isEmpty ? null : linhas.first;
 
         if (dadosProf != null) {
           _idProfissional = (dadosProf['id_profissional'] as num?)?.toInt();
           _idPerfil = (dadosProf['fk_perfil'] as num?)?.toInt();
           _idGrupoEmpresa = (dadosProf['fk_grupo_empresa'] as num?)?.toInt();
+          // Dono do CNPJ: a empresa é a do mesmo perfil.
+          for (final l in linhas) {
+            final perfil = l['fk_perfil'];
+            if (perfil == null) continue;
+            final g = await _supabase
+                .from('grupo_empresa')
+                .select('id_grupo_empresa')
+                .eq('fk_perfil', perfil)
+                .maybeSingle();
+            if (g != null) {
+              _idGrupoEmpresa = (g['id_grupo_empresa'] as num).toInt();
+              _idPerfil = (perfil as num).toInt();
+              break;
+            }
+          }
         }
       }
 
@@ -1411,6 +1427,10 @@ class _ConfiguracoesEmpresaPageState extends State<ConfiguracoesEmpresaPage> {
                           ],
                         ),
                       ),
+                      const SizedBox(height: 24),
+                      // Tipo de perfil (igual ao "Modificar conta" do
+                      // independente).
+                      _SecaoTipoPerfil(idPerfil: _idPerfil),
                       const SizedBox(height: 32),
                     ],
                   ),
@@ -1698,6 +1718,185 @@ class _ColorizSliderBrilho extends StatelessWidget {
               },
             ),
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Escolha do tipo de perfil da conta (perfil.tipo_perfil): Loja/Empresa ou
+/// Profissional Independente.
+class _SecaoTipoPerfil extends StatefulWidget {
+  const _SecaoTipoPerfil({required this.idPerfil});
+
+  final int? idPerfil;
+
+  @override
+  State<_SecaoTipoPerfil> createState() => _SecaoTipoPerfilState();
+}
+
+class _SecaoTipoPerfilState extends State<_SecaoTipoPerfil> {
+  static const _azul = Color(0xFF0FB3FF);
+  String? _tipo;
+  bool _salvando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _carregar();
+  }
+
+  @override
+  void didUpdateWidget(covariant _SecaoTipoPerfil old) {
+    super.didUpdateWidget(old);
+    if (old.idPerfil != widget.idPerfil) _carregar();
+  }
+
+  Future<void> _carregar() async {
+    if (widget.idPerfil == null) return;
+    try {
+      final r = await Supabase.instance.client
+          .from('perfil')
+          .select('tipo_perfil')
+          .eq('id_perfil', widget.idPerfil!)
+          .maybeSingle();
+      if (mounted) setState(() => _tipo = r?['tipo_perfil']?.toString());
+    } catch (_) {}
+  }
+
+  Future<void> _escolher(String novo) async {
+    if (widget.idPerfil == null || novo == _tipo || _salvando) return;
+    if (novo == 'Independente') {
+      final ok = await confirmarBottomSheet(
+        context,
+        titulo: 'Mudar para Profissional Independente?',
+        mensagem:
+            'Sua conta deixa de ser do tipo Loja. Você pode voltar para '
+            'Loja / Empresa quando quiser, aqui mesmo.',
+        textoConfirmar: 'Mudar tipo',
+        icone: Icons.swap_horiz_rounded,
+      );
+      if (!ok) return;
+    }
+    setState(() => _salvando = true);
+    try {
+      await Supabase.instance.client
+          .from('perfil')
+          .update({'tipo_perfil': novo})
+          .eq('id_perfil', widget.idPerfil!);
+      if (mounted) setState(() => _tipo = novo);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Não foi possível mudar o tipo: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _salvando = false);
+    }
+  }
+
+  Widget _opcao(String valor, String titulo, String sub, IconData icone) {
+    final sel = (_tipo ?? '').toLowerCase() == valor.toLowerCase();
+    return InkWell(
+      onTap: () => _escolher(valor),
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: sel ? const Color(0xFFDDF0FF) : Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: sel ? const Color(0xFFCDE8FF) : const Color(0xFFE2E6EC),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: sel ? _azul : const Color(0xFFE8EAEE),
+              ),
+              child: Icon(
+                icone,
+                size: 18,
+                color: sel ? Colors.white : const Color(0xFF6E7481),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    titulo,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: sel ? _azul : const Color(0xFF3D4452),
+                    ),
+                  ),
+                  Text(
+                    sub,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF5D6472),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              sel
+                  ? Icons.radio_button_checked_rounded
+                  : Icons.radio_button_off_rounded,
+              color: sel ? _azul : const Color(0xFF94A3B8),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text(
+              'Tipo de perfil',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF111827),
+              ),
+            ),
+            const Spacer(),
+            if (_salvando)
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        _opcao(
+          'Loja',
+          'Loja / Empresa',
+          'Possuo CNPJ e equipe.',
+          Icons.storefront_outlined,
+        ),
+        const SizedBox(height: 8),
+        _opcao(
+          'Independente',
+          'Profissional Independente',
+          'Atuo por conta própria.',
+          Icons.person,
         ),
       ],
     );

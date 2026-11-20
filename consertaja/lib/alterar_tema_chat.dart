@@ -76,7 +76,7 @@ class AlterarTemaChat extends StatefulWidget {
 class _AlterarTemaChatState extends State<AlterarTemaChat> {
   static const Color _corAzulPadrao = Color(0xFF0FB3FF);
   static const String _doodleDefaultAsset =
-      'assets/images/plano_fundo_chat/doodle_default.png';
+      'assets/images/plano_fundo_chat/doodle_default.jpg';
 
   final _themeStorage = ChatThemeStorage();
   final _supabase = Supabase.instance.client;
@@ -180,17 +180,17 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
       corSolida: Color(0xFF1E293B),
     ),
     ...[
-      ('alien_bg.png', 'Alien', 'Imagem'),
-      ('topography_bg.png', 'Topografia', 'Imagem'),
-      ('cloud_bg.png', 'Nuvens', 'Imagem'),
-      ('cloud_blue_bg.png', 'Nuvens Azuis', 'Imagem'),
-      ('circuito_bg.png', 'Circuito', 'Imagem'),
-      ('degrade_bg.png', 'Degradê', 'Imagem'),
-      ('degrade_icon_bg.png', 'Degradê com Ícones', 'Imagem'),
-      ('tools_pastel_bg.png', 'Ferramentas Pastel', 'Imagem'),
-      ('tools_bg.png', 'Ferramentas', 'Imagem'),
-      ('waves_blue_bg.png', 'Ondas Azuis', 'Imagem'),
-      ('waves_bg.png', 'Ondas', 'Imagem'),
+      ('alien_bg.jpg', 'Alien', 'Imagem'),
+      ('topography_bg.jpg', 'Topografia', 'Imagem'),
+      ('cloud_bg.jpg', 'Nuvens', 'Imagem'),
+      ('cloud_blue_bg.jpg', 'Nuvens Azuis', 'Imagem'),
+      ('circuito_bg.jpg', 'Circuito', 'Imagem'),
+      ('degrade_bg.jpg', 'Degradê', 'Imagem'),
+      ('degrade_icon_bg.jpg', 'Degradê com Ícones', 'Imagem'),
+      ('tools_pastel_bg.jpg', 'Ferramentas Pastel', 'Imagem'),
+      ('tools_bg.jpg', 'Ferramentas', 'Imagem'),
+      ('waves_blue_bg.jpg', 'Ondas Azuis', 'Imagem'),
+      ('waves_bg.jpg', 'Ondas', 'Imagem'),
     ].map(
       (item) => _OpcaoFundo(
         id: 'assets/images/plano_fundo_chat/${item.$1}',

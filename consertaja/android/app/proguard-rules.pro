@@ -37,3 +37,20 @@
 -dontwarn com.google.android.play.core.tasks.OnFailureListener
 -dontwarn com.google.android.play.core.tasks.OnSuccessListener
 -dontwarn com.google.android.play.core.tasks.Task
+
+# ML Kit: só o reconhecimento de texto latino vem no app; os outros
+# alfabetos são opcionais no plugin e não são usados.
+-dontwarn com.google.mlkit.vision.text.chinese.**
+-dontwarn com.google.mlkit.vision.text.devanagari.**
+-dontwarn com.google.mlkit.vision.text.japanese.**
+-dontwarn com.google.mlkit.vision.text.korean.**
+
+# Flutter (componentes adiados da Play Store, não usados).
+-dontwarn com.google.android.play.core.**
+
+# Notificações locais (flutter_local_notifications usa Gson com reflexão).
+-keep class com.dexterous.** { *; }
+-keepattributes Signature
+-keepattributes *Annotation*
+-keep class com.google.gson.reflect.TypeToken { *; }
+-keep class * extends com.google.gson.reflect.TypeToken

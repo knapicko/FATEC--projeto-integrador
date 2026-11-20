@@ -90,10 +90,14 @@ class CardPedidoResumo extends StatelessWidget {
     super.key,
     required this.pedido,
     required this.aoTocar,
+    this.textoAvaliar = 'Toque para avaliar este serviço',
   });
 
   final PedidoResumo pedido;
   final VoidCallback aoTocar;
+
+  /// Texto do aviso de avaliação pendente.
+  final String textoAvaliar;
 
   @override
   Widget build(BuildContext context) {
@@ -182,17 +186,17 @@ class CardPedidoResumo extends StatelessWidget {
                   ),
                   if (p.precisaAvaliar) ...[
                     const SizedBox(height: 8),
-                    const Row(
+                    Row(
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.star_rounded,
                           size: 16,
                           color: Color(0xFFF59E0B),
                         ),
-                        SizedBox(width: 4),
+                        const SizedBox(width: 4),
                         Text(
-                          'Toque para avaliar este serviço',
-                          style: TextStyle(
+                          textoAvaliar,
+                          style: const TextStyle(
                             color: Color(0xFFB45309),
                             fontSize: 12.5,
                             fontWeight: FontWeight.w700,

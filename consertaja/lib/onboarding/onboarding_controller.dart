@@ -20,6 +20,8 @@ import '../tela_home_profissional.dart';
 import 'onboarding_step.dart';
 import 'onboarding_theme.dart';
 import '../utils/funcao_servico.dart';
+import '../main.dart' show navigatorKey;
+import '../services/conclusao_cadastro_profissional.dart';
 
 class OnboardingController extends ChangeNotifier {
   OnboardingController._();
@@ -257,7 +259,8 @@ class OnboardingController extends ChangeNotifier {
       nome.text = map['nome'] as String? ?? '';
       dataNascimento.text = map['dataNascimento'] as String? ?? '';
       email.text = map['email'] as String? ?? '';
-      telefone.text = map['telefone'] as String? ?? '';
+      // O telefone não é restaurado do rascunho: o campo começa vazio.
+      telefone.clear();
       senha.text = map['senha'] as String? ?? '';
       confirmarSenha.text = map['confirmarSenha'] as String? ?? '';
       cnpj.text = map['cnpj'] as String? ?? '';
@@ -668,14 +671,8 @@ class OnboardingController extends ChangeNotifier {
     if ((empresa.dataFundacaoBr ?? '').isNotEmpty) {
       dataFundacao.text = empresa.dataFundacaoBr!;
     }
-    if ((empresa.telefone ?? '').isNotEmpty && telefone.text.isEmpty) {
-      final limpo = empresa.telefone!.replaceAll(RegExp(r'\D'), '');
-      if (limpo.length >= 10) {
-        final ddd = limpo.substring(0, 2);
-        final numero = limpo.substring(2);
-        telefone.text = '($ddd) $numero';
-      }
-    }
+    // O telefone da Receita (BrasilAPI) não preenche mais o campo: a pessoa
+    // informa o telefone de contato dela.
   }
 
   Future<void> escolherEntrar() => _transicionar(OnboardingStep.loginForm);
@@ -704,18 +701,14 @@ class OnboardingController extends ChangeNotifier {
       erroCampo = result.mensagem;
       notifyListeners();
     } else {
-      await limparRascunho();
-      if (context != null && context.mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (_) => result.isProfissional
-                ? TelaHomeProfissional(isVisitante: false)
-                : TelaHome(isVisitante: false),
-          ),
-          (_) => false,
-        );
-      }
+      try {
+        await limparRascunho();
+      } catch (_) {}
+      _irPara(
+        result.isProfissional
+            ? TelaHomeProfissional(isVisitante: false)
+            : TelaHome(isVisitante: false),
+      );
     }
     notifyListeners();
     return result;
@@ -1051,7 +1044,7 @@ class OnboardingController extends ChangeNotifier {
       }
 
       final dataNasc = converterDataParaIso(dataNascimento.text.trim());
-      final usuarioResponse = await supabase
+      await supabase
           .from('usuarios')
           .insert({
             'nome': isCpf ? nome.text.trim() : nomeFantasia.text.trim(),
@@ -1066,75 +1059,47 @@ class OnboardingController extends ChangeNotifier {
           })
           .select()
           .single();
-      final usuarioId = usuarioResponse['id_usuario'];
-
-      final dadosProfResponse = await supabase
-          .from('dados_profissionais')
-          .insert({
-            'fk_usuario': usuarioId,
-            'id_facial': idFacial,
-            'rosto_validado': true,
-            'data_admissao': DateTime.now().toIso8601String().split('T').first,
-          })
-          .select()
-          .single();
-      final profissionalId = dadosProfResponse['id_profissional'];
-
-      for (final oficio in oficiosSelecionados) {
-        try {
-          await supabase
-              .from('ass_oficio_profissional')
-              .insert({
-                'fk_profissional': profissionalId,
-                'fk_funcao': oficio['id_oficio'],
-              })
-              .select()
-              .maybeSingle();
-        } catch (e) {
-          debugPrint('Falha ao inserir ofício ${oficio['id_oficio']}: $e');
-        }
-      }
-
-      for (final doc in documentosValidados) {
-        await supabase.from('documentos_profissionais').insert({
-          'tipo_documento': doc['tipo'],
-          'fk_profissional': profissionalId,
-          'validacao_documento': true,
-        });
-      }
+      // Dados do profissional, ofícios e documentos pelo servidor (gravar
+      // direto em dados_profissionais era recusado pela RLS e a conta
+      // ficava pela metade). Sem sessão (confirmar e-mail), conclui no
+      // primeiro login.
+      await ConclusaoCadastroProfissional.concluir(
+        authId: authId,
+        idFacial: idFacial,
+        funcoes: [
+          for (final o in oficiosSelecionados)
+            if (o['id_oficio'] != null) (o['id_oficio'] as num).toInt(),
+        ],
+        documentos: [
+          for (final d in documentosValidados)
+            if (d['tipo'] != null) d['tipo'].toString(),
+        ],
+      );
 
       carregando = false;
-      await limparRascunho();
-      if (context.mounted) {
-        if (precisaConfirmarEmail) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Quase lá! Enviamos um link de confirmação para o seu e-mail. '
-                'Clique nele para ativar sua conta e depois faça login.',
-              ),
-            ),
-          );
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (_) => const LoginPage()),
-            (_) => false,
-          );
-        } else {
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(
-              builder: (_) => TelaHomeProfissional(isVisitante: false),
-            ),
-            (_) => false,
-          );
-        }
+      notifyListeners();
+      try {
+        await limparRascunho();
+      } catch (_) {}
+      if (precisaConfirmarEmail) {
+        _irPara(
+          const LoginPage(),
+          aviso:
+              'Quase lá! Enviamos um link de confirmação para o seu e-mail. '
+              'Clique nele para ativar sua conta e depois faça login.',
+        );
+      } else {
+        _irPara(TelaHomeProfissional(isVisitante: false));
       }
     } on AuthException catch (e) {
-      carregando = false;
-      erroCampo =
+      final jaExiste =
           e.message.toLowerCase().contains('already') ||
-              e.message.toLowerCase().contains('duplicate')
+          e.message.toLowerCase().contains('duplicate');
+      // Conta que ficou pela metade numa tentativa anterior (mesmo e-mail e
+      // senha): entra nela e conclui o cadastro em vez de travar.
+      if (jaExiste && await _retomarCadastroIncompleto()) return;
+      carregando = false;
+      erroCampo = jaExiste
           ? 'Este e-mail já está cadastrado em nossa plataforma.'
           : e.message;
       notifyListeners();
@@ -1142,6 +1107,12 @@ class OnboardingController extends ChangeNotifier {
       carregando = false;
       erroCampo = e.toString().replaceAll('Exception: ', '');
       notifyListeners();
+      // O erro também aparece num aviso (nem toda etapa mostra erroCampo).
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Não foi possível finalizar: $erroCampo')),
+        );
+      }
     }
   }
 
@@ -1335,24 +1306,80 @@ class OnboardingController extends ChangeNotifier {
       notifyListeners();
       return result;
     }
-    await limparRascunho();
-    if (context != null && context.mounted) {
-      if (result.precisaConfirmarEmail) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Cadastro realizado! Confirme seu e-mail para continuar.',
-            ),
-          ),
-        );
-      }
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => TelaHome(isVisitante: false)),
-        (_) => false,
-      );
-    }
+    try {
+      await limparRascunho();
+    } catch (_) {}
+    _irPara(
+      TelaHome(isVisitante: false),
+      aviso: result.precisaConfirmarEmail
+          ? 'Cadastro realizado! Confirme seu e-mail para continuar.'
+          : null,
+    );
     return result;
+  }
+
+  /// Entra com o e-mail/senha informados; se o usuário existe mas ainda não
+  /// tem os dados de profissional, conclui o cadastro e vai para a home.
+  Future<bool> _retomarCadastroIncompleto() async {
+    final supabase = Supabase.instance.client;
+    try {
+      final r = await supabase.auth.signInWithPassword(
+        email: email.text.trim(),
+        password: senha.text,
+      );
+      if (r.session == null) return false;
+      final u = await supabase
+          .from('usuarios')
+          .select('id_usuario')
+          .eq('auth_id', r.user!.id)
+          .maybeSingle();
+      if (u == null) {
+        await supabase.auth.signOut();
+        return false;
+      }
+      await ConclusaoCadastroProfissional.concluir(
+        authId: r.user!.id,
+        idFacial: idFacial,
+        funcoes: [
+          for (final o in oficiosSelecionados)
+            if (o['id_oficio'] != null) (o['id_oficio'] as num).toInt(),
+        ],
+        documentos: [
+          for (final d in documentosValidados)
+            if (d['tipo'] != null) d['tipo'].toString(),
+        ],
+      );
+      carregando = false;
+      notifyListeners();
+      try {
+        await limparRascunho();
+      } catch (_) {}
+      _irPara(TelaHomeProfissional(isVisitante: false));
+      return true;
+    } catch (e) {
+      debugPrint('[onboarding] retomar cadastro: $e');
+      return false;
+    }
+  }
+
+  /// Vai para a próxima tela pelo navegador do app. Antes usava o context do
+  /// botão, que some quando o rascunho é limpo (a tela do onboarding se
+  /// reconstrói): o cadastro era criado mas a navegação não acontecia.
+  void _irPara(Widget pagina, {String? aviso}) {
+    final navegador = navigatorKey.currentState;
+    if (navegador == null) return;
+    navegador.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => pagina),
+      (_) => false,
+    );
+    if (aviso != null) {
+      final ctx = navigatorKey.currentContext;
+      if (ctx != null) {
+        ScaffoldMessenger.maybeOf(
+          ctx,
+        )?.showSnackBar(SnackBar(content: Text(aviso)));
+      }
+    }
   }
 
   void setDdi(String value) {

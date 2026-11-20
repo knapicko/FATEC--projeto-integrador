@@ -1,10 +1,10 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'widgets/skeletons_telas.dart';
+import 'services/ocr_documento.dart';
 
 enum _DocumentoStatus { validado, pendente }
 
@@ -1079,22 +1079,7 @@ class _ValidarDocumentoPageState extends State<_ValidarDocumentoPage> {
     return datas.first;
   }
 
-  Future<String> _processarOcr(File file) async {
-    try {
-      final inputImage = InputImage.fromFile(file);
-      final textRecognizer = TextRecognizer(
-        script: TextRecognitionScript.latin,
-      );
-      final RecognizedText recognizedText = await textRecognizer.processImage(
-        inputImage,
-      );
-      await textRecognizer.close();
-      return recognizedText.text;
-    } catch (e) {
-      debugPrint('Erro no OCR: $e');
-      return '';
-    }
-  }
+  Future<String> _processarOcr(File file) => OcrDocumento.lerTexto(file);
 
   Future<ImageSource?> _mostrarOpcoesOrigem(String titulo) async {
     return await showModalBottomSheet<ImageSource>(

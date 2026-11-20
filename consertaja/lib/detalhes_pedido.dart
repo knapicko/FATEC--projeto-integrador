@@ -80,6 +80,30 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
   bool _carregando = true;
   bool _carregandoCliente = true;
   bool _confirmandoConclusao = false;
+
+  /// Acompanha o pedido para liberar o "confirmar" assim que o profissional
+  /// concluir (status/flag mudam no servidor).
+  Timer? _vigia;
+  String? _assinaturaEstado;
+
+  void _iniciarVigia() {
+    _vigia ??= Timer.periodic(const Duration(seconds: 5), (_) async {
+      try {
+        final r = await _db
+            .from('solicitacoes')
+            .select('fk_status, etapa_solicitacao, profissional_finalizado_atendimento')
+            .eq('id_solicitacao', _idSolicitacao)
+            .maybeSingle();
+        if (r == null || !mounted) return;
+        final assinatura =
+            '${r['fk_status']}|${r['etapa_solicitacao']}|${r['profissional_finalizado_atendimento']}';
+        if (_assinaturaEstado != null && assinatura != _assinaturaEstado) {
+          await _carregarDadosCompletos();
+        }
+        _assinaturaEstado = assinatura;
+      } catch (_) {}
+    });
+  }
   bool _avisoManutencaoExibido = false;
   bool _avaliadoCliente = false;
   List<Map<String, dynamic>> _avaliacoesCliente = [];
@@ -160,6 +184,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
   void initState() {
     super.initState();
     _idSolicitacao = widget.idSolicitacao;
+    _iniciarVigia();
     _codigoPedido = '#PED-2026-${_idSolicitacao.toString().padLeft(4, '0')}';
     _sonarController = AnimationController(
       vsync: this,
@@ -171,6 +196,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
 
   @override
   void dispose() {
+    _vigia?.cancel();
     _timerAndamento?.cancel();
     _sonarController.dispose();
     super.dispose();

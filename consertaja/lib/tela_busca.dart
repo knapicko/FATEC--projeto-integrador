@@ -23,6 +23,10 @@ import 'widgets/avisos_bottom_sheet.dart';
 import 'widgets/filtros_busca.dart';
 import 'widgets/seletor_endereco_cliente.dart';
 import 'utils/texto_busca.dart';
+import 'package:latlong2/latlong.dart' show LatLng;
+import 'services/home_cliente_service.dart';
+import 'services/solicitacao_geografica_service.dart';
+import 'widgets/card_profissional_vitrine.dart';
 
 enum _AbaResultado { todos, servicos, profissionais }
 
@@ -151,6 +155,7 @@ class _TelaBuscaState extends State<TelaBusca> {
     super.initState();
     _carregarCategorias();
     _carregarRecentes();
+    _carregarProximos();
     carregarFuncoesFiltro().then((lista) {
       if (!mounted) return;
       setState(() {
@@ -220,9 +225,13 @@ class _TelaBuscaState extends State<TelaBusca> {
   void _avisoVisitante() => mostrarAvisoVisitante(context);
 
   /// Radar com o que foi pesquisado já preenchido.
-  void _abrirRadar() {
+  Future<void> _abrirRadar() async {
     if (widget.isVisitante) {
       _avisoVisitante();
+      return;
+    }
+    // Sem endereço: o aviso aparece antes e o Radar não abre.
+    if (!await AppNavigationUtil.exigirEnderecoCliente(context) || !mounted) {
       return;
     }
     final funcao = _filtros.funcoes.isNotEmpty
@@ -1830,6 +1839,67 @@ class _TelaBuscaState extends State<TelaBusca> {
     );
   }
 
+  /// Profissionais e lojas perto do endereço escolhido (ou da localização),
+  /// mostrados abaixo das sugestões de ofício.
+  List<ProfissionalVitrine>? _proximos;
+
+  Future<void> _carregarProximos() async {
+    try {
+      LatLng? centro;
+      if (!widget.isVisitante) {
+        final lista = await EnderecosCliente.carregar();
+        final escolhido = await EnderecosCliente.escolhido(lista);
+        if (escolhido?.latitude != null && escolhido?.longitude != null) {
+          centro = LatLng(escolhido!.latitude!, escolhido.longitude!);
+        }
+      }
+      centro ??= await SolicitacaoGeograficaService.localizacaoAtual();
+      final l = await HomeClienteService.profissionaisNaRegiao(centro);
+      if (mounted) setState(() => _proximos = l);
+    } catch (e) {
+      debugPrint('[busca] próximos: $e');
+      if (mounted) setState(() => _proximos = const []);
+    }
+  }
+
+  Widget _buildProximos() {
+    final l = _proximos;
+    if (l != null && l.isEmpty) return const SizedBox.shrink();
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.only(top: 14, bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            child: Text(
+              'Profissionais perto de você',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 236,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: l?.length ?? 2,
+              separatorBuilder: (_, _) => const SizedBox(width: 14),
+              itemBuilder: (_, i) => l == null
+                  ? const SkeletonBox(width: 300, height: 236, borderRadius: 22)
+                  : CardProfissionalVitrine(p: l[i]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTelaBuscaInicial() {
     return Column(
       children: [
@@ -2036,7 +2106,15 @@ class _TelaBuscaState extends State<TelaBusca> {
             ],
           ),
         ),
-        Expanded(child: Container(color: Colors.grey.shade100)),
+        Expanded(
+          child: Container(
+            color: Colors.grey.shade100,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.only(top: 10),
+              child: _buildProximos(),
+            ),
+          ),
+        ),
       ],
     );
   }

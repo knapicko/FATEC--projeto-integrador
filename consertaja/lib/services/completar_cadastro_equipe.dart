@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../cadastro_profissional.dart'
     show CadastroFacialInstrucoesPage, ValidacaoDocsPage;
+import '../tela_inicial.dart';
+import '../widgets/avisos_bottom_sheet.dart';
 
 class CompletarCadastroEquipeDialog extends StatefulWidget {
   const CompletarCadastroEquipeDialog({super.key});
@@ -276,19 +278,41 @@ class _CompletarCadastroEquipeDialogState
           .eq('id_profissional', idProfissional);
 
       for (final documento in _documentos) {
-        await client.from('documentos_profissionais').insert({
-          'tipo_documento': documento['tipo'],
-          'fk_profissional': idProfissional,
-          'validacao_documento': true,
-        });
+        try {
+          await client.from('documentos_profissionais').insert({
+            'tipo_documento': documento['tipo'],
+            'fk_profissional': idProfissional,
+            'validacao_documento': true,
+          });
+        } catch (e) {
+          debugPrint('[cadastro equipe] documento: $e');
+        }
       }
-      await client.auth.updateUser(UserAttributes(email: email));
+      // A troca do e-mail de login pede confirmação por e-mail; se falhar
+      // (limite de envio etc.) o cadastro continua salvo.
+      try {
+        await client.auth.updateUser(UserAttributes(email: email));
+      } catch (e) {
+        debugPrint('[cadastro equipe] e-mail de login: $e');
+      }
       if (mounted) Navigator.pop(context);
     } catch (e) {
       _avisar('Não foi possível salvar o cadastro: $e');
     } finally {
       if (mounted) setState(() => _salvando = false);
     }
+  }
+
+  Future<void> _sairDaConta() async {
+    if (!await confirmarSairDaConta(context)) return;
+    try {
+      await Supabase.instance.client.auth.signOut();
+    } catch (_) {}
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const TelaInicial()),
+      (_) => false,
+    );
   }
 
   void _avisar(String mensagem) {
@@ -299,172 +323,245 @@ class _CompletarCadastroEquipeDialogState
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: EdgeInsets.only(
-          left: 20,
-          right: 20,
-          top: 8,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Handle de arraste
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
+    final feitos = (_idFacial != null ? 1 : 0) + (_documentoConcluido ? 1 : 0);
+    // Não fecha com o voltar: o cadastro precisa ser terminado (ou sair da
+    // conta pelo botão).
+    return PopScope(
+      canPop: false,
+      child: SafeArea(
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 8,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Handle de arraste
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE2E8F0),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                // Cabeçalho
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFEFF6FF),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.badge_outlined,
+                        color: Color(0xFF0FB3FF),
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Finalize seu cadastro',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1E293B),
+                            ),
+                          ),
+                          Text(
+                            'Ative sua conta profissional com seus dados',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: _salvando ? null : _sairDaConta,
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFFDC2626),
+                      ),
+                      icon: const Icon(Icons.logout_rounded, size: 18),
+                      label: const Text('Sair'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // Aviso: conta criada pela empresa.
+                Container(
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE2E8F0),
-                    borderRadius: BorderRadius.circular(2),
+                    color: const Color(0xFFF0F9FF),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFBAE6FD)),
                   ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              // Cabeçalho
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFEFF6FF),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.badge_outlined,
-                      color: Color(0xFF0FB3FF),
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Finalize seu cadastro',
+                  child: const Row(
+                    children: [
+                      Icon(Icons.storefront_outlined, color: _primaria),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Sua conta foi criada pela empresa. Complete seus dados '
+                          'e as validações para começar a atender.',
                           style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1E293B),
+                            fontSize: 12.5,
+                            color: Color(0xFF075985),
+                            height: 1.35,
                           ),
                         ),
-                        Text(
-                          'Ative sua conta profissional com seus dados',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF64748B),
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _nome,
-                focusNode: _focoNome,
-                textCapitalization: TextCapitalization.words,
-                decoration: _decoracaoCampo(
-                  label: 'Nome completo',
-                  foco: _focoNome,
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _email,
-                focusNode: _focoEmail,
-                keyboardType: TextInputType.emailAddress,
-                decoration: _decoracaoCampo(label: 'Email', foco: _focoEmail),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _dataNascimento,
-                focusNode: _focoNascimento,
-                readOnly: true,
-                onTap: _selecionarDataNascimento,
-                decoration: _decoracaoCampo(
-                  label: 'Data de Nascimento',
-                  foco: _focoNascimento,
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _nome,
+                  focusNode: _focoNome,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: _decoracaoCampo(
+                    label: 'Nome completo',
+                    foco: _focoNome,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _email,
+                  focusNode: _focoEmail,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: _decoracaoCampo(label: 'Email', foco: _focoEmail),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _dataNascimento,
+                  focusNode: _focoNascimento,
                   readOnly: true,
-                  suffixIcon: const Icon(
-                    Icons.calendar_today_outlined,
-                    color: Color(0xFF0FB3FF),
+                  onTap: _selecionarDataNascimento,
+                  decoration: _decoracaoCampo(
+                    label: 'Data de Nascimento',
+                    foco: _focoNascimento,
+                    readOnly: true,
+                    suffixIcon: const Icon(
+                      Icons.calendar_today_outlined,
+                      color: Color(0xFF0FB3FF),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              _botaoValidacao('Cadastro facial', _idFacial != null, () async {
-                final resultado = await Navigator.push<String>(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const CadastroFacialInstrucoesPage(),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Text(
+                      'Validações',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1E293B),
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '$feitos de 2',
+                      style: const TextStyle(
+                        color: _textoMuted,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: feitos / 2,
+                    minHeight: 6,
+                    color: _primaria,
+                    backgroundColor: const Color(0xFFE2E8F0),
                   ),
-                );
-                if (resultado != null && mounted) {
-                  setState(() => _idFacial = resultado);
-                }
-              }),
-              _botaoValidacao(
-                'Documento de identidade',
-                _documentoConcluido,
-                () async {
-                  final resultado = await Navigator.push<Map<String, dynamic>>(
+                ),
+                const SizedBox(height: 10),
+                _botaoValidacao('Cadastro facial', _idFacial != null, () async {
+                  final resultado = await Navigator.push<String>(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => ValidacaoDocsPage(cpf: _cpf),
+                      builder: (_) => const CadastroFacialInstrucoesPage(),
                     ),
                   );
-                  if (resultado?['validado'] == true && mounted) {
-                    setState(() {
-                      _documentos = List<Map<String, dynamic>>.from(
-                        resultado?['docsData'] ?? [],
-                      );
-                    });
+                  if (resultado != null && mounted) {
+                    setState(() => _idFacial = resultado);
                   }
-                },
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _salvando ? null : _salvar,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0FB3FF),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  child: _salvando
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
+                }),
+                _botaoValidacao(
+                  'Documento de identidade',
+                  _documentoConcluido,
+                  () async {
+                    final resultado =
+                        await Navigator.push<Map<String, dynamic>>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ValidacaoDocsPage(cpf: _cpf),
                           ),
-                        )
-                      : const Text(
-                          'Finalizar cadastro',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        );
+                    if (resultado?['validado'] == true && mounted) {
+                      setState(() {
+                        _documentos = List<Map<String, dynamic>>.from(
+                          resultado?['docsData'] ?? [],
+                        );
+                      });
+                    }
+                  },
                 ),
-              ),
-            ],
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: _salvando ? null : _salvar,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0FB3FF),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: _salvando
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Finalizar cadastro',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -472,15 +569,63 @@ class _CompletarCadastroEquipeDialogState
   }
 
   Widget _botaoValidacao(String label, bool concluido, VoidCallback onTap) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Icon(
-        concluido ? Icons.check_circle : Icons.radio_button_unchecked,
-        color: concluido ? Colors.green : const Color(0xFF0FB3FF),
+    const verde = Color(0xFF16A34A);
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            color: concluido ? const Color(0xFFF0FDF4) : Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: concluido ? const Color(0xFFBBF7D0) : _bordaCampo,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                concluido
+                    ? Icons.check_circle_rounded
+                    : (label.contains('facial')
+                          ? Icons.face_retouching_natural
+                          : Icons.badge_outlined),
+                color: concluido ? verde : _primaria,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1E293B),
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: (concluido ? verde : const Color(0xFFF59E0B))
+                      .withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  concluido ? 'Concluído' : 'Pendente',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: concluido ? verde : const Color(0xFFB45309),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.chevron_right, color: _textoMuted),
+            ],
+          ),
+        ),
       ),
-      title: Text(label),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: onTap,
     );
   }
 }

@@ -132,28 +132,33 @@ Deno.serve(async (request) => {
     return json({ error: 'Usuario proprietario nao encontrado.' }, 403);
   }
 
-  const { data: donoProf, error: donoProfError } = await service
+  // Dono da empresa: o profissional cujo perfil é o da empresa
+  // (grupo_empresa.fk_perfil) — ou, em contas antigas, o que tem
+  // fk_grupo_empresa = grupo. A mesma pessoa pode ter mais de uma linha em
+  // dados_profissionais (conta independente + empresa).
+  const { data: donoProfs, error: donoProfError } = await service
     .from('dados_profissionais')
-    .select('id_profissional, fk_grupo_empresa')
-    .eq('fk_usuario', dono.id_usuario)
-    .maybeSingle();
-
-  console.log('Profissional proprietario encontrado:', Boolean(donoProf));
-  console.log('Grupo do proprietario:', donoProf?.fk_grupo_empresa ?? null);
-  console.log(
-    'Erro ao buscar profissional proprietario:',
-    donoProfError?.message ?? null,
-  );
-
+    .select('id_profissional, fk_grupo_empresa, fk_perfil')
+    .eq('fk_usuario', dono.id_usuario);
   if (donoProfError) {
     return json(
-      {
-        error: `Erro ao buscar profissional proprietario: ${donoProfError.message}`,
-      },
+      { error: `Erro ao buscar profissional proprietario: ${donoProfError.message}` },
       500,
     );
   }
-  if (!donoProf || donoProf.fk_grupo_empresa !== grupoId) {
+  const { data: grupo } = await service
+    .from('grupo_empresa')
+    .select('id_grupo_empresa, fk_perfil')
+    .eq('id_grupo_empresa', grupoId)
+    .maybeSingle();
+  if (!grupo) {
+    return json({ error: 'Empresa nao encontrada.' }, 404);
+  }
+  const ehDono = (donoProfs ?? []).some((d: any) =>
+    (grupo.fk_perfil != null && Number(d.fk_perfil) === Number(grupo.fk_perfil)) ||
+    Number(d.fk_grupo_empresa) === grupoId);
+  console.log('Proprietario da empresa:', ehDono);
+  if (!ehDono) {
     return json(
       { error: 'Apenas o proprietario da empresa pode criar membros.' },
       403,

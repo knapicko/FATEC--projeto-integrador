@@ -1147,6 +1147,9 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
   }
 
   Future<void> _verificarPromptAvaliacaoCliente() async {
+    // O profissional não avalia o cliente.
+    return;
+    // ignore: dead_code
     if (_avaliouCliente || !mounted) return;
     final authId = _supabase.auth.currentUser?.id ?? 'anon';
     final preferencias = await SharedPreferences.getInstance();
@@ -3572,39 +3575,26 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
       return SizedBox(
         width: double.infinity,
         height: 52,
-        child: _avaliouCliente
-            ? OutlinedButton.icon(
-                onPressed: null,
-                icon: const Icon(Icons.check_circle_outline),
-                label: const Text('Cliente avaliado'),
-              )
-            : FilledButton.icon(
-                onPressed: _avaliandoCliente ? null : _avaliarCliente,
-                icon: _avaliandoCliente
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.star_outline_rounded, size: 20),
-                label: Text(
-                  _avaliandoCliente ? 'Enviando...' : 'Avaliar cliente',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF168A52),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(26),
-                  ),
-                ),
-              ),
+        // O profissional não avalia o cliente: abre a conclusão do serviço.
+        child: FilledButton.icon(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ServicoConcluidoPage(idSolicitacao: _idSolicitacao),
+            ),
+          ),
+          icon: const Icon(Icons.task_alt_rounded, size: 20),
+          label: const Text(
+            'Ver conclusão do serviço',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+          ),
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFF168A52),
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(26),
+            ),
+          ),
+        )
       );
     }
 

@@ -19,9 +19,82 @@ bool _vazio(Object? v) {
 class RequisitosConta {
   RequisitosConta._();
 
+  /// Selo "!" na aba Perfil/Empresa da barra inferior.
+  static final abaPendenteCliente = ValueNotifier<bool>(false);
+  static final abaPendenteProfissional = ValueNotifier<bool>(false);
+  static DateTime? _ultimaCliente;
+  static DateTime? _ultimaProfissional;
+
+  /// Reconfere o que falta (no máximo a cada 15 s, a não ser [forcar]).
+  static Future<void> atualizarAbaPendente({
+    required bool profissional,
+    bool forcar = false,
+  }) async {
+    if (_db.auth.currentUser == null) {
+      abaPendenteCliente.value = false;
+      abaPendenteProfissional.value = false;
+      return;
+    }
+    final agora = DateTime.now();
+    final ultima = profissional ? _ultimaProfissional : _ultimaCliente;
+    if (!forcar &&
+        ultima != null &&
+        agora.difference(ultima) < const Duration(seconds: 15)) {
+      return;
+    }
+    if (profissional) {
+      _ultimaProfissional = agora;
+      final pend = await pendenciasProfissional();
+      abaPendenteProfissional.value = pend.isNotEmpty;
+    } else {
+      _ultimaCliente = agora;
+      abaPendenteCliente.value = !await clienteTemEndereco();
+    }
+  }
+
   // Chaves de pendência do profissional.
   static const disponibilidade = 'disponibilidade';
   static const entrega = 'entrega';
+
+  /// A chave PIX só é obrigatória quando o Pix está entre as formas de
+  /// pagamento aceitas (sem nada salvo, o padrão é Pix).
+  static bool precisaChavePix(Map<String, dynamic>? dados) {
+    final pag =
+        dados?['pagamento_aceito']?.toString().trim().toLowerCase() ?? '';
+    final aceitaPix =
+        pag.isEmpty ||
+        pag == 'null' ||
+        pag.split(',').any((e) => e.trim() == 'pix');
+    return aceitaPix && _vazio(dados?['chave_pix']);
+  }
+
+  /// Métodos de entrega ainda no padrão do cadastro (só "leva e traz"): o
+  /// profissional precisa salvá-los pelo menos uma vez.
+  static Future<bool> entregaNuncaDefinida({
+    int? idGrupo,
+    int? idProfissional,
+  }) async {
+    try {
+      final r = idGrupo != null
+          ? await _db
+                .from('grupo_empresa')
+                .select('metodo_entrega_definido')
+                .eq('id_grupo_empresa', idGrupo)
+                .maybeSingle()
+          : idProfissional == null
+          ? null
+          : await _db
+                .from('dados_profissionais')
+                .select('metodo_entrega_definido')
+                .eq('id_profissional', idProfissional)
+                .maybeSingle();
+      return r != null && r['metodo_entrega_definido'] != true;
+    } catch (_) {
+      // Sem a coluna (docs/sql/v0_7_ajustes.sql): vale só o vazio.
+      return false;
+    }
+  }
+
   static const financeiro = 'financeiro';
   static const enderecos = 'enderecos';
   static const conta = 'conta';
@@ -36,6 +109,45 @@ class RequisitosConta {
         .limit(1)
         .maybeSingle();
     return (u?['id_usuario'] as num?)?.toInt();
+  }
+
+  /// Linha de dados_profissionais da pessoa logada, achada pelo login
+  /// (auth_id) — e não por uma linha de `usuarios` qualquer. Tentativas de
+  /// cadastro repetidas podem deixar mais de uma linha; aqui vale a que tem
+  /// dados de profissional (a independente primeiro). Null se não houver.
+  static Future<Map<String, dynamic>?> dadosProfissionalLogado(
+    String colunas,
+  ) async {
+    final user = _db.auth.currentUser;
+    if (user == null) return null;
+    try {
+      final r = await _db
+          .from('dados_profissionais')
+          .select('$colunas, fk_usuario, usuarios!inner(auth_id)')
+          .eq('usuarios.auth_id', user.id)
+          .order('fk_grupo_empresa', nullsFirst: true)
+          .order('id_profissional')
+          .limit(1);
+      if (r.isNotEmpty) return Map<String, dynamic>.from(r.first);
+      return null;
+    } catch (e) {
+      debugPrint('[requisitos] dados do profissional: $e');
+    }
+    // Sem a relação usuarios <-> dados_profissionais: busca em duas etapas.
+    final us = await _db
+        .from('usuarios')
+        .select('id_usuario')
+        .eq('auth_id', user.id);
+    for (final u in us) {
+      final r = await _db
+          .from('dados_profissionais')
+          .select('$colunas, fk_usuario')
+          .eq('fk_usuario', u['id_usuario'])
+          .order('id_profissional')
+          .limit(1);
+      if (r.isNotEmpty) return Map<String, dynamic>.from(r.first);
+    }
+    return null;
   }
 
   /// O cliente tem pelo menos 1 endereço cadastrado?
@@ -63,18 +175,15 @@ class RequisitosConta {
       final empresa =
           contaEmpresa ??
           BottomNavigationBarProfissional.leituraSincronaContaEmpresa();
-      final idUsuario = await _idUsuario();
-      if (idUsuario == null) return pend;
-      final dp = await _db
-          .from('dados_profissionais')
-          .select(
-            'id_profissional, fk_perfil, fk_grupo_empresa, anos_experiencia, '
-            'chave_pix, metodo_entrega',
-          )
-          .eq('fk_usuario', idUsuario)
-          .limit(1)
-          .maybeSingle();
-      if (dp == null) return pend;
+      final dp = await dadosProfissionalLogado(
+        'id_profissional, fk_perfil, fk_grupo_empresa, anos_experiencia, '
+        'chave_pix, pagamento_aceito, metodo_entrega',
+      );
+      // Não conseguiu ler os dados do profissional: considera tudo pendente
+      // (antes devolvia "nada pendente" e liberava criar serviço).
+      if (dp == null) {
+        return {disponibilidade, entrega, financeiro, enderecos, conta};
+      }
       final idProf = (dp['id_profissional'] as num?)?.toInt();
 
       Map<String, dynamic>? grupo;
@@ -85,7 +194,8 @@ class RequisitosConta {
               : await _db
                     .from('grupo_empresa')
                     .select(
-                      'id_grupo_empresa, chave_pix, metodo_entrega_empresa',
+                      'id_grupo_empresa, chave_pix, pagamento_aceito, '
+                      'metodo_entrega_empresa',
                     )
                     .eq('fk_perfil', dp['fk_perfil'])
                     .limit(1)
@@ -97,7 +207,8 @@ class RequisitosConta {
                   : await _db
                         .from('grupo_empresa')
                         .select(
-                          'id_grupo_empresa, chave_pix, metodo_entrega_empresa',
+                          'id_grupo_empresa, chave_pix, pagamento_aceito, '
+                          'metodo_entrega_empresa',
                         )
                         .eq('id_grupo_empresa', dp['fk_grupo_empresa'])
                         .maybeSingle());
@@ -105,11 +216,17 @@ class RequisitosConta {
       }
       final idGrupo = (grupo?['id_grupo_empresa'] as num?)?.toInt();
 
-      if (_vazio((grupo ?? dp)['chave_pix'])) pend.add(financeiro);
+      if (precisaChavePix(grupo ?? dp)) pend.add(financeiro);
       final metodo = grupo != null
           ? (grupo['metodo_entrega_empresa'] ?? dp['metodo_entrega'])
           : dp['metodo_entrega'];
       if (_vazio(metodo)) pend.add(entrega);
+      if (await entregaNuncaDefinida(
+        idGrupo: idGrupo,
+        idProfissional: idProf,
+      )) {
+        pend.add(entrega);
+      }
 
       try {
         final q = _db
@@ -205,8 +322,10 @@ class RequisitosConta {
     final escolha = await _sheet(
       context,
       icone: Icons.playlist_add_check_rounded,
-      titulo: 'Falta pouco para criar serviços',
-      mensagem: 'Antes de adicionar serviços, defina estes itens da sua conta:',
+      titulo: 'Falta pouco para começar',
+      mensagem:
+          'Para adicionar serviços e usar o Radar, defina estes itens da '
+          'sua conta:',
       itens: falta,
       botao: 'Entendi',
     );

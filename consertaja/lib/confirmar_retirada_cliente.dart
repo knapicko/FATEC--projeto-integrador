@@ -9,6 +9,7 @@ import 'utils/fluxo_solicitacao.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
 import 'widgets/skeletons_telas.dart';
 import 'widgets/codigo_flutuante.dart';
+import 'dart:async';
 
 /// Retirado no Local — etapa 4 → etapa 5.
 ///
@@ -54,15 +55,32 @@ class _ConfirmarRetiradaClientePageState
   String _tituloServico = 'Serviço';
   XFile? _foto;
 
+  Timer? _polling;
+
   @override
   void initState() {
     super.initState();
     CodigoFlutuante.entrarNaTelaDoCodigo();
     _carregar();
+    // Libera o botão assim que o profissional marcar como concluído.
+    _polling = Timer.periodic(const Duration(seconds: 4), (_) async {
+      try {
+        final r = await _supabase
+            .from('solicitacoes')
+            .select('profissional_finalizado_atendimento, fk_status')
+            .eq('id_solicitacao', widget.idSolicitacao)
+            .maybeSingle();
+        final concluiu = r?['profissional_finalizado_atendimento'] == true;
+        if (mounted && concluiu != _profissionalConcluiu) {
+          setState(() => _profissionalConcluiu = concluiu);
+        }
+      } catch (_) {}
+    });
   }
 
   @override
   void dispose() {
+    _polling?.cancel();
     for (final c in _codigo) {
       c.dispose();
     }

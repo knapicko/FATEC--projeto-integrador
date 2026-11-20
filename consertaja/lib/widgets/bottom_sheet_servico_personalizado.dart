@@ -523,20 +523,24 @@ class _BottomSheetServicoPersonalizadoState
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
+                      children: [
                         Text(
-                          'Enviar Serviço Personalizado',
-                          style: TextStyle(
+                          _edicao
+                              ? 'Editar Solicitação'
+                              : 'Enviar Serviço Personalizado',
+                          style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
                             color: _titleDark,
                             letterSpacing: -0.2,
                           ),
                         ),
-                        SizedBox(height: 3),
+                        const SizedBox(height: 3),
                         Text(
-                          'Crie e envie uma proposta direta para este cliente',
-                          style: TextStyle(
+                          _edicao
+                              ? 'Proposta de alteração do pedido em aberto'
+                              : 'Crie e envie uma proposta direta para este cliente',
+                          style: const TextStyle(
                             fontSize: 12.5,
                             fontWeight: FontWeight.w400,
                             color: _textMuted,
@@ -578,6 +582,10 @@ class _BottomSheetServicoPersonalizadoState
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          if (_edicao) ...[
+                            _buildAvisoEdicao(),
+                            const SizedBox(height: 18),
+                          ],
                           // 1. Seção de Serviço Existente (Switch + Seletor)
                           _buildSecaoBaseadoEmServico(),
                           const SizedBox(height: 18),
@@ -625,6 +633,54 @@ class _BottomSheetServicoPersonalizadoState
   // ──────────────────────────────────────────────────────────────────────────
   // Sub-widgets das seções
   // ──────────────────────────────────────────────────────────────────────────
+
+  /// Há uma solicitação ativa e ainda não paga com este cliente: a proposta
+  /// ALTERA esse pedido (não cria outro).
+  bool get _edicao => widget.idSolicitacaoOrigem != null;
+
+  Widget _buildAvisoEdicao() {
+    final codigo = 'OS #${widget.idSolicitacaoOrigem.toString().padLeft(4, '0')}';
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFED7AA)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.edit_note_rounded, color: Color(0xFFEA580C)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFF7C2D12),
+                  height: 1.4,
+                ),
+                children: [
+                  const TextSpan(text: 'Este cliente já tem a solicitação '),
+                  TextSpan(
+                    text: codigo,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const TextSpan(
+                    text:
+                        ' ativa e ainda não paga. Esta é uma proposta de '
+                        'alteração: preço, título, descrição, área, imagem ou '
+                        'método. Quando o cliente aceitar, a solicitação '
+                        'existente é atualizada (nenhum pedido novo é criado).',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildCardDestinatario() {
     final statusOnline = _formatarStatusOnline();
@@ -1691,7 +1747,11 @@ class _BottomSheetServicoPersonalizadoState
                       color: Colors.white,
                     ),
               label: Text(
-                _enviando ? 'Enviando Proposta...' : 'Enviar Serviço no chat',
+                _enviando
+                    ? 'Enviando Proposta...'
+                    : (_edicao
+                          ? 'Enviar alteração no chat'
+                          : 'Enviar Serviço no chat'),
                 style: const TextStyle(
                   fontSize: 14.5,
                   fontWeight: FontWeight.w700,

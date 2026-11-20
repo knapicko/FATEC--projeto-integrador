@@ -9,6 +9,8 @@ import 'utils/bottom_navigation_bar_profissional.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/cor_oficio.dart';
 import 'services/requisitos_conta.dart';
+import 'widgets/aviso_obrigatorio.dart';
+import 'informacoes_servico_profissional.dart';
 
 // ── Helper ──────────────────────────────────────────────────────────────────
 // Cor do ofício: mesma regra do app inteiro (nome `cor` ou hex `cod_cor`).
@@ -62,10 +64,18 @@ class _MeusServicosProfissionalPageState
   String _termoBusca = '';
   String _categoriaAtiva = 'Todos';
 
+  /// Sem endereço os serviços ficam indisponíveis para os clientes.
+  bool _semEndereco = false;
+
   @override
   void initState() {
     super.initState();
     _carregar();
+    RequisitosConta.pendenciasProfissional().then((p) {
+      if (mounted) {
+        setState(() => _semEndereco = p.contains(RequisitosConta.enderecos));
+      }
+    });
   }
 
   @override
@@ -242,7 +252,34 @@ class _MeusServicosProfissionalPageState
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                       itemCount: _servicosFiltrados.length,
                       itemBuilder: (context, index) {
-                        return _buildCardServico(_servicosFiltrados[index]);
+                        final card = _buildCardServico(
+                          _servicosFiltrados[index],
+                        );
+                        if (!_semEndereco) return card;
+                        return Column(
+                          children: [
+                            if (index == 0)
+                              AvisoObrigatorio(
+                                titulo: 'Seus serviços estão indisponíveis',
+                                texto:
+                                    'Adicione um endereço para que os clientes '
+                                    'possam pedir seus serviços.',
+                                margem: const EdgeInsets.only(bottom: 14),
+                              ),
+                            Opacity(
+                              opacity: 0.45,
+                              child: ColorFiltered(
+                                colorFilter: const ColorFilter.matrix(<double>[
+                                  0.2126, 0.7152, 0.0722, 0, 0, //
+                                  0.2126, 0.7152, 0.0722, 0, 0, //
+                                  0.2126, 0.7152, 0.0722, 0, 0, //
+                                  0, 0, 0, 1, 0, //
+                                ]),
+                                child: card,
+                              ),
+                            ),
+                          ],
+                        );
                       },
                       separatorBuilder: (context, index) {
                         final atual = _servicosFiltrados[index];
@@ -364,200 +401,214 @@ class _MeusServicosProfissionalPageState
         ? 'Sob consulta'
         : 'A partir de R\$ ${s.valor.toStringAsFixed(2).replaceAll('.', ',')}';
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.07),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Área de imagem ───────────────────────────────────────────
-          ClipRRect(
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(16),
-              topRight: Radius.circular(16),
+    // Toque no card (fora do lápis): como o cliente vê o serviço.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _abrirInformacoes(s),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.07),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
-            child: Stack(
-              children: [
-                // Imagem
-                AspectRatio(
-                  aspectRatio: 16 / 9,
-                  child: s.imagemUrl != null && s.imagemUrl!.isNotEmpty
-                      ? Image.network(
-                          s.imagemUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (ctx, e, st) => _placeholderImagem(),
-                        )
-                      : _placeholderImagem(),
-                ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Área de imagem ───────────────────────────────────────────
+            ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+              child: Stack(
+                children: [
+                  // Imagem
+                  AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: s.imagemUrl != null && s.imagemUrl!.isNotEmpty
+                        ? Image.network(
+                            s.imagemUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (ctx, e, st) => _placeholderImagem(),
+                          )
+                        : _placeholderImagem(),
+                  ),
 
-                // Tag de categoria (canto inferior esquerdo)
-                Positioned(
-                  bottom: 10,
-                  left: 10,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: tagColor.withValues(alpha: 0.92),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      (s.funcao ?? 'SERVIÇO').toUpperCase(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.5,
+                  // Tag de categoria (canto inferior esquerdo)
+                  Positioned(
+                    bottom: 10,
+                    left: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: tagColor.withValues(alpha: 0.92),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        (s.funcao ?? 'SERVIÇO').toUpperCase(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ),
                   ),
-                ),
 
-                // Tag de avaliação (canto inferior direito)
-                Positioned(
-                  bottom: 10,
-                  right: 10,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 5,
+                  // Tag de avaliação (canto inferior direito)
+                  Positioned(
+                    bottom: 10,
+                    right: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.star_rounded,
+                            color: Color(0xFFFACC15),
+                            size: 14,
+                          ),
+                          SizedBox(width: 3),
+                          Text(
+                            'Novo',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.45),
-                      borderRadius: BorderRadius.circular(6),
+                  ),
+                ],
+              ),
+            ),
+
+            // ── Corpo do card ────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Título
+                  Text(
+                    s.titulo,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1D2A39),
                     ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  // Descrição
+                  Text(
+                    s.descricao,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF7B8393),
+                      height: 1.4,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+
+            // Divisor sutil
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Divider(height: 1, thickness: 1, color: Color(0xFFF0F2F5)),
+            ),
+
+            // ── Rodapé do card ───────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 10, 12),
+              child: Row(
+                children: [
+                  // Valor
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(
-                          Icons.star_rounded,
-                          color: Color(0xFFFACC15),
-                          size: 14,
-                        ),
-                        SizedBox(width: 3),
-                        Text(
-                          'Novo',
+                        const Text(
+                          'VALOR',
                           style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
+                            fontSize: 10,
                             fontWeight: FontWeight.w600,
+                            color: Color(0xFF9AA4B2),
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          valorTexto,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: _blue,
                           ),
                         ),
                       ],
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
 
-          // ── Corpo do card ────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Título
-                Text(
-                  s.titulo,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF1D2A39),
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                // Descrição
-                Text(
-                  s.descricao,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF7B8393),
-                    height: 1.4,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-
-          // Divisor sutil
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            child: Divider(height: 1, thickness: 1, color: Color(0xFFF0F2F5)),
-          ),
-
-          // ── Rodapé do card ───────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 0, 10, 12),
-            child: Row(
-              children: [
-                // Valor
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'VALOR',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF9AA4B2),
-                          letterSpacing: 0.8,
-                        ),
+                  // Botão de editar
+                  GestureDetector(
+                    onTap: () => _abrirTelaServico(servicoParaEditar: s),
+                    child: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: _blue, width: 1.5),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        valorTexto,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: _blue,
-                        ),
+                      child: const Icon(
+                        Icons.edit_rounded,
+                        color: _blue,
+                        size: 17,
                       ),
-                    ],
-                  ),
-                ),
-
-                // Botão de editar
-                GestureDetector(
-                  onTap: () => _abrirTelaServico(servicoParaEditar: s),
-                  child: Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: _blue, width: 1.5),
-                    ),
-                    child: const Icon(
-                      Icons.edit_rounded,
-                      color: _blue,
-                      size: 17,
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _abrirInformacoes(ServicoProfissional s) async {
+    final mudou = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => InformacoesServicoProfissionalPage(idServico: s.id),
+      ),
+    );
+    if (mudou == true) _carregar();
   }
 
   // ── Estado vazio ─────────────────────────────────────────────────────────

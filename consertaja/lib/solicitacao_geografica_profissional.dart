@@ -22,6 +22,7 @@ import 'utils/iniciais.dart';
 import 'widgets/camada_mapa.dart';
 import 'widgets/sonar_pulso.dart';
 import 'widgets/skeletons_telas.dart';
+import 'services/requisitos_conta.dart';
 
 enum _Aba { proximas, aceitas }
 
@@ -122,6 +123,12 @@ class _SolicitacaoGeograficaProfissionalPageState
   @override
   void initState() {
     super.initState();
+    // Radar só com endereço, métodos de entrega, PIX e disponibilidade.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (widget.isVisitante || !mounted) return;
+      final ok = await RequisitosConta.garantirProntoParaServicos(context);
+      if (!ok && mounted) Navigator.of(context).maybePop();
+    });
     _carregar();
     // Mantém o status das aceitas em dia (pagamento, andamento...).
     _atualizacao = Timer.periodic(

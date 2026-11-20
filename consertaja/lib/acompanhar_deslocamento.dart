@@ -21,6 +21,7 @@ import 'utils/funcao_servico.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
 import 'widgets/codigo_flutuante.dart';
 import 'services/stripe_pagamento_service.dart';
+import 'dart:math' show sin;
 
 class AcompanharDeslocamentoPage extends StatefulWidget {
   final int idSolicitacao;
@@ -33,7 +34,7 @@ class AcompanharDeslocamentoPage extends StatefulWidget {
 }
 
 class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
-    with SingleTickerProviderStateMixin, VoltarParaPedidosMixin {
+    with TickerProviderStateMixin, VoltarParaPedidosMixin {
   /// Voltar (botão ou sistema) leva para meus_pedidos.dart.
   @override
   bool get voltarComoProfissional => false;
@@ -80,6 +81,14 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
   );
   final List<XFile?> _fotosDevolucao = [null, null];
   bool _codigoDevolucaoValido = false;
+
+  /// null = digitando; true = certo (verde); false = errado (vermelho e
+  /// treme) — igual à tela de devolução do profissional.
+  bool? _estadoCodigo;
+  late final AnimationController _tremor = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 420),
+  );
   bool _confirmandoDevolucao = false;
 
   /// O profissional já marcou que concluiu a entrega? Só então o cliente
@@ -195,6 +204,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
       supabase.removeChannel(_canalRealtimeSolicitacao!);
     }
     CodigoFlutuante.sairDaTelaDoCodigo();
+    _tremor.dispose();
     super.dispose();
   }
 
@@ -525,6 +535,11 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                     _etapaSolicitacao;
                 final cod = newRec['codigo_rec_dev']?.toString().trim();
                 if (cod != null && cod.isNotEmpty) _codigoRecDev = cod;
+                // Profissional concluiu: o botão de confirmar libera na hora.
+                if (newRec.containsKey('profissional_finalizado_atendimento')) {
+                  _profissionalConcluiu =
+                      newRec['profissional_finalizado_atendimento'] == true;
+                }
                 final st = (newRec['fk_status'] as num?)?.toInt();
                 if (st != null && mounted) {
                   setState(() {
@@ -686,44 +701,51 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
           children: [
             _buildHeader(),
             Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 4),
-                      _buildPillGpsStatusBar(),
-                      const SizedBox(height: 10),
-                      if (_profissionalNoLocal) ...[
-                        _buildAvisoProfissionalChegou(),
-                      ] else ...[
-                        _buildCardPrevisaoChegada(),
+              // Arrastar para baixo recarrega (inclusive na devolução).
+              child: RefreshIndicator(
+                color: azul,
+                onRefresh: _carregarDadosIniciais,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics(),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 4),
+                        _buildPillGpsStatusBar(),
+                        const SizedBox(height: 10),
+                        if (_profissionalNoLocal) ...[
+                          _buildAvisoProfissionalChegou(),
+                        ] else ...[
+                          _buildCardPrevisaoChegada(),
+                        ],
+                        const SizedBox(height: 12),
+                        _buildTimelineProgresso(),
+                        const SizedBox(height: 14),
+                        _buildAreaMapa(),
+                        const SizedBox(height: 14),
+                        _buildCardInfoProfissional(),
+                        const SizedBox(height: 14),
+                        _devolucaoNoLocal
+                            ? Column(
+                                children: [
+                                  _buildCardCodigoDevolucao(),
+                                  const SizedBox(height: 14),
+                                  _buildCardFotosDevolucao(),
+                                  const SizedBox(height: 14),
+                                  _buildBotaoConfirmarDevolucao(),
+                                ],
+                              )
+                            : _buildCardCodigoConfirmacao(),
+                        const SizedBox(height: 14),
+                        _buildCardInfoServico(),
+                        const SizedBox(height: 14),
+                        _buildRodapeSuporte(),
+                        const SizedBox(height: 20),
                       ],
-                      const SizedBox(height: 12),
-                      _buildTimelineProgresso(),
-                      const SizedBox(height: 14),
-                      _buildAreaMapa(),
-                      const SizedBox(height: 14),
-                      _buildCardInfoProfissional(),
-                      const SizedBox(height: 14),
-                      _devolucaoNoLocal
-                          ? Column(
-                              children: [
-                                _buildCardCodigoDevolucao(),
-                                const SizedBox(height: 14),
-                                _buildCardFotosDevolucao(),
-                                const SizedBox(height: 14),
-                                _buildBotaoConfirmarDevolucao(),
-                              ],
-                            )
-                          : _buildCardCodigoConfirmacao(),
-                      const SizedBox(height: 14),
-                      _buildCardInfoServico(),
-                      const SizedBox(height: 14),
-                      _buildRodapeSuporte(),
-                      const SizedBox(height: 20),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -1870,14 +1892,44 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
             ),
           ),
           const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(4, (index) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 5),
-                child: SizedBox(
-                  width: 52,
+          // Mesmo campo da tela de devolução do profissional: azul ao
+          // digitar, verde se certo, vermelho e tremendo se errado.
+          AnimatedBuilder(
+            animation: _tremor,
+            builder: (context, child) => Transform.translate(
+              offset: Offset(
+                _estadoCodigo == false ? sin(_tremor.value * pi * 4) * 8 : 0,
+                0,
+              ),
+              child: child,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(4, (index) {
+                final preenchido = _codigoControllers[index].text.isNotEmpty;
+                final Color fundo = _estadoCodigo == true
+                    ? const Color(0xFF16A34A)
+                    : _estadoCodigo == false
+                    ? const Color(0xFFDC2626)
+                    : (preenchido ? azul : Colors.white);
+                final Color borda = _estadoCodigo == true
+                    ? const Color(0xFF16A34A)
+                    : _estadoCodigo == false
+                    ? const Color(0xFFDC2626)
+                    : azul;
+                final Color letra = _estadoCodigo != null || preenchido
+                    ? Colors.white
+                    : escuro;
+                return Container(
+                  width: 58,
                   height: 58,
+                  margin: const EdgeInsets.symmetric(horizontal: 5),
+                  decoration: BoxDecoration(
+                    color: fundo,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: borda, width: 2),
+                  ),
+                  alignment: Alignment.center,
                   child: TextField(
                     controller: _codigoControllers[index],
                     focusNode: _codigoFocusNodes[index],
@@ -1885,40 +1937,36 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                     keyboardType: TextInputType.number,
                     maxLength: 1,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w900,
-                      color: azul,
+                      color: letra,
                     ),
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
                       counterText: '',
-                      filled: true,
-                      fillColor: const Color(0xFFE0F2FE),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(
-                          color: Color(0xFFBAE6FD),
-                          width: 1.5,
-                        ),
-                      ),
+                      contentPadding: EdgeInsets.zero,
                     ),
                     onChanged: (value) {
-                      if (value.isNotEmpty && index < 3) {
-                        _codigoFocusNodes[index + 1].requestFocus();
-                      }
-                      final preenchido = _codigoControllers.every(
-                        (controller) => controller.text.length == 1,
-                      );
-                      if (!preenchido && _codigoDevolucaoValido) {
-                        setState(() => _codigoDevolucaoValido = false);
-                      } else if (preenchido) {
-                        _validarCodigoDevolucao();
+                      setState(() {
+                        _estadoCodigo = null;
+                        _codigoDevolucaoValido = false;
+                      });
+                      if (value.isNotEmpty) {
+                        if (index < 3) {
+                          _codigoFocusNodes[index + 1].requestFocus();
+                        } else {
+                          _codigoFocusNodes[index].unfocus();
+                          _validarCodigoDevolucao();
+                        }
+                      } else if (index > 0) {
+                        _codigoFocusNodes[index - 1].requestFocus();
                       }
                     },
                   ),
-                ),
-              );
-            }),
+                );
+              }),
+            ),
           ),
         ],
       ),
@@ -1931,24 +1979,16 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
         .join();
     if (codigo.length != 4) return;
     final correto = codigo == _codigoRecDev;
-    if (mounted) {
-      setState(() => _codigoDevolucaoValido = correto);
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          correto
-              ? 'Código da devolução conferido.'
-              : 'Código incorreto. Confira os 4 dígitos.',
-        ),
-        backgroundColor: correto ? Colors.green : Colors.red,
-      ),
-    );
-    if (!correto && mounted) {
-      for (final controller in _codigoControllers) {
-        controller.clear();
-      }
-      _codigoFocusNodes.first.requestFocus();
+    if (!mounted) return;
+    setState(() {
+      _codigoDevolucaoValido = correto;
+      _estadoCodigo = correto;
+    });
+    if (correto) {
+      HapticFeedback.lightImpact();
+    } else {
+      _tremor.forward(from: 0);
+      HapticFeedback.heavyImpact();
     }
   }
 

@@ -121,6 +121,12 @@ class _SolicitacaoGeograficaClientePageState
   @override
   void initState() {
     super.initState();
+    // Radar só com endereço cadastrado.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (widget.isVisitante || !mounted) return;
+      final ok = await RequisitosConta.garantirEnderecoCliente(context);
+      if (!ok && mounted) Navigator.of(context).maybePop();
+    });
     _descricao.addListener(() => setState(() {}));
     // Redesenha a cada letra: o botão "Enviar" libera/bloqueia na hora.
     _titulo.addListener(() {

@@ -38,6 +38,8 @@ import 'tela_home.dart';
 import 'utils/funcao_servico.dart';
 import 'widgets/check_animado.dart';
 import 'widgets/dialogo_sheet.dart';
+import 'services/ocr_documento.dart';
+import 'services/conclusao_cadastro_profissional.dart';
 
 // ================= TELA 01: CADASTRO DO PROFISSIONAL (ETAPA 1) =================
 class CadastroProfissionalPage extends StatefulWidget {
@@ -1870,6 +1872,17 @@ class _CadastroProfissionalEtapa3PageState
       );
       return;
     }
+    // Facial ANTES de criar qualquer coisa (antes a checagem vinha depois de
+    // criar a conta e os registros: o cadastro ficava pela metade e a nova
+    // tentativa falhava com "e-mail já cadastrado").
+    if (_idFacial == null || _idFacial!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Faça o cadastro facial antes de finalizar.'),
+        ),
+      );
+      return;
+    }
     setState(() => _carregando = true);
     final supabase = Supabase.instance.client;
 
@@ -1958,7 +1971,7 @@ class _CadastroProfissionalEtapa3PageState
         assTipoPessoaId = assResponse['id_tipo_pessoa'];
       }
 
-      final usuarioResponse = await supabase
+      await supabase
           .from('usuarios')
           .insert({
             'nome': widget.nome,
@@ -1977,64 +1990,19 @@ class _CadastroProfissionalEtapa3PageState
           })
           .select()
           .single();
-      final usuarioId = usuarioResponse['id_usuario'];
+      // Dados do profissional, ofícios e documentos pelo servidor (gravar
+      // direto em dados_profissionais é recusado pela RLS).
+      await ConclusaoCadastroProfissional.concluir(
+        authId: authId,
+        idFacial: _idFacial,
+        funcoes: [...widget.oficiosSelecionados],
+        documentos: [
+          for (final d in _documentosValidados)
+            if (d['tipo'] != null) d['tipo'].toString(),
+        ],
+      );
 
-      if (_idFacial == null || _idFacial!.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Faça o cadastro facial antes de finalizar.'),
-            ),
-          );
-        }
-        setState(() => _carregando = false);
-        return;
-      }
-
-      final dadosProfResponse = await supabase
-          .from('dados_profissionais')
-          .insert({
-            'fk_usuario': usuarioId,
-            'id_facial': _idFacial,
-            'rosto_validado': true,
-            'data_admissao': DateTime.now().toIso8601String().split('T').first,
-          })
-          .select()
-          .single();
-
-      final profissionalIdCorreto = dadosProfResponse['id_profissional'];
-
-      // Salvar associações de ofícios selecionados (se houver)
-      if (widget.oficiosSelecionados.isNotEmpty) {
-        for (final oficioId in widget.oficiosSelecionados) {
-          try {
-            final res = await supabase
-                .from('ass_oficio_profissional')
-                .insert({
-                  'fk_profissional': profissionalIdCorreto,
-                  'fk_funcao': oficioId,
-                })
-                .select()
-                .maybeSingle();
-            debugPrint('ass_oficio_profissional insert res: $res');
-          } catch (e) {
-            debugPrint(
-              'Falha ao inserir ass_oficio_profissional (oficio $oficioId): $e',
-            );
-          }
-        }
-      }
-
-      // Salvar TODOS os documentos validados no banco
-      for (final doc in _documentosValidados) {
-        final insertData = <String, dynamic>{
-          'tipo_documento': doc['tipo'],
-          'fk_profissional': profissionalIdCorreto,
-          'validacao_documento': true,
-        };
-        await supabase.from('documentos_profissionais').insert(insertData);
-      }
-
+      if (mounted) setState(() => _carregando = false);
       if (mounted) {
         if (precisaConfirmarEmail) {
           // "Confirmar e-mail" está ativo no Supabase: o usuário já foi criado no
@@ -3952,20 +3920,8 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
 
   /// Processa OCR da imagem usando Google ML Kit
   Future<String> _processarOcr(File file) async {
-    try {
-      final inputImage = InputImage.fromFile(file);
-      final textRecognizer = TextRecognizer(
-        script: TextRecognitionScript.latin,
-      );
-      final RecognizedText recognizedText = await textRecognizer.processImage(
-        inputImage,
-      );
-      await textRecognizer.close();
-      return recognizedText.text;
-    } catch (e) {
-      debugPrint('Erro no OCR: $e');
-      return '';
-    }
+    // Foto original + versão tratada (cinza, contraste, ampliada).
+    return OcrDocumento.lerTexto(file);
   }
 
   @override
@@ -4537,6 +4493,23 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
   Future<void> _validarDocumento(_DocType doc, String texto) async {
     final erros = <String>[];
     bool valido = true;
+
+    // Conferência tolerante: se o número informado aparece no texto (com as
+    // trocas comuns do OCR ou 1 dígito lido errado), ele é colocado no
+    // início do texto para os extratores abaixo o encontrarem primeiro.
+    final esperadoCnpj = widget.cnpj == null
+        ? ''
+        : _somenteDigitos(widget.cnpj!);
+    final esperadoCpf = widget.cpf == null ? '' : _somenteDigitos(widget.cpf!);
+    if (widget.isPessoaJuridica &&
+        esperadoCnpj.length == 14 &&
+        OcrDocumento.contemNumero(texto, esperadoCnpj)) {
+      texto = 'CNPJ: ${OcrDocumento.formatarCnpj(esperadoCnpj)}\n$texto';
+    } else if (!widget.isPessoaJuridica &&
+        esperadoCpf.length == 11 &&
+        OcrDocumento.contemNumero(texto, esperadoCpf)) {
+      texto = 'CPF: ${OcrDocumento.formatarCpf(esperadoCpf)}\n$texto';
+    }
 
     if (widget.isPessoaJuridica) {
       // Validação para documentos de Pessoa Jurídica

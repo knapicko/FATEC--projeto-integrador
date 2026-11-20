@@ -9,6 +9,8 @@ import 'services/notificacoes/notificacao_repositorio.dart';
 import 'services/notificacoes/notificacao_service.dart';
 import 'services/notificacoes/notificacao_tipos.dart';
 import 'widgets/skeletons_telas.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'utils/bottom_navigation_bar_profissional.dart';
 
 enum _Filtro { todas, novas, vistas, conta, pedidos, mensagens, radar }
 
@@ -42,7 +44,12 @@ class MinhasNotificacoesPage extends StatefulWidget {
     super.key,
     this.totalConvites = 0,
     this.aoAbrirConvites,
+    this.soDaContaProfissionalAtiva = false,
   });
+
+  /// Profissional: esconde as notificações da OUTRA conta (independente x
+  /// loja). As gerais (ConsertaJá) e as de cliente continuam aparecendo.
+  final bool soDaContaProfissionalAtiva;
 
   /// Profissional: convites de empresa pendentes (aparecem num card no topo).
   final int totalConvites;
@@ -97,7 +104,10 @@ class _MinhasNotificacoesPageState extends State<MinhasNotificacoesPage> {
 
   Future<void> _carregar() async {
     try {
-      final lista = await NotificacaoRepositorio.listar();
+      var lista = await NotificacaoRepositorio.listar();
+      if (widget.soDaContaProfissionalAtiva) {
+        lista = await _daContaAtiva(lista);
+      }
       if (!mounted) return;
       setState(() {
         _todas = lista;
@@ -111,6 +121,47 @@ class _MinhasNotificacoesPageState extends State<MinhasNotificacoesPage> {
         _erro = 'Não foi possível carregar as notificações.';
       });
     }
+  }
+
+  /// Mantém só as notificações da conta profissional ativa.
+  Future<List<NotificacaoApp>> _daContaAtiva(List<NotificacaoApp> lista) async {
+    final empresa =
+        await BottomNavigationBarProfissional.precarregarContaEmpresa();
+    // Solicitação -> é de loja? (fk_grupo_empresa preenchido)
+    final idsSol = {
+      for (final n in lista)
+        if (n.papel != 'cliente' && n.fkSolicitacao != null) n.fkSolicitacao!,
+    };
+    final solDeLoja = <int, bool>{};
+    if (idsSol.isNotEmpty) {
+      try {
+        final rows = await Supabase.instance.client
+            .from('solicitacoes')
+            .select('id_solicitacao, fk_grupo_empresa')
+            .inFilter('id_solicitacao', idsSol.toList());
+        for (final r in rows) {
+          solDeLoja[(r['id_solicitacao'] as num).toInt()] =
+              r['fk_grupo_empresa'] != null;
+        }
+      } catch (_) {}
+    }
+    bool? deLoja(NotificacaoApp n) {
+      // Notificação do lado cliente: não é de nenhuma conta profissional.
+      if (n.papel == 'cliente') return null;
+      final perfil = n.dados['perfil']?.toString();
+      if (perfil == 'empresa') return true;
+      if (perfil == 'profissional' || perfil == 'independente') return false;
+      if (n.dados.containsKey('id_grupo_empresa')) {
+        return n.dados['id_grupo_empresa'] != null;
+      }
+      if (n.fkSolicitacao != null) return solDeLoja[n.fkSolicitacao!];
+      return null; // gerais (ConsertaJá, Global...)
+    }
+
+    return [
+      for (final n in lista)
+        if (deLoja(n) == null || deLoja(n) == empresa) n,
+    ];
   }
 
   List<NotificacaoApp> get _visiveis {
@@ -699,17 +750,92 @@ class _MinhasNotificacoesPageState extends State<MinhasNotificacoesPage> {
           else ...[
             if (naoLidas.isNotEmpty) ...[
               _secao('Não lidas', naoLidas.length),
-              for (final n in naoLidas) _item(n),
+              ..._porData(naoLidas),
             ],
             if (lidas.isNotEmpty) ...[
               _secao(naoLidas.isEmpty ? 'Notificações' : 'Anteriores', null),
-              for (final n in lidas) _item(n),
+              ..._porData(lidas),
             ],
           ],
         ],
       ),
     );
   }
+
+  /// Itens com uma divisória a cada dia (Hoje, Ontem, dia da semana ou data).
+  List<Widget> _porData(List<NotificacaoApp> lista) {
+    final out = <Widget>[];
+    String? ultimo;
+    for (final n in lista) {
+      final rotulo = _rotuloDia(n.dataCriacao);
+      if (rotulo != ultimo) {
+        out.add(_divisorData(rotulo));
+        ultimo = rotulo;
+      }
+      out.add(_item(n));
+    }
+    return out;
+  }
+
+  String _rotuloDia(DateTime data) {
+    const semana = [
+      'Segunda-feira',
+      'Terça-feira',
+      'Quarta-feira',
+      'Quinta-feira',
+      'Sexta-feira',
+      'Sábado',
+      'Domingo',
+    ];
+    const meses = [
+      'jan',
+      'fev',
+      'mar',
+      'abr',
+      'mai',
+      'jun',
+      'jul',
+      'ago',
+      'set',
+      'out',
+      'nov',
+      'dez',
+    ];
+    final d = data.toLocal();
+    final hoje = DateTime.now();
+    final dia = DateTime(d.year, d.month, d.day);
+    final diff = DateTime(
+      hoje.year,
+      hoje.month,
+      hoje.day,
+    ).difference(dia).inDays;
+    if (diff == 0) return 'Hoje';
+    if (diff == 1) return 'Ontem';
+    if (diff < 7 && diff > 1) return semana[d.weekday - 1];
+    final ano = d.year == hoje.year ? '' : ' de ${d.year}';
+    return '${d.day} de ${meses[d.month - 1]}$ano';
+  }
+
+  Widget _divisorData(String rotulo) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+    child: Row(
+      children: [
+        const Expanded(child: Divider(color: Color(0xFFE2E8F0))),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Text(
+            rotulo,
+            style: const TextStyle(
+              color: Color(0xFF64748B),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const Expanded(child: Divider(color: Color(0xFFE2E8F0))),
+      ],
+    ),
+  );
 
   Widget _cardConvites() {
     final n = widget.totalConvites;
