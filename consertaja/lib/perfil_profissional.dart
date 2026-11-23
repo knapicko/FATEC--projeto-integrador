@@ -2876,7 +2876,10 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage>
               oficioPrincipal: _oficios.isNotEmpty
                   ? _oficios.first.funcao
                   : widget.profissao,
-              idProfissional: _idProfissional,
+              // Profissional de empresa: a conversa é com a empresa (conta
+              // única no chat), igual à tela de serviço e às avaliações.
+              idProfissional: _idGrupoEmpresa == null ? _idProfissional : null,
+              idGrupoEmpresa: _idGrupoEmpresa,
             ),
           ),
         );
