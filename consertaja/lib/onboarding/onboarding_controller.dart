@@ -12,9 +12,10 @@ import '../services/validacao_senha.dart';
 import '../services/validacao_telefone.dart';
 import '../services/google_auth_service.dart';
 import '../services/auth_navigation.dart';
-import '../cadastro_profissional.dart';
 import '../completar_cadastro.dart';
-import '../login.dart';
+import '../services/app_settings_controller.dart';
+import '../services/biometria_service.dart';
+import '../tela_inicial.dart' show abrirEntradaVisitante;
 import '../tela_home.dart';
 import '../tela_home_profissional.dart';
 import 'onboarding_step.dart';
@@ -689,13 +690,60 @@ class OnboardingController extends ChangeNotifier {
     await _transicionar(OnboardingStep.documentInput, empilhar: false);
   }
 
-  Future<ResultadoLogin> entrar([BuildContext? context]) async {
+  /// Login por biometria guardado neste celular (Configurações → Segurança):
+  /// libera o cofre do aparelho e entra com a conta guardada.
+  Future<bool> entrarComBiometria(BuildContext context) async {
+    final ok = await BiometriaService.autenticar(
+      'Use a biometria para entrar no ConsertaJá',
+    );
+    if (!ok) return true;
+    final credenciais = await BiometriaService.credenciais();
+    if (credenciais == null) return false;
+    identificadorLogin.text = credenciais.$1;
+    senhaLogin.text = credenciais.$2;
+    if (!context.mounted) return true;
+    final r = await entrar(context, true);
+    return r.sucesso;
+  }
+
+  /// Depois de entrar com senha: mantém o cofre da biometria em dia. Se esta
+  /// conta tem a biometria ligada, guarda a senha atual; se outra conta
+  /// entrou, a biometria deixa de valer (ela entra na última conta).
+  Future<void> _atualizarBiometria() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+    try {
+      await AppSettingsController.instance.recarregar();
+      final guardada = await BiometriaService.contaGuardada();
+      if (AppSettingsController.instance.biometriaAtiva) {
+        await BiometriaService.salvar(
+          identificador: identificadorLogin.text.trim(),
+          senha: senhaLogin.text,
+          authId: user.id,
+          nome: await BiometriaService.nomeGuardado(),
+        );
+      } else if (guardada != null && guardada != user.id) {
+        await BiometriaService.apagar();
+      }
+    } catch (_) {}
+  }
+
+  Future<ResultadoLogin> entrar([
+    BuildContext? context,
+    bool viaBiometria = false,
+  ]) async {
     carregando = true;
     notifyListeners();
     final result = await _service.fazerLogin(
       identificador: identificadorLogin.text,
       senha: senhaLogin.text,
     );
+    if (result.sucesso && !viaBiometria) await _atualizarBiometria();
+    if (!result.sucesso && viaBiometria) {
+      // Senha mudou: a biometria precisa ser ativada de novo.
+      await BiometriaService.apagar();
+      senhaLogin.clear();
+    }
     carregando = false;
     if (!result.sucesso) {
       erroCampo = result.mensagem;
@@ -1082,12 +1130,18 @@ class OnboardingController extends ChangeNotifier {
         await limparRascunho();
       } catch (_) {}
       if (precisaConfirmarEmail) {
-        _irPara(
-          const LoginPage(),
-          aviso:
-              'Quase lá! Enviamos um link de confirmação para o seu e-mail. '
-              'Clique nele para ativar sua conta e depois faça login.',
-        );
+        final ctx = navigatorKey.currentContext;
+        if (ctx != null && ctx.mounted) {
+          abrirEntradaVisitante(ctx, login: true);
+          ScaffoldMessenger.maybeOf(ctx)?.showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Quase lá! Enviamos um link de confirmação para o seu e-mail. '
+                'Clique nele para ativar sua conta e depois faça login.',
+              ),
+            ),
+          );
+        }
       } else {
         _irPara(TelaHomeProfissional(isVisitante: false));
       }
@@ -1114,24 +1168,6 @@ class OnboardingController extends ChangeNotifier {
         );
       }
     }
-  }
-
-  void navegarParaProfissional(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => CadastroProfissionalPage(
-          cpf: isCpf ? documento.text : null,
-          cnpj: isCnpj
-              ? (cnpj.text.isEmpty ? documento.text : cnpj.text)
-              : null,
-          nome: isCpf ? nome.text : null,
-          razaoSocial: isCnpj ? razaoSocial.text : null,
-          isPessoaFisica: isCpf,
-          cnpjDeEmpresa: cnpjDeEmpresa,
-        ),
-      ),
-    );
   }
 
   Future<void> continuarCadastro() => _transicionar(OnboardingStep.perfect);

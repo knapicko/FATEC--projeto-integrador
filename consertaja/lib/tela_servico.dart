@@ -840,7 +840,12 @@ class _TelaServicoState extends State<TelaServico>
                                 nomeProfissional: nomePrestador,
                                 fotoProfissional: detalhe.fotoPrestador ?? '',
                                 oficioPrincipal: categoria ?? '',
-                                idProfissional: detalhe.idProfissional,
+                                // Serviço de empresa: a conversa é com a
+                                // empresa (conta única), não com quem postou.
+                                idProfissional: detalhe.idGrupoEmpresa == null
+                                    ? detalhe.idProfissional
+                                    : null,
+                                idGrupoEmpresa: detalhe.idGrupoEmpresa,
                               ),
                             ),
                           );

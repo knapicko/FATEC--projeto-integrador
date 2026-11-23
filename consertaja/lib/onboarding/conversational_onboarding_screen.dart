@@ -8,8 +8,9 @@ import 'onboarding_controller.dart';
 import 'onboarding_step.dart';
 import 'onboarding_theme.dart';
 import 'onboarding_widgets.dart';
-import '../cadastro_profissional.dart';
+import '../verificacao_cadastro.dart';
 import '../esqueci_senha.dart';
+import '../services/biometria_service.dart';
 import '../services/google_auth_service.dart';
 import '../utils/app_navigation_util.dart';
 import '../services/auth_navigation.dart';
@@ -43,6 +44,10 @@ class _ConversationalOnboardingScreenState
   bool _confirmarSenhaOculta = true;
   bool _senhaLoginOculta = true;
 
+  /// Login por biometria guardado neste celular (Configurações → Segurança).
+  bool _temBiometria = false;
+  String? _nomeBiometria;
+
   @override
   void initState() {
     super.initState();
@@ -54,6 +59,7 @@ class _ConversationalOnboardingScreenState
     } else {
       _controller.ensureStarted();
     }
+    _verificarBiometria();
     // Atualiza os requisitos de senha AO VIVO enquanto o usuário digita.
     _controller.senha.addListener(_atualizarRequisitosSenha);
   }
@@ -81,6 +87,27 @@ class _ConversationalOnboardingScreenState
       if (mounted) await mostrarErroGoogle(context, erro);
     } finally {
       if (mounted) setState(() => _entrandoComGoogle = false);
+    }
+  }
+
+  Future<void> _verificarBiometria() async {
+    final conta = await BiometriaService.contaGuardada();
+    if (conta == null) return;
+    final credenciais = await BiometriaService.credenciais();
+    final disponivel = await BiometriaService.disponivel();
+    final nome = await BiometriaService.nomeGuardado();
+    if (!mounted) return;
+    setState(() {
+      _temBiometria = credenciais != null && disponivel;
+      _nomeBiometria = (nome == null || nome.isEmpty) ? null : nome;
+    });
+  }
+
+  Future<void> _entrarComBiometria() async {
+    final entrou = await _controller.entrarComBiometria(context);
+    if (!entrou && mounted) {
+      // Cofre vazio ou senha trocada: a biometria precisa ser ativada de novo.
+      setState(() => _temBiometria = false);
     }
   }
 
@@ -1003,6 +1030,36 @@ class _ConversationalOnboardingScreenState
                 ),
               ),
             ),
+            if (_temBiometria)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _controller.carregando
+                        ? null
+                        : _entrarComBiometria,
+                    icon: const Icon(Icons.fingerprint_rounded, size: 24),
+                    label: Text(
+                      _nomeBiometria == null
+                          ? 'Entrar com biometria'
+                          : 'Entrar como $_nomeBiometria',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.white, width: 1.6),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             if (_controller.erroCampo != null)
               Padding(
                 padding: const EdgeInsets.only(top: 4, bottom: 8),

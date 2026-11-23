@@ -23,7 +23,7 @@ import 'widgets/imagem_app.dart';
 
 // Reaproveita as telas de documento/facial que já existem no fluxo normal
 // do profissional (não duplicamos essa lógica).
-import 'cadastro_profissional.dart'
+import 'verificacao_cadastro.dart'
     show CadastroFacialInstrucoesPage, ValidacaoDocsPage;
 
 // =========================================================================

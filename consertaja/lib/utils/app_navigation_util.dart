@@ -64,11 +64,7 @@ class AppNavigationUtil {
   /// Nomes conhecidos de rotas de autenticação/saída da conta conectada.
   static const Set<String> _authRouteNames = {
     'TelaInicial',
-    'TelaEscolhaConta',
     'ConversationalOnboardingScreen',
-    'LoginPage',
-    'CadastroClientePage',
-    'CadastroProfissionalPage',
     'CompletarCadastroClientePage',
     'CompletarCadastroProfissionalPage',
     'TelaEscolhaContaCompletar',

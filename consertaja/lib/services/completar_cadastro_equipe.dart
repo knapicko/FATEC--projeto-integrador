@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../cadastro_profissional.dart'
+import '../verificacao_cadastro.dart'
     show CadastroFacialInstrucoesPage, ValidacaoDocsPage;
 import '../tela_inicial.dart';
 import '../widgets/avisos_bottom_sheet.dart';
