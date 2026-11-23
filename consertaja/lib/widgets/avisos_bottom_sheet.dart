@@ -109,7 +109,10 @@ Future<T?> mostrarAvisoBottomSheet<T>(
                   onPressed: () => Navigator.pop(ctx, valorSecundario),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: _textoSec,
-                    side: const BorderSide(color: Color(0xFFD1D5DB), width: 1.4),
+                    side: const BorderSide(
+                      color: Color(0xFFD1D5DB),
+                      width: 1.4,
+                    ),
                     shape: const StadiumBorder(),
                   ),
                   child: Text(

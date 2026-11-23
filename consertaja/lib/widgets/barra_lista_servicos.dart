@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../lista_servicos.dart';
 import '../services/lista_servicos_service.dart';
 import '../utils/app_navigation_util.dart';
+import 'imagem_app.dart';
 
 class BarraListaServicosWidget extends StatefulWidget {
   const BarraListaServicosWidget({super.key});
@@ -57,7 +58,7 @@ class _BarraListaServicosWidgetState extends State<BarraListaServicosWidget> {
               });
             },
             borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            child: Container(
+            child: CorOriginal(interface: true, child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               decoration: const BoxDecoration(
@@ -151,7 +152,7 @@ class _BarraListaServicosWidgetState extends State<BarraListaServicosWidget> {
                   ),
                 ],
               ),
-            ),
+            )),
           ),
         );
       },

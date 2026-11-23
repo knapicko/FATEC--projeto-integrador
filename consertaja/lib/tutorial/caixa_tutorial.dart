@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../utils/movimento.dart';
 
 /// Camadas da caixa do tutorial (tool/gerar_caixa_tutorial.py): cada quadro
 /// da fala sem as ferramentas + cada ferramenta separada (com o "contorno"
@@ -93,15 +94,15 @@ class _CaixaTutorialState extends State<CaixaTutorial>
 
   late final AnimationController _tremor = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 680),
+    duration: duracao(const Duration(milliseconds: 680)),
   );
   late final AnimationController _intensidade = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 260),
+    duration: duracao(const Duration(milliseconds: 260)),
   );
   late final AnimationController _pulo = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 900),
+    duration: duracao(const Duration(milliseconds: 900)),
   );
 
   @override
@@ -110,7 +111,6 @@ class _CaixaTutorialState extends State<CaixaTutorial>
     _Camadas.carregar().then((_) {
       if (mounted) setState(() => _pronto = true);
     });
-    _pulo.forward(from: 0);
     _aplicarFala();
     _agendarPiscada();
   }
@@ -159,7 +159,7 @@ class _CaixaTutorialState extends State<CaixaTutorial>
         const Duration(milliseconds: 95),
         (_) => _proximoQuadro(),
       );
-      _tremor.repeat();
+      _tremor.repetir();
       _intensidade.forward();
     } else if (!widget.falando && _fala != null) {
       _fala!.cancel();

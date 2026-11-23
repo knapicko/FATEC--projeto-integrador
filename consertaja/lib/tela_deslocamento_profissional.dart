@@ -25,6 +25,9 @@ import 'utils/voltar_fluxo_solicitacao.dart';
 import 'services/solicitacao_geografica_service.dart';
 import 'widgets/avisos_bottom_sheet.dart';
 import 'widgets/codigo_flutuante.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
 
 /// Configuração do Mapbox
 class MapboxConfig {
@@ -1359,6 +1362,16 @@ class _TelaDeslocamentoProfissionalPageState
               ],
             ),
           ),
+          BotaoAjuda(
+            cor: escuroTexto,
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Este é o seu deslocamento até o cliente.',
+              conteudo: [
+                'O mapa mostra o caminho. Avise o cliente pelo chat e confirme quando chegar.',
+              ],
+            ),
+          ),
           // Botão SOS
           GestureDetector(
             onTap: () {
@@ -1414,12 +1427,12 @@ class _TelaDeslocamentoProfissionalPageState
                     child:
                         _fotoPerfilProfissional != null &&
                             _fotoPerfilProfissional!.isNotEmpty
-                        ? Image.network(
+                        ? ImagemApp(child: Image.network(
                             _fotoPerfilProfissional!,
                             fit: BoxFit.cover,
                             errorBuilder: (_, _, _) =>
                                 _avatarFallbackProfissional(),
-                          )
+                          ))
                         : _avatarFallbackProfissional(),
                   ),
                 ),
@@ -1465,7 +1478,7 @@ class _TelaDeslocamentoProfissionalPageState
 
   /// Banner Superior estilo Waze com cor primary blue (0xFF0FB3FF)
   Widget _bannerNavegacaoSuperior() {
-    return Container(
+    return CorOriginal(interface: true, child: Container(
       margin: const EdgeInsets.symmetric(horizontal: 14),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
@@ -1517,7 +1530,7 @@ class _TelaDeslocamentoProfissionalPageState
           ),
         ],
       ),
-    );
+    ));
   }
 
   /// Painel Velocímetro (único, sem botão extra embaixo)
@@ -1700,18 +1713,18 @@ class _TelaDeslocamentoProfissionalPageState
               ),
               child: ClipOval(
                 child: foto.isNotEmpty
-                    ? Image.network(
+                    ? ImagemApp(child: Image.network(
                         foto,
                         fit: BoxFit.cover,
                         errorBuilder: (_, _, _) => _avatarFallbackCliente(),
-                      )
+                      ))
                     : _avatarFallbackCliente(),
               ),
             ),
             Positioned(
               bottom: -2,
               right: -2,
-              child: Container(
+              child: CorOriginal(interface: true, child: Container(
                 width: 18,
                 height: 18,
                 decoration: BoxDecoration(
@@ -1720,7 +1733,7 @@ class _TelaDeslocamentoProfissionalPageState
                   border: Border.all(color: Colors.white, width: 1.5),
                 ),
                 child: const Icon(Icons.home, color: Colors.white, size: 10),
-              ),
+              )),
             ),
           ],
         ),
@@ -1809,7 +1822,7 @@ class _TelaDeslocamentoProfissionalPageState
         }
       },
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 280),
+        duration: duracao(const Duration(milliseconds: 280)),
         curve: Curves.easeInOut,
         height: _painelExpandido ? maxH : minH,
         width: double.infinity,
@@ -1871,7 +1884,7 @@ class _TelaDeslocamentoProfissionalPageState
                       SizedBox(
                         width: double.infinity,
                         height: 52,
-                        child: ElevatedButton.icon(
+                        child: CorOriginal(interface: true, child: ElevatedButton.icon(
                           onPressed: _fkStatus == 35
                               ? _iniciarDeslocamentoDevolucao
                               : (perto ? _aoClicarEstouNoLocal : null),
@@ -1903,7 +1916,7 @@ class _TelaDeslocamentoProfissionalPageState
                               borderRadius: BorderRadius.circular(26),
                             ),
                           ),
-                        ),
+                        )),
                       ),
                       const SizedBox(height: 10),
 
@@ -2311,7 +2324,7 @@ class _TelaDeslocamentoProfissionalPageState
                 borderRadius: BorderRadius.circular(4),
                 child: Row(
                   children: [
-                    Expanded(flex: 1, child: Container(height: 5, color: azul)),
+                    Expanded(flex: 1, child: CorOriginal(interface: true, child: Container(height: 5, color: azul))),
                     Expanded(
                       flex: 1,
                       child: Container(
@@ -2450,12 +2463,12 @@ class _TelaDeslocamentoProfissionalPageState
                     decoration: const BoxDecoration(shape: BoxShape.circle),
                     child: ClipOval(
                       child: _fotoCliente != null && _fotoCliente!.isNotEmpty
-                          ? Image.network(
+                          ? ImagemApp(child: Image.network(
                               _fotoCliente!,
                               fit: BoxFit.cover,
                               errorBuilder: (_, _, _) =>
                                   _avatarFallbackCliente(),
-                            )
+                            ))
                           : _avatarFallbackCliente(),
                     ),
                   ),

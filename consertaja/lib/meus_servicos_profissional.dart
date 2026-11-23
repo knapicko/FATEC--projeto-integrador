@@ -13,6 +13,9 @@ import 'widgets/aviso_obrigatorio.dart';
 import 'informacoes_servico_profissional.dart';
 import 'tutorial/tutorial.dart';
 import 'tutorial/tutorial_da_tela.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
 
 // ── Helper ──────────────────────────────────────────────────────────────────
 // Cor do ofício: mesma regra do app inteiro (nome `cor` ou hex `cod_cor`).
@@ -256,6 +259,20 @@ class _MeusServicosProfissionalPageState
           ),
         ),
         centerTitle: true,
+        actions: [
+          BotaoAjuda(
+            cor: _blue,
+            passos: () => passosAjuda(
+              reserva: () => explicacaoDaTela(
+                context,
+                tela: 'Aqui ficam os serviços que você oferece.',
+                conteudo: [
+                  'Toque em um serviço para ver como o cliente vê, ou no lápis para editar.',
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
 
       // ── Conteúdo ────────────────────────────────────────────────────────
@@ -348,7 +365,7 @@ class _MeusServicosProfissionalPageState
       // ── FAB ─────────────────────────────────────────────────────────────
       floatingActionButton: _ehMembroEmpresa
           ? null
-          : FloatingActionButton.extended(
+          : CorOriginal(interface: true, child: FloatingActionButton.extended(
               key: chaveTut('novo'),
               onPressed: () => _abrirTelaServico(),
               backgroundColor: _blue,
@@ -360,7 +377,7 @@ class _MeusServicosProfissionalPageState
                 'Novo Serviço',
                 style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
               ),
-            ),
+            )),
     );
   }
 
@@ -406,7 +423,7 @@ class _MeusServicosProfissionalPageState
           return GestureDetector(
             onTap: () => setState(() => _categoriaAtiva = cat),
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
+              duration: duracao(const Duration(milliseconds: 200)),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
               decoration: BoxDecoration(
                 color: isActive ? const Color(0xFFD6EDF8) : Colors.white,
@@ -476,11 +493,11 @@ class _MeusServicosProfissionalPageState
                   AspectRatio(
                     aspectRatio: 16 / 9,
                     child: s.imagemUrl != null && s.imagemUrl!.isNotEmpty
-                        ? Image.network(
+                        ? ImagemApp(child: Image.network(
                             s.imagemUrl!,
                             fit: BoxFit.cover,
                             errorBuilder: (ctx, e, st) => _placeholderImagem(),
-                          )
+                          ))
                         : _placeholderImagem(),
                   ),
 

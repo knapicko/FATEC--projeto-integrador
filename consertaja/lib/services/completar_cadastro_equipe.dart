@@ -5,6 +5,7 @@ import '../cadastro_profissional.dart'
     show CadastroFacialInstrucoesPage, ValidacaoDocsPage;
 import '../tela_inicial.dart';
 import '../widgets/avisos_bottom_sheet.dart';
+import '../widgets/imagem_app.dart';
 
 class CompletarCadastroEquipeDialog extends StatefulWidget {
   const CompletarCadastroEquipeDialog({super.key});
@@ -532,7 +533,7 @@ class _CompletarCadastroEquipeDialogState
                 SizedBox(
                   width: double.infinity,
                   height: 50,
-                  child: ElevatedButton(
+                  child: CorOriginal(interface: true, child: ElevatedButton(
                     onPressed: _salvando ? null : _salvar,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF0FB3FF),
@@ -558,7 +559,7 @@ class _CompletarCadastroEquipeDialogState
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                  ),
+                  )),
                 ),
               ],
             ),

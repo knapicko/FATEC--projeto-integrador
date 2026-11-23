@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import '../utils/movimento.dart';
 
 /// Ícone vetorial de "concluído" (círculo + check), desenhado como um SVG de
 /// traço e animado como se estivesse sendo traçado:
@@ -44,7 +45,7 @@ class _CheckAnimadoState extends State<CheckAnimado>
   void initState() {
     super.initState();
     if (widget.progresso == null) {
-      _interno = AnimationController(vsync: this, duration: widget.duracao);
+      _interno = AnimationController(vsync: this, duration: duracao(widget.duracao));
     }
   }
 

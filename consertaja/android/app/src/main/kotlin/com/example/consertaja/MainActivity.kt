@@ -1,5 +1,6 @@
 package com.example.consertaja
 
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 
-class MainActivity : FlutterActivity()
+// FragmentActivity: exigido pelo local_auth (login por biometria).
+class MainActivity : FlutterFragmentActivity()

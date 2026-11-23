@@ -11,6 +11,9 @@ import 'widgets/avisos_bottom_sheet.dart';
 import 'widgets/skeleton_loading.dart';
 import 'tutorial/tutorial.dart';
 import 'tutorial/tutorial_da_tela.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
 
 const _bucket = 'Certificados Profissional';
 const _azul = Color(0xFF0FB3FF);
@@ -161,7 +164,7 @@ Future<void> abrirCertificado(BuildContext context, Certificado c) async {
         body: Center(
           child: InteractiveViewer(
             maxScale: 5,
-            child: Image.network(c.url, fit: BoxFit.contain),
+            child: ImagemApp(child: Image.network(c.url, fit: BoxFit.contain)),
           ),
         ),
       ),
@@ -224,7 +227,7 @@ class CartaoCertificado extends StatelessWidget {
                               ],
                             ),
                           )
-                        : Image.network(
+                        : ImagemApp(child: Image.network(
                             c.url,
                             fit: BoxFit.cover,
                             loadingBuilder: (_, child, p) => p == null
@@ -240,7 +243,7 @@ class CartaoCertificado extends StatelessWidget {
                                 color: _sec,
                               ),
                             ),
-                          ),
+                          )),
                   ),
                   if (aoRemover != null)
                     Positioned(
@@ -489,8 +492,21 @@ class _CertificadosPageState extends State<CertificadosPage>
           'Certificados',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
+        actions: [
+          BotaoAjuda(
+            passos: () => passosAjuda(
+              reserva: () => explicacaoDaTela(
+                context,
+                tela: 'Aqui ficam os seus certificados.',
+                conteudo: [
+                  'Eles aparecem no seu perfil e passam mais confiança aos clientes.',
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: CorOriginal(interface: true, child: FloatingActionButton.extended(
         key: chaveTut('adicionar'),
         onPressed: _adicionar,
         backgroundColor: _azul,
@@ -500,7 +516,7 @@ class _CertificadosPageState extends State<CertificadosPage>
           'Adicionar',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
-      ),
+      )),
       body: KeyedSubtree(
         key: chaveTut('lista'),
         child: lista == null
@@ -615,7 +631,7 @@ class _FormCertificadoState extends State<_FormCertificado> {
 
   /// Aviso verde que sobe e pode ser arrastado para baixo (dispensado).
   Widget _avisoAnexado() => AnimatedSize(
-    duration: const Duration(milliseconds: 220),
+    duration: duracao(const Duration(milliseconds: 220)),
     curve: Curves.easeOutCubic,
     child: !_avisoAnexo
         ? const SizedBox(width: double.infinity)
@@ -829,7 +845,7 @@ class _FormCertificadoState extends State<_FormCertificado> {
             SizedBox(
               width: double.infinity,
               height: 52,
-              child: FilledButton(
+              child: CorOriginal(interface: true, child: FilledButton(
                 onPressed: _enviando ? null : _salvar,
                 style: FilledButton.styleFrom(
                   backgroundColor: _azul,
@@ -848,7 +864,7 @@ class _FormCertificadoState extends State<_FormCertificado> {
                         'Salvar certificado',
                         style: TextStyle(fontWeight: FontWeight.w800),
                       ),
-              ),
+              )),
             ),
           ],
         ),

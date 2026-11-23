@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'app_settings_controller.dart';
 
 /// Status da tabela `status` usados pela solicitação geográfica.
 class StatusSolicitacaoGeo {
@@ -470,7 +471,10 @@ class SolicitacaoGeograficaService {
   static Future<LatLng> localizacaoAtual() async {
     ultimaLocalizacaoFoiGps = false;
     try {
-      if (await Geolocator.isLocationServiceEnabled()) {
+      // Preferências → "Usar localização atual automaticamente" desligado:
+      // vai direto para o endereço cadastrado.
+      if (AppSettingsController.instance.usarLocalizacaoAtual &&
+          await Geolocator.isLocationServiceEnabled()) {
         var permissao = await Geolocator.checkPermission();
         if (permissao == LocationPermission.denied) {
           permissao = await Geolocator.requestPermission();

@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/movimento.dart';
+import 'imagem_app.dart';
 
 /// Um atalho do painel da home do profissional.
 class AtalhoItem {
@@ -148,7 +150,7 @@ class _PainelAtalhosState extends State<PainelAtalhos> {
       onAcceptWithDetails: (d) => _trocar(d.data, item.id),
       builder: (context, candidatos, _) => AnimatedScale(
         scale: candidatos.isNotEmpty ? 1.08 : 1,
-        duration: const Duration(milliseconds: 140),
+        duration: duracao(const Duration(milliseconds: 140)),
         child: LongPressDraggable<String>(
           data: item.id,
           hapticFeedbackOnStart: true,
@@ -258,7 +260,7 @@ class _PainelAtalhosState extends State<PainelAtalhos> {
               ClipRect(
                 clipper: const _SoLaterais(),
                 child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 240),
+                  duration: duracao(const Duration(milliseconds: 240)),
                   switchInCurve: Curves.easeOutCubic,
                   switchOutCurve: Curves.easeInCubic,
                   transitionBuilder: (child, anim) {
@@ -293,8 +295,8 @@ class _PainelAtalhosState extends State<PainelAtalhos> {
               for (var i = 0; i < _paginas; i++)
                 GestureDetector(
                   onTap: () => _irPara(i),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
+                  child: CorOriginal(interface: true, ativo: i == _pagina, child: AnimatedContainer(
+                    duration: duracao(const Duration(milliseconds: 200)),
                     margin: const EdgeInsets.symmetric(horizontal: 3),
                     width: i == _pagina ? 18 : 7,
                     height: 7,
@@ -302,7 +304,7 @@ class _PainelAtalhosState extends State<PainelAtalhos> {
                       color: i == _pagina ? _azul : const Color(0xFFD1D5DB),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                  ),
+                  )),
                 ),
               const SizedBox(width: 8),
               Text(

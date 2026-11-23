@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/app_settings_controller.dart';
 
 /// Mostra um [AlertDialog] como bottom sheet do app (alça, cantos de 28,
 /// título, conteúdo rolável e botões largos), com a mesma assinatura de
@@ -19,7 +20,11 @@ Future<T?> mostrarDialogoComoSheet<T>({
     enableDrag: barrierDismissible,
     useRootNavigator: useRootNavigator,
     backgroundColor: Colors.transparent,
-    barrierColor: barrierColor ?? Colors.black.withValues(alpha: 0.45),
+    barrierColor:
+        barrierColor ??
+        (AppSettingsController.semTransparencia
+            ? const Color(0xFF3A3F45)
+            : Colors.black.withValues(alpha: 0.45)),
     builder: (ctx) {
       final w = builder(ctx);
       return PopScope(

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../minhas_notificacoes.dart';
 import '../services/notificacoes/notificacao_service.dart';
 import '../services/notificacoes/notificacao_tipos.dart';
+import '../utils/movimento.dart';
+import 'imagem_app.dart';
 
 /// Bolinha com número (99+) sobre um ícone.
 class BadgeContador extends StatelessWidget {
@@ -32,7 +34,7 @@ class BadgeContador extends StatelessWidget {
           top: deslocamento.dy,
           child: AnimatedScale(
             scale: quantidade > 0 ? 1 : 0,
-            duration: const Duration(milliseconds: 220),
+            duration: duracao(const Duration(milliseconds: 220)),
             curve: Curves.easeOutBack,
             child: Container(
               constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
@@ -131,7 +133,7 @@ class ContadorNaoLidas extends StatelessWidget {
         final s = NotificacaoService.instance;
         final total = mensagens ? s.mensagensNaoLidas : s.naoLidas;
         if (total <= 0) return const SizedBox.shrink();
-        return Container(
+        return CorOriginal(interface: true, child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
           decoration: BoxDecoration(
             color: kAzulNotificacao,
@@ -145,7 +147,7 @@ class ContadorNaoLidas extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
-        );
+        ));
       },
     );
   }

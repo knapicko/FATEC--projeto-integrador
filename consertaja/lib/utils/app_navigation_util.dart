@@ -180,8 +180,7 @@ class AppNavigationUtil {
     Widget novaTela, {
     required bool isHome,
   }) {
-    if (!isHome &&
-        _exigemEndereco.contains(novaTela.runtimeType.toString())) {
+    if (!isHome && _exigemEndereco.contains(novaTela.runtimeType.toString())) {
       exigirEnderecoCliente(context).then((ok) {
         if (ok && context.mounted) {
           _navegarAba(context, novaTela, isHome: isHome);

@@ -28,6 +28,8 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Permita o acesso ao microfone para gravar mensagens de áudio no chat.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Use o Face ID para entrar no ConsertaJá sem digitar a senha.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Permita o acesso à câmera para enviar fotos no chat.</string>
 	<key>LSRequiresIPhoneOS</key>

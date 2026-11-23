@@ -8,6 +8,7 @@ import '../main.dart' show navigatorKey;
 import '../services/notificacoes/notificacao_service.dart';
 import '../utils/abrir_solicitacao.dart';
 import '../utils/fluxo_solicitacao.dart';
+import '../utils/movimento.dart';
 
 /// Estado de um pedido em que alguém está se deslocando.
 class _PedidoEmTransito {
@@ -228,11 +229,11 @@ class _CodigoFlutuanteState extends State<CodigoFlutuante> {
           child: IgnorePointer(
             ignoring: !visivel,
             child: AnimatedSlide(
-              duration: const Duration(milliseconds: 280),
+              duration: duracao(const Duration(milliseconds: 280)),
               curve: Curves.easeOutCubic,
               offset: visivel ? Offset.zero : const Offset(1.3, 0),
               child: AnimatedOpacity(
-                duration: const Duration(milliseconds: 220),
+                duration: duracao(const Duration(milliseconds: 220)),
                 opacity: visivel ? 1 : 0,
                 child: p == null ? const SizedBox.shrink() : _card(p),
               ),
@@ -248,7 +249,7 @@ class _CodigoFlutuanteState extends State<CodigoFlutuante> {
     return Material(
       color: Colors.transparent,
       child: AnimatedSize(
-        duration: const Duration(milliseconds: 220),
+        duration: duracao(const Duration(milliseconds: 220)),
         curve: Curves.easeOutCubic,
         alignment: Alignment.bottomRight,
         child: GestureDetector(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'onboarding/onboarding_theme.dart';
 import 'onboarding/onboarding_widgets.dart';
+import 'widgets/imagem_app.dart';
 
 class EsqueciSenhaPage extends StatefulWidget {
   const EsqueciSenhaPage({super.key});
@@ -135,12 +136,12 @@ class _EsqueciSenhaPageState extends State<EsqueciSenhaPage> {
             child: SizedBox(
               width: 150,
               height: 150,
-              child: Image.asset(
+              child: ImagemApp(child: Image.asset(
                 'assets/images/caixa/caixa_normal.png',
                 width: 150,
                 height: 150,
                 fit: BoxFit.contain,
-              ),
+              )),
             ),
           ),
           const SizedBox(height: 24),

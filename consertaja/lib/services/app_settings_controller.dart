@@ -25,9 +25,12 @@ class AppSettingsController extends ChangeNotifier {
     'notifications.messages': true,
     'notifications.payments': true,
     'notifications.reminders': true,
+    'notifications.radar': true,
+    'notifications.feedback': true,
     'notifications.promotions': false,
     'notifications.sound': true,
     'notifications.vibration': true,
+    'notifications.quietHours': false,
     'accessibility.fontSize': 1,
     'accessibility.boldText': false,
     'accessibility.highContrast': false,
@@ -35,19 +38,20 @@ class AppSettingsController extends ChangeNotifier {
     'accessibility.reduceMotion': false,
     'accessibility.reduceTransparency': false,
     'accessibility.readability': true,
+    'accessibility.largerTargets': false,
     'appearance.theme': 'Claro',
+    'appearance.density': 'Padrão',
+    'appearance.dimImages': false,
     'privacy.personalizedOffers': true,
-    'privacy.analytics': false,
-    'security.biometrics': true,
-    'security.requireAuthentication': true,
-    'security.autoLock': 'Imediatamente',
-    'security.showNotificationContent': false,
+    'privacy.saveSearchHistory': true,
+    'security.biometrics': false,
+    'security.showNotificationContent': true,
     'preferences.useCurrentLocation': true,
     'preferences.confirmRequest': true,
     'preferences.confirmCancel': true,
     'preferences.showTips': false,
     'network.dataSaver': false,
-    'network.imageLoading': 'Somente Wi-Fi',
+    'network.imageLoading': 'Sempre',
     'network.videoAutoplay': true,
   };
 
@@ -89,6 +93,20 @@ class AppSettingsController extends ChangeNotifier {
     _userId = id;
     _settings = {...padroes(), ...salvo};
     notifyListeners();
+    if (id != 'anonymous') {
+      unawaited(_storage.marcarUltimoUsuario(id).catchError((Object _) {}));
+    }
+  }
+
+  /// Configurações do último usuário logado, lidas direto do arquivo. Usado
+  /// pelo push em segundo plano (outro isolate, sem Supabase iniciado).
+  static Future<Map<String, dynamic>> lerDoArquivo() async {
+    try {
+      final salvo = await ClienteSettingsStorage().loadUltimoUsuario();
+      return {...padroes(), ...salvo};
+    } catch (_) {
+      return padroes();
+    }
   }
 
   /// Altera uma configuração, notifica o app e grava no arquivo.
@@ -132,6 +150,76 @@ class AppSettingsController extends ChangeNotifier {
   bool get reduzirAnimacoes => _bool('accessibility.reduceMotion');
   bool get reduzirTransparencias => _bool('accessibility.reduceTransparency');
   bool get melhorarLegibilidade => _bool('accessibility.readability');
+  bool get alvosMaiores => _bool('accessibility.largerTargets');
+
+  // Preferências de uso
+  bool get usarLocalizacaoAtual => _bool('preferences.useCurrentLocation');
+  bool get confirmarSolicitacao => _bool('preferences.confirmRequest');
+  bool get confirmarCancelamento => _bool('preferences.confirmCancel');
+
+  // Rede e dados
+  bool get economiaDados => _bool('network.dataSaver');
+  String get carregamentoImagens =>
+      (_settings['network.imageLoading'] as String?) ?? 'Sempre';
+  bool get abrirVideosSemPerguntar => _bool('network.videoAutoplay');
+
+  // Aparência / privacidade / segurança
+  String get densidade =>
+      (_settings['appearance.density'] as String?) ?? 'Padrão';
+  bool get escurecerImagens => _bool('appearance.dimImages');
+  bool get salvarHistoricoBusca => _bool('privacy.saveSearchHistory');
+  bool get biometriaAtiva => _bool('security.biometrics');
+
+  /// Atalho para as telas: animações desligadas pelo usuário.
+  static bool get semAnimacao => instance.reduzirAnimacoes;
+
+  /// Atalho para as telas: transparências/desfoques desligados.
+  static bool get semTransparencia => instance.reduzirTransparencias;
+
+  /// Matriz que DESFAZ o modo escuro (usada nas imagens, para que fotos e
+  /// ilustrações mantenham as cores reais). `null` fora do modo escuro.
+  List<double>? matrizCorOriginal(
+    Brightness brilhoPlataforma, {
+    bool escurecer = true,
+  }) {
+    if (!escuroAtivo(brilhoPlataforma)) return null;
+    final inversa = _inversaEscura;
+    if (!escurecer || !escurecerImagens) return inversa;
+    // Escurece um pouco as imagens (opção da Aparência). Aplicado antes da
+    // inversa, para o resultado final ser a imagem 20% mais escura.
+    const f = 0.8;
+    const mais = <double>[
+      f, 0, 0, 0, 0, //
+      0, f, 0, 0, 0, //
+      0, 0, f, 0, 0, //
+      0, 0, 0, 1, 0, //
+    ];
+    return _combinar(inversa, mais);
+  }
+
+  static final List<double> _inversaEscura = _inverter(_matrizEscura);
+
+  /// Inversa de uma matriz de cor afim (3x3 + deslocamento; alfa intacto).
+  static List<double> _inverter(List<double> m) {
+    final a = m[0], b = m[1], c = m[2];
+    final d = m[5], e = m[6], f = m[7];
+    final g = m[10], h = m[11], i = m[12];
+    final det =
+        a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
+    final inv = <List<double>>[
+      [(e * i - f * h) / det, (c * h - b * i) / det, (b * f - c * e) / det],
+      [(f * g - d * i) / det, (a * i - c * g) / det, (c * d - a * f) / det],
+      [(d * h - e * g) / det, (b * g - a * h) / det, (a * e - b * d) / det],
+    ];
+    final t = [m[4], m[9], m[14]];
+    final r = <double>[];
+    for (var l = 0; l < 3; l++) {
+      final desloc = -(inv[l][0] * t[0] + inv[l][1] * t[1] + inv[l][2] * t[2]);
+      r.addAll([inv[l][0], inv[l][1], inv[l][2], 0, desloc]);
+    }
+    r.addAll([0, 0, 0, 1, 0]);
+    return r;
+  }
   String get filtroCor =>
       (_settings['accessibility.colorFilter'] as String?) ?? 'Desativado';
 
@@ -255,6 +343,9 @@ class AppSettingsController extends ChangeNotifier {
     if (melhorarLegibilidade) {
       TextStyle? esp(TextStyle? s) =>
           s?.copyWith(letterSpacing: (s.letterSpacing ?? 0) + 0.3);
+      // No texto corrido, mais espaço também entre as palavras.
+      TextStyle? espB(TextStyle? s) =>
+          esp(s)?.copyWith(wordSpacing: (s?.wordSpacing ?? 0) + 1.5);
       textTheme = textTheme.copyWith(
         displayLarge: esp(textTheme.displayLarge),
         displayMedium: esp(textTheme.displayMedium),
@@ -265,16 +356,36 @@ class AppSettingsController extends ChangeNotifier {
         titleLarge: esp(textTheme.titleLarge),
         titleMedium: esp(textTheme.titleMedium),
         titleSmall: esp(textTheme.titleSmall),
-        bodyLarge: esp(textTheme.bodyLarge),
-        bodyMedium: esp(textTheme.bodyMedium),
-        bodySmall: esp(textTheme.bodySmall),
+        bodyLarge: espB(textTheme.bodyLarge),
+        bodyMedium: espB(textTheme.bodyMedium),
+        bodySmall: espB(textTheme.bodySmall),
         labelLarge: esp(textTheme.labelLarge),
         labelMedium: esp(textTheme.labelMedium),
         labelSmall: esp(textTheme.labelSmall),
       );
     }
+    final densidadeVisual = switch (densidade) {
+      'Compacta' => VisualDensity.compact,
+      'Confortável' => VisualDensity.comfortable,
+      _ => VisualDensity.standard,
+    };
     return base.copyWith(
       textTheme: textTheme,
+      // Botões e alvos de toque maiores (acessibilidade) ou a densidade
+      // escolhida na Aparência.
+      visualDensity: alvosMaiores
+          ? const VisualDensity(horizontal: 2, vertical: 2)
+          : densidadeVisual,
+      materialTapTargetSize: alvosMaiores
+          ? MaterialTapTargetSize.padded
+          : base.materialTapTargetSize,
+      // Sem transparência: o fundo atrás de diálogos e folhas fica opaco.
+      dialogTheme: reduzirTransparencias
+          ? const DialogThemeData(barrierColor: Color(0xFF3A3F45))
+          : null,
+      bottomSheetTheme: reduzirTransparencias
+          ? const BottomSheetThemeData(modalBarrierColor: Color(0xFF3A3F45))
+          : null,
       pageTransitionsTheme: reduzirAnimacoes
           ? const PageTransitionsTheme(
               builders: {

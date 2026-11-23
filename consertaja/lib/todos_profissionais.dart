@@ -7,6 +7,8 @@ import 'utils/texto_busca.dart';
 import 'widgets/card_profissional_vitrine.dart';
 import 'widgets/filtros_busca.dart';
 import 'widgets/skeleton_loading.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 /// Todos os profissionais independentes e lojas cadastrados, com busca,
 /// ordenação e filtros (igual a "Todos os serviços").
@@ -129,6 +131,18 @@ class _TodosProfissionaisPageState extends State<TodosProfissionaisPage> {
             'Profissionais',
             style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
           ),
+          actions: [
+            BotaoAjuda(
+              passos: () => explicacaoDaTela(
+                context,
+                tela: 'Aqui estão todos os profissionais e lojas do app.',
+                conteudo: [
+                  'Use a busca, os filtros e a ordenação para encontrar quem você precisa.',
+                  'Toque em um card para abrir o perfil.',
+                ],
+              ),
+            ),
+          ],
         ),
         body: Column(
           children: [
@@ -163,7 +177,7 @@ class _TodosProfissionaisPageState extends State<TodosProfissionaisPage> {
                   Badge(
                     isLabelVisible: _filtros.ativo,
                     label: Text('${_filtros.quantidadeAtivos}'),
-                    child: Material(
+                    child: CorOriginal(interface: true, child: Material(
                       color: _azul,
                       borderRadius: BorderRadius.circular(16),
                       child: InkWell(
@@ -175,7 +189,7 @@ class _TodosProfissionaisPageState extends State<TodosProfissionaisPage> {
                           child: Icon(Icons.tune_rounded, color: Colors.white),
                         ),
                       ),
-                    ),
+                    )),
                   ),
                 ],
               ),

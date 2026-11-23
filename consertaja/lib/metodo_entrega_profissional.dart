@@ -10,6 +10,8 @@ import 'widgets/aviso_obrigatorio.dart';
 import 'services/requisitos_conta.dart';
 import 'tutorial/tutorial.dart';
 import 'tutorial/tutorial_da_tela.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 class MetodoEntregaProfissionalPage extends StatefulWidget {
   const MetodoEntregaProfissionalPage({super.key});
@@ -470,7 +472,7 @@ class _MetodoEntregaProfissionalPageState
   }
 
   Widget _buildCheckBox(bool marcado) {
-    return Container(
+    return CorOriginal(interface: true, ativo: marcado, child: Container(
       width: 24,
       height: 24,
       decoration: BoxDecoration(
@@ -484,7 +486,7 @@ class _MetodoEntregaProfissionalPageState
       child: marcado
           ? const Icon(Icons.check, color: Colors.white, size: 16)
           : null,
-    );
+    ));
   }
 
   Widget _buildOpcaoEntrega(MetodoEntregaOpcao opcao) {
@@ -600,6 +602,20 @@ class _MetodoEntregaProfissionalPageState
             fontWeight: FontWeight.w700,
           ),
         ),
+        actions: [
+          BotaoAjuda(
+            cor: _primaryBlue,
+            passos: () => passosAjuda(
+              reserva: () => explicacaoDaTela(
+                context,
+                tela: 'Aqui você define como atende os clientes.',
+                conteudo: [
+                  'Marque os métodos de entrega e diga como você se locomove.',
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
       body: _carregando
           ? const SkeletonPage(layout: SkeletonLayout.cards)

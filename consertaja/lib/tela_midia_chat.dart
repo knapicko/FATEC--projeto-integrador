@@ -6,6 +6,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'services/chat_anexos_service.dart';
 import 'widgets/skeleton_loading.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
 
 /// Tipo de mídia suportada na tela.
 enum TipoMidiaChat { imagem, audio }
@@ -403,6 +406,14 @@ class _TelaMidiaChatState extends State<TelaMidiaChat> {
           ],
         ),
         actions: [
+          BotaoAjuda(
+            cor: const Color(0xFF1E293B),
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Aqui ficam as fotos, vídeos e arquivos da conversa.',
+              conteudo: ['Toque em um item para abrir em tela cheia.'],
+            ),
+          ),
           // Botão para alternar ordem de envio (mais recentes / mais antigas)
           IconButton(
             tooltip: _ordemDecrescente
@@ -497,8 +508,8 @@ class _TelaMidiaChatState extends State<TelaMidiaChat> {
           setState(() => _filtroSelecionado = indice);
         }
       },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+      child: CorOriginal(interface: true, ativo: selecionado, child: AnimatedContainer(
+        duration: duracao(const Duration(milliseconds: 200)),
         curve: Curves.easeInOut,
         decoration: BoxDecoration(
           color: selecionado ? _primaryBlue : Colors.transparent,
@@ -552,7 +563,7 @@ class _TelaMidiaChatState extends State<TelaMidiaChat> {
             ),
           ],
         ),
-      ),
+      )),
     );
   }
 
@@ -584,12 +595,12 @@ class _TelaMidiaChatState extends State<TelaMidiaChat> {
                 ),
               ),
               const SizedBox(height: 16),
-              FilledButton.icon(
+              CorOriginal(interface: true, child: FilledButton.icon(
                 style: FilledButton.styleFrom(backgroundColor: _primaryBlue),
                 onPressed: _carregarMidias,
                 icon: const Icon(Icons.refresh, size: 18),
                 label: const Text('Tentar novamente'),
-              ),
+              )),
             ],
           ),
         ),
@@ -688,7 +699,7 @@ class _TelaMidiaChatState extends State<TelaMidiaChat> {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        Image.network(
+                        ImagemApp(child: Image.network(
                           item.url,
                           fit: BoxFit.cover,
                           loadingBuilder: (context, child, loadingProgress) {
@@ -716,7 +727,7 @@ class _TelaMidiaChatState extends State<TelaMidiaChat> {
                                   size: 28,
                                 ),
                               ),
-                        ),
+                        )),
                         // Gradiente e horário no canto inferior direito
                         Positioned(
                           left: 0,
@@ -853,7 +864,7 @@ class _TelaMidiaChatState extends State<TelaMidiaChat> {
                   // Botão Tocar / Pausar
                   GestureDetector(
                     onTap: () => _alternarTocarAudio(item),
-                    child: Container(
+                    child: CorOriginal(interface: true, child: Container(
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
@@ -874,7 +885,7 @@ class _TelaMidiaChatState extends State<TelaMidiaChat> {
                         color: Colors.white,
                         size: 26,
                       ),
-                    ),
+                    )),
                   ),
                   const SizedBox(width: 14),
 
@@ -913,7 +924,7 @@ class _TelaMidiaChatState extends State<TelaMidiaChat> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: List.generate(barras.length, (bIdx) {
                             final ehTocada = bIdx < barrasTocadas;
-                            return Container(
+                            return CorOriginal(interface: true, ativo: ehTocada, child: Container(
                               width: 3,
                               height: barras[bIdx].toDouble(),
                               decoration: BoxDecoration(
@@ -922,7 +933,7 @@ class _TelaMidiaChatState extends State<TelaMidiaChat> {
                                     : const Color(0xFFCBD5E1),
                                 borderRadius: BorderRadius.circular(2),
                               ),
-                            );
+                            ));
                           }),
                         ),
                       ],
@@ -1186,7 +1197,7 @@ class _VisualizadorGaleriaTelaCheiaState
                 child: InteractiveViewer(
                   minScale: 0.8,
                   maxScale: 4.0,
-                  child: Image.network(
+                  child: ImagemApp(child: Image.network(
                     img.url,
                     fit: BoxFit.contain,
                     errorBuilder: (context, error, stackTrace) => const Center(
@@ -1196,7 +1207,7 @@ class _VisualizadorGaleriaTelaCheiaState
                         size: 64,
                       ),
                     ),
-                  ),
+                  )),
                 ),
               );
             },

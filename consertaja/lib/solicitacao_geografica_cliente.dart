@@ -30,6 +30,10 @@ import 'utils/bottom_navigation_bar_cliente.dart';
 import 'tela_mensagens.dart';
 import 'meus_pedidos.dart';
 import 'tela_meu_perfil_cliente.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
+import 'services/app_settings_controller.dart';
 
 /// formulario → solicitando → aguardando → encontrado (profissional aceitou).
 enum _Etapa { formulario, solicitando, aguardando, encontrado }
@@ -661,7 +665,7 @@ class _SolicitacaoGeograficaClientePageState
     final cor = _corPerfil(p);
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 260),
+      duration: duracao(const Duration(milliseconds: 260)),
       curve: Curves.easeOutBack,
       builder: (context, t, child) => Transform.translate(
         // A bolinha (44) fica no ponto do mapa (deslocada se estiver em grupo).
@@ -771,7 +775,7 @@ class _SolicitacaoGeograficaClientePageState
                 SizedBox(
                   width: double.infinity,
                   height: 36,
-                  child: FilledButton.icon(
+                  child: CorOriginal(interface: true, child: FilledButton.icon(
                     onPressed: () => _verPerfil(p),
                     icon: Icon(
                       p.ehEmpresa
@@ -793,7 +797,7 @@ class _SolicitacaoGeograficaClientePageState
                         borderRadius: BorderRadius.circular(20),
                       ),
                     ),
-                  ),
+                  )),
                 ),
               ],
             ),
@@ -841,7 +845,7 @@ class _SolicitacaoGeograficaClientePageState
   }
 
   Widget _marcadorCliente() {
-    return Container(
+    return CorOriginal(interface: true, child: Container(
       decoration: BoxDecoration(
         color: _azul,
         shape: BoxShape.circle,
@@ -859,7 +863,7 @@ class _SolicitacaoGeograficaClientePageState
         color: Colors.white,
         size: 24,
       ),
-    );
+    ));
   }
 
   /// Círculo com a foto (ou iniciais) do profissional, com borda.
@@ -889,7 +893,7 @@ class _SolicitacaoGeograficaClientePageState
 
   Widget _fotoOuIniciais(PerfilProximo p, double tamanho) {
     final url = p.fotoUrl?.trim() ?? '';
-    final iniciais = Container(
+    final iniciais = CorOriginal(interface: true, child: Container(
       width: tamanho,
       height: tamanho,
       decoration: const BoxDecoration(color: _azul, shape: BoxShape.circle),
@@ -902,16 +906,16 @@ class _SolicitacaoGeograficaClientePageState
           fontSize: tamanho * 0.36,
         ),
       ),
-    );
+    ));
     if (url.isEmpty || url == 'null') return iniciais;
     return ClipOval(
-      child: Image.network(
+      child: ImagemApp(child: Image.network(
         url,
         width: tamanho,
         height: tamanho,
         fit: BoxFit.cover,
         errorBuilder: (_, _, _) => iniciais,
-      ),
+      )),
     );
   }
 
@@ -986,7 +990,7 @@ class _SolicitacaoGeograficaClientePageState
                           final f = _funcoes[i];
                           final sel = f.id == _funcao?.id;
                           return ListTile(
-                            leading: Container(
+                            leading: CorOriginal(interface: true, child: Container(
                               width: 40,
                               height: 40,
                               alignment: Alignment.center,
@@ -998,7 +1002,7 @@ class _SolicitacaoGeograficaClientePageState
                                 f.funcao,
                                 tamanho: 26,
                               ),
-                            ),
+                            )),
                             title: Text(
                               f.funcao,
                               style: TextStyle(
@@ -1136,7 +1140,7 @@ class _SolicitacaoGeograficaClientePageState
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
+              CorOriginal(interface: true, ativo: selecionado, child: Container(
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
@@ -1157,7 +1161,7 @@ class _SolicitacaoGeograficaClientePageState
                   color: selecionado ? Colors.white : _azul,
                   size: 22,
                 ),
-              ),
+              )),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -1185,7 +1189,7 @@ class _SolicitacaoGeograficaClientePageState
               ),
               const SizedBox(width: 8),
               AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
+                duration: duracao(const Duration(milliseconds: 200)),
                 child: Icon(
                   selecionado
                       ? Icons.radio_button_checked_rounded
@@ -1363,8 +1367,11 @@ class _SolicitacaoGeograficaClientePageState
   }
 
   Future<void> _cancelarAposAceite() async {
-    final ok = await _confirmar(
-      titulo: 'Cancelar solicitação?',
+    // Preferências → "Confirmar antes de cancelar pedidos".
+    final ok = !AppSettingsController.instance.confirmarCancelamento
+      ? true
+      : await _confirmar(
+        titulo: 'Cancelar solicitação?',
       texto:
           'O profissional já aceitou o seu pedido. Se cancelar agora, o '
           'serviço não será realizado.',
@@ -1692,11 +1699,11 @@ class _SolicitacaoGeograficaClientePageState
                     onTap: () => setState(() => _expandido = false),
                     child: AnimatedOpacity(
                       opacity: _expandido ? 1 : 0,
-                      duration: _dur,
+                      duration: duracao(_dur),
                       curve: _curva,
                       child: ClipRect(
                         child: BackdropFilter(
-                          filter: ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+                          filter: desfoque(6),
                           child: Container(
                             color: Colors.black.withValues(alpha: 0.12),
                           ),
@@ -1709,14 +1716,40 @@ class _SolicitacaoGeograficaClientePageState
               SafeArea(
                 child: Padding(
                   padding: const EdgeInsets.all(14),
-                  child: _botaoVoltar(),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _botaoVoltar(),
+                      const Spacer(),
+                      Material(
+                        color: Colors.white,
+                        shape: const CircleBorder(),
+                        elevation: 2,
+                        shadowColor: Colors.black26,
+                        child: BotaoAjuda(
+                          fundo: Colors.white,
+                          cor: _azul,
+                          diametro: 40,
+                          tamanhoIcone: 22,
+                          passos: () => explicacaoDaTela(
+                            context,
+                            tela: 'Este é o Radar: peça um serviço no mapa.',
+                            conteudo: [
+                              'Descreva o que precisa e envie. Os profissionais perto de você mandam propostas, e você escolhe a melhor.',
+                            ],
+                            rodape: 56,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SafeArea(
                 child: Align(
                   alignment: Alignment.topRight,
                   child: Padding(
-                    padding: EdgeInsets.all(8),
+                    padding: EdgeInsets.fromLTRB(8, 62, 8, 8),
                     child: CreditoMapa(),
                   ),
                 ),
@@ -1848,7 +1881,7 @@ class _SolicitacaoGeograficaClientePageState
     // Acompanha o dedo durante o arraste; para cima com resistência.
     final dy = _arraste > 0 ? _arraste : _arraste * 0.35;
     return AnimatedContainer(
-      duration: _arrastando ? Duration.zero : const Duration(milliseconds: 220),
+      duration: duracao(_arrastando ? Duration.zero : const Duration(milliseconds: 220)),
       curve: Curves.easeOutCubic,
       transform: Matrix4.translationValues(0, dy, 0),
       width: double.infinity,
@@ -1868,11 +1901,11 @@ class _SolicitacaoGeograficaClientePageState
         child: Stack(
           children: [
             AnimatedSize(
-              duration: _dur,
+              duration: duracao(_dur),
               curve: _curva,
               alignment: Alignment.bottomCenter,
               child: AnimatedSwitcher(
-                duration: _dur,
+                duration: duracao(_dur),
                 switchInCurve: Curves.easeOut,
                 switchOutCurve: Curves.easeIn,
                 // Sai com fade out e entra com fade in (+ leve subida).
@@ -2116,7 +2149,7 @@ class _SolicitacaoGeograficaClientePageState
               ],
             ),
           ),
-          Container(
+          CorOriginal(interface: true, child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
               color: _azul,
@@ -2137,7 +2170,7 @@ class _SolicitacaoGeograficaClientePageState
                 ),
               ],
             ),
-          ),
+          )),
         ],
       ),
     );
@@ -2148,7 +2181,7 @@ class _SolicitacaoGeograficaClientePageState
     final liberado = _formularioCompleto;
     final corTexto = liberado ? Colors.white : const Color(0xFF9CA3AF);
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
+      duration: duracao(const Duration(milliseconds: 250)),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(30),
         color: liberado ? null : const Color(0xFFE5E7EB),
@@ -2225,7 +2258,7 @@ class _SolicitacaoGeograficaClientePageState
   }
 
   Widget _textoErro(String? erro) => AnimatedSwitcher(
-    duration: const Duration(milliseconds: 200),
+    duration: duracao(const Duration(milliseconds: 200)),
     child: erro == null
         ? const SizedBox.shrink()
         : Padding(
@@ -2278,7 +2311,7 @@ class _SolicitacaoGeograficaClientePageState
         borderRadius: BorderRadius.circular(14),
         onTap: _escolherArea,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
+          duration: duracao(const Duration(milliseconds: 220)),
           height: 56,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
@@ -2292,7 +2325,7 @@ class _SolicitacaoGeograficaClientePageState
           ),
           child: Row(
             children: [
-              Container(
+              CorOriginal(interface: true, ativo: selecionada, child: Container(
                 width: 34,
                 height: 34,
                 alignment: Alignment.center,
@@ -2307,7 +2340,7 @@ class _SolicitacaoGeograficaClientePageState
                         color: _textoSec,
                         size: 19,
                       ),
-              ),
+              )),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -2340,7 +2373,7 @@ class _SolicitacaoGeograficaClientePageState
         borderRadius: BorderRadius.circular(14),
         onTap: _escolherMetodo,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
+          duration: duracao(const Duration(milliseconds: 220)),
           constraints: const BoxConstraints(minHeight: 56),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
@@ -2354,7 +2387,7 @@ class _SolicitacaoGeograficaClientePageState
           ),
           child: Row(
             children: [
-              Container(
+              CorOriginal(interface: true, ativo: selecionado, child: Container(
                 width: 34,
                 height: 34,
                 decoration: BoxDecoration(
@@ -2366,7 +2399,7 @@ class _SolicitacaoGeograficaClientePageState
                   color: selecionado ? Colors.white : _textoSec,
                   size: 19,
                 ),
-              ),
+              )),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -2507,12 +2540,12 @@ class _SolicitacaoGeograficaClientePageState
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(11),
                       child: kIsWeb
-                          ? Image.network(
+                          ? ImagemApp(child: Image.network(
                               _imagens[i].path,
                               width: 68,
                               height: 68,
                               fit: BoxFit.cover,
-                            )
+                            ))
                           : Image.file(
                               File(_imagens[i].path),
                               width: 68,
@@ -2702,8 +2735,11 @@ class _SolicitacaoGeograficaClientePageState
                 height: 54,
                 child: OutlinedButton(
                   onPressed: () async {
-                    final ok = await _confirmar(
-                      titulo: 'Cancelar solicitação?',
+                    // Preferências → "Confirmar antes de cancelar pedidos".
+                    final ok = !AppSettingsController.instance.confirmarCancelamento
+                      ? true
+                      : await _confirmar(
+                        titulo: 'Cancelar solicitação?',
                       texto:
                           'Os profissionais deixarão de ver o seu pedido. '
                           'Essa ação não pode ser desfeita.',
@@ -3031,7 +3067,7 @@ class _SolicitacaoGeograficaClientePageState
             shape: BoxShape.circle,
           ),
           alignment: Alignment.center,
-          child: Container(
+          child: CorOriginal(interface: true, child: Container(
             width: 24,
             height: 24,
             decoration: const BoxDecoration(
@@ -3039,7 +3075,7 @@ class _SolicitacaoGeograficaClientePageState
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.check, color: Colors.white, size: 16),
-          ),
+          )),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -3090,7 +3126,7 @@ class _SolicitacaoGeograficaClientePageState
         : _azul;
     final dist = _distanciaKm();
     final foto = a.fotoUrl?.trim() ?? '';
-    final iniciais = Container(
+    final iniciais = CorOriginal(interface: true, child: Container(
       width: 48,
       height: 48,
       decoration: const BoxDecoration(color: _azul, shape: BoxShape.circle),
@@ -3103,7 +3139,7 @@ class _SolicitacaoGeograficaClientePageState
           fontSize: 17,
         ),
       ),
-    );
+    ));
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -3120,13 +3156,13 @@ class _SolicitacaoGeograficaClientePageState
                   foto.isEmpty || foto == 'null'
                       ? iniciais
                       : ClipOval(
-                          child: Image.network(
+                          child: ImagemApp(child: Image.network(
                             foto,
                             width: 48,
                             height: 48,
                             fit: BoxFit.cover,
                             errorBuilder: (_, _, _) => iniciais,
-                          ),
+                          )),
                         ),
                   Positioned(
                     right: -2,
@@ -3137,7 +3173,7 @@ class _SolicitacaoGeograficaClientePageState
                         color: Colors.white,
                         shape: BoxShape.circle,
                       ),
-                      child: Container(
+                      child: CorOriginal(interface: true, child: Container(
                         padding: const EdgeInsets.all(2),
                         decoration: const BoxDecoration(
                           color: _azul,
@@ -3150,7 +3186,7 @@ class _SolicitacaoGeograficaClientePageState
                           color: Colors.white,
                           size: 10,
                         ),
-                      ),
+                      )),
                     ),
                   ),
                 ],
@@ -3273,7 +3309,7 @@ class _SolicitacaoGeograficaClientePageState
       ),
       child: Row(
         children: [
-          Container(
+          CorOriginal(interface: true, child: Container(
             width: 38,
             height: 38,
             alignment: Alignment.center,
@@ -3282,7 +3318,7 @@ class _SolicitacaoGeograficaClientePageState
               shape: BoxShape.circle,
             ),
             child: IconeOficio.imagemPorFuncao(area, tamanho: 22),
-          ),
+          )),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -3374,7 +3410,7 @@ class _SolicitacaoGeograficaClientePageState
     return SizedBox(
       width: double.infinity,
       height: 54,
-      child: FilledButton.icon(
+      child: CorOriginal(interface: true, child: FilledButton.icon(
         onPressed: aoTocar,
         icon: Icon(icone, size: 20),
         label: Text(
@@ -3390,7 +3426,7 @@ class _SolicitacaoGeograficaClientePageState
             borderRadius: BorderRadius.circular(30),
           ),
         ),
-      ),
+      )),
     );
   }
 
@@ -3412,7 +3448,7 @@ class _SolicitacaoGeograficaClientePageState
         children: [
           Row(
             children: [
-              Container(
+              CorOriginal(interface: true, child: Container(
                 width: 40,
                 height: 40,
                 alignment: Alignment.center,
@@ -3421,7 +3457,7 @@ class _SolicitacaoGeograficaClientePageState
                   shape: BoxShape.circle,
                 ),
                 child: IconeOficio.imagemPorFuncao(area, tamanho: 22),
-              ),
+              )),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -3467,7 +3503,7 @@ class _SolicitacaoGeograficaClientePageState
                 itemBuilder: (_, i) => ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: usarSalvas
-                      ? Image.network(
+                      ? ImagemApp(child: Image.network(
                           _imagensSalvas[i],
                           width: 74,
                           height: 74,
@@ -3481,14 +3517,14 @@ class _SolicitacaoGeograficaClientePageState
                               color: _textoSec,
                             ),
                           ),
-                        )
+                        ))
                       : (kIsWeb
-                            ? Image.network(
+                            ? ImagemApp(child: Image.network(
                                 _imagens[i].path,
                                 width: 74,
                                 height: 74,
                                 fit: BoxFit.cover,
-                              )
+                              ))
                             : Image.file(
                                 File(_imagens[i].path),
                                 width: 74,

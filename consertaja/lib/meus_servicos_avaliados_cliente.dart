@@ -5,6 +5,8 @@ import 'services/pedidos_cliente_service.dart';
 import 'servico_concluido_cliente.dart';
 import 'widgets/card_pedido_resumo.dart';
 import 'widgets/skeleton_loading.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 /// Avaliações que o cliente fez dos serviços. Toque → serviço concluído.
 class MeusServicosAvaliadosClientePage extends StatefulWidget {
@@ -64,7 +66,7 @@ class _MeusServicosAvaliadosClientePageState
             backgroundColor: Colors.black,
             foregroundColor: Colors.white,
           ),
-          body: Center(child: InteractiveViewer(child: Image.network(url))),
+          body: Center(child: InteractiveViewer(child: ImagemApp(child: Image.network(url)))),
         ),
       ),
     );
@@ -169,7 +171,7 @@ class _MeusServicosAvaliadosClientePageState
                                     color: Colors.white,
                                   ),
                                 )
-                              : Image.network(m, fit: BoxFit.cover),
+                              : ImagemApp(child: Image.network(m, fit: BoxFit.cover)),
                         ),
                       ),
                     );
@@ -188,7 +190,20 @@ class _MeusServicosAvaliadosClientePageState
     final l = _lista;
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
-      appBar: appBarPerfil('Avaliações de Serviços'),
+      appBar: appBarPerfil(
+        'Avaliações de Serviços',
+        acoes: [
+          BotaoAjuda(
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Aqui ficam as avaliações que você fez.',
+              conteudo: [
+                'Cada card mostra a nota, o comentário e as fotos. Toque para abrir o serviço.',
+              ],
+            ),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _carregar,
         child: _erro != null

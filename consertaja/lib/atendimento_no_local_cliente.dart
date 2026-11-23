@@ -12,6 +12,9 @@ import 'utils/voltar_fluxo_solicitacao.dart';
 import 'widgets/skeletons_telas.dart';
 import 'widgets/codigo_flutuante.dart';
 import 'services/stripe_pagamento_service.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
 
 /// Cliente acompanhando o atendimento no próprio endereço: etapas reais,
 /// código de início, profissional (nota, veículo e placa), cronômetro ao
@@ -378,7 +381,7 @@ class _AtendimentoNoLocalClientePageState
             controller: PageController(initialPage: inicial),
             itemCount: fotos.length,
             itemBuilder: (_, i) => Center(
-              child: InteractiveViewer(child: Image.network(fotos[i])),
+              child: InteractiveViewer(child: ImagemApp(child: Image.network(fotos[i]))),
             ),
           ),
         ),
@@ -498,7 +501,7 @@ class _AtendimentoNoLocalClientePageState
     ],
   );
 
-  Widget _avatar(String? url, String nome, {double size = 48}) => CircleAvatar(
+  Widget _avatar(String? url, String nome, {double size = 48}) => CorOriginal(child: CircleAvatar(
     radius: size / 2,
     backgroundColor: _azul,
     backgroundImage: url != null ? NetworkImage(url) : null,
@@ -512,7 +515,7 @@ class _AtendimentoNoLocalClientePageState
             ),
           )
         : null,
-  );
+  ));
 
   @override
   Widget build(BuildContext context) {
@@ -550,10 +553,21 @@ class _AtendimentoNoLocalClientePageState
           ],
         ),
         actions: [
+          BotaoAjuda(
+            cor: _texto,
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Esta é a tela do atendimento no seu endereço.',
+              conteudo: [
+                'Aqui você acompanha as etapas, o tempo do serviço, o profissional e as fotos.',
+                'Quando o profissional finalizar, confirme a conclusão no botão de baixo.',
+              ],
+            ),
+          ),
           IconButton(
-            tooltip: 'Ajuda',
+            tooltip: 'Suporte',
             onPressed: _ajuda,
-            icon: const Icon(Icons.help_outline_rounded, color: _texto),
+            icon: const Icon(Icons.support_agent_rounded, color: _texto),
           ),
           IconButton(
             onPressed: () => Navigator.push(
@@ -620,8 +634,8 @@ class _AtendimentoNoLocalClientePageState
                 Expanded(
                   child: Column(
                     children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 250),
+                      CorOriginal(interface: true, ativo: i < atual, child: AnimatedContainer(
+                        duration: duracao(const Duration(milliseconds: 250)),
                         width: 30,
                         height: 30,
                         decoration: BoxDecoration(
@@ -648,7 +662,7 @@ class _AtendimentoNoLocalClientePageState
                               ? Colors.white
                               : const Color(0xFF9CA3AF),
                         ),
-                      ),
+                      )),
                       const SizedBox(height: 6),
                       Text(
                         nomes[i],
@@ -740,7 +754,7 @@ class _AtendimentoNoLocalClientePageState
         : _pausado
         ? 'Pausado'
         : 'Em andamento';
-    return Container(
+    return CorOriginal(interface: true, child: Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -817,7 +831,7 @@ class _AtendimentoNoLocalClientePageState
           ),
         ],
       ),
-    );
+    ));
   }
 
   IconData _iconeMeio(String meio) => switch (meio) {
@@ -1052,7 +1066,7 @@ class _AtendimentoNoLocalClientePageState
                   onTap: () => _abrirFoto(fotos, i),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
+                    child: ImagemApp(child: Image.network(
                       fotos[i],
                       width: 84,
                       height: 84,
@@ -1065,7 +1079,7 @@ class _AtendimentoNoLocalClientePageState
                           color: _muted,
                         ),
                       ),
-                    ),
+                    )),
                   ),
                 ),
               ),

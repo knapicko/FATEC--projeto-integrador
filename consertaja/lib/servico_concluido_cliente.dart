@@ -10,6 +10,9 @@ import 'utils/cor_oficio.dart';
 import 'utils/fluxo_solicitacao.dart';
 import 'utils/iniciais.dart';
 import 'widgets/skeleton_loading.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
 
 /// Pedido CONCLUÍDO visto pelo cliente (servico_concluido.dart reexporta):
 /// avaliação no topo, loja/profissional, detalhes do pedido e pagamento,
@@ -521,7 +524,7 @@ class _ServicoConcluidoClientePageState
     );
   }
 
-  Widget _cabecalhoAzul(String titulo, {Widget? extra}) => Container(
+  Widget _cabecalhoAzul(String titulo, {Widget? extra}) => CorOriginal(interface: true, child: Container(
     width: double.infinity,
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     decoration: const BoxDecoration(
@@ -541,7 +544,7 @@ class _ServicoConcluidoClientePageState
         if (extra != null) ...[const SizedBox(width: 8), extra],
       ],
     ),
-  );
+  ));
 
   Widget _codigoCopiavel({Color cor = Colors.white, double tamanho = 12}) =>
       InkWell(
@@ -571,7 +574,7 @@ class _ServicoConcluidoClientePageState
         width: tamanho,
         height: tamanho,
         child: u.startsWith('http')
-            ? Image.network(u, fit: BoxFit.cover)
+            ? ImagemApp(child: Image.network(u, fit: BoxFit.cover))
             : Container(
                 color: const Color(0xFFE0F2FE),
                 alignment: Alignment.center,
@@ -855,7 +858,7 @@ class _ServicoConcluidoClientePageState
                   ),
                   AnimatedRotation(
                     turns: _pagamentoAberto ? 0.5 : 0,
-                    duration: const Duration(milliseconds: 180),
+                    duration: duracao(const Duration(milliseconds: 180)),
                     child: const Icon(
                       Icons.expand_more_rounded,
                       color: _sec,
@@ -867,7 +870,7 @@ class _ServicoConcluidoClientePageState
             ),
           ),
           AnimatedSize(
-            duration: const Duration(milliseconds: 200),
+            duration: duracao(const Duration(milliseconds: 200)),
             alignment: Alignment.topCenter,
             child: !_pagamentoAberto
                 ? const SizedBox(width: double.infinity)
@@ -1017,6 +1020,17 @@ class _ServicoConcluidoClientePageState
             Text(_codigo, style: const TextStyle(color: _sec, fontSize: 12)),
           ],
         ),
+        actions: [
+          BotaoAjuda(
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Este é o resumo do seu serviço concluído.',
+              conteudo: [
+                'Aqui você vê as etapas e os valores, e pode avaliar o profissional.',
+              ],
+            ),
+          ),
+        ],
       ),
       body: _carregando
           ? ListView(

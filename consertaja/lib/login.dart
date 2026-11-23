@@ -10,6 +10,10 @@ import 'services/auth_navigation.dart';
 import 'tela_inicial.dart';
 import 'onboarding/onboarding_widgets.dart';
 import 'utils/app_navigation_util.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
+import 'services/biometria_service.dart';
+import 'services/app_settings_controller.dart';
 
 // ================= TELA: LOGIN =================
 class LoginPage extends StatefulWidget {
@@ -24,6 +28,67 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _senhaController = TextEditingController();
   bool _carregando = false;
 
+  /// Login por biometria guardado neste celular (Configurações → Segurança).
+  bool _temBiometria = false;
+  String? _nomeBiometria;
+
+  @override
+  void initState() {
+    super.initState();
+    _verificarBiometria();
+  }
+
+  Future<void> _verificarBiometria() async {
+    final conta = await BiometriaService.contaGuardada();
+    if (conta == null) return;
+    final credenciais = await BiometriaService.credenciais();
+    final disponivel = await BiometriaService.disponivel();
+    final nome = await BiometriaService.nomeGuardado();
+    if (!mounted) return;
+    setState(() {
+      _temBiometria = credenciais != null && disponivel;
+      _nomeBiometria = nome;
+    });
+  }
+
+  Future<void> _entrarComBiometria() async {
+    final ok = await BiometriaService.autenticar(
+      'Use a biometria para entrar no ConsertaJá',
+    );
+    if (!ok) return;
+    final credenciais = await BiometriaService.credenciais();
+    if (credenciais == null) {
+      if (!mounted) return;
+      setState(() => _temBiometria = false);
+      return;
+    }
+    _emailController.text = credenciais.$1;
+    _senhaController.text = credenciais.$2;
+    await _fazerLogin(viaBiometria: true);
+  }
+
+  /// Depois de entrar com senha: mantém o cofre da biometria em dia. Se esta
+  /// conta tem a biometria ligada, guarda a senha atual; se outra conta
+  /// entrou, a biometria passa a não valer (ela entra na última conta).
+  Future<void> _atualizarBiometria() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+    try {
+      await AppSettingsController.instance.recarregar();
+      if (AppSettingsController.instance.biometriaAtiva) {
+        await BiometriaService.salvar(
+          identificador: _emailController.text.trim(),
+          senha: _senhaController.text,
+          authId: user.id,
+          nome: await BiometriaService.nomeGuardado(),
+        );
+      } else if (await BiometriaService.contaGuardada() != null &&
+          await BiometriaService.contaGuardada() != user.id) {
+        await BiometriaService.apagar();
+      }
+    } catch (_) {}
+  }
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -31,7 +96,7 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  Future<void> _fazerLogin() async {
+  Future<void> _fazerLogin({bool viaBiometria = false}) async {
     if (_emailController.text.isEmpty || _senhaController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -49,6 +114,13 @@ class _LoginPageState extends State<LoginPage> {
         senha: _senhaController.text,
       );
 
+      if (resultado.sucesso && !viaBiometria) await _atualizarBiometria();
+      if (!resultado.sucesso && viaBiometria) {
+        // Senha mudou: a biometria precisa ser ativada de novo.
+        await BiometriaService.apagar();
+        _senhaController.clear();
+        if (mounted) setState(() => _temBiometria = false);
+      }
       if (resultado.sucesso && mounted) {
         Navigator.pushAndRemoveUntil(
           context,
@@ -170,7 +242,7 @@ class _LoginPageState extends State<LoginPage> {
           leadingWidth: 100,
           leading: TextButton.icon(
             onPressed: () => Navigator.pop(context),
-            icon: Image.asset('assets/images/google_logo.png', height: 22),
+            icon: ImagemApp(child: Image.asset('assets/images/google_logo.png', height: 22)),
             label: const Text(
               'Voltar',
               style: TextStyle(color: Color(0xFF00A2FF), fontSize: 16),
@@ -179,7 +251,7 @@ class _LoginPageState extends State<LoginPage> {
         ),
         body: TweenAnimationBuilder<double>(
           tween: Tween<double>(begin: 0.0, end: 1.0),
-          duration: const Duration(milliseconds: 550),
+          duration: duracao(const Duration(milliseconds: 550)),
           curve: Curves.easeOutCubic,
           builder: (context, value, child) {
             return Opacity(
@@ -206,11 +278,11 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 30),
 
-                Image.asset(
+                ImagemApp(child: Image.asset(
                   'assets/images/login_img.png',
                   height: 150,
                   fit: BoxFit.contain,
-                ),
+                )),
                 const SizedBox(height: 40),
 
                 ValueListenableBuilder<TextEditingValue>(
@@ -274,7 +346,7 @@ class _LoginPageState extends State<LoginPage> {
                 SizedBox(
                   width: double.infinity,
                   height: 55,
-                  child: ElevatedButton(
+                  child: CorOriginal(interface: true, child: ElevatedButton(
                     onPressed: _carregando ? null : _fazerLogin,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF00A2FF),
@@ -296,8 +368,43 @@ class _LoginPageState extends State<LoginPage> {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                  ),
+                  )),
                 ),
+
+                if (_temBiometria) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 55,
+                    child: OutlinedButton.icon(
+                      onPressed: _carregando ? null : _entrarComBiometria,
+                      icon: const Icon(
+                        Icons.fingerprint,
+                        color: Color(0xFF00A2FF),
+                        size: 28,
+                      ),
+                      label: Text(
+                        _nomeBiometria == null
+                            ? 'Entrar com biometria'
+                            : 'Entrar como $_nomeBiometria',
+                        style: const TextStyle(
+                          color: Color(0xFF00A2FF),
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(
+                          color: Color(0xFF00A2FF),
+                          width: 1.5,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
 
                 const SizedBox(height: 20),
 
@@ -328,10 +435,10 @@ class _LoginPageState extends State<LoginPage> {
                   height: 55,
                   child: OutlinedButton.icon(
                     onPressed: _carregando ? null : _fazerLoginComGoogle,
-                    icon: Image.asset(
+                    icon: ImagemApp(child: Image.asset(
                       'assets/images/icone/google-logo.png',
                       height: 22,
-                    ),
+                    )),
                     label: const Text(
                       'Entrar com o Google',
                       style: TextStyle(
@@ -479,7 +586,7 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
+        duration: duracao(const Duration(milliseconds: 250)),
         curve: Curves.easeInOut,
         height: 56,
         decoration: BoxDecoration(
@@ -507,7 +614,7 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                 alignment: Alignment.centerLeft,
                 children: [
                   AnimatedPositioned(
-                    duration: const Duration(milliseconds: 200),
+                    duration: duracao(const Duration(milliseconds: 200)),
                     curve: Curves.easeInOut,
                     left: 0,
                     right: 0,
@@ -517,7 +624,7 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           AnimatedDefaultTextStyle(
-                            duration: const Duration(milliseconds: 200),
+                            duration: duracao(const Duration(milliseconds: 200)),
                             style: TextStyle(
                               color: _isFocused
                                   ? const Color(0xFF00A2FF)
@@ -534,7 +641,7 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                             child: Text(widget.label),
                           ),
                           AnimatedOpacity(
-                            duration: const Duration(milliseconds: 200),
+                            duration: duracao(const Duration(milliseconds: 200)),
                             opacity: shouldFloat ? 1.0 : 0.0,
                             child: const Text(
                               '*',
@@ -550,7 +657,7 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                     ),
                   ),
                   AnimatedPositioned(
-                    duration: const Duration(milliseconds: 200),
+                    duration: duracao(const Duration(milliseconds: 200)),
                     curve: Curves.easeInOut,
                     left: 0,
                     right: 0,
@@ -596,7 +703,7 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                         ? () => setState(() => _obscureActive = !_obscureActive)
                         : widget.onTap),
                 child: AnimatedScale(
-                  duration: const Duration(milliseconds: 200),
+                  duration: duracao(const Duration(milliseconds: 200)),
                   scale: _isFocused ? 1.05 : 1.0,
                   child: Icon(
                     _dynamicIcon,

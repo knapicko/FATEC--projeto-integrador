@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/imagem_app.dart';
 
 class IconeOficio {
   IconeOficio._();
@@ -110,14 +111,14 @@ class IconeOficio {
     if (caminho == null) {
       return Icon(Icons.handyman_outlined, color: Colors.white, size: tamanho);
     }
-    return Image.asset(
+    return ImagemApp(child: Image.asset(
       caminho,
       width: tamanho,
       height: tamanho,
       fit: BoxFit.contain,
       errorBuilder: (_, _, _) =>
           Icon(Icons.handyman_outlined, color: Colors.white, size: tamanho),
-    );
+    ));
   }
 
   static Widget imagemPorFuncao(String? funcao, {double tamanho = 30}) {
@@ -125,14 +126,14 @@ class IconeOficio {
     if (caminho == null) {
       return Icon(Icons.handyman_outlined, color: Colors.white, size: tamanho);
     }
-    return Image.asset(
+    return ImagemApp(child: Image.asset(
       caminho,
       width: tamanho,
       height: tamanho,
       fit: BoxFit.contain,
       errorBuilder: (_, _, _) =>
           Icon(Icons.handyman_outlined, color: Colors.white, size: tamanho),
-    );
+    ));
   }
 
   static Widget imagemPorFuncaoAzul(String? funcao, {double tamanho = 30}) {
@@ -140,13 +141,13 @@ class IconeOficio {
     if (caminho == null) {
       return Icon(Icons.handyman_outlined, color: Colors.white, size: tamanho);
     }
-    return Image.asset(
+    return ImagemApp(child: Image.asset(
       caminho,
       width: tamanho,
       height: tamanho,
       fit: BoxFit.contain,
       errorBuilder: (_, _, _) =>
           Icon(Icons.handyman_outlined, color: Colors.white, size: tamanho),
-    );
+    ));
   }
 }

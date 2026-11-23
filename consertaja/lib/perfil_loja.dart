@@ -24,6 +24,9 @@ import 'widgets/calendario_disponibilidade.dart';
 import 'servicos_do_profissional.dart';
 import 'tutorial/tutorial.dart';
 import 'tutorial/tutorial_da_tela.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
 
 // Cores temáticas fiéis ao design
 const Color _kPrimaryCyan = Color(0xFF0FB3FF);
@@ -52,8 +55,8 @@ class _BlinkingSignalDotState extends State<_BlinkingSignalDot>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat(reverse: true);
+      duration: duracao(const Duration(milliseconds: 1400)),
+    )..repetir(reverse: true);
     _animation = Tween<double>(
       begin: 0.2,
       end: 1.0,
@@ -1530,20 +1533,39 @@ class _PerfilLojaState extends State<PerfilLoja>
                     ),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.more_vert,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Opções adicionais do perfil da loja'),
-                          behavior: SnackBarBehavior.floating,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      BotaoAjuda(
+                        cor: Colors.white,
+                        passos: () => passosAjuda(
+                          reserva: () => explicacaoDaTela(
+                            context,
+                            tela: 'Esta é a página da loja.',
+                            conteudo: [
+                              'Aqui você vê a equipe, os serviços, a localização e as avaliações.',
+                            ],
+                          ),
                         ),
-                      );
-                    },
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.more_vert,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Opções adicionais do perfil da loja',
+                              ),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -1581,7 +1603,7 @@ class _PerfilLojaState extends State<PerfilLoja>
               Positioned(
                 bottom: -2,
                 right: -2,
-                child: Container(
+                child: CorOriginal(interface: true, child: Container(
                   width: 26,
                   height: 26,
                   decoration: BoxDecoration(
@@ -1599,7 +1621,7 @@ class _PerfilLojaState extends State<PerfilLoja>
                   child: const Center(
                     child: Icon(Icons.check, color: Colors.white, size: 15),
                   ),
-                ),
+                )),
               ),
             ],
           ),
@@ -1616,28 +1638,28 @@ class _PerfilLojaState extends State<PerfilLoja>
             _fotoUrlEmpresa!.startsWith('https://'));
 
     if (usaImagemRede) {
-      return Image.network(
+      return ImagemApp(child: Image.network(
         _fotoUrlEmpresa!,
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) =>
             _buildImagemPadraoOuIniciais(),
-      );
+      ));
     } else if (_fotoUrlEmpresa != null &&
         _fotoUrlEmpresa!.isNotEmpty &&
         _fotoUrlEmpresa!.startsWith('assets/')) {
-      return Image.asset(
+      return ImagemApp(child: Image.asset(
         _fotoUrlEmpresa!,
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) =>
             _buildImagemPadraoOuIniciais(),
-      );
+      ));
     } else {
       return _buildImagemPadraoOuIniciais();
     }
   }
 
   Widget _buildImagemPadraoOuIniciais() {
-    return Image.asset(
+    return ImagemApp(child: Image.asset(
       'assets/images/loja_caedss.png',
       fit: BoxFit.cover,
       errorBuilder: (context, error, stackTrace) {
@@ -1654,7 +1676,7 @@ class _PerfilLojaState extends State<PerfilLoja>
           ),
         );
       },
-    );
+    ));
   }
 
   // =========================================================================
@@ -1851,7 +1873,7 @@ class _PerfilLojaState extends State<PerfilLoja>
               Expanded(
                 child: SizedBox(
                   height: 46,
-                  child: ElevatedButton(
+                  child: CorOriginal(interface: true, child: ElevatedButton(
                     onPressed: _abrirConversa,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _kPrimaryCyan,
@@ -1880,7 +1902,7 @@ class _PerfilLojaState extends State<PerfilLoja>
                         ),
                       ],
                     ),
-                  ),
+                  )),
                 ),
               ),
             ],
@@ -2110,13 +2132,13 @@ class _PerfilLojaState extends State<PerfilLoja>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircleAvatar(
+            CorOriginal(child: CircleAvatar(
               radius: 28,
               backgroundColor: const Color(0xFFE0F2FE),
               backgroundImage: usaFotoRede ? NetworkImage(foto) : null,
               child: !usaFotoRede
                   ? (foto.isNotEmpty && foto.startsWith('assets/')
-                        ? ClipOval(child: Image.asset(foto, fit: BoxFit.cover))
+                        ? ClipOval(child: ImagemApp(child: Image.asset(foto, fit: BoxFit.cover)))
                         : Text(
                             obterIniciais(nome),
                             style: const TextStyle(
@@ -2126,7 +2148,7 @@ class _PerfilLojaState extends State<PerfilLoja>
                             ),
                           ))
                   : null,
-            ),
+            )),
             const SizedBox(height: 10),
             Text(
               nome,
@@ -2285,7 +2307,7 @@ class _PerfilLojaState extends State<PerfilLoja>
                               width: 44,
                               height: 44,
                               alignment: Alignment.center,
-                              child: Container(
+                              child: CorOriginal(interface: true, child: Container(
                                 decoration: BoxDecoration(
                                   color: _kPrimaryCyan,
                                   shape: BoxShape.circle,
@@ -2308,7 +2330,7 @@ class _PerfilLojaState extends State<PerfilLoja>
                                   color: Colors.white,
                                   size: 24,
                                 ),
-                              ),
+                              )),
                             ),
                           ],
                         ),
@@ -2862,7 +2884,7 @@ class _PerfilLojaState extends State<PerfilLoja>
                       children: [
                         if (item.imagemUrl != null &&
                             item.imagemUrl!.isNotEmpty)
-                          Image.network(
+                          ImagemApp(child: Image.network(
                             item.imagemUrl!,
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) {
@@ -2875,7 +2897,7 @@ class _PerfilLojaState extends State<PerfilLoja>
                                 ),
                               );
                             },
-                          )
+                          ))
                         else
                           Container(
                             color: const Color(0xFFE2E8F0),
@@ -3188,12 +3210,12 @@ class _PerfilLojaState extends State<PerfilLoja>
                   height: 105,
                   width: double.infinity,
                   child: usaImagemRede
-                      ? Image.network(
+                      ? ImagemApp(child: Image.network(
                           servico.imagemUrl!,
                           fit: BoxFit.cover,
                           errorBuilder: (_, _, _) =>
                               _placeholderImagemServico(),
-                        )
+                        ))
                       : _placeholderImagemServico(),
                 ),
                 Positioned(
@@ -3464,7 +3486,7 @@ class _PerfilLojaState extends State<PerfilLoja>
         children: [
           Row(
             children: [
-              CircleAvatar(
+              CorOriginal(interface: true, child: CircleAvatar(
                 radius: 18,
                 backgroundColor: _kPrimaryCyan,
                 child: Text(
@@ -3475,7 +3497,7 @@ class _PerfilLojaState extends State<PerfilLoja>
                     color: Colors.white,
                   ),
                 ),
-              ),
+              )),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -3646,7 +3668,7 @@ class _AbasLojaDelegate extends SliverPersistentHeaderDelegate {
                           ),
                         ),
                         const Spacer(),
-                        Container(
+                        CorOriginal(interface: true, ativo: isActive, child: Container(
                           height: 2.5,
                           width: double.infinity,
                           decoration: BoxDecoration(
@@ -3655,7 +3677,7 @@ class _AbasLojaDelegate extends SliverPersistentHeaderDelegate {
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(2),
                           ),
-                        ),
+                        )),
                       ],
                     ),
                   ),

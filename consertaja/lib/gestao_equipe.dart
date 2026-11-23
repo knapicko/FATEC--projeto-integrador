@@ -30,6 +30,8 @@ import 'widgets/dialogo_sheet.dart';
 import 'widgets/aviso_obrigatorio.dart';
 import 'tutorial/tutorial.dart';
 import 'tutorial/tutorial_da_tela.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 class GestaoEquipePage extends StatefulWidget {
   const GestaoEquipePage({super.key, this.tutorialESair = false});
@@ -1101,11 +1103,11 @@ class _GestaoEquipePageState extends State<GestaoEquipePage>
                   height: 120,
                   child:
                       _bannerUrlEmpresa != null && _bannerUrlEmpresa!.isNotEmpty
-                      ? Image.network(
+                      ? ImagemApp(child: Image.network(
                           _bannerUrlEmpresa!,
                           fit: BoxFit.cover,
                           errorBuilder: (_, _, _) => _buildBannerFallback(),
-                        )
+                        ))
                       : _buildBannerFallback(),
                 ),
                 if (_enviandoBannerEmpresa)
@@ -1192,7 +1194,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage>
                               ),
                             ],
                           ),
-                          child: CircleAvatar(
+                          child: CorOriginal(child: CircleAvatar(
                             backgroundColor: const Color(0xFFEFF6FF),
                             backgroundImage:
                                 _fotoUrlEmpresa != null &&
@@ -1211,12 +1213,12 @@ class _GestaoEquipePageState extends State<GestaoEquipePage>
                                     ),
                                   )
                                 : null,
-                          ),
+                          )),
                         ),
                         Positioned(
                           right: 0,
                           bottom: 0,
-                          child: Container(
+                          child: CorOriginal(interface: true, child: Container(
                             width: 26,
                             height: 26,
                             decoration: BoxDecoration(
@@ -1239,7 +1241,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage>
                                     size: 13,
                                     color: Colors.white,
                                   ),
-                          ),
+                          )),
                         ),
                       ],
                     ),
@@ -1565,7 +1567,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage>
                 child: Row(
                   children: [
                     // Círculo azul com medalha/fita
-                    Container(
+                    CorOriginal(interface: true, child: Container(
                       width: 46,
                       height: 46,
                       decoration: const BoxDecoration(
@@ -1579,7 +1581,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage>
                           size: 25,
                         ),
                       ),
-                    ),
+                    )),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -1707,7 +1709,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage>
                     ].map((pill) {
                       final isSelected =
                           _pillAnosMercadoSelecionada == pill['valor'];
-                      return Material(
+                      return CorOriginal(interface: true, ativo: isSelected, child: Material(
                         color: isSelected
                             ? const Color(0xFF00B0FF)
                             : Colors.white,
@@ -1752,7 +1754,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage>
                             ),
                           ),
                         ),
-                      );
+                      ));
                     }).toList(),
               ),
               const SizedBox(height: 18),
@@ -2428,6 +2430,18 @@ class _GestaoEquipePageState extends State<GestaoEquipePage>
           ),
         ),
         actions: [
+          BotaoAjuda(
+            cor: _primaryBlue,
+            passos: () => passosAjuda(
+              reserva: () => explicacaoDaTela(
+                context,
+                tela: 'Esta é a gestão da sua empresa.',
+                conteudo: [
+                  'Aqui você convida e gerencia a equipe, os serviços e o perfil da loja.',
+                ],
+              ),
+            ),
+          ),
           IconButton(
             key: chaveTut('config'),
             tooltip: _configPendente
@@ -2558,7 +2572,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage>
                   SizedBox(
                     width: double.infinity,
                     height: 48,
-                    child: ElevatedButton(
+                    child: CorOriginal(interface: true, child: ElevatedButton(
                       onPressed: _convidarFuncionario,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _primaryBlue,
@@ -2587,7 +2601,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage>
                           ),
                         ],
                       ),
-                    ),
+                    )),
                   ),
                   const SizedBox(height: 18),
                   const Divider(
@@ -2904,13 +2918,13 @@ class _GestaoEquipePageState extends State<GestaoEquipePage>
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: servico.imagemUrl != null && servico.imagemUrl!.isNotEmpty
-                ? Image.network(
+                ? ImagemApp(child: Image.network(
                     servico.imagemUrl!,
                     width: 78,
                     height: 78,
                     fit: BoxFit.cover,
                     errorBuilder: (_, _, _) => _buildImagemServicoFallback(),
-                  )
+                  ))
                 : _buildImagemServicoFallback(),
           ),
           const SizedBox(width: 14),
@@ -3116,7 +3130,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage>
             width: 48,
             height: 48,
             child: membro.fotoUrl != null
-                ? Image.network(
+                ? ImagemApp(child: Image.network(
                     membro.fotoUrl!,
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) => Container(
@@ -3131,7 +3145,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage>
                         ),
                       ),
                     ),
-                  )
+                  ))
                 : Container(
                     color: const Color(0xFFF1F5F9),
                     child: Center(

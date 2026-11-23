@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'adicionar_servico_profissional.dart';
 import 'meus_dados_financeiros_profissional.dart';
@@ -16,6 +15,10 @@ import 'widgets/card_pedido_resumo.dart';
 import 'widgets/formas_pagamento.dart';
 import 'widgets/selo_conta_ativa.dart';
 import 'widgets/skeleton_loading.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
+import 'utils/abrir_video.dart';
 
 /// Serviço do profissional (ou da loja) como o cliente vê na tela_servico:
 /// imagem, preço, tags, métodos de realização, formas de pagamento e as
@@ -200,7 +203,7 @@ class _InformacoesServicoProfissionalPageState
 
   // ── Seções (visão do cliente) ──────────────────────────────────────────
 
-  Widget _cabecalho(String titulo) => Container(
+  Widget _cabecalho(String titulo) => CorOriginal(interface: true, child: Container(
     color: _azul,
     child: SafeArea(
       bottom: false,
@@ -224,6 +227,16 @@ class _InformacoesServicoProfissionalPageState
                 ),
               ),
             ),
+            BotaoAjuda(
+              cor: Colors.white,
+              passos: () => explicacaoDaTela(
+                context,
+                tela: 'É assim que o cliente vê o seu serviço.',
+                conteudo: [
+                  'Use os lápis para editar cada parte. Lá embaixo ficam as avaliações, com busca e filtros.',
+                ],
+              ),
+            ),
             if (_podeEditar)
               IconButton(
                 tooltip: 'Editar serviço',
@@ -234,7 +247,7 @@ class _InformacoesServicoProfissionalPageState
         ),
       ),
     ),
-  );
+  ));
 
   Widget _avisoVisaoCliente() => Container(
     width: double.infinity,
@@ -270,11 +283,11 @@ class _InformacoesServicoProfissionalPageState
         fit: StackFit.expand,
         children: [
           url.startsWith('http')
-              ? Image.network(
+              ? ImagemApp(child: Image.network(
                   url,
                   fit: BoxFit.cover,
                   errorBuilder: (_, _, _) => _semImagem(),
-                )
+                ))
               : _semImagem(),
           if (_podeEditar)
             Positioned(
@@ -616,8 +629,8 @@ class _InformacoesServicoProfissionalPageState
     padding: const EdgeInsets.only(right: 8),
     child: GestureDetector(
       onTap: aoTocar,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
+      child: CorOriginal(interface: true, ativo: ativo, child: AnimatedContainer(
+        duration: duracao(const Duration(milliseconds: 160)),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
           color: ativo ? _azul : Colors.white,
@@ -641,7 +654,7 @@ class _InformacoesServicoProfissionalPageState
             ),
           ],
         ),
-      ),
+      )),
     ),
   );
 
@@ -755,7 +768,7 @@ class _InformacoesServicoProfissionalPageState
 
   void _abrirMidia(String url) {
     if (_video(url)) {
-      launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      abrirVideo(context, url);
       return;
     }
     Navigator.of(context).push(
@@ -767,7 +780,7 @@ class _InformacoesServicoProfissionalPageState
             backgroundColor: Colors.black,
             foregroundColor: Colors.white,
           ),
-          body: Center(child: InteractiveViewer(child: Image.network(url))),
+          body: Center(child: InteractiveViewer(child: ImagemApp(child: Image.network(url)))),
         ),
       ),
     );
@@ -793,7 +806,7 @@ class _InformacoesServicoProfissionalPageState
       children: [
         Row(
           children: [
-            CircleAvatar(
+            CorOriginal(child: CircleAvatar(
               radius: 20,
               backgroundColor: _azul,
               backgroundImage: a.foto != null ? NetworkImage(a.foto!) : null,
@@ -807,7 +820,7 @@ class _InformacoesServicoProfissionalPageState
                       ),
                     )
                   : null,
-            ),
+            )),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -882,7 +895,7 @@ class _InformacoesServicoProfissionalPageState
                                 color: Colors.white,
                               ),
                             )
-                          : Image.network(
+                          : ImagemApp(child: Image.network(
                               m,
                               fit: BoxFit.cover,
                               errorBuilder: (_, _, _) => Container(
@@ -892,7 +905,7 @@ class _InformacoesServicoProfissionalPageState
                                   color: _sec,
                                 ),
                               ),
-                            ),
+                            )),
                     ),
                   ),
                 );

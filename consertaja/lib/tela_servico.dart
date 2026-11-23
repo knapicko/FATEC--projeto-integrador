@@ -23,6 +23,9 @@ import 'services/pedidos_cliente_service.dart';
 import 'widgets/formas_pagamento.dart';
 import 'tutorial/tutorial.dart';
 import 'tutorial/tutorial_da_tela.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
 
 class TelaServico extends StatefulWidget {
   final int? idServico;
@@ -318,7 +321,7 @@ class _TelaServicoState extends State<TelaServico>
   // 1. Cabeçalho Superior
   Widget _buildCabecalho(String titulo) {
     _carregarFavorito();
-    return Container(
+    return CorOriginal(interface: true, child: Container(
       color: _azul,
       child: SafeArea(
         bottom: false,
@@ -346,12 +349,24 @@ class _TelaServicoState extends State<TelaServico>
                   ),
                 ),
               ),
+              BotaoAjuda(
+                cor: Colors.white,
+                passos: () => passosAjuda(
+                  reserva: () => explicacaoDaTela(
+                    context,
+                    tela: 'Estes são os detalhes do serviço.',
+                    conteudo: [
+                      'Veja o preço, as formas de pagamento, quem oferece e as avaliações.',
+                    ],
+                  ),
+                ),
+              ),
               // Favoritar (salvo em servicos_favoritos).
               IconButton(
                 tooltip: _favorito ? 'Remover dos favoritos' : 'Favoritar',
                 onPressed: _alternarFavorito,
                 icon: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 200),
+                  duration: duracao(const Duration(milliseconds: 200)),
                   transitionBuilder: (c, a) =>
                       ScaleTransition(scale: a, child: c),
                   child: Icon(
@@ -368,7 +383,7 @@ class _TelaServicoState extends State<TelaServico>
           ),
         ),
       ),
-    );
+    ));
   }
 
   // Carrossel de imagens (quantidade = nº de imagens anexadas; sem imagem = 1 placeholder)
@@ -397,11 +412,11 @@ class _TelaServicoState extends State<TelaServico>
             itemBuilder: (_, index) {
               if (urls.isEmpty) return _placeholderImagem();
               final url = urls[index];
-              return Image.network(
+              return ImagemApp(child: Image.network(
                 url,
                 fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) => _placeholderImagem(),
-              );
+              ));
             },
           ),
           Positioned(
@@ -409,7 +424,7 @@ class _TelaServicoState extends State<TelaServico>
             right: 14,
             child: Row(
               children: [
-                Container(
+                CorOriginal(interface: true, child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 5,
@@ -433,7 +448,7 @@ class _TelaServicoState extends State<TelaServico>
                       fontSize: 12,
                     ),
                   ),
-                ),
+                )),
               ],
             ),
           ),
@@ -700,7 +715,7 @@ class _TelaServicoState extends State<TelaServico>
                   Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      Container(
+                      CorOriginal(interface: true, child: Container(
                         width: 52,
                         height: 52,
                         decoration: BoxDecoration(
@@ -709,11 +724,11 @@ class _TelaServicoState extends State<TelaServico>
                         ),
                         clipBehavior: Clip.antiAlias,
                         child: _buildAvatarOuLogo(detalhe),
-                      ),
+                      )),
                       Positioned(
                         bottom: -3,
                         right: -3,
-                        child: Container(
+                        child: CorOriginal(interface: true, child: Container(
                           width: 18,
                           height: 18,
                           decoration: BoxDecoration(
@@ -728,7 +743,7 @@ class _TelaServicoState extends State<TelaServico>
                               size: 10,
                             ),
                           ),
-                        ),
+                        )),
                       ),
                     ],
                   ),
@@ -816,7 +831,7 @@ class _TelaServicoState extends State<TelaServico>
                   children: [
                     SizedBox(
                       height: 32,
-                      child: ElevatedButton(
+                      child: CorOriginal(interface: true, child: ElevatedButton(
                         onPressed: () {
                           Navigator.push(
                             context,
@@ -846,7 +861,7 @@ class _TelaServicoState extends State<TelaServico>
                             fontSize: 12.5,
                           ),
                         ),
-                      ),
+                      )),
                     ),
                   ],
                 ),
@@ -912,11 +927,11 @@ class _TelaServicoState extends State<TelaServico>
 
   Widget _buildAvatarOuLogo(DetalheServicoPublico detalhe) {
     if (detalhe.fotoPrestador != null && _ehUrl(detalhe.fotoPrestador)) {
-      return Image.network(
+      return ImagemApp(child: Image.network(
         detalhe.fotoPrestador!,
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => _fallbackIniciais(detalhe),
-      );
+      ));
     }
     return _fallbackIniciais(detalhe);
   }
@@ -1164,7 +1179,7 @@ class _TelaServicoState extends State<TelaServico>
         children: [
           Row(
             children: [
-              Container(
+              CorOriginal(interface: true, child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: _azul,
@@ -1186,7 +1201,7 @@ class _TelaServicoState extends State<TelaServico>
                     ),
                   ],
                 ),
-              ),
+              )),
               const Spacer(),
               if (temEndereco)
                 Container(
@@ -1245,7 +1260,7 @@ class _TelaServicoState extends State<TelaServico>
                 SizedBox(
                   width: double.infinity,
                   height: 42,
-                  child: ElevatedButton.icon(
+                  child: CorOriginal(interface: true, child: ElevatedButton.icon(
                     onPressed: () {
                       Navigator.push(
                         context,
@@ -1273,7 +1288,7 @@ class _TelaServicoState extends State<TelaServico>
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                  ),
+                  )),
                 ),
               ],
             ),
@@ -1437,7 +1452,7 @@ class _TelaServicoState extends State<TelaServico>
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(18),
-                child: Image.asset(
+                child: ImagemApp(child: Image.asset(
                   'assets/images/virar_camera_img.png',
                   width: 36,
                   height: 36,
@@ -1455,7 +1470,7 @@ class _TelaServicoState extends State<TelaServico>
                       size: 20,
                     ),
                   ),
-                ),
+                )),
               ),
               const SizedBox(width: 8),
               const Expanded(
@@ -1822,7 +1837,7 @@ class _TelaServicoState extends State<TelaServico>
             Expanded(
               child: SizedBox(
                 height: 48,
-                child: ElevatedButton.icon(
+                child: CorOriginal(interface: true, child: ElevatedButton.icon(
                   onPressed: () {
                     _abrirSheetAdicionarServico();
                   },
@@ -1839,7 +1854,7 @@ class _TelaServicoState extends State<TelaServico>
                     'Adicionar Serviço',
                     style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
                   ),
-                ),
+                )),
               ),
             ),
           ],
@@ -2184,7 +2199,7 @@ class _TelaServicoState extends State<TelaServico>
         ? _detalhe!.servico.titulo.trim()
         : 'Conserto de Cabo de Panela';
 
-    return Container(
+    return CorOriginal(interface: true, child: Container(
       color: _azul,
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
       child: SafeArea(
@@ -2224,7 +2239,7 @@ class _TelaServicoState extends State<TelaServico>
           ),
         ),
       ),
-    );
+    ));
   }
 
   Widget _buildRotuloPasso(String texto) {
@@ -2331,7 +2346,7 @@ class _TelaServicoState extends State<TelaServico>
             ),
             child: Row(
               children: [
-                Container(
+                CorOriginal(interface: true, child: Container(
                   width: 52,
                   height: 52,
                   decoration: BoxDecoration(
@@ -2340,7 +2355,7 @@ class _TelaServicoState extends State<TelaServico>
                   ),
                   alignment: Alignment.center,
                   child: Icon(iconeMetodo, color: Colors.white, size: 28),
-                ),
+                )),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -2830,7 +2845,7 @@ class _TelaServicoState extends State<TelaServico>
             Expanded(
               child: SizedBox(
                 height: 48,
-                child: ElevatedButton(
+                child: CorOriginal(interface: true, child: ElevatedButton(
                   onPressed: _sheetEnviando
                       ? null
                       : () => _confirmarSolicitacao(servico),
@@ -2858,7 +2873,7 @@ class _TelaServicoState extends State<TelaServico>
                             fontSize: 15,
                           ),
                         ),
-                ),
+                )),
               ),
             ),
           ],
@@ -3241,7 +3256,7 @@ class _TelaServicoState extends State<TelaServico>
                             Navigator.pop(ctx);
                           },
                           borderRadius: BorderRadius.circular(10),
-                          child: Container(
+                          child: CorOriginal(interface: true, ativo: selecionado, child: Container(
                             decoration: BoxDecoration(
                               color: selecionado
                                   ? const Color(0xFF0FB3FF)
@@ -3263,7 +3278,7 @@ class _TelaServicoState extends State<TelaServico>
                                     : const Color(0xFF0F172A),
                               ),
                             ),
-                          ),
+                          )),
                         );
                       }
 

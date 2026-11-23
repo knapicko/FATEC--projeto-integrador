@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../utils/movimento.dart';
+import 'imagem_app.dart';
 
 class SkeletonBox extends StatefulWidget {
   const SkeletonBox({
@@ -25,8 +27,8 @@ class _SkeletonBoxState extends State<SkeletonBox>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 4),
-    )..repeat();
+      duration: duracao(const Duration(seconds: 4)),
+    )..repetir();
   }
 
   @override
@@ -492,7 +494,7 @@ class SkeletonServiceDetail extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Container(
+        CorOriginal(interface: true, child: Container(
           color: const Color(0xFF0FB3FF),
           padding: EdgeInsets.only(
             top: MediaQuery.paddingOf(context).top,
@@ -507,7 +509,7 @@ class SkeletonServiceDetail extends StatelessWidget {
               Expanded(child: SkeletonBox(height: 19, borderRadius: 5)),
             ],
           ),
-        ),
+        )),
         Expanded(
           child: ListView(
             padding: EdgeInsets.zero,

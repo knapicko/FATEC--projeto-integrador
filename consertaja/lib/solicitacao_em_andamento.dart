@@ -17,6 +17,8 @@ import 'utils/iniciais.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
 import 'widgets/dialogo_sheet.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 class SolicitacaoEmAndamentoPage extends StatefulWidget {
   final int idSolicitacao;
@@ -414,7 +416,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                 SizedBox(
                   width: double.infinity,
                   height: 48,
-                  child: FilledButton(
+                  child: CorOriginal(interface: true, child: FilledButton(
                     onPressed: () {
                       final texto = _diagnosticoController.text.trim();
                       if (texto.isEmpty) {
@@ -443,7 +445,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                  ),
+                  )),
                 ),
               ],
             ),
@@ -813,7 +815,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
               SizedBox(
                 width: double.infinity,
                 height: 48,
-                child: FilledButton(
+                child: CorOriginal(interface: true, child: FilledButton(
                   onPressed: () {
                     Navigator.of(ctx).pop();
                     if (recebaEmCasa) {
@@ -858,7 +860,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                     'Voltar para Serviços',
                     style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
                   ),
-                ),
+                )),
               ),
             ],
           ),
@@ -951,11 +953,21 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
         ],
       ),
       actions: [
+        BotaoAjuda(
+          cor: _textoEscuro,
+          passos: () => explicacaoDaTela(
+            context,
+            tela: 'Este é o andamento do serviço.',
+            conteudo: [
+              'Aqui você acompanha as etapas, as fotos e o tempo do atendimento.',
+            ],
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.only(right: 14),
           child: GestureDetector(
             onTap: _abrirPerfilProfissional,
-            child: CircleAvatar(
+            child: CorOriginal(child: CircleAvatar(
               radius: 18,
               backgroundColor: _azul,
               backgroundImage:
@@ -989,7 +1001,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                             color: Colors.white,
                             size: 20,
                           )),
-            ),
+            )),
           ),
         ),
       ],
@@ -1029,7 +1041,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                   ),
                 ),
               ),
-              Container(
+              CorOriginal(interface: true, child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
                   vertical: 5,
@@ -1046,7 +1058,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-              ),
+              )),
             ],
           ),
           const SizedBox(height: 20),
@@ -1131,12 +1143,12 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
   }) {
     Widget circle;
     if (concluido) {
-      circle = Container(
+      circle = CorOriginal(interface: true, child: Container(
         width: 28,
         height: 28,
         decoration: const BoxDecoration(color: _azul, shape: BoxShape.circle),
         child: Icon(icone ?? Icons.check, color: Colors.white, size: 16),
-      );
+      ));
     } else if (ativo) {
       circle = Container(
         width: 30,
@@ -1154,14 +1166,14 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
           ],
         ),
         child: Center(
-          child: Container(
+          child: CorOriginal(interface: true, child: Container(
             width: 14,
             height: 14,
             decoration: const BoxDecoration(
               color: _azul,
               shape: BoxShape.circle,
             ),
-          ),
+          )),
         ),
       );
     } else {
@@ -1200,11 +1212,11 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
 
   Widget _buildStepLine({required bool ativo}) {
     return Expanded(
-      child: Container(
+      child: CorOriginal(interface: true, ativo: ativo, child: Container(
         height: 2.5,
         margin: const EdgeInsets.only(bottom: 20),
         color: ativo ? _azul : const Color(0xFFE2E8F0),
-      ),
+      )),
     );
   }
 
@@ -1229,7 +1241,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
             children: [
               Stack(
                 children: [
-                  CircleAvatar(
+                  CorOriginal(child: CircleAvatar(
                     radius: 24,
                     backgroundColor: _azul,
                     backgroundImage:
@@ -1250,11 +1262,11 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                             ),
                           )
                         : null,
-                  ),
+                  )),
                   Positioned(
                     bottom: 0,
                     right: 0,
-                    child: Container(
+                    child: CorOriginal(interface: true, child: Container(
                       width: 14,
                       height: 14,
                       decoration: BoxDecoration(
@@ -1267,7 +1279,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                         color: Colors.white,
                         size: 8,
                       ),
-                    ),
+                    )),
                   ),
                 ],
               ),
@@ -1373,7 +1385,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
         children: [
           Row(
             children: [
-              Container(
+              CorOriginal(interface: true, child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
                   vertical: 5,
@@ -1390,7 +1402,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-              ),
+              )),
               const Spacer(),
               Text(
                 'OS: #OS-${widget.idSolicitacao}',
@@ -1448,7 +1460,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                   return ClipRRect(
                     borderRadius: BorderRadius.circular(10),
                     child: url.startsWith('http')
-                        ? Image.network(
+                        ? ImagemApp(child: Image.network(
                             url,
                             width: 64,
                             height: 64,
@@ -1463,7 +1475,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                                 size: 24,
                               ),
                             ),
-                          )
+                          ))
                         : Image.file(
                             File(url),
                             width: 64,
@@ -1591,7 +1603,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
       return InkWell(
         onTap: _abrirModalDiagnostico,
         borderRadius: BorderRadius.circular(16),
-        child: Container(
+        child: CorOriginal(interface: true, child: Container(
           width: double.infinity,
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -1643,7 +1655,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
               const Icon(Icons.chevron_right, color: Colors.white),
             ],
           ),
-        ),
+        )),
       );
     }
 
@@ -1781,7 +1793,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                                 top: Radius.circular(13),
                               ),
                               child: url.startsWith('http')
-                                  ? Image.network(
+                                  ? ImagemApp(child: Image.network(
                                       url,
                                       fit: BoxFit.cover,
                                       errorBuilder: (_, __, ___) => Container(
@@ -1791,7 +1803,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                                           color: Color(0xFF94A3B8),
                                         ),
                                       ),
-                                    )
+                                    ))
                                   : Image.file(
                                       File(url),
                                       fit: BoxFit.cover,
@@ -1878,7 +1890,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Container(
+                        CorOriginal(interface: true, child: Container(
                           width: 40,
                           height: 40,
                           decoration: const BoxDecoration(
@@ -1890,7 +1902,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                             color: Colors.white,
                             size: 20,
                           ),
-                        ),
+                        )),
                         const SizedBox(height: 8),
                         const Text(
                           '+ Foto Teste Final',
@@ -1929,7 +1941,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Container(
+                        CorOriginal(interface: true, child: Container(
                           width: 40,
                           height: 40,
                           decoration: const BoxDecoration(
@@ -1941,7 +1953,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                             color: Colors.white,
                             size: 20,
                           ),
-                        ),
+                        )),
                         const SizedBox(height: 8),
                         const Text(
                           'Laudo / NF Peças',
@@ -2000,7 +2012,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
         SizedBox(
           width: double.infinity,
           height: 52,
-          child: FilledButton(
+          child: CorOriginal(interface: true, child: FilledButton(
             onPressed: podeConcluir && !_salvando ? _concluirServico : null,
             style: FilledButton.styleFrom(
               backgroundColor: _azul,
@@ -2038,7 +2050,7 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                       ),
                     ],
                   ),
-          ),
+          )),
         ),
         if (!podeConcluir) ...[
           const SizedBox(height: 6),

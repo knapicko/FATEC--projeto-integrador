@@ -19,10 +19,10 @@ class TelaEscolhaConta extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               SizedBox(height: alturaDaTela * 0.01),
-              Image.asset(
+              ImagemApp(child: Image.asset(
                 'assets/images/Logo.png',
                 height: alturaDaTela * 0.12,
-              ),
+              )),
               SizedBox(height: alturaDaTela * 0.02),
               const Text(
                 'ConsertaJá',

@@ -7,6 +7,8 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'services/stripe_pagamento_service.dart';
 import 'pedido_pago.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 class QrcodePixPage extends StatefulWidget {
   final int idSolicitacao;
@@ -279,7 +281,16 @@ class _QrcodePixPageState extends State<QrcodePixPage>
               ),
             ),
           ),
-          const SizedBox(width: 48),
+          BotaoAjuda(
+            cor: _azul,
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Aqui você paga com Pix.',
+              conteudo: [
+                'Copie o código ou leia o QR Code no app do seu banco. A confirmação aparece sozinha.',
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -379,7 +390,7 @@ class _QrcodePixPageState extends State<QrcodePixPage>
               color: Colors.white,
               alignment: Alignment.center,
               child: _qrCodeUrl != null && _qrCodeUrl!.isNotEmpty
-                  ? Image.network(
+                  ? ImagemApp(child: Image.network(
                       _qrCodeUrl!,
                       width: 176,
                       height: 176,
@@ -390,7 +401,7 @@ class _QrcodePixPageState extends State<QrcodePixPage>
                         size: 176,
                         backgroundColor: Colors.white,
                       ),
-                    )
+                    ))
                   : QrImageView(
                       data: _codigoPix ?? _codigoPixDemonstracao,
                       version: QrVersions.auto,
@@ -475,7 +486,7 @@ class _QrcodePixPageState extends State<QrcodePixPage>
           SizedBox(
             width: double.infinity,
             height: 48,
-            child: FilledButton.icon(
+            child: CorOriginal(interface: true, child: FilledButton.icon(
               onPressed: _copiarCodigo,
               icon: const Icon(Icons.copy_rounded, size: 18),
               label: const Text(
@@ -489,7 +500,7 @@ class _QrcodePixPageState extends State<QrcodePixPage>
                   borderRadius: BorderRadius.circular(24),
                 ),
               ),
-            ),
+            )),
           ),
         ],
       ),

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import 'imagem_app.dart';
 
 /// Widget que exibe a foto do Google com cache local e tratamento de erro.
 /// Evita requisições excessivas (erro 429) armazenando a imagem localmente.
@@ -157,13 +158,13 @@ class _FotoPerfilGoogleState extends State<FotoPerfilGoogle> {
         );
       }
 
-      return CircleAvatar(
+      return CorOriginal(child: CircleAvatar(
         radius: widget.radius,
         backgroundColor: Colors.grey.shade200,
         backgroundImage: NetworkImage(widget.fotoUrl!),
         onBackgroundImageError: (_, __) {},
         child: widget.placeholder,
-      );
+      ));
     }
 
     if (_carregando) {

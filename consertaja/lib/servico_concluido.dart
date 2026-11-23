@@ -7,6 +7,8 @@ import 'tela_meu_perfil_profissional.dart';
 import 'utils/fluxo_solicitacao.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
 import 'widgets/skeleton_loading.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 /// Última tela do fluxo do PROFISSIONAL: serviço concluído (as duas
 /// confirmações feitas) e o valor que ele recebe.
@@ -252,9 +254,19 @@ class _ServicoConcluidoPageState extends State<ServicoConcluidoPage>
           ],
         ),
         actions: [
+          BotaoAjuda(
+            cor: _texto,
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Este é o resumo do serviço concluído.',
+              conteudo: [
+                'Aqui você vê as etapas, o valor a receber, os dados do atendimento e as fotos.',
+              ],
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 12),
-            child: Material(
+            child: CorOriginal(interface: true, child: Material(
               color: _azul,
               shape: const CircleBorder(),
               child: InkWell(
@@ -273,7 +285,7 @@ class _ServicoConcluidoPageState extends State<ServicoConcluidoPage>
                   ),
                 ),
               ),
-            ),
+            )),
           ),
         ],
       ),
@@ -288,14 +300,14 @@ class _ServicoConcluidoPageState extends State<ServicoConcluidoPage>
                   children: [
                     Text(_erro!, textAlign: TextAlign.center),
                     const SizedBox(height: 12),
-                    FilledButton(
+                    CorOriginal(interface: true, child: FilledButton(
                       onPressed: () {
                         setState(() => _carregando = true);
                         _carregar();
                       },
                       style: FilledButton.styleFrom(backgroundColor: _azul),
                       child: const Text('Tentar novamente'),
-                    ),
+                    )),
                   ],
                 ),
               ),
@@ -387,9 +399,9 @@ class _ServicoConcluidoPageState extends State<ServicoConcluidoPage>
                         Expanded(
                           child: i == 0
                               ? const SizedBox()
-                              : Container(height: 2, color: _azul),
+                              : CorOriginal(interface: true, child: Container(height: 2, color: _azul)),
                         ),
-                        Container(
+                        CorOriginal(interface: true, child: Container(
                           width: 26,
                           height: 26,
                           decoration: BoxDecoration(
@@ -407,11 +419,11 @@ class _ServicoConcluidoPageState extends State<ServicoConcluidoPage>
                             color: Colors.white,
                             size: 15,
                           ),
-                        ),
+                        )),
                         Expanded(
                           child: i == etapas.length - 1
                               ? const SizedBox()
-                              : Container(height: 2, color: _azul),
+                              : CorOriginal(interface: true, child: Container(height: 2, color: _azul)),
                         ),
                       ],
                     ),
@@ -433,7 +445,7 @@ class _ServicoConcluidoPageState extends State<ServicoConcluidoPage>
           ],
         ),
         const SizedBox(height: 14),
-        Container(
+        CorOriginal(interface: true, child: Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 9),
           decoration: BoxDecoration(
@@ -455,7 +467,7 @@ class _ServicoConcluidoPageState extends State<ServicoConcluidoPage>
               ),
             ],
           ),
-        ),
+        )),
       ],
     );
   }
@@ -628,7 +640,7 @@ class _ServicoConcluidoPageState extends State<ServicoConcluidoPage>
         const SizedBox(height: 14),
         Row(
           children: [
-            CircleAvatar(
+            CorOriginal(child: CircleAvatar(
               radius: 24,
               backgroundColor: const Color(0xFFE0F2FE),
               backgroundImage: _fotoCliente != null
@@ -643,7 +655,7 @@ class _ServicoConcluidoPageState extends State<ServicoConcluidoPage>
                       ),
                     )
                   : null,
-            ),
+            )),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -717,7 +729,7 @@ class _ServicoConcluidoPageState extends State<ServicoConcluidoPage>
         Row(
           children: [
             Expanded(child: _tituloSecao('VISTORIA E COMPROVANTES')),
-            Container(
+            CorOriginal(interface: true, child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
                 color: _azul,
@@ -731,7 +743,7 @@ class _ServicoConcluidoPageState extends State<ServicoConcluidoPage>
                   fontWeight: FontWeight.w700,
                 ),
               ),
-            ),
+            )),
           ],
         ),
         const SizedBox(height: 14),
@@ -762,7 +774,7 @@ class _ServicoConcluidoPageState extends State<ServicoConcluidoPage>
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                          Image.network(
+                          ImagemApp(child: Image.network(
                             foto.url,
                             fit: BoxFit.cover,
                             errorBuilder: (_, _, _) => Container(
@@ -772,11 +784,11 @@ class _ServicoConcluidoPageState extends State<ServicoConcluidoPage>
                                 color: _textoSec,
                               ),
                             ),
-                          ),
+                          )),
                           Positioned(
                             left: 6,
                             bottom: 6,
-                            child: Container(
+                            child: CorOriginal(interface: true, ativo: !(foto.tipo == 'Antes'), child: Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 7,
                                 vertical: 3,
@@ -795,7 +807,7 @@ class _ServicoConcluidoPageState extends State<ServicoConcluidoPage>
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
-                            ),
+                            )),
                           ),
                         ],
                       ),

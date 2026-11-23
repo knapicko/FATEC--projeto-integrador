@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'widgets/documento_markdown.dart';
+import 'tutorial/botao_ajuda.dart';
 
 class TermosDeUsoPage extends StatelessWidget {
   const TermosDeUsoPage({super.key});
@@ -514,6 +515,18 @@ Caso alguma disposição destes Termos seja considerada inválida ou inaplicáve
           preferredSize: const Size.fromHeight(1),
           child: Container(color: Colors.grey.shade200, height: 1),
         ),
+        actions: [
+          BotaoAjuda(
+            cor: _textDark,
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Estes são os termos de uso do ConsertaJá.',
+              conteudo: [
+                'Aqui ficam as regras de uso do app para clientes e profissionais.',
+              ],
+            ),
+          ),
+        ],
       ),
       body: Container(
         margin: const EdgeInsets.all(16),

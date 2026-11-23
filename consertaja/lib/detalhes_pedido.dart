@@ -26,6 +26,10 @@ import 'widgets/skeletons_telas.dart';
 import 'servico_concluido_cliente.dart';
 import 'tutorial/tutorial.dart';
 import 'tutorial/tutorial_da_tela.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
+import 'services/app_settings_controller.dart';
 
 class DetalhesPedidoPage extends StatefulWidget {
   final int idSolicitacao;
@@ -196,8 +200,8 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
     _codigoPedido = '#PED-2026-${_idSolicitacao.toString().padLeft(4, '0')}';
     _sonarController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1600),
-    )..repeat();
+      duration: duracao(const Duration(milliseconds: 1600)),
+    )..repetir();
 
     _carregarDadosCompletos();
   }
@@ -1192,7 +1196,11 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       return;
     }
 
-    final confirmar = await showModalBottomSheet<bool>(
+    // Preferências → "Confirmar antes de cancelar pedidos" desligado: cancela
+    // direto, sem perguntar.
+    final confirmar = !AppSettingsController.instance.confirmarCancelamento
+        ? true
+        : await showModalBottomSheet<bool>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
@@ -1506,12 +1514,18 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
               ],
             ),
           ),
-          IconButton(
-            onPressed: _abrirAjuda,
-            icon: const Icon(Icons.help_outline, color: textoEscuro, size: 23),
-            tooltip: 'Dúvidas',
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
+          BotaoAjuda(
+            cor: textoEscuro,
+            tamanhoIcone: 23,
+            passos: () => passosAjuda(
+              reserva: () => explicacaoDaTela(
+                context,
+                tela: 'Estes são os detalhes do seu pedido.',
+                conteudo: [
+                  'Aqui você vê a situação, as etapas, o profissional, os valores e as ações do momento.',
+                ],
+              ),
+            ),
           ),
           const SizedBox(width: 12),
           // Foto de perfil do usuário cliente logado (somente azul puro enquanto carrega)
@@ -1541,14 +1555,14 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
               style: const TextStyle(fontSize: 15, color: textoEscuro),
             ),
             const SizedBox(height: 16),
-            ElevatedButton(
+            CorOriginal(interface: true, child: ElevatedButton(
               onPressed: _carregarDadosCompletos,
               style: ElevatedButton.styleFrom(backgroundColor: azulPrincipal),
               child: const Text(
                 'Tentar novamente',
                 style: TextStyle(color: Colors.white),
               ),
-            ),
+            )),
           ],
         ),
       ),
@@ -1616,7 +1630,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
+          CorOriginal(interface: true, child: Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -1636,7 +1650,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                 ),
               ],
             ),
-          ),
+          )),
           const SizedBox(height: 14),
           Text(
             'Duração do ${domicilio ? 'atendimento' : 'serviço'}: '
@@ -1684,7 +1698,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       ),
       child: Row(
         children: [
-          Container(
+          CorOriginal(interface: true, ativo: !(isAguardandoDeslocamento), child: Container(
             width: 44,
             height: 44,
             decoration: BoxDecoration(
@@ -1704,7 +1718,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
               color: Colors.white,
               size: 22,
             ),
-          ),
+          )),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -1981,12 +1995,12 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.only(top: 17),
-                    child: Container(
+                    child: CorOriginal(interface: true, ativo: etapas[i].concluida, child: Container(
                       height: 2.5,
                       color: etapas[i].concluida
                           ? azulPrincipal
                           : const Color(0xFFE2E8F0),
-                    ),
+                    )),
                   ),
                 ),
             ],
@@ -2131,11 +2145,11 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                   child:
                       (_fotoPrestador != null &&
                           _fotoPrestador!.trim().isNotEmpty)
-                      ? Image.network(
+                      ? ImagemApp(child: Image.network(
                           _fotoPrestador!.trim(),
                           fit: BoxFit.cover,
                           errorBuilder: (_, _, _) => _placeholderPrestador(),
-                        )
+                        ))
                       : _placeholderPrestador(),
                 ),
               ),
@@ -2256,7 +2270,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
           Row(
             children: [
               Expanded(
-                child: ElevatedButton.icon(
+                child: CorOriginal(interface: true, child: ElevatedButton.icon(
                   onPressed: _abrirChat,
                   icon: const Icon(Icons.chat_bubble_outline, size: 16),
                   label: const Text('Conversar'),
@@ -2273,7 +2287,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                ),
+                )),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -2351,11 +2365,11 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                 fit: StackFit.expand,
                 children: [
                   (_imagemServico != null && _imagemServico!.trim().isNotEmpty)
-                      ? Image.network(
+                      ? ImagemApp(child: Image.network(
                           _imagemServico!.trim(),
                           fit: BoxFit.cover,
                           errorBuilder: (_, _, _) => _placeholderServico(),
-                        )
+                        ))
                       : _placeholderServico(),
                   Positioned(
                     top: 4,
@@ -2553,7 +2567,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
             ),
             child: Row(
               children: [
-                Container(
+                CorOriginal(interface: true, child: Container(
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
@@ -2561,7 +2575,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(iconeMod, color: Colors.white, size: 22),
-                ),
+                )),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -2955,11 +2969,11 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                   width: 52,
                   height: 52,
                   child: anexoUrl.isNotEmpty
-                      ? Image.network(
+                      ? ImagemApp(child: Image.network(
                           anexoUrl,
                           fit: BoxFit.cover,
                           errorBuilder: (_, _, _) => _placeholderAnexo(),
-                        )
+                        ))
                       : _placeholderAnexo(),
                 ),
                 Container(
@@ -3025,7 +3039,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
             InteractiveViewer(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.network(url, fit: BoxFit.contain),
+                child: ImagemApp(child: Image.network(url, fit: BoxFit.contain)),
               ),
             ),
             IconButton(
@@ -3384,7 +3398,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
           Expanded(
             child: SizedBox(
               height: 48,
-              child: ElevatedButton.icon(
+              child: CorOriginal(interface: true, child: ElevatedButton.icon(
                 onPressed: aguardandoCliente
                     ? (_confirmandoConclusao ? null : _confirmarConclusao)
                     : aguardandoPagamento
@@ -3450,7 +3464,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-              ),
+              )),
             ),
           ),
         ],
@@ -3914,13 +3928,13 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                 width: 90,
                 height: 90,
                 color: const Color(0xFFF1F5F9),
-                child: Image.network(
+                child: ImagemApp(child: Image.network(
                   url,
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => const Center(
                     child: Icon(Icons.broken_image_outlined, color: textoMuted),
                   ),
-                ),
+                )),
               ),
             ),
           );
@@ -3941,7 +3955,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
             InteractiveViewer(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.network(url, fit: BoxFit.contain),
+                child: ImagemApp(child: Image.network(url, fit: BoxFit.contain)),
               ),
             ),
             IconButton(
@@ -3976,14 +3990,14 @@ class GestureedAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (carregando) {
-      return Container(
+      return CorOriginal(interface: true, child: Container(
         width: tamanho,
         height: tamanho,
         decoration: const BoxDecoration(
           color: Color(0xFF0FB3FF),
           shape: BoxShape.circle,
         ),
-      );
+      ));
     }
 
     final url = (fotoUrl ?? '').trim();
@@ -3992,29 +4006,29 @@ class GestureedAvatar extends StatelessWidget {
         width: tamanho,
         height: tamanho,
         child: url.isNotEmpty
-            ? Image.network(
+            ? ImagemApp(child: Image.network(
                 url,
                 fit: BoxFit.cover,
                 loadingBuilder: (context, child, loadingProgress) {
                   if (loadingProgress == null) return child;
-                  return Container(
+                  return CorOriginal(interface: true, child: Container(
                     width: tamanho,
                     height: tamanho,
                     decoration: const BoxDecoration(
                       color: Color(0xFF0FB3FF),
                       shape: BoxShape.circle,
                     ),
-                  );
+                  ));
                 },
                 errorBuilder: (_, _, _) => _avatarFallback(),
-              )
+              ))
             : _avatarFallback(),
       ),
     );
   }
 
   Widget _avatarFallback() {
-    return Container(
+    return CorOriginal(interface: true, child: Container(
       color: const Color(0xFF0FB3FF),
       alignment: Alignment.center,
       child: Text(
@@ -4025,6 +4039,6 @@ class GestureedAvatar extends StatelessWidget {
           fontSize: tamanho * 0.4,
         ),
       ),
-    );
+    ));
   }
 }

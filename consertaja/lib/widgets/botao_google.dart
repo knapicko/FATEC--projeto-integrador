@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'imagem_app.dart';
 
 class BotaoGoogle extends StatelessWidget {
   final VoidCallback? onPressed;
@@ -17,7 +18,7 @@ class BotaoGoogle extends StatelessWidget {
       height: 55,
       child: OutlinedButton.icon(
         onPressed: onPressed,
-        icon: Image.asset('assets/images/icone/google-logo.png', height: 22),
+        icon: ImagemApp(child: Image.asset('assets/images/icone/google-logo.png', height: 22)),
         label: Text(
           label,
           style: const TextStyle(

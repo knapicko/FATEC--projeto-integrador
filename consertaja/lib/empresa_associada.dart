@@ -8,6 +8,8 @@ import 'utils/funcao_servico.dart';
 import 'widgets/dialogo_sheet.dart';
 import 'certificados.dart';
 import 'models/servico_profissional.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 class EmpresaAssociadaPage extends StatefulWidget {
   const EmpresaAssociadaPage({super.key});
@@ -363,14 +365,24 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
           style: TextStyle(color: _blue, fontWeight: FontWeight.bold),
         ),
         // O dono do CNPJ não tem a opção de sair da própria empresa.
-        actions: _empresa == null || _souDono
-            ? const []
-            : [
-                IconButton(
-                  icon: const Icon(Icons.settings_outlined, color: _blue),
-                  onPressed: _abrirOpcoesEmpresa,
-                ),
+        actions: [
+          BotaoAjuda(
+            cor: _blue,
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Esta é a empresa da qual você faz parte.',
+              conteudo: [
+                'Aqui você vê os dados da empresa, os ofícios e os serviços '
+                    'que ela oferece.',
               ],
+            ),
+          ),
+          if (!(_empresa == null || _souDono))
+            IconButton(
+              icon: const Icon(Icons.settings_outlined, color: _blue),
+              onPressed: _abrirOpcoesEmpresa,
+            ),
+        ],
       ),
       body: _carregando
           ? const SkeletonPage(layout: SkeletonLayout.cards)
@@ -522,7 +534,7 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
     required Color fundo,
   }) => url == null || url.trim().isEmpty
       ? Container(color: fundo, alignment: Alignment.center, child: fallback)
-      : Image.network(
+      : ImagemApp(child: Image.network(
           url,
           fit: fit,
           errorBuilder: (_, _, _) => Container(
@@ -530,7 +542,7 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
             alignment: Alignment.center,
             child: fallback,
           ),
-        );
+        ));
 
   Widget _buildTags() {
     final tag = _empresa!['tag_empresa']?.toString().trim();
@@ -601,7 +613,7 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
             ),
             child: Column(
               children: [
-                CircleAvatar(
+                CorOriginal(child: CircleAvatar(
                   radius: 40,
                   backgroundColor: const Color(0xFFD8F3FF),
                   backgroundImage:
@@ -618,7 +630,7 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
                           ),
                         )
                       : null,
-                ),
+                )),
                 const SizedBox(height: 10),
                 Text(
                   membro.nome,
@@ -712,7 +724,7 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
         ),
         child: Row(
           children: [
-            Container(
+            CorOriginal(interface: true, child: Container(
               width: 47,
               height: 47,
               decoration: BoxDecoration(
@@ -720,7 +732,7 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: IconeOficio.imagem(categoria, tamanho: 30),
-            ),
+            )),
             const SizedBox(width: 15),
             Expanded(
               child: Column(
@@ -776,7 +788,7 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
                 width: 78,
                 height: 78,
                 child: img.startsWith('http')
-                    ? Image.network(img, fit: BoxFit.cover)
+                    ? ImagemApp(child: Image.network(img, fit: BoxFit.cover))
                     : Container(
                         color: const Color(0xFFDDEAF0),
                         child: const Icon(

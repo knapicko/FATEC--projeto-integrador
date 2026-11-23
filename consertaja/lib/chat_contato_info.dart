@@ -13,6 +13,8 @@ import 'tela_midia_chat.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/funcao_servico.dart';
 import 'widgets/dialogo_sheet.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 class ChatContatoInfo extends StatefulWidget {
   final int? idConversa;
@@ -537,6 +539,16 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
+          BotaoAjuda(
+            cor: const Color(0xFF1E293B),
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Estas são as informações do contato da conversa.',
+              conteudo: [
+                'Aqui você vê os dados dele, as mídias trocadas e as opções da conversa.',
+              ],
+            ),
+          ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert, color: Color(0xFF1E293B)),
             shape: RoundedRectangleBorder(
@@ -626,11 +638,11 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
             ),
             child: ClipOval(
               child: _fotoUrl != null && _fotoUrl!.isNotEmpty
-                  ? Image.network(
+                  ? ImagemApp(child: Image.network(
                       _fotoUrl!,
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => _buildAvatarFallback(),
-                    )
+                    ))
                   : _buildAvatarFallback(),
             ),
           ),
@@ -990,11 +1002,11 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
 
   Widget _buildMiniaturaAnexo(_AnexoMidia anexo) {
     if (anexo.ehImagem) {
-      return Image.network(
+      return ImagemApp(child: Image.network(
         anexo.url,
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => _buildIconeAnexo(anexo),
-      );
+      ));
     }
     return _buildIconeAnexo(anexo);
   }
@@ -1262,12 +1274,12 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
                       height: 58,
                       color: const Color(0xFFE2E8F0),
                       child: _fotoEmpresa != null && _fotoEmpresa!.isNotEmpty
-                          ? Image.network(
+                          ? ImagemApp(child: Image.network(
                               _fotoEmpresa!,
                               fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) =>
                                   _buildLojaImageFallback(),
-                            )
+                            ))
                           : _buildLojaImageFallback(),
                     ),
                   ),
@@ -1344,13 +1356,13 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
   }
 
   Widget _buildLojaImageFallback() {
-    return Image.network(
+    return ImagemApp(child: Image.network(
       'https://images.unsplash.com/photo-1578575437130-527eed3abbec?w=400&auto=format&fit=crop',
       fit: BoxFit.cover,
       errorBuilder: (_, __, ___) => const Center(
         child: Icon(Icons.storefront, color: Color(0xFF94A3B8), size: 28),
       ),
-    );
+    ));
   }
 
   // 6. Ações de Segurança (Destacadas em Vermelho)

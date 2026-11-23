@@ -28,6 +28,8 @@ import 'widgets/avisos_bottom_sheet.dart';
 import 'services/requisitos_conta.dart';
 import 'tutorial/tutorial.dart';
 import 'tutorial/tutorial_da_tela.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 /// Constantes dos nomes das tabelas no Supabase
 const String _tabelaEndereco = 'enderecos';
@@ -198,7 +200,8 @@ class MeusEnderecosPage extends StatefulWidget {
   State<MeusEnderecosPage> createState() => _MeusEnderecosPageState();
 }
 
-class _MeusEnderecosPageState extends State<MeusEnderecosPage> with TutorialDaTela<MeusEnderecosPage> {
+class _MeusEnderecosPageState extends State<MeusEnderecosPage>
+    with TutorialDaTela<MeusEnderecosPage> {
   static const Color _blue = Color(0xFF0FB3FF);
   static const Color _background = Color(0xFFF8F9FA);
   static const Color _textDark = Color(0xFF1A1A1A);
@@ -1005,7 +1008,7 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> with TutorialDaTe
   }
 
   Widget _buildAppBar() {
-    return AppBar(
+    return BarraCorOriginal(child: AppBar(
       backgroundColor: _blue,
       elevation: 0,
       leading: IconButton(
@@ -1021,7 +1024,21 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> with TutorialDaTe
         ),
       ),
       centerTitle: true,
-    );
+      actions: [
+        BotaoAjuda(
+          cor: Colors.white,
+          passos: () => passosAjuda(
+            reserva: () => explicacaoDaTela(
+              context,
+              tela: 'Aqui ficam os seus endereços.',
+              conteudo: [
+                'Busque, escolha o principal ou cadastre um novo endereço.',
+              ],
+            ),
+          ),
+        ),
+      ],
+    ));
   }
 
   Widget _buildBarraPesquisa() {
@@ -1619,7 +1636,8 @@ class AdicionarEnderecoPage extends StatefulWidget {
   State<AdicionarEnderecoPage> createState() => _AdicionarEnderecoPageState();
 }
 
-class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> with TutorialDaTela<AdicionarEnderecoPage> {
+class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage>
+    with TutorialDaTela<AdicionarEnderecoPage> {
   static const Color _blue = Color(0xFF0FB3FF);
   static const Color _background = Color(0xFFF8F9FA);
   static const Color _textDark = Color(0xFF1A1A1A);
@@ -2517,7 +2535,7 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> with Tuto
               const SizedBox(width: 10),
               SizedBox(
                 height: 48,
-                child: ElevatedButton.icon(
+                child: CorOriginal(interface: true, child: ElevatedButton.icon(
                   onPressed: _buscandoCep ? null : _buscarCep,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _blue,
@@ -2546,7 +2564,7 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> with Tuto
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                ),
+                )),
               ),
             ],
           ),
@@ -2752,6 +2770,20 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> with Tuto
           onPressed: () => Navigator.pop(context),
           icon: const Icon(Icons.arrow_back_ios, size: 20, color: _textDark),
         ),
+        actions: [
+          BotaoAjuda(
+            cor: _textDark,
+            passos: () => passosAjuda(
+              reserva: () => explicacaoDaTela(
+                context,
+                tela: 'Aqui você cadastra um endereço.',
+                conteudo: [
+                  'Digite o CEP, confira no mapa e preencha o número. Depois é só salvar.',
+                ],
+              ),
+            ),
+          ),
+        ],
         title: Text(
           widget.isEdicao ? 'Editar Endereço' : 'Adicionar Endereço',
           style: const TextStyle(
@@ -2786,7 +2818,7 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> with Tuto
               key: chaveTut('salvar'),
               width: double.infinity,
               height: 52,
-              child: ElevatedButton(
+              child: CorOriginal(interface: true, child: ElevatedButton(
                 onPressed: _salvando ? null : _salvarEndereco,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _blue,
@@ -2814,7 +2846,7 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> with Tuto
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-              ),
+              )),
             ),
           ),
         ],

@@ -13,6 +13,8 @@ import 'services/servicos_profissional_service.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
 import 'widgets/skeletons_telas.dart';
 import 'widgets/codigo_flutuante.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 class TelaDeslocamentoClientePage extends StatefulWidget {
   const TelaDeslocamentoClientePage({super.key, required this.idSolicitacao});
@@ -254,6 +256,16 @@ class _TelaDeslocamentoClientePageState
                           ),
                         ),
                         subtitle: Text(_enderecoDestino),
+                        trailing: BotaoAjuda(
+                          cor: texto,
+                          passos: () => explicacaoDaTela(
+                            context,
+                            tela: 'Aqui você vai até o profissional.',
+                            conteudo: [
+                              'O mapa mostra o caminho até o endereço dele. No painel de baixo ficam as próximas ações.',
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -332,7 +344,7 @@ class _TelaDeslocamentoClientePageState
               SizedBox(
                 width: double.infinity,
                 height: 50,
-                child: FilledButton.icon(
+                child: CorOriginal(interface: true, child: FilledButton.icon(
                   onPressed: _fotoEntrada != null && _codigoValido
                       ? _confirmarEntrada
                       : null,
@@ -345,7 +357,7 @@ class _TelaDeslocamentoClientePageState
                       : const Icon(Icons.check_circle_outline),
                   label: const Text('Confirmar entrada'),
                   style: FilledButton.styleFrom(backgroundColor: azul),
-                ),
+                )),
               ),
             ],
           ),
@@ -355,12 +367,12 @@ class _TelaDeslocamentoClientePageState
   }
 
   Widget _avatar(String? url, IconData icon) {
-    return CircleAvatar(
+    return CorOriginal(child: CircleAvatar(
       backgroundColor: azul,
       backgroundImage: url != null && url.isNotEmpty ? NetworkImage(url) : null,
       child: url == null || url.isEmpty
           ? Icon(icon, color: Colors.white)
           : null,
-    );
+    ));
   }
 }

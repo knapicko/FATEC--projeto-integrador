@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/conta_profissional_ativa.dart';
 import '../utils/iniciais.dart';
+import 'imagem_app.dart';
 
 /// Faixa que mostra de qual conta são os dados da tela: profissional
 /// independente ou loja.
@@ -27,7 +28,7 @@ class SeloContaAtiva extends StatelessWidget {
       ),
       child: Row(
         children: [
-          CircleAvatar(
+          CorOriginal(child: CircleAvatar(
             radius: 17,
             backgroundColor: cor,
             backgroundImage: foto != null ? NetworkImage(foto) : null,
@@ -41,7 +42,7 @@ class SeloContaAtiva extends StatelessWidget {
                     ),
                   )
                 : null,
-          ),
+          )),
           const SizedBox(width: 10),
           Expanded(
             child: Column(

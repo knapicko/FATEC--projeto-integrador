@@ -7,6 +7,7 @@ import '../utils/cor_oficio.dart';
 import '../utils/iniciais.dart';
 import 'avisos_bottom_sheet.dart';
 import 'tag_oficio.dart';
+import 'imagem_app.dart';
 
 /// Profissional independente ou loja, como aparece nos cards da home e de
 /// "Todos os profissionais".
@@ -114,7 +115,7 @@ class CardProfissionalVitrine extends StatelessWidget {
   static const _texto = Color(0xFF0F172A);
   static const _sec = Color(0xFF64748B);
 
-  Widget _iniciais() => Container(
+  Widget _iniciais() => CorOriginal(interface: true, child: Container(
     color: _azul,
     alignment: Alignment.center,
     child: Text(
@@ -125,7 +126,7 @@ class CardProfissionalVitrine extends StatelessWidget {
         fontSize: 18,
       ),
     ),
-  );
+  ));
 
   Widget _pill(Widget filho, Color fundo) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -172,11 +173,11 @@ class CardProfissionalVitrine extends StatelessWidget {
                         width: 62,
                         height: 62,
                         child: foto.startsWith('http')
-                            ? Image.network(
+                            ? ImagemApp(child: Image.network(
                                 foto,
                                 fit: BoxFit.cover,
                                 errorBuilder: (_, _, _) => _iniciais(),
-                              )
+                              ))
                             : _iniciais(),
                       ),
                     ),
@@ -353,7 +354,7 @@ class CardProfissionalVitrine extends StatelessWidget {
               Expanded(
                 child: SizedBox(
                   height: 44,
-                  child: FilledButton(
+                  child: CorOriginal(interface: true, child: FilledButton(
                     onPressed: () => conversarComVitrine(context, p),
                     style: FilledButton.styleFrom(
                       backgroundColor: _azul,
@@ -365,7 +366,7 @@ class CardProfissionalVitrine extends StatelessWidget {
                       'Conversar',
                       style: TextStyle(fontWeight: FontWeight.w700),
                     ),
-                  ),
+                  )),
                 ),
               ),
               const SizedBox(width: 10),

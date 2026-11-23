@@ -5,6 +5,7 @@ import 'services/pedidos_cliente_service.dart';
 import 'utils/abrir_solicitacao.dart';
 import 'widgets/card_pedido_resumo.dart';
 import 'widgets/skeleton_loading.dart';
+import 'tutorial/botao_ajuda.dart';
 
 /// Histórico de todos os pedidos do cliente. Concluído e ainda sem avaliação
 /// fica marcado com "!" e o toque abre a avaliação.
@@ -59,7 +60,21 @@ class _HistoricoPedidosClientePageState
     final pendentes = l?.where((p) => p.precisaAvaliar).length ?? 0;
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
-      appBar: appBarPerfil('Histórico de Pedidos'),
+      appBar: appBarPerfil(
+        'Histórico de Pedidos',
+        acoes: [
+          BotaoAjuda(
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Aqui fica o histórico de todos os seus pedidos.',
+              conteudo: [
+                'Os concluídos sem avaliação ficam marcados: toque para avaliar.',
+                'Toque em um pedido para abrir os detalhes.',
+              ],
+            ),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _carregar,
         child: _erro != null

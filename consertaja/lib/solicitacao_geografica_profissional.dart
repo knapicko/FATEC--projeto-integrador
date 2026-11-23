@@ -26,6 +26,9 @@ import 'services/requisitos_conta.dart';
 import 'tutorial/tutorial.dart';
 import 'tutorial/tutorial_da_tela.dart';
 import 'tutorial/ilustracoes.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
 
 enum _Aba { proximas, aceitas }
 
@@ -479,6 +482,18 @@ class _SolicitacaoGeograficaProfissionalPageState
             ),
           ),
           actions: [
+            BotaoAjuda(
+              cor: _azul,
+              passos: () => passosAjuda(
+                reserva: () => explicacaoDaTela(
+                  context,
+                  tela: 'Este é o Radar de pedidos.',
+                  conteudo: [
+                    'No mapa e na lista aparecem os pedidos dos clientes perto de você.',
+                  ],
+                ),
+              ),
+            ),
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert, color: _azul),
               onSelected: (v) {
@@ -604,7 +619,7 @@ class _SolicitacaoGeograficaProfissionalPageState
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
+        CorOriginal(interface: true, child: Container(
           width: 38,
           height: 38,
           decoration: BoxDecoration(
@@ -620,7 +635,7 @@ class _SolicitacaoGeograficaProfissionalPageState
             ],
           ),
           child: const Icon(Icons.sensors, color: Colors.white, size: 18),
-        ),
+        )),
         const SizedBox(height: 3),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
@@ -745,7 +760,7 @@ class _SolicitacaoGeograficaProfissionalPageState
           right: 0,
           bottom: 80 + 20,
           child: Center(
-            child: Container(
+            child: CorOriginal(interface: true, child: Container(
               padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
               constraints: const BoxConstraints(maxWidth: 230),
               decoration: BoxDecoration(
@@ -793,7 +808,7 @@ class _SolicitacaoGeograficaProfissionalPageState
                   ),
                 ],
               ),
-            ),
+            )),
           ),
         ),
       ],
@@ -997,7 +1012,7 @@ class _SolicitacaoGeograficaProfissionalPageState
         child: GestureDetector(
           onTap: () => _trocarAba(valor),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
+            duration: duracao(const Duration(milliseconds: 220)),
             height: 38,
             alignment: Alignment.center,
             decoration: BoxDecoration(
@@ -1026,7 +1041,7 @@ class _SolicitacaoGeograficaProfissionalPageState
                 ),
                 if (qtd > 0) ...[
                   const SizedBox(width: 6),
-                  Container(
+                  CorOriginal(interface: true, ativo: ativa, child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 6,
                       vertical: 1,
@@ -1043,7 +1058,7 @@ class _SolicitacaoGeograficaProfissionalPageState
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                  ),
+                  )),
                 ],
               ],
             ),
@@ -1152,7 +1167,7 @@ class _SolicitacaoGeograficaProfissionalPageState
             ),
             if (acao != null) ...[
               const SizedBox(height: 14),
-              FilledButton(
+              CorOriginal(interface: true, child: FilledButton(
                 onPressed: aoTocar,
                 style: FilledButton.styleFrom(
                   backgroundColor: _azul,
@@ -1161,7 +1176,7 @@ class _SolicitacaoGeograficaProfissionalPageState
                   ),
                 ),
                 child: Text(acao),
-              ),
+              )),
             ],
           ],
         ),
@@ -1174,7 +1189,7 @@ class _SolicitacaoGeograficaProfissionalPageState
     return GestureDetector(
       onTap: () => _selecionar(s),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
+        duration: duracao(const Duration(milliseconds: 220)),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -1306,7 +1321,7 @@ class _SolicitacaoGeograficaProfissionalPageState
                     SizedBox(
                       width: double.infinity,
                       height: 50,
-                      child: FilledButton.icon(
+                      child: CorOriginal(interface: true, child: FilledButton.icon(
                         onPressed: _aceitando ? null : () => _aceitar(s),
                         style: FilledButton.styleFrom(
                           backgroundColor: _azul,
@@ -1324,7 +1339,7 @@ class _SolicitacaoGeograficaProfissionalPageState
                             fontWeight: FontWeight.w700,
                           ),
                         ),
-                      ),
+                      )),
                     ),
                   ],
                 ),
@@ -1446,7 +1461,7 @@ class _SolicitacaoGeograficaProfissionalPageState
           ),
           child: Row(
             children: [
-              Container(
+              CorOriginal(interface: true, child: Container(
                 width: 46,
                 height: 46,
                 alignment: Alignment.center,
@@ -1455,7 +1470,7 @@ class _SolicitacaoGeograficaProfissionalPageState
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: IconeOficio.imagemPorFuncao(a.funcao, tamanho: 26),
-              ),
+              )),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -1513,7 +1528,7 @@ class _SolicitacaoGeograficaProfissionalPageState
           ),
           const SizedBox(height: 4),
           // Cabeçalho com gradiente: status + título + valor.
-          Container(
+          CorOriginal(interface: true, child: Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -1628,7 +1643,7 @@ class _SolicitacaoGeograficaProfissionalPageState
                 ),
               ],
             ),
-          ),
+          )),
           const SizedBox(height: 14),
           // Cliente
           Container(
@@ -1793,7 +1808,7 @@ class _SolicitacaoGeograficaProfissionalPageState
                       ),
                     ),
                   )
-                : FilledButton.icon(
+                : CorOriginal(interface: true, child: FilledButton.icon(
                     onPressed: () => _abrirSolicitacao(a),
                     icon: const Icon(Icons.navigation_rounded, size: 19),
                     label: const Text(
@@ -1809,7 +1824,7 @@ class _SolicitacaoGeograficaProfissionalPageState
                         borderRadius: BorderRadius.circular(30),
                       ),
                     ),
-                  ),
+                  )),
           ),
         ],
       ),
@@ -1872,7 +1887,7 @@ class _SolicitacaoGeograficaProfissionalPageState
 
   Widget _avatar(String nome, String? foto) {
     const tamanho = 46.0;
-    final iniciais = Container(
+    final iniciais = CorOriginal(interface: true, child: Container(
       width: tamanho,
       height: tamanho,
       alignment: Alignment.center,
@@ -1885,23 +1900,23 @@ class _SolicitacaoGeograficaProfissionalPageState
           fontSize: 16,
         ),
       ),
-    );
+    ));
     final url = foto?.trim() ?? '';
     if (url.isEmpty) return iniciais;
     return ClipOval(
-      child: Image.network(
+      child: ImagemApp(child: Image.network(
         url,
         width: tamanho,
         height: tamanho,
         fit: BoxFit.cover,
         errorBuilder: (_, _, _) => iniciais,
-      ),
+      )),
     );
   }
 
   /// Imagem(ns) anexadas pelo cliente, logo abaixo do título.
   Widget _imagensSolicitacao(List<String> imagens) {
-    Widget imagem(String url) => Image.network(
+    Widget imagem(String url) => ImagemApp(child: Image.network(
       url,
       fit: BoxFit.cover,
       errorBuilder: (_, _, _) => Container(
@@ -1909,7 +1924,7 @@ class _SolicitacaoGeograficaProfissionalPageState
         alignment: Alignment.center,
         child: const Icon(Icons.image_not_supported_outlined, color: _textoSec),
       ),
-    );
+    ));
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
@@ -2054,7 +2069,7 @@ class _SheetAceitarState extends State<_SheetAceitar> {
                   ),
                   child: Row(
                     children: [
-                      Container(
+                      CorOriginal(interface: true, child: Container(
                         width: 40,
                         height: 40,
                         alignment: Alignment.center,
@@ -2066,7 +2081,7 @@ class _SheetAceitarState extends State<_SheetAceitar> {
                           s.funcao,
                           tamanho: 24,
                         ),
-                      ),
+                      )),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(
@@ -2159,7 +2174,7 @@ class _SheetAceitarState extends State<_SheetAceitar> {
                 SizedBox(
                   width: double.infinity,
                   height: 52,
-                  child: FilledButton.icon(
+                  child: CorOriginal(interface: true, child: FilledButton.icon(
                     onPressed: _confirmar,
                     icon: const Icon(Icons.send_rounded, size: 19),
                     label: const Text(
@@ -2175,7 +2190,7 @@ class _SheetAceitarState extends State<_SheetAceitar> {
                         borderRadius: BorderRadius.circular(30),
                       ),
                     ),
-                  ),
+                  )),
                 ),
               ],
             ),

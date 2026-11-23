@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../utils/movimento.dart';
 
 /// Borda fina com um gradiente que fica girando em volta do [child]
 /// (indica que há uma solicitação em curso, na cor do status).
@@ -30,19 +31,19 @@ class _BordaGradienteAnimadaState extends State<BordaGradienteAnimada>
     with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(
     vsync: this,
-    duration: widget.duracao,
+    duration: duracao(widget.duracao),
   );
 
   @override
   void initState() {
     super.initState();
-    if (widget.ativa) _c.repeat();
+    if (widget.ativa) _c.repetir();
   }
 
   @override
   void didUpdateWidget(covariant BordaGradienteAnimada old) {
     super.didUpdateWidget(old);
-    if (widget.ativa && !_c.isAnimating) _c.repeat();
+    if (widget.ativa && !_c.isAnimating) _c.repetir();
     if (!widget.ativa && _c.isAnimating) _c.stop();
   }
 

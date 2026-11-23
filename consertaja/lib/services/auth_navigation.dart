@@ -5,6 +5,7 @@ import '../tela_home.dart';
 import '../tela_home_profissional.dart';
 import '../completar_cadastro.dart';
 import '../tela_inicial.dart';
+import '../widgets/imagem_app.dart';
 
 /// Após login/cadastro com Google, redireciona para home ou cadastro incompleto.
 Future<void> navegarPosAutenticacaoGoogle(
@@ -109,12 +110,12 @@ class TelaEscolhaContaCompletar extends StatelessWidget {
             children: [
               const SizedBox(height: 20),
               if (fotoUrlGoogle != null)
-                CircleAvatar(
+                CorOriginal(child: CircleAvatar(
                   radius: 40,
                   backgroundImage: NetworkImage(fotoUrlGoogle!),
-                ),
+                )),
               const SizedBox(height: 12),
-              Image.asset('assets/images/Logo.png', height: 80),
+              ImagemApp(child: Image.asset('assets/images/Logo.png', height: 80)),
               const SizedBox(height: 16),
               const Text(
                 'Complete seu cadastro',

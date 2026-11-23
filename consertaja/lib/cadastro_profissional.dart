@@ -40,6 +40,8 @@ import 'widgets/check_animado.dart';
 import 'widgets/dialogo_sheet.dart';
 import 'services/ocr_documento.dart';
 import 'services/conclusao_cadastro_profissional.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
 
 // ================= TELA 01: CADASTRO DO PROFISSIONAL (ETAPA 1) =================
 class CadastroProfissionalPage extends StatefulWidget {
@@ -527,7 +529,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
         ),
         body: TweenAnimationBuilder<double>(
           tween: Tween<double>(begin: 0.0, end: 1.0),
-          duration: const Duration(milliseconds: 550),
+          duration: duracao(const Duration(milliseconds: 550)),
           curve: Curves.easeOutCubic,
           builder: (context, value, child) {
             return Opacity(
@@ -625,8 +627,8 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                             _documentoValido = false;
                             _validandoDocumento = false;
                           }),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
+                          child: CorOriginal(interface: true, ativo: _isPessoaFisica, child: AnimatedContainer(
+                            duration: duracao(const Duration(milliseconds: 200)),
                             decoration: BoxDecoration(
                               color: _isPessoaFisica
                                   ? const Color(0xFF00A2FF)
@@ -644,7 +646,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                          ),
+                          )),
                         ),
                       ),
                       Expanded(
@@ -655,8 +657,8 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                             _documentoValido = false;
                             _validandoDocumento = false;
                           }),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
+                          child: CorOriginal(interface: true, ativo: !_isPessoaFisica, child: AnimatedContainer(
+                            duration: duracao(const Duration(milliseconds: 200)),
                             decoration: BoxDecoration(
                               color: !_isPessoaFisica
                                   ? const Color(0xFF00A2FF)
@@ -674,7 +676,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                          ),
+                          )),
                         ),
                       ),
                     ],
@@ -849,7 +851,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                 SizedBox(
                   width: double.infinity,
                   height: 55,
-                  child: ElevatedButton(
+                  child: CorOriginal(interface: true, child: ElevatedButton(
                     onPressed: _irParaEtapa2,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF00A2FF),
@@ -866,7 +868,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
+                  )),
                 ),
 
                 const SizedBox(height: 20),
@@ -901,10 +903,10 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                             height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : Image.asset(
+                        : ImagemApp(child: Image.asset(
                             'assets/images/icone/google-logo.png',
                             height: 22,
-                          ),
+                          )),
                     label: Text(
                       _carregandoGoogle
                           ? 'Conectando...'
@@ -978,7 +980,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
   }
 
   Widget _buildStepCircle(String step, {required bool isActive}) {
-    return Container(
+    return CorOriginal(interface: true, ativo: isActive, child: Container(
       width: 34,
       height: 34,
       decoration: BoxDecoration(
@@ -995,7 +997,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
           ),
         ),
       ),
-    );
+    ));
   }
 
   Widget _buildStepLine() {
@@ -1012,8 +1014,8 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
       behavior: HitTestBehavior.opaque,
       child: Row(
         children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
+          CorOriginal(interface: true, ativo: isSelected, child: AnimatedContainer(
+            duration: duracao(const Duration(milliseconds: 150)),
             width: 22,
             height: 22,
             decoration: BoxDecoration(
@@ -1031,7 +1033,7 @@ class _CadastroProfissionalPageState extends State<CadastroProfissionalPage> {
                     child: Icon(Icons.circle, size: 8, color: Colors.white),
                   )
                 : null,
-          ),
+          )),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -1372,7 +1374,7 @@ class _CadastroProfissionalEtapa2PageState
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0FB3FF),
-      appBar: AppBar(
+      appBar: BarraCorOriginal(child: AppBar(
         backgroundColor: const Color(0xFF0FB3FF),
         elevation: 0,
         leadingWidth: 100,
@@ -1388,10 +1390,10 @@ class _CadastroProfissionalEtapa2PageState
             style: TextStyle(color: Color(0xFF00A2FF), fontSize: 16),
           ),
         ),
-      ),
+      )),
       body: TweenAnimationBuilder<double>(
         tween: Tween<double>(begin: 0.0, end: 1.0),
-        duration: const Duration(milliseconds: 550),
+        duration: duracao(const Duration(milliseconds: 550)),
         curve: Curves.easeOutCubic,
         builder: (context, value, child) {
           return Opacity(
@@ -1668,7 +1670,7 @@ class _CadastroProfissionalEtapa2PageState
               SizedBox(
                 width: double.infinity,
                 height: 55,
-                child: ElevatedButton(
+                child: CorOriginal(interface: true, child: ElevatedButton(
                   onPressed: _irParaEtapa3,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00A2FF),
@@ -1685,7 +1687,7 @@ class _CadastroProfissionalEtapa2PageState
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                ),
+                )),
               ),
               const SizedBox(height: 30),
 
@@ -1724,7 +1726,7 @@ class _CadastroProfissionalEtapa2PageState
   }
 
   Widget _buildStepCircle(String step, {required bool isActive}) {
-    return Container(
+    return CorOriginal(interface: true, ativo: isActive, child: Container(
       width: 34,
       height: 34,
       decoration: BoxDecoration(
@@ -1741,7 +1743,7 @@ class _CadastroProfissionalEtapa2PageState
           ),
         ),
       ),
-    );
+    ));
   }
 
   Widget _buildStepLine() {
@@ -2162,7 +2164,7 @@ class _CadastroProfissionalEtapa3PageState
       ),
       body: TweenAnimationBuilder<double>(
         tween: Tween<double>(begin: 0.0, end: 1.0),
-        duration: const Duration(milliseconds: 550),
+        duration: duracao(const Duration(milliseconds: 550)),
         curve: Curves.easeOutCubic,
         builder: (context, value, child) {
           return Opacity(
@@ -2340,7 +2342,7 @@ class _CadastroProfissionalEtapa3PageState
               SizedBox(
                 width: double.infinity,
                 height: 55,
-                child: ElevatedButton(
+                child: CorOriginal(interface: true, child: ElevatedButton(
                   onPressed: _carregando
                       ? null
                       : () {
@@ -2367,7 +2369,7 @@ class _CadastroProfissionalEtapa3PageState
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                ),
+                )),
               ),
               const SizedBox(height: 25),
 
@@ -2407,7 +2409,7 @@ class _CadastroProfissionalEtapa3PageState
   }
 
   Widget _buildStepCircle(String step, {required bool isActive}) {
-    return Container(
+    return CorOriginal(interface: true, ativo: isActive, child: Container(
       width: 34,
       height: 34,
       decoration: BoxDecoration(
@@ -2424,7 +2426,7 @@ class _CadastroProfissionalEtapa3PageState
           ),
         ),
       ),
-    );
+    ));
   }
 
   Widget _buildStepLine() {
@@ -2489,8 +2491,8 @@ class _CadastroProfissionalEtapa3PageState
       children: [
         GestureDetector(
           onTap: () => onChanged(!value),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
+          child: CorOriginal(interface: true, ativo: value, child: AnimatedContainer(
+            duration: duracao(const Duration(milliseconds: 220)),
             curve: Curves.easeInOut,
             width: 22,
             height: 22,
@@ -2505,7 +2507,7 @@ class _CadastroProfissionalEtapa3PageState
             child: value
                 ? const Icon(Icons.check, color: Colors.white, size: 15)
                 : null,
-          ),
+          )),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -2547,7 +2549,7 @@ class CadastroFacialInstrucoesPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _blue,
-      appBar: AppBar(
+      appBar: BarraCorOriginal(child: AppBar(
         backgroundColor: _blue,
         surfaceTintColor: _blue,
         elevation: 0,
@@ -2564,7 +2566,7 @@ class CadastroFacialInstrucoesPage extends StatelessWidget {
             fontWeight: FontWeight.w500,
           ),
         ),
-      ),
+      )),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
@@ -3008,7 +3010,7 @@ class _CadastroFacialPageState extends State<CadastroFacialPage> {
 
     return Scaffold(
       backgroundColor: _blue,
-      appBar: AppBar(
+      appBar: BarraCorOriginal(child: AppBar(
         backgroundColor: _blue,
         surfaceTintColor: _blue,
         elevation: 0,
@@ -3033,7 +3035,7 @@ class _CadastroFacialPageState extends State<CadastroFacialPage> {
           preferredSize: Size.fromHeight(1),
           child: Divider(height: 1, thickness: 1, color: Color(0xFFE6E6E6)),
         ),
-      ),
+      )),
       body: SafeArea(
         child: DefaultTextStyle.merge(
           style: const TextStyle(color: Colors.white),
@@ -3172,7 +3174,7 @@ class _CadastroFacialSucessoPageState extends State<CadastroFacialSucessoPage>
 
   late final AnimationController _anim = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 2300),
+    duration: duracao(const Duration(milliseconds: 2300)),
   );
 
   // O check ocupa ~65% da animação; o resto revela texto e botão.
@@ -3450,7 +3452,7 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
           GestureDetector(
             onTap: widget.onTap,
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
+              duration: duracao(const Duration(milliseconds: 250)),
               curve: Curves.easeInOut,
               height: 56,
               decoration: BoxDecoration(
@@ -3481,7 +3483,7 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                       alignment: Alignment.centerLeft,
                       children: [
                         AnimatedPositioned(
-                          duration: const Duration(milliseconds: 200),
+                          duration: duracao(const Duration(milliseconds: 200)),
                           curve: Curves.easeInOut,
                           left: 0,
                           right: 0,
@@ -3491,7 +3493,7 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 AnimatedDefaultTextStyle(
-                                  duration: const Duration(milliseconds: 200),
+                                  duration: duracao(const Duration(milliseconds: 200)),
                                   style: TextStyle(
                                     color: labelColor,
                                     fontSize: shouldFloat ? 11 : 16,
@@ -3502,7 +3504,7 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                                   child: Text(widget.label),
                                 ),
                                 AnimatedOpacity(
-                                  duration: const Duration(milliseconds: 200),
+                                  duration: duracao(const Duration(milliseconds: 200)),
                                   opacity: shouldFloat ? 1.0 : 0.0,
                                   child: Text(
                                     '*',
@@ -3520,7 +3522,7 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                           ),
                         ),
                         AnimatedPositioned(
-                          duration: const Duration(milliseconds: 200),
+                          duration: duracao(const Duration(milliseconds: 200)),
                           curve: Curves.easeInOut,
                           left: 0,
                           right: 0,
@@ -3572,7 +3574,7 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                                 )
                               : widget.onTap),
                       child: AnimatedScale(
-                        duration: const Duration(milliseconds: 200),
+                        duration: duracao(const Duration(milliseconds: 200)),
                         scale: _isFocused ? 1.05 : 1.0,
                         child: Icon(
                           dynamicIcon,
@@ -3928,7 +3930,7 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0FB3FF),
-      appBar: AppBar(
+      appBar: BarraCorOriginal(child: AppBar(
         backgroundColor: const Color(0xFF0FB3FF),
         elevation: 0,
         leading: IconButton(
@@ -3940,7 +3942,7 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         ),
         centerTitle: true,
-      ),
+      )),
       body: DefaultTextStyle.merge(
         style: const TextStyle(color: Colors.white),
         child: SingleChildScrollView(
@@ -3953,7 +3955,7 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
                   children: [
                     TweenAnimationBuilder<double>(
                       tween: Tween(begin: 0, end: 1),
-                      duration: const Duration(milliseconds: 1100),
+                      duration: duracao(const Duration(milliseconds: 1100)),
                       builder: (context, t, child) {
                         final cartao = Curves.easeOutBack.transform(
                           (t / 0.6).clamp(0.0, 1.0),
@@ -4038,7 +4040,7 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
 
               // Cartão de leitura enquanto o OCR roda.
               AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
+                duration: duracao(const Duration(milliseconds: 300)),
                 transitionBuilder: (child, anim) => SizeTransition(
                   sizeFactor: anim,
                   child: FadeTransition(opacity: anim, child: child),
@@ -4096,7 +4098,7 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
               for (final (i, doc) in _docTypes.indexed)
                 TweenAnimationBuilder<double>(
                   tween: Tween(begin: 0, end: 1),
-                  duration: Duration(milliseconds: 420 + i * 120),
+                  duration: duracao(Duration(milliseconds: 420 + i * 120)),
                   curve: Curves.easeOutCubic,
                   builder: (context, t, child) => Opacity(
                     opacity: t,
@@ -4169,7 +4171,7 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
         GestureDetector(
           onTap: () => _selecionarDocumento(doc),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 320),
+            duration: duracao(const Duration(milliseconds: 320)),
             curve: Curves.easeOutCubic,
             margin: EdgeInsets.only(bottom: doc.errorMessage != null ? 2 : 12),
             padding: const EdgeInsets.all(16),
@@ -4211,7 +4213,7 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
                   ),
                 ),
                 AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 350),
+                  duration: duracao(const Duration(milliseconds: 350)),
                   transitionBuilder: (child, anim) => ScaleTransition(
                     scale: CurvedAnimation(
                       parent: anim,
@@ -4245,7 +4247,7 @@ class _ValidacaoDocsPageState extends State<ValidacaoDocsPage> {
           ),
         ),
         AnimatedSize(
-          duration: const Duration(milliseconds: 250),
+          duration: duracao(const Duration(milliseconds: 250)),
           curve: Curves.easeOutCubic,
           child: doc.errorMessage == null
               ? const SizedBox(width: double.infinity)

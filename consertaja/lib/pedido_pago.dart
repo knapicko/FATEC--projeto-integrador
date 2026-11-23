@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'utils/iniciais.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
 import 'widgets/skeletons_telas.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 class PedidoPagoPage extends StatefulWidget {
   final int idSolicitacao;
@@ -174,7 +176,16 @@ class _PedidoPagoPageState extends State<PedidoPagoPage>
               ),
             ),
           ),
-          const SizedBox(width: 48),
+          BotaoAjuda(
+            cor: _azul,
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'O seu pagamento foi confirmado!',
+              conteudo: [
+                'Aqui você vê o resumo do pedido e segue para acompanhar o serviço.',
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -185,7 +196,7 @@ class _PedidoPagoPageState extends State<PedidoPagoPage>
       padding: const EdgeInsets.fromLTRB(14, 36, 14, 28),
       child: Column(
         children: [
-          Container(
+          CorOriginal(interface: true, child: Container(
             width: 78,
             height: 78,
             decoration: const BoxDecoration(
@@ -193,7 +204,7 @@ class _PedidoPagoPageState extends State<PedidoPagoPage>
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.check, color: Colors.white, size: 42),
-          ),
+          )),
           const SizedBox(height: 20),
           const Text(
             'Pagamento Realizado com\nSucesso!',
@@ -236,7 +247,7 @@ class _PedidoPagoPageState extends State<PedidoPagoPage>
           SizedBox(
             width: double.infinity,
             height: 48,
-            child: FilledButton.icon(
+            child: CorOriginal(interface: true, child: FilledButton.icon(
               onPressed: voltarParaPedidos,
               icon: const Icon(Icons.arrow_forward, size: 20),
               label: const Text('Ver Meus Pedidos'),
@@ -247,7 +258,7 @@ class _PedidoPagoPageState extends State<PedidoPagoPage>
                   borderRadius: BorderRadius.circular(24),
                 ),
               ),
-            ),
+            )),
           ),
         ],
       ),
@@ -284,7 +295,7 @@ class _PedidoPagoPageState extends State<PedidoPagoPage>
             'Profissional',
             _profissional,
             trailing: foto.startsWith('http')
-                ? CircleAvatar(radius: 10, backgroundImage: NetworkImage(foto))
+                ? CorOriginal(child: CircleAvatar(radius: 10, backgroundImage: NetworkImage(foto)))
                 : CircleAvatar(
                     radius: 10,
                     backgroundColor: const Color(0xFFE4F4FC),

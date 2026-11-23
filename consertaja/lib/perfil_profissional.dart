@@ -22,6 +22,9 @@ import 'servicos_do_profissional.dart';
 import 'widgets/secao_avaliacoes.dart';
 import 'tutorial/tutorial.dart';
 import 'tutorial/tutorial_da_tela.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
 
 class _DadosEnderecoProfissional {
   final String apelido;
@@ -66,8 +69,8 @@ class _BlinkingSignalDotState extends State<_BlinkingSignalDot>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat(reverse: true);
+      duration: duracao(const Duration(milliseconds: 1400)),
+    )..repetir(reverse: true);
     _animation = Tween<double>(
       begin: 0.2,
       end: 1.0,
@@ -569,7 +572,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage>
                       ),
                       if (ehHoje) ...[
                         const SizedBox(width: 8),
-                        Container(
+                        CorOriginal(interface: true, child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 6,
                             vertical: 2,
@@ -586,7 +589,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage>
                               color: Colors.white,
                             ),
                           ),
-                        ),
+                        )),
                       ],
                       const Spacer(),
                       if (estaFechado)
@@ -614,7 +617,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage>
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
+                child: CorOriginal(interface: true, child: ElevatedButton(
                   onPressed: () => Navigator.pop(ctx),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _primaryBlue,
@@ -629,7 +632,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage>
                     'Entendido',
                     style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                   ),
-                ),
+                )),
               ),
             ],
           ),
@@ -1606,10 +1609,10 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage>
     return IgnorePointer(
       child: AnimatedOpacity(
         opacity: visivel ? 1 : 0,
-        duration: const Duration(milliseconds: 180),
+        duration: duracao(const Duration(milliseconds: 180)),
         child: AnimatedScale(
           scale: visivel ? 1 : 0.6,
-          duration: const Duration(milliseconds: 300),
+          duration: duracao(const Duration(milliseconds: 300)),
           curve: Curves.easeOutBack,
           child: Container(
             width: 84,
@@ -1792,7 +1795,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage>
                                     ? InteractiveViewer(
                                         minScale: 1,
                                         maxScale: 4,
-                                        child: Image.network(
+                                        child: ImagemApp(child: Image.network(
                                           postagem.imagemUrl!,
                                           fit: BoxFit.contain,
                                           errorBuilder: (_, _, _) => const Icon(
@@ -1800,7 +1803,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage>
                                             color: Colors.white54,
                                             size: 64,
                                           ),
-                                        ),
+                                        )),
                                       )
                                     : const Icon(
                                         Icons.image_outlined,
@@ -2210,7 +2213,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage>
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton(
+              child: CorOriginal(interface: true, child: ElevatedButton(
                 onPressed: () => Navigator.pop(ctx),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _primaryBlue,
@@ -2224,7 +2227,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage>
                   'Fechar',
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
-              ),
+              )),
             ),
           ],
         ),
@@ -2454,13 +2457,13 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage>
               right: 0,
               bottom: 0,
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 350),
+                duration: duracao(const Duration(milliseconds: 350)),
                 curve: Curves.easeOut,
                 color: _corBanner,
               ),
             ),
             AnimatedContainer(
-              duration: const Duration(milliseconds: 350),
+              duration: duracao(const Duration(milliseconds: 350)),
               curve: Curves.easeOut,
               height: 140,
               width: double.infinity,
@@ -2483,10 +2486,27 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage>
                           size: 24,
                         ),
                       ),
-                      const Icon(
-                        Icons.more_vert,
-                        color: Colors.white,
-                        size: 24,
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          BotaoAjuda(
+                            cor: Colors.white,
+                            passos: () => passosAjuda(
+                              reserva: () => explicacaoDaTela(
+                                context,
+                                tela: 'Este é o perfil do profissional.',
+                                conteudo: [
+                                  'Aqui você vê os serviços, a disponibilidade, a localização e as avaliações.',
+                                ],
+                              ),
+                            ),
+                          ),
+                          const Icon(
+                            Icons.more_vert,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -2519,7 +2539,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage>
                   Positioned(
                     bottom: 4,
                     right: 4,
-                    child: Container(
+                    child: CorOriginal(interface: true, child: Container(
                       width: 24,
                       height: 24,
                       decoration: BoxDecoration(
@@ -2532,7 +2552,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage>
                         color: Colors.white,
                         size: 14,
                       ),
-                    ),
+                    )),
                   ),
                 ],
               ),
@@ -2845,7 +2865,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage>
   }
 
   Widget _buildBotaoConversar() {
-    return ElevatedButton(
+    return CorOriginal(interface: true, child: ElevatedButton(
       onPressed: () {
         if (!SessaoVisitante.permitir(context)) return;
         Navigator.of(context).push(
@@ -2883,7 +2903,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage>
           ),
         ],
       ),
-    );
+    ));
   }
 
   Widget _buildMetricaItem({
@@ -2939,7 +2959,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage>
         imagemParaExibir.startsWith('https://');
 
     if (ehUrl) {
-      return Image.network(
+      return ImagemApp(child: Image.network(
         imagemParaExibir,
         fit: BoxFit.cover,
         cacheWidth: 250,
@@ -2953,7 +2973,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage>
           // spinner — parece que nem carregou, sem piscar.
           return _buildIniciaisPerfil();
         },
-      );
+      ));
     }
     return _buildIniciaisPerfil();
   }
@@ -3244,7 +3264,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage>
 
                   // Se for o dia atual: pintado de azul
                   if (isHoje) {
-                    return Container(
+                    return CorOriginal(interface: true, child: Container(
                       decoration: BoxDecoration(
                         color: _primaryBlue,
                         borderRadius: BorderRadius.circular(10),
@@ -3258,7 +3278,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage>
                           color: Colors.white,
                         ),
                       ),
-                    );
+                    ));
                   }
 
                   // Não exceção e não dia atual: não pintado
@@ -4201,14 +4221,14 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage>
           fit: StackFit.expand,
           children: [
             if (postagem.imagemUrl != null && postagem.imagemUrl!.isNotEmpty)
-              Image.network(
+              ImagemApp(child: Image.network(
                 postagem.imagemUrl!,
                 fit: BoxFit.cover,
                 errorBuilder: (_, _, _) => Container(
                   color: Colors.grey.shade300,
                   child: const Icon(Icons.image, color: Colors.grey),
                 ),
-              )
+              ))
             else
               Container(
                 color: const Color(0xFFE2E8F0),
@@ -4667,11 +4687,11 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage>
                 children: [
                   if (servico.imagemUrl != null &&
                       servico.imagemUrl!.trim().isNotEmpty)
-                    Image.network(
+                    ImagemApp(child: Image.network(
                       servico.imagemUrl!,
                       fit: BoxFit.cover,
                       errorBuilder: (_, _, _) => _buildFallbackImagemServico(),
-                    )
+                    ))
                   else
                     _buildFallbackImagemServico(),
                   if (servico.funcao != null &&
@@ -4851,7 +4871,7 @@ class _AbasDelegate extends SliverPersistentHeaderDelegate {
                           ),
                         ),
                         const Spacer(),
-                        Container(
+                        CorOriginal(interface: true, ativo: isActive, child: Container(
                           height: 3,
                           width: double.infinity,
                           decoration: BoxDecoration(
@@ -4860,7 +4880,7 @@ class _AbasDelegate extends SliverPersistentHeaderDelegate {
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(2),
                           ),
-                        ),
+                        )),
                       ],
                     ),
                   ),

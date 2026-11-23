@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/movimento.dart';
 
 /// Ondas de "sonar" saindo de um marcador do mapa (bolinha do profissional
 /// no Radar do cliente / bolinha do pedido no Radar do profissional).
@@ -40,7 +41,7 @@ class _SonarPulsoState extends State<SonarPulso>
     with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(
     vsync: this,
-    duration: widget.duracao,
+    duration: duracao(widget.duracao),
   );
 
   @override
@@ -59,7 +60,7 @@ class _SonarPulsoState extends State<SonarPulso>
     if (MediaQuery.of(context).disableAnimations) {
       _c.stop();
     } else if (!_c.isAnimating) {
-      _c.repeat();
+      _c.repetir();
     }
   }
 

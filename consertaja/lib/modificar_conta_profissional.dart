@@ -14,6 +14,8 @@ import 'widgets/aviso_obrigatorio.dart';
 import 'services/requisitos_conta.dart';
 import 'tutorial/tutorial.dart';
 import 'tutorial/ilustracoes.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 class ModificarContaProfissionalPage extends StatefulWidget {
   const ModificarContaProfissionalPage({
@@ -455,6 +457,20 @@ class _ModificarContaProfissionalPageState
             ),
           ),
           Positioned(
+            right: 6,
+            child: BotaoAjuda(
+              cor: const Color(0xFF0FB3FF),
+              passos: () => explicacaoDaTela(
+                context,
+                tela: 'Aqui você ajusta a sua conta de profissional.',
+                conteudo: [
+                  'Mude a foto, o banner, a descrição e os anos de experiência.',
+                  'Com CNPJ, aqui também fica o tipo de conta: independente ou loja.',
+                ],
+              ),
+            ),
+          ),
+          Positioned(
             left: 0,
             right: 0,
             child: Center(
@@ -500,7 +516,7 @@ class _ModificarContaProfissionalPageState
                         color: Colors.white,
                         shape: BoxShape.circle,
                       ),
-                      child: CircleAvatar(
+                      child: CorOriginal(child: CircleAvatar(
                         backgroundColor: const Color(0xFFE9EEF5),
                         backgroundImage:
                             (_fotoPerfilUrl != null &&
@@ -518,14 +534,14 @@ class _ModificarContaProfissionalPageState
                                 ),
                               )
                             : null,
-                      ),
+                      )),
                     ),
                     Positioned(
                       right: -2,
                       bottom: 4,
                       child: GestureDetector(
                         onTap: _enviandoFoto ? null : _escolherFotoPerfil,
-                        child: Container(
+                        child: CorOriginal(interface: true, child: Container(
                           width: 30,
                           height: 30,
                           decoration: BoxDecoration(
@@ -546,7 +562,7 @@ class _ModificarContaProfissionalPageState
                                   size: 16,
                                   color: Colors.white,
                                 ),
-                        ),
+                        )),
                       ),
                     ),
                   ],
@@ -725,7 +741,7 @@ class _ModificarContaProfissionalPageState
         ),
         child: Row(
           children: [
-            Container(
+            CorOriginal(interface: true, ativo: selecionado, child: Container(
               width: 30,
               height: 30,
               decoration: BoxDecoration(
@@ -739,7 +755,7 @@ class _ModificarContaProfissionalPageState
                 color: selecionado ? Colors.white : const Color(0xFF6E7481),
                 size: 18,
               ),
-            ),
+            )),
             const SizedBox(width: 10),
             Expanded(
               child: Column(

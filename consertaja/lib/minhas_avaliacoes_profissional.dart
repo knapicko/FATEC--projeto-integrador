@@ -9,6 +9,8 @@ import 'utils/cor_oficio.dart';
 import 'widgets/card_pedido_resumo.dart';
 import 'widgets/selo_conta_ativa.dart';
 import 'widgets/skeleton_loading.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 /// Avaliações dos serviços do profissional (ou da loja, com a conta de loja
 /// ativa): um card por serviço com a nota média e a quantidade. Toque →
@@ -141,7 +143,7 @@ class _MinhasAvaliacoesProfissionalPageState
       soma += r.media * r.total;
     }
     final media = total == 0 ? 0.0 : soma / total;
-    return Container(
+    return CorOriginal(interface: true, child: Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -208,7 +210,7 @@ class _MinhasAvaliacoesProfissionalPageState
           ),
         ],
       ),
-    );
+    ));
   }
 
   Widget _barraBusca() => Row(
@@ -291,11 +293,11 @@ class _MinhasAvaliacoesProfissionalPageState
                     fit: StackFit.expand,
                     children: [
                       img.startsWith('http')
-                          ? Image.network(
+                          ? ImagemApp(child: Image.network(
                               img,
                               fit: BoxFit.cover,
                               errorBuilder: (_, _, _) => _semImagem(),
-                            )
+                            ))
                           : _semImagem(),
                       if (s.funcao?.trim().isNotEmpty == true)
                         Positioned(
@@ -469,7 +471,21 @@ class _MinhasAvaliacoesProfissionalPageState
     final conta = _conta;
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
-      appBar: appBarPerfil('Minhas Avaliações'),
+      appBar: appBarPerfil(
+        'Minhas Avaliações',
+        acoes: [
+          BotaoAjuda(
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Aqui ficam as avaliações dos seus serviços.',
+              conteudo: [
+                'No topo fica a sua nota média geral. Use a busca e a ordenação para achar um serviço.',
+                'Toque em um serviço para ver todas as avaliações dele, do jeito que o cliente vê.',
+              ],
+            ),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         color: _azul,
         onRefresh: _carregar,

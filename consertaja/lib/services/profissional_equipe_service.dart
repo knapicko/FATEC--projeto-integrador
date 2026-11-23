@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../widgets/imagem_app.dart';
 
 class ProfissionalEquipeService {
   ProfissionalEquipeService({SupabaseClient? client})
@@ -299,7 +300,7 @@ class _CriarProfissionalPopoverState extends State<CriarProfissionalPopover> {
                 SizedBox(
                   width: double.infinity,
                   height: 52,
-                  child: ElevatedButton.icon(
+                  child: CorOriginal(interface: true, child: ElevatedButton.icon(
                     onPressed: () {
                       if (_formKey.currentState!.validate()) {
                         Navigator.pop(
@@ -318,7 +319,7 @@ class _CriarProfissionalPopoverState extends State<CriarProfissionalPopover> {
                         borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                  ),
+                  )),
                 ),
               ],
             ),

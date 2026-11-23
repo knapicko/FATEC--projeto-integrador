@@ -8,6 +8,7 @@ import '../services/solicitacao_geografica_service.dart';
 import '../utils/bottom_navigation_bar_profissional.dart';
 import 'camada_mapa.dart';
 import 'sonar_pulso.dart';
+import 'imagem_app.dart';
 
 /// Prévia do Radar na home do profissional: o mesmo mapa da
 /// solicitacao_geografica_profissional.dart, só que pequeno e sem gestos.
@@ -252,7 +253,7 @@ class _PreviaRadarProfissionalState extends State<PreviaRadarProfissional> {
   }
 
   Widget _bolinha(double tamanho, {required double borda, IconData? icone}) {
-    return Container(
+    return CorOriginal(interface: true, child: Container(
       width: tamanho,
       height: tamanho,
       decoration: BoxDecoration(
@@ -266,7 +267,7 @@ class _PreviaRadarProfissionalState extends State<PreviaRadarProfissional> {
       child: icone == null
           ? null
           : Icon(icone, color: Colors.white, size: tamanho * 0.5),
-    );
+    ));
   }
 
   Widget _textoResumo() {

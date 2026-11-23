@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../utils/movimento.dart';
 
 const _azul = Color(0xFF0FB3FF);
 const _laranja = Color(0xFFF59E0B);
@@ -158,8 +159,8 @@ class _IlustracaoRadarState extends State<IlustracaoRadar>
     with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 1400),
-  )..repeat();
+    duration: duracao(const Duration(milliseconds: 1400)),
+  )..repetir();
 
   @override
   void dispose() {
@@ -234,8 +235,8 @@ class _IlustracaoTrocaContaState extends State<IlustracaoTrocaConta>
     with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 2400),
-  )..repeat();
+    duration: duracao(const Duration(milliseconds: 2400)),
+  )..repetir();
 
   @override
   void dispose() {
@@ -313,8 +314,8 @@ class _IlustracaoEquipeState extends State<IlustracaoEquipe>
     with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 2600),
-  )..repeat();
+    duration: duracao(const Duration(milliseconds: 2600)),
+  )..repetir();
 
   @override
   void dispose() {

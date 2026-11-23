@@ -33,6 +33,9 @@ import 'services/avaliacoes_pendentes.dart';
 import 'tutorial/tutorial.dart';
 import 'tutorial/tutorial_visto.dart';
 import 'tutorial/ilustracoes.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
 
 /// Home do cliente (e do visitante).
 class TelaHome extends StatefulWidget {
@@ -71,6 +74,7 @@ class _TelaHomeState extends State<TelaHome> {
   final _kServicos = GlobalKey();
   final _kVerCatalogo = GlobalKey();
   final _kBarra = GlobalKey();
+  final _kAjuda = GlobalKey();
 
   @override
   void dispose() {
@@ -105,14 +109,22 @@ class _TelaHomeState extends State<TelaHome> {
       await Future<void>.delayed(const Duration(milliseconds: 250));
     }
     if (!mounted) return;
-    Rect? Function() aba(int i) =>
-        Tutorial.itemBarra(_kBarra, indice: i, total: 5);
-    final temProfissional = _regiao?.isNotEmpty == true;
     await Tutorial.mostrar(
       context,
       pularParaFinal: true,
       chave: 'home_cliente',
-      passos: [
+      passos: _passosHome(),
+    );
+  }
+
+  /// Balões da home: a apresentação do primeiro acesso ou (sem
+  /// [apresentacao]) a explicação do botão "?".
+  List<PassoTutorial> _passosHome({bool apresentacao = true}) {
+    Rect? Function() aba(int i) =>
+        Tutorial.itemBarra(_kBarra, indice: i, total: 5);
+    final temProfissional = _regiao?.isNotEmpty == true;
+    return [
+      if (apresentacao) ...[
         const PassoTutorial('Que bom te ver de novo por aqui!'),
         const PassoTutorial(
           'Vou te mostrar a tela principal e as partes mais importantes do '
@@ -122,118 +134,124 @@ class _TelaHomeState extends State<TelaHome> {
           'Se quiser, toque em "Pular", no canto de baixo, a qualquer '
           'momento.',
         ),
+      ],
+      PassoTutorial(
+        'Este é o seu cabeçalho: sua foto, o endereço, a busca e as '
+        'notificações.',
+        alvo: _kCabecalho,
+        rolagem: _rolagem,
+        alinhamentoRolagem: 0,
+      ),
+      PassoTutorial(
+        'Aqui fica o seu endereço. Ele é necessário para pedir serviços, e '
+        'você pode trocar quando quiser.',
+        alvo: _kEndereco,
+        raio: 12,
+      ),
+      PassoTutorial(
+        'Na busca você encontra profissionais e serviços, não só os da sua '
+        'região.',
+        alvo: _kBusca,
+      ),
+      PassoTutorial(
+        'Estas são as categorias populares: um atalho para buscar já '
+        'filtrando pela categoria.',
+        alvo: _kCategorias,
+        rolagem: _rolagem,
+        alinhamentoRolagem: 0.15,
+      ),
+      PassoTutorial(
+        'Se você quiser ver todas as categorias, é só tocar em "Ver '
+        'todas".',
+        alvo: _kVerTodasCategorias,
+        raio: 10,
+      ),
+      PassoTutorial(
+        'Aqui aparecem os profissionais que estão a até 5 km de você.',
+        alvo: _kRegiao,
+        rolagem: _rolagem,
+        alinhamentoRolagem: 0.12,
+      ),
+      PassoTutorial(
+        'Se quiser ver todos os profissionais cadastrados, toque em "Ver '
+        'todos".',
+        alvo: _kVerTodosRegiao,
+        raio: 10,
+      ),
+      if (temProfissional)
         PassoTutorial(
-          'Este é o seu cabeçalho: sua foto, o endereço, a busca e as '
-          'notificações.',
-          alvo: _kCabecalho,
-          rolagem: _rolagem,
-          alinhamentoRolagem: 0,
+          'E tocando em um profissional, você abre o perfil dele.',
+          alvo: _kPrimeiroProfissional,
+          raio: 24,
         ),
-        PassoTutorial(
-          'Aqui fica o seu endereço. Ele é necessário para pedir serviços, e '
-          'você pode trocar quando quiser.',
-          alvo: _kEndereco,
-          raio: 12,
-        ),
-        PassoTutorial(
-          'Na busca você encontra profissionais e serviços, não só os da sua '
-          'região.',
-          alvo: _kBusca,
-        ),
-        PassoTutorial(
-          'Estas são as categorias populares: um atalho para buscar já '
-          'filtrando pela categoria.',
-          alvo: _kCategorias,
-          rolagem: _rolagem,
-          alinhamentoRolagem: 0.15,
-        ),
-        PassoTutorial(
-          'Se você quiser ver todas as categorias, é só tocar em "Ver '
-          'todas".',
-          alvo: _kVerTodasCategorias,
-          raio: 10,
-        ),
-        PassoTutorial(
-          'Aqui aparecem os profissionais que estão a até 5 km de você.',
-          alvo: _kRegiao,
-          rolagem: _rolagem,
-          alinhamentoRolagem: 0.12,
-        ),
-        PassoTutorial(
-          'Se quiser ver todos os profissionais cadastrados, toque em "Ver '
-          'todos".',
-          alvo: _kVerTodosRegiao,
-          raio: 10,
-        ),
-        if (temProfissional)
-          PassoTutorial(
-            'E tocando em um profissional, você abre o perfil dele.',
-            alvo: _kPrimeiroProfissional,
-            raio: 24,
-          ),
-        PassoTutorial(
-          'Estes são os serviços populares: os mais bem avaliados pelos '
-          'clientes.',
-          alvo: _kServicos,
-          rolagem: _rolagem,
-          alinhamentoRolagem: 0.1,
-        ),
-        PassoTutorial(
-          'Se você quiser ver o catálogo completo de serviços, toque em "Ver '
-          'catálogo".',
-          alvo: _kVerCatalogo,
-          raio: 10,
-        ),
-        PassoTutorial(
-          'Este é o Radar! Você descreve o que precisa e o seu pedido vai '
-          'para o mapa.',
-          alvoRect: aba(1),
-          folga: 2,
-          raio: 14,
-          ilustracao: const IlustracaoRadar(),
-        ),
-        PassoTutorial(
-          'Os profissionais perto de você veem o pedido e mandam propostas. '
-          'Aí é só escolher a melhor!',
-          alvoRect: aba(1),
-          folga: 2,
-          raio: 14,
-          ilustracao: const IlustracaoRadar(),
-        ),
-        PassoTutorial(
-          'Em Mensagens ficam as suas conversas com os profissionais.',
-          alvoRect: aba(2),
-          folga: 2,
-          raio: 14,
-        ),
-        PassoTutorial(
-          'Em Pedidos você acompanha tudo o que pediu, do começo ao fim.',
-          alvoRect: aba(3),
-          folga: 2,
-          raio: 14,
-        ),
-        PassoTutorial(
-          'No Perfil ficam os seus dados, endereços e configurações.',
-          alvoRect: aba(4),
-          folga: 2,
-          raio: 14,
-        ),
-        PassoTutorial(
-          'Quando aparecer um ! amarelo, é algo que ainda falta preencher.',
-          alvoRect: aba(4),
-          folga: 2,
-          raio: 14,
-        ),
-        PassoTutorial(
-          'Esses dados são necessários para você fazer o seu primeiro '
-          'pedido. Depois é só aproveitar!',
-          alvoRect: aba(4),
-          folga: 2,
-          raio: 14,
-        ),
+      PassoTutorial(
+        'Estes são os serviços populares: os mais bem avaliados pelos '
+        'clientes.',
+        alvo: _kServicos,
+        rolagem: _rolagem,
+        alinhamentoRolagem: 0.1,
+      ),
+      PassoTutorial(
+        'Se você quiser ver o catálogo completo de serviços, toque em "Ver '
+        'catálogo".',
+        alvo: _kVerCatalogo,
+        raio: 10,
+      ),
+      PassoTutorial(
+        'Este é o Radar! Você descreve o que precisa e o seu pedido vai '
+        'para o mapa.',
+        alvoRect: aba(1),
+        folga: 2,
+        raio: 14,
+        ilustracao: const IlustracaoRadar(),
+      ),
+      PassoTutorial(
+        'Os profissionais perto de você veem o pedido e mandam propostas. '
+        'Aí é só escolher a melhor!',
+        alvoRect: aba(1),
+        folga: 2,
+        raio: 14,
+        ilustracao: const IlustracaoRadar(),
+      ),
+      PassoTutorial(
+        'Em Mensagens ficam as suas conversas com os profissionais.',
+        alvoRect: aba(2),
+        folga: 2,
+        raio: 14,
+      ),
+      PassoTutorial(
+        'Em Pedidos você acompanha tudo o que pediu, do começo ao fim.',
+        alvoRect: aba(3),
+        folga: 2,
+        raio: 14,
+      ),
+      PassoTutorial(
+        'No Perfil ficam os seus dados, endereços e configurações.',
+        alvoRect: aba(4),
+        folga: 2,
+        raio: 14,
+      ),
+      PassoTutorial(
+        'Quando aparecer um ! amarelo, é algo que ainda falta preencher.',
+        alvoRect: aba(4),
+        folga: 2,
+        raio: 14,
+      ),
+      PassoTutorial(
+        'Esses dados são necessários para você fazer o seu primeiro '
+        'pedido. Depois é só aproveitar!',
+        alvoRect: aba(4),
+        folga: 2,
+        raio: 14,
+      ),
+      if (apresentacao)
         PassoTutorial(
           kFalaFinalTutorial,
           ehFinal: true,
+          alvo: _kAjuda,
+          raio: 23,
+          folga: 2,
+          apontar: true,
           antes: () async {
             if (_rolagem.hasClients) {
               await _rolagem.animateTo(
@@ -244,8 +262,7 @@ class _TelaHomeState extends State<TelaHome> {
             }
           },
         ),
-      ],
-    );
+    ];
   }
 
   Future<void> _carregarTudo() async {
@@ -415,7 +432,7 @@ class _TelaHomeState extends State<TelaHome> {
                         color: Colors.white,
                         shape: BoxShape.circle,
                       ),
-                      child: CircleAvatar(
+                      child: CorOriginal(child: CircleAvatar(
                         radius: 26,
                         backgroundColor: _azul,
                         backgroundImage: foto != null
@@ -435,7 +452,7 @@ class _TelaHomeState extends State<TelaHome> {
                                       ),
                                     )
                             : null,
-                      ),
+                      )),
                     ),
                     if (!widget.isVisitante)
                       Positioned(
@@ -486,6 +503,13 @@ class _TelaHomeState extends State<TelaHome> {
                   ],
                 ),
               ),
+              BotaoAjuda(
+                key: _kAjuda,
+                fundo: const Color(0xFFE8EDF3),
+                cor: _texto,
+                passos: () => _passosHome(apresentacao: false),
+              ),
+              const SizedBox(width: 8),
               Container(
                 width: 46,
                 height: 46,
@@ -540,7 +564,7 @@ class _TelaHomeState extends State<TelaHome> {
                 ),
               ),
               const SizedBox(width: 10),
-              Material(
+              CorOriginal(interface: true, child: Material(
                 color: _azul,
                 borderRadius: BorderRadius.circular(18),
                 child: InkWell(
@@ -552,7 +576,7 @@ class _TelaHomeState extends State<TelaHome> {
                     child: Icon(Icons.tune_rounded, color: Colors.white),
                   ),
                 ),
-              ),
+              )),
             ],
           ),
         ],
@@ -563,7 +587,7 @@ class _TelaHomeState extends State<TelaHome> {
   Widget _cardVisitante() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-      child: Container(
+      child: CorOriginal(interface: true, child: Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: _azul,
@@ -611,7 +635,7 @@ class _TelaHomeState extends State<TelaHome> {
             ),
           ],
         ),
-      ),
+      )),
     );
   }
 
@@ -673,14 +697,14 @@ class _TelaHomeState extends State<TelaHome> {
                   children: [
                     Row(
                       children: [
-                        Container(
+                        CorOriginal(interface: true, child: Container(
                           width: 9,
                           height: 9,
                           decoration: const BoxDecoration(
                             color: _azul,
                             shape: BoxShape.circle,
                           ),
-                        ),
+                        )),
                         const SizedBox(width: 8),
                         const Expanded(
                           child: Text(
@@ -729,12 +753,12 @@ class _TelaHomeState extends State<TelaHome> {
                             width: 56,
                             height: 56,
                             child: p.foto != null
-                                ? Image.network(
+                                ? ImagemApp(child: Image.network(
                                     p.foto!,
                                     fit: BoxFit.cover,
                                     errorBuilder: (_, _, _) =>
                                         _iniciais(p.nomePrestador),
-                                  )
+                                  ))
                                 : _iniciais(p.nomePrestador),
                           ),
                         ),
@@ -800,7 +824,7 @@ class _TelaHomeState extends State<TelaHome> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        FilledButton(
+                        CorOriginal(interface: true, child: FilledButton(
                           onPressed: abrir,
                           style: FilledButton.styleFrom(
                             backgroundColor: _azul,
@@ -813,7 +837,7 @@ class _TelaHomeState extends State<TelaHome> {
                             'Acompanhar →',
                             style: TextStyle(fontWeight: FontWeight.w700),
                           ),
-                        ),
+                        )),
                       ],
                     ),
                   ],
@@ -826,7 +850,7 @@ class _TelaHomeState extends State<TelaHome> {
     );
   }
 
-  Widget _iniciais(String nome) => Container(
+  Widget _iniciais(String nome) => CorOriginal(interface: true, child: Container(
     color: _azul,
     alignment: Alignment.center,
     child: Text(
@@ -837,7 +861,7 @@ class _TelaHomeState extends State<TelaHome> {
         fontSize: 18,
       ),
     ),
-  );
+  ));
 
   // ── Seções ───────────────────────────────────────────────────────────────
 
@@ -913,7 +937,7 @@ class _TelaHomeState extends State<TelaHome> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: AnimatedSize(
-            duration: const Duration(milliseconds: 280),
+            duration: duracao(const Duration(milliseconds: 280)),
             curve: Curves.easeOutCubic,
             alignment: Alignment.topCenter,
             child: GridView.count(
@@ -1200,8 +1224,8 @@ class _BordaGradienteAnimadaState extends State<_BordaGradienteAnimada>
     with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 2600),
-  )..repeat();
+    duration: duracao(const Duration(milliseconds: 2600)),
+  )..repetir();
 
   @override
   void dispose() {

@@ -1,6 +1,5 @@
 import 'dart:async' show unawaited;
 import 'dart:io';
-import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/cupertino.dart' show CupertinoIcons;
@@ -52,6 +51,9 @@ import 'services/solicitacao_geografica_service.dart';
 import 'tutorial/tutorial.dart';
 import 'tutorial/tutorial_visto.dart';
 import 'tutorial/ilustracoes.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
 
 class TelaHomeProfissional extends StatefulWidget {
   final bool isVisitante;
@@ -238,6 +240,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   final _kAtalhos = GlobalKey();
   final _kBarra = GlobalKey();
   final _kSheetConta = GlobalKey();
+  final _kAjuda = GlobalKey();
   final _atalhoEmFoco = ValueNotifier<String?>(null);
   final Map<String, GlobalKey> _kAtalho = {
     'conta': GlobalKey(),
@@ -348,6 +351,169 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   Rect? Function() _aba(int i) =>
       Tutorial.itemBarra(_kBarra, indice: i, total: 5);
 
+  /// Último balão: aponta o botão "?" do cabeçalho (círculo + seta).
+  PassoTutorial _fimApontandoAjuda({
+    bool apenasAoPular = false,
+    Future<void> Function()? antes,
+  }) => PassoTutorial(
+    kFalaFinalTutorial,
+    ehFinal: true,
+    apenasAoPular: apenasAoPular,
+    alvo: _kAjuda,
+    raio: 22,
+    folga: 2,
+    apontar: true,
+    antes: () async {
+      await antes?.call();
+      await _rolarTopo();
+    },
+  );
+
+  /// Balões da home do profissional: a apresentação do primeiro acesso ou
+  /// (sem [apresentacao]) a explicação do botão "?".
+  List<PassoTutorial> _passosHomeProf({
+    required bool apresentacao,
+    required bool cnpj,
+    required bool temAreas,
+  }) => [
+    if (apresentacao) ...[
+      const PassoTutorial('Que bom te ver de novo por aqui!'),
+      const PassoTutorial(
+        'Vou te mostrar a sua tela principal e as partes mais importantes '
+        'do app.',
+      ),
+      const PassoTutorial(
+        'Se quiser, toque em "Pular", no canto de baixo, a qualquer '
+        'momento.',
+      ),
+    ],
+    PassoTutorial(
+      'Este é o seu cabeçalho: sua foto, o endereço, as áreas em que você '
+      'atua e as notificações.',
+      alvo: _kCabecalho,
+      rolagem: _rolagem,
+      alinhamentoRolagem: 0,
+    ),
+    PassoTutorial(
+      'Este é o seu endereço. Ele é necessário para oferecer serviços e '
+      'usar o Radar.',
+      alvo: _kEndereco,
+      raio: 10,
+    ),
+    PassoTutorial(
+      temAreas
+          ? 'Estas são as suas áreas de atuação. Você só atende pedidos e '
+                'cria serviços dessas áreas.'
+          : 'Aqui vão aparecer as suas áreas de atuação. Você só atende '
+                'pedidos e cria serviços delas.',
+      alvo: temAreas ? _kAreas : _kCabecalho,
+      raio: 14,
+    ),
+    PassoTutorial(
+      'Aqui você cria postagens, que os clientes veem no seu perfil.',
+      alvo: _kPostagem,
+      rolagem: _rolagem,
+      alinhamentoRolagem: 0.2,
+    ),
+    PassoTutorial(
+      'Toda postagem precisa de pelo menos uma imagem. Comece tocando '
+      'aqui!',
+      alvo: _kAddImagem,
+      raio: 16,
+      folga: 6,
+    ),
+    PassoTutorial(
+      'Este é o Radar. Os clientes da sua região publicam pedidos, que '
+      'aparecem neste mapa.',
+      alvo: _kRadar,
+      alvoRect: _rectRadar,
+      rolagem: _rolagem,
+      alinhamentoRolagem: 0.15,
+      ilustracao: const IlustracaoRadar(doProfissional: true),
+    ),
+    PassoTutorial(
+      'Você vê os pedidos e manda a sua proposta de preço. O cliente '
+      'escolhe a que achar melhor.',
+      alvo: _kRadar,
+      alvoRect: _rectRadar,
+      ilustracao: const IlustracaoRadar(doProfissional: true),
+    ),
+    PassoTutorial(
+      'Quando um cliente pedir algo na sua área, você recebe uma '
+      'notificação. Aqui aparece quantos pedidos há agora.',
+      alvo: _kRadarInfo,
+      raio: 10,
+    ),
+    PassoTutorial(
+      'Aqui você acompanha os seus serviços: pendentes, ativos, '
+      'concluídos e cancelados.',
+      alvo: _kEstatisticas,
+      rolagem: _rolagem,
+      alinhamentoRolagem: 0.2,
+      raio: 12,
+    ),
+    PassoTutorial(
+      'E esta é a sua agenda da semana, com os dias em que você atende.',
+      alvo: _kAgenda,
+      rolagem: _rolagem,
+      alinhamentoRolagem: 0.25,
+      raio: 12,
+    ),
+    PassoTutorial(
+      'Estes são os atalhos para configurar a sua conta. Deslize para o '
+      'lado para ver mais.',
+      alvo: _kAtalhos,
+      rolagem: _rolagem,
+      alinhamentoRolagem: 0.1,
+    ),
+    PassoTutorial(
+      'Os atalhos com ! amarelo são obrigatórios: sem eles você não '
+      'consegue adicionar serviços nem usar o Radar.',
+      alvo: _kAtalhos,
+    ),
+    PassoTutorial(
+      'Em Mensagens ficam as conversas com os seus clientes.',
+      alvoRect: _aba(2),
+      folga: 2,
+      raio: 14,
+    ),
+    PassoTutorial(
+      'Em Serviços você vê e responde os pedidos que recebe.',
+      alvoRect: _aba(3),
+      folga: 2,
+      raio: 14,
+    ),
+    PassoTutorial(
+      'E no Perfil ficam os seus dados, avaliações e configurações.',
+      alvoRect: _aba(4),
+      folga: 2,
+      raio: 14,
+    ),
+    if (apresentacao && cnpj) ...[
+      PassoTutorial(
+        'Como a sua conta é de CNPJ, você também pode ter uma conta de '
+        'empresa!',
+        alvo: _kAtalhos,
+        alvoRect: _atalho('conta'),
+        rolagem: _rolagem,
+        antes: () => _focarAtalho('conta'),
+        ilustracao: const IlustracaoEquipe(),
+      ),
+      PassoTutorial(
+        'Com ela dá para adicionar funcionários, ter a página da sua loja '
+        'e receber pedidos como empresa.',
+        alvoRect: _atalho('conta'),
+        ilustracao: const IlustracaoEquipe(),
+      ),
+      PassoTutorial(
+        'Para ativar, é pelo atalho "Modificar conta". Vou te mostrar!',
+        alvoRect: _atalho('conta'),
+      ),
+      _fimApontandoAjuda(apenasAoPular: true),
+    ] else if (apresentacao)
+      _fimApontandoAjuda(),
+  ];
+
   Future<void> _tutorialIndependente() async {
     final cnpj = await _ehPessoaJuridica();
     if (!mounted) return;
@@ -361,142 +527,11 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
       chave: 'home_profissional',
       forcar: true,
       marcarVisto: false,
-      passos: [
-        const PassoTutorial('Que bom te ver de novo por aqui!'),
-        const PassoTutorial(
-          'Vou te mostrar a sua tela principal e as partes mais importantes '
-          'do app.',
-        ),
-        const PassoTutorial(
-          'Se quiser, toque em "Pular", no canto de baixo, a qualquer '
-          'momento.',
-        ),
-        PassoTutorial(
-          'Este é o seu cabeçalho: sua foto, o endereço, as áreas em que você '
-          'atua e as notificações.',
-          alvo: _kCabecalho,
-          rolagem: _rolagem,
-          alinhamentoRolagem: 0,
-        ),
-        PassoTutorial(
-          'Este é o seu endereço. Ele é necessário para oferecer serviços e '
-          'usar o Radar.',
-          alvo: _kEndereco,
-          raio: 10,
-        ),
-        PassoTutorial(
-          temAreas
-              ? 'Estas são as suas áreas de atuação. Você só atende pedidos e '
-                    'cria serviços dessas áreas.'
-              : 'Aqui vão aparecer as suas áreas de atuação. Você só atende '
-                    'pedidos e cria serviços delas.',
-          alvo: temAreas ? _kAreas : _kCabecalho,
-          raio: 14,
-        ),
-        PassoTutorial(
-          'Aqui você cria postagens, que os clientes veem no seu perfil.',
-          alvo: _kPostagem,
-          rolagem: _rolagem,
-          alinhamentoRolagem: 0.2,
-        ),
-        PassoTutorial(
-          'Toda postagem precisa de pelo menos uma imagem. Comece tocando '
-          'aqui!',
-          alvo: _kAddImagem,
-          raio: 16,
-          folga: 6,
-        ),
-        PassoTutorial(
-          'Este é o Radar. Os clientes da sua região publicam pedidos, que '
-          'aparecem neste mapa.',
-          alvo: _kRadar,
-          alvoRect: _rectRadar,
-          rolagem: _rolagem,
-          alinhamentoRolagem: 0.15,
-          ilustracao: const IlustracaoRadar(doProfissional: true),
-        ),
-        PassoTutorial(
-          'Você vê os pedidos e manda a sua proposta de preço. O cliente '
-          'escolhe a que achar melhor.',
-          alvo: _kRadar,
-          alvoRect: _rectRadar,
-          ilustracao: const IlustracaoRadar(doProfissional: true),
-        ),
-        PassoTutorial(
-          'Quando um cliente pedir algo na sua área, você recebe uma '
-          'notificação. Aqui aparece quantos pedidos há agora.',
-          alvo: _kRadarInfo,
-          raio: 10,
-        ),
-        PassoTutorial(
-          'Aqui você acompanha os seus serviços: pendentes, ativos, '
-          'concluídos e cancelados.',
-          alvo: _kEstatisticas,
-          rolagem: _rolagem,
-          alinhamentoRolagem: 0.2,
-          raio: 12,
-        ),
-        PassoTutorial(
-          'E esta é a sua agenda da semana, com os dias em que você atende.',
-          alvo: _kAgenda,
-          rolagem: _rolagem,
-          alinhamentoRolagem: 0.25,
-          raio: 12,
-        ),
-        PassoTutorial(
-          'Estes são os atalhos para configurar a sua conta. Deslize para o '
-          'lado para ver mais.',
-          alvo: _kAtalhos,
-          rolagem: _rolagem,
-          alinhamentoRolagem: 0.1,
-        ),
-        PassoTutorial(
-          'Os atalhos com ! amarelo são obrigatórios: sem eles você não '
-          'consegue adicionar serviços nem usar o Radar.',
-          alvo: _kAtalhos,
-        ),
-        PassoTutorial(
-          'Em Mensagens ficam as conversas com os seus clientes.',
-          alvoRect: _aba(2),
-          folga: 2,
-          raio: 14,
-        ),
-        PassoTutorial(
-          'Em Serviços você vê e responde os pedidos que recebe.',
-          alvoRect: _aba(3),
-          folga: 2,
-          raio: 14,
-        ),
-        PassoTutorial(
-          'E no Perfil ficam os seus dados, avaliações e configurações.',
-          alvoRect: _aba(4),
-          folga: 2,
-          raio: 14,
-        ),
-        if (cnpj) ...[
-          PassoTutorial(
-            'Como a sua conta é de CNPJ, você também pode ter uma conta de '
-            'empresa!',
-            alvo: _kAtalhos,
-            alvoRect: _atalho('conta'),
-            rolagem: _rolagem,
-            antes: () => _focarAtalho('conta'),
-            ilustracao: const IlustracaoEquipe(),
-          ),
-          PassoTutorial(
-            'Com ela dá para adicionar funcionários, ter a página da sua loja '
-            'e receber pedidos como empresa.',
-            alvoRect: _atalho('conta'),
-            ilustracao: const IlustracaoEquipe(),
-          ),
-          PassoTutorial(
-            'Para ativar, é pelo atalho "Modificar conta". Vou te mostrar!',
-            alvoRect: _atalho('conta'),
-          ),
-          passoFinalTutorial(apenasAoPular: true),
-        ] else
-          PassoTutorial(kFalaFinalTutorial, ehFinal: true, antes: _rolarTopo),
-      ],
+      passos: _passosHomeProf(
+        apresentacao: true,
+        cnpj: cnpj,
+        temAreas: temAreas,
+      ),
     );
     if (!cnpj || r != ResultadoTutorial.concluido || !mounted) {
       if (mounted) await _rolarTopo();
@@ -551,9 +586,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           raio: 14,
           ilustracao: const IlustracaoTrocaConta(),
         ),
-        PassoTutorial(
-          kFalaFinalTutorial,
-          ehFinal: true,
+        _fimApontandoAjuda(
           antes: () async {
             final ctx = _ctxSheetPerfil;
             if (ctx != null && ctx.mounted) Navigator.of(ctx).maybePop();
@@ -605,7 +638,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           'Vou abrir para você ver como funciona.',
           alvoRect: _atalho('empresa'),
         ),
-        passoFinalTutorial(apenasAoPular: true),
+        _fimApontandoAjuda(apenasAoPular: true),
       ],
     );
     if (r1 != ResultadoTutorial.concluido || !mounted) return;
@@ -634,7 +667,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
             'Vamos dar uma olhada!',
             alvoRect: _atalho('config_empresa'),
           ),
-          passoFinalTutorial(apenasAoPular: true),
+          _fimApontandoAjuda(apenasAoPular: true),
         ],
       );
       if (r3 != ResultadoTutorial.concluido || !mounted) return;
@@ -656,7 +689,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
       forcar: true,
       marcarVisto: false,
       comEntrada: false,
-      passos: [passoFinalTutorial()],
+      passos: [_fimApontandoAjuda()],
     );
   }
 
@@ -2383,7 +2416,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                           ),
                           child: Row(
                             children: [
-                              Container(
+                              CorOriginal(interface: true, child: Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 9,
                                   vertical: 6,
@@ -2400,9 +2433,9 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                     fontSize: 12.5,
                                   ),
                                 ),
-                              ),
+                              )),
                               const SizedBox(width: 10),
-                              CircleAvatar(
+                              CorOriginal(child: CircleAvatar(
                                 radius: 18,
                                 backgroundColor: const Color(0xFFDCE5EE),
                                 backgroundImage: foto.startsWith('http')
@@ -2418,7 +2451,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                           color: Color(0xFF5E6F7E),
                                         ),
                                       ),
-                              ),
+                              )),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Column(
@@ -2564,7 +2597,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
             children: [
               Positioned.fill(
                 child: BackdropFilter(
-                  filter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                  filter: desfoque(5),
                   child: Container(color: Colors.transparent),
                 ),
               ),
@@ -2646,14 +2679,14 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                                 child:
                                                     fotoUrl != null &&
                                                         fotoUrl.isNotEmpty
-                                                    ? Image.network(
+                                                    ? ImagemApp(child: Image.network(
                                                         fotoUrl,
                                                         fit: BoxFit.cover,
                                                         errorBuilder: (_, _, _) =>
                                                             _buildAvatarIniciais(
                                                               nome,
                                                             ),
-                                                      )
+                                                      ))
                                                     : _buildAvatarIniciais(
                                                         nome,
                                                       ),
@@ -2662,7 +2695,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                             Positioned(
                                               bottom: 0,
                                               right: 0,
-                                              child: Container(
+                                              child: CorOriginal(interface: true, child: Container(
                                                 width: 18,
                                                 height: 18,
                                                 decoration: BoxDecoration(
@@ -2680,7 +2713,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                                     size: 10,
                                                   ),
                                                 ),
-                                              ),
+                                              )),
                                             ),
                                           ],
                                         ),
@@ -3106,7 +3139,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
             children: [
               Positioned.fill(
                 child: BackdropFilter(
-                  filter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                  filter: desfoque(5),
                   child: Container(color: Colors.transparent),
                 ),
               ),
@@ -3186,7 +3219,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
             children: [
-              CircleAvatar(
+              CorOriginal(child: CircleAvatar(
                 radius: 26,
                 backgroundColor: const Color(0xFFE1F5FE),
                 backgroundImage: fotoAtivo != null && fotoAtivo.isNotEmpty
@@ -3202,7 +3235,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                         ),
                       )
                     : null,
-              ),
+              )),
               const SizedBox(width: 14),
               Expanded(
                 child: Text(
@@ -3216,7 +3249,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              Container(
+              CorOriginal(interface: true, child: Container(
                 width: 26,
                 height: 26,
                 decoration: const BoxDecoration(
@@ -3226,7 +3259,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                 child: const Center(
                   child: Icon(Icons.check, color: Colors.white, size: 16),
                 ),
-              ),
+              )),
             ],
           ),
         ),
@@ -3298,7 +3331,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               child: Row(
                 children: [
-                  CircleAvatar(
+                  CorOriginal(child: CircleAvatar(
                     radius: 26,
                     backgroundColor: const Color(0xFFF1F5F9),
                     backgroundImage:
@@ -3315,7 +3348,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                             ),
                           )
                         : null,
-                  ),
+                  )),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
@@ -3413,7 +3446,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      CircleAvatar(
+                      CorOriginal(child: CircleAvatar(
                         radius: 20,
                         backgroundColor: const Color(0xFFE1F5FE),
                         backgroundImage: fotoUrl != null
@@ -3429,7 +3462,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                 ),
                               )
                             : null,
-                      ),
+                      )),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
@@ -3488,14 +3521,14 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(10),
                                 child: kIsWeb
-                                    ? Image.network(
+                                    ? ImagemApp(child: Image.network(
                                         imagem.path,
                                         width: 90,
                                         height: 90,
                                         fit: BoxFit.cover,
                                         errorBuilder: (_, _, _) =>
                                             _buildPlaceholderImagemSelecionada(),
-                                      )
+                                      ))
                                     : Image.file(
                                         File(imagem.path),
                                         width: 90,
@@ -3559,7 +3592,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                 Positioned(
                                   right: -2,
                                   top: -2,
-                                  child: Container(
+                                  child: CorOriginal(interface: true, child: Container(
                                     width: 14,
                                     height: 14,
                                     decoration: const BoxDecoration(
@@ -3571,7 +3604,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                       color: Colors.white,
                                       size: 10,
                                     ),
-                                  ),
+                                  )),
                                 ),
                               ],
                             ),
@@ -3818,7 +3851,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                               alignment: Alignment.bottomCenter,
                                               clipBehavior: Clip.none,
                                               children: [
-                                                CircleAvatar(
+                                                CorOriginal(child: CircleAvatar(
                                                   radius: 34,
                                                   backgroundColor: const Color(
                                                     0xFFE1F5FE,
@@ -3840,10 +3873,10 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                                           ),
                                                         )
                                                       : null,
-                                                ),
+                                                )),
                                                 Positioned(
                                                   bottom: -6,
-                                                  child: Container(
+                                                  child: CorOriginal(interface: true, child: Container(
                                                     padding:
                                                         const EdgeInsets.symmetric(
                                                           horizontal: 6,
@@ -3881,7 +3914,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                                         ),
                                                       ],
                                                     ),
-                                                  ),
+                                                  )),
                                                 ),
                                               ],
                                             ),
@@ -3915,6 +3948,17 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                                         TextOverflow.ellipsis,
                                                   ),
                                                 ],
+                                              ),
+                                            ),
+                                            BotaoAjuda(
+                                              key: _kAjuda,
+                                              cor: _primaryBlue,
+                                              passos: () => _passosHomeProf(
+                                                apresentacao: false,
+                                                cnpj: false,
+                                                temAreas:
+                                                    _kAreas.currentContext !=
+                                                    null,
                                               ),
                                             ),
                                             _buildBotaoNotificacao(),
@@ -4324,7 +4368,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
         onTap: servico != null
             ? () => _abrirServicoAgendado(servico)
             : () => _mostrarServicosDoDia(dia),
-        child: Container(
+        child: CorOriginal(interface: true, child: Container(
           height: 104,
           margin: const EdgeInsets.symmetric(horizontal: 3),
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
@@ -4370,7 +4414,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
               ),
             ],
           ),
-        ),
+        )),
       );
     }
 
@@ -4588,7 +4632,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
       decoration: _cardDecoration(),
       child: Row(
         children: [
-          CircleAvatar(
+          CorOriginal(child: CircleAvatar(
             radius: 22,
             backgroundColor: const Color(0xFFE1F5FE),
             backgroundImage: fotoUrl != null ? NetworkImage(fotoUrl) : null,
@@ -4602,7 +4646,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                     ),
                   )
                 : null,
-          ),
+          )),
           const SizedBox(width: 10),
           Expanded(
             child: Material(
@@ -4652,7 +4696,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                     Positioned(
                       right: -2,
                       top: -2,
-                      child: Container(
+                      child: CorOriginal(interface: true, child: Container(
                         width: 14,
                         height: 14,
                         decoration: const BoxDecoration(
@@ -4664,7 +4708,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                           color: Colors.white,
                           size: 10,
                         ),
-                      ),
+                      )),
                     ),
                   ],
                 ),
@@ -4785,12 +4829,12 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
             height: 100,
             width: double.infinity,
             child: postagem.imagemUrl != null
-                ? Image.network(
+                ? ImagemApp(child: Image.network(
                     postagem.imagemUrl!,
                     fit: BoxFit.cover,
                     errorBuilder: (_, _, _) =>
                         _buildPlaceholderImagemPostagem(),
-                  )
+                  ))
                 : _buildPlaceholderImagemPostagem(),
           ),
           Expanded(
@@ -5104,7 +5148,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
               child: InkWell(
                 onTap: onTap,
                 borderRadius: BorderRadius.circular(14),
-                child: Container(
+                child: CorOriginal(interface: true, ativo: !(bloqueado), child: Container(
                   width: 56,
                   height: 56,
                   decoration: BoxDecoration(
@@ -5116,7 +5160,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                     color: Colors.white,
                     size: 26,
                   ),
-                ),
+                )),
               ),
             ),
             Positioned(
@@ -5124,7 +5168,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
               right: -5,
               child: AnimatedScale(
                 scale: pendente && !bloqueado ? 1 : 0,
-                duration: const Duration(milliseconds: 220),
+                duration: duracao(const Duration(milliseconds: 220)),
                 curve: Curves.easeOutBack,
                 child: Container(
                   width: 20,
@@ -5331,7 +5375,7 @@ class _PainelConvitesEmpresaState extends State<_PainelConvitesEmpresa> {
         children: [
           Row(
             children: [
-              Container(
+              CorOriginal(interface: true, child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: _primaryBlue,
@@ -5346,7 +5390,7 @@ class _PainelConvitesEmpresaState extends State<_PainelConvitesEmpresa> {
                     letterSpacing: 0.5,
                   ),
                 ),
-              ),
+              )),
               const Spacer(),
               if (data.isNotEmpty)
                 Text(

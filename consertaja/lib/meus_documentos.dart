@@ -5,6 +5,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'widgets/skeletons_telas.dart';
 import 'services/ocr_documento.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 enum _DocumentoStatus { validado, pendente }
 
@@ -608,7 +610,7 @@ class _MeusDocumentosPageState extends State<MeusDocumentosPage> {
     return SizedBox(
       width: double.infinity,
       height: 44,
-      child: ElevatedButton.icon(
+      child: CorOriginal(interface: true, child: ElevatedButton.icon(
         onPressed: _salvando
             ? null
             : () => _abrirValidacaoDocumento(documento.tipo),
@@ -634,7 +636,7 @@ class _MeusDocumentosPageState extends State<MeusDocumentosPage> {
           _salvando ? 'Salvando...' : 'Validar Agora',
           style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
         ),
-      ),
+      )),
     );
   }
 
@@ -1254,6 +1256,17 @@ class _ValidarDocumentoPageState extends State<_ValidarDocumentoPage> {
         backgroundColor: Colors.white,
         foregroundColor: _blue,
         elevation: 0,
+        actions: [
+          BotaoAjuda(
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Aqui ficam os seus documentos verificados.',
+              conteudo: [
+                'Eles comprovam a sua identidade e passam mais confiança aos clientes.',
+              ],
+            ),
+          ),
+        ],
       ),
       body: Center(
         child: Column(

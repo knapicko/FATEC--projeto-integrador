@@ -12,6 +12,9 @@ import 'services/formatacao_data.dart';
 import 'utils/iniciais.dart';
 import 'widgets/seletor_ddi.dart';
 import 'widgets/dialogo_sheet.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
 
 class EditarInformacoesPage extends StatefulWidget {
   const EditarInformacoesPage({super.key});
@@ -495,7 +498,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
       builder: (context) {
         return TweenAnimationBuilder<double>(
           tween: Tween<double>(begin: 0.0, end: 1.0),
-          duration: const Duration(milliseconds: 250),
+          duration: duracao(const Duration(milliseconds: 250)),
           curve: Curves.easeInOutBack,
           builder: (context, value, child) {
             return Transform.scale(scale: value, child: child);
@@ -593,7 +596,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                     SizedBox(
                       width: double.infinity,
                       height: 50,
-                      child: ElevatedButton(
+                      child: CorOriginal(interface: true, child: ElevatedButton(
                         onPressed: () {
                           if (formKey.currentState!.validate()) {
                             Navigator.pop(context, controller.text.trim());
@@ -614,7 +617,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                      ),
+                      )),
                     ),
                     const SizedBox(height: 8),
                     SizedBox(
@@ -778,7 +781,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
       builder: (context) {
         return TweenAnimationBuilder<double>(
           tween: Tween<double>(begin: 0.0, end: 1.0),
-          duration: const Duration(milliseconds: 250),
+          duration: duracao(const Duration(milliseconds: 250)),
           curve: Curves.easeInOutBack,
           builder: (context, value, child) {
             return Transform.scale(scale: value, child: child);
@@ -877,7 +880,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                     SizedBox(
                       width: double.infinity,
                       height: 50,
-                      child: ElevatedButton(
+                      child: CorOriginal(interface: true, child: ElevatedButton(
                         onPressed: () async {
                           if (formKey.currentState!.validate()) {
                             try {
@@ -925,7 +928,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                      ),
+                      )),
                     ),
                     const SizedBox(height: 8),
                     SizedBox(
@@ -1071,7 +1074,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                     SizedBox(
                       width: double.infinity,
                       height: 50,
-                      child: FilledButton(
+                      child: CorOriginal(interface: true, child: FilledButton(
                         onPressed: enviando ? null : confirmar,
                         style: FilledButton.styleFrom(
                           backgroundColor: _blue,
@@ -1095,7 +1098,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
-                      ),
+                      )),
                     ),
                     Row(
                       children: [
@@ -1321,6 +1324,18 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
           ),
         ),
         centerTitle: true,
+        actions: [
+          BotaoAjuda(
+            cor: _texto,
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Aqui você edita os seus dados pessoais.',
+              conteudo: [
+                'Toque em um campo para alterar. E-mail e celular são confirmados por código.',
+              ],
+            ),
+          ),
+        ],
       ),
       body: Stack(
         children: [
@@ -1334,7 +1349,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      CircleAvatar(
+                      CorOriginal(child: CircleAvatar(
                         radius: 48,
                         backgroundColor: _blue,
                         backgroundImage: temFoto
@@ -1350,11 +1365,11 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                                   color: Colors.white,
                                 ),
                               ),
-                      ),
+                      )),
                       Positioned(
                         right: -2,
                         bottom: -2,
-                        child: Container(
+                        child: CorOriginal(interface: true, child: Container(
                           padding: const EdgeInsets.all(7),
                           decoration: BoxDecoration(
                             color: _blue,
@@ -1368,7 +1383,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                             color: Colors.white,
                             size: 16,
                           ),
-                        ),
+                        )),
                       ),
                     ],
                   ),
@@ -1386,7 +1401,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
               ),
               const SizedBox(height: 6),
               Center(
-                child: Container(
+                child: CorOriginal(interface: true, ativo: !(ehProfissional), child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 4,
@@ -1405,7 +1420,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                ),
+                )),
               ),
               const SizedBox(height: 24),
 
@@ -1616,7 +1631,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
   }
 
   Widget _acao(String texto, VoidCallback aoTocar, {bool forte = false}) {
-    return TextButton(
+    return CorOriginal(interface: true, ativo: forte, child: TextButton(
       onPressed: aoTocar,
       style: TextButton.styleFrom(
         foregroundColor: forte ? Colors.white : _blue,
@@ -1630,7 +1645,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
         texto,
         style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
       ),
-    );
+    ));
   }
 
   Widget _selo(bool verificado) => Container(

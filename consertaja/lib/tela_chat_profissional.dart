@@ -47,6 +47,9 @@ import 'widgets/avisos_bottom_sheet.dart';
 import 'widgets/dialogo_sheet.dart';
 import 'tutorial/tutorial.dart';
 import 'tutorial/tutorial_da_tela.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
 
 class TelaChatProfissional extends StatefulWidget {
   final String nomeProfissional;
@@ -998,7 +1001,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional>
       barrierColor: Colors.black.withValues(alpha: 0.45),
       builder: (ctx) {
         return BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+          filter: desfoque(5),
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
             padding: const EdgeInsets.all(24),
@@ -1157,7 +1160,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional>
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: ElevatedButton(
+                      child: CorOriginal(interface: true, child: ElevatedButton(
                         onPressed: () {
                           Navigator.pop(ctx);
                           Navigator.push(
@@ -1185,7 +1188,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional>
                             fontWeight: FontWeight.w700,
                           ),
                         ),
-                      ),
+                      )),
                     ),
                   ],
                 ),
@@ -1728,12 +1731,12 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional>
                         child: SizedBox(
                           width: double.infinity,
                           height: 175,
-                          child: Image.network(
+                          child: ImagemApp(child: Image.network(
                             imagemUrl,
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) =>
                                 const SizedBox.shrink(),
-                          ),
+                          )),
                         ),
                       ),
                     ),
@@ -1895,7 +1898,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional>
                     SizedBox(
                       width: double.infinity,
                       height: 48,
-                      child: ElevatedButton(
+                      child: CorOriginal(interface: true, child: ElevatedButton(
                         onPressed: () => _aceitarProposta(mensagem, dados),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF00A3FF),
@@ -1934,7 +1937,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional>
                             ),
                           ],
                         ),
-                      ),
+                      )),
                     ),
                     if (!mensagem.ehRemetente) ...[
                       const SizedBox(height: 6),
@@ -2051,7 +2054,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional>
         child: Stack(
           alignment: Alignment.center,
           children: [
-            InteractiveViewer(child: Image.network(url, fit: BoxFit.contain)),
+            InteractiveViewer(child: ImagemApp(child: Image.network(url, fit: BoxFit.contain))),
             Positioned(
               top: 40,
               right: 20,
@@ -3418,17 +3421,17 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional>
         errorBuilder: (_, __, ___) => _buildDoodleChatWidget(),
       );
     } else if (_planoFundo.startsWith('http')) {
-      backgroundWidget = Image.network(
+      backgroundWidget = ImagemApp(child: Image.network(
         _planoFundo,
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => _buildDoodleChatWidget(),
-      );
+      ));
     } else if (_planoFundo.startsWith('assets/images/plano_fundo_chat/')) {
-      backgroundWidget = Image.asset(
+      backgroundWidget = ImagemApp(child: Image.asset(
         _planoFundo,
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => _buildDoodleChatWidget(),
-      );
+      ));
     } else if (_planoFundo == 'aurora_profundo') {
       backgroundWidget = const FundoAurora();
     } else if (_planoFundo == 'azul_ceu') {
@@ -3486,12 +3489,12 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional>
   }
 
   Widget _buildDoodleChatWidget() {
-    return Image.asset(
+    return ImagemApp(child: Image.asset(
       'assets/images/plano_fundo_chat/doodle_default.jpg',
       fit: BoxFit.cover,
       repeat: ImageRepeat.repeat,
       errorBuilder: (_, __, ___) => Container(color: const Color(0xFFF8FAFC)),
-    );
+    ));
   }
 
   Future<void> _abrirPerfilDestinatario({
@@ -3899,6 +3902,18 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional>
         ),
       ),
       actions: [
+        BotaoAjuda(
+          cor: const Color(0xFF374151),
+          passos: () => passosAjuda(
+            reserva: () => explicacaoDaTela(
+              context,
+              tela: 'Este é o chat da conversa.',
+              conteudo: [
+                'Mande mensagens, fotos, arquivos e áudios. Propostas e etapas do pedido também chegam aqui.',
+              ],
+            ),
+          ),
+        ),
         PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert, color: Color(0xFF374151)),
           onOpened: () => _menuAberto = true,
@@ -4240,11 +4255,11 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional>
         : widget.fotoProfissional.trim();
 
     if (foto.startsWith('http')) {
-      return CircleAvatar(
+      return CorOriginal(child: CircleAvatar(
         radius: 20,
         backgroundColor: const Color(0xFFE5E7EB),
         backgroundImage: NetworkImage(foto),
-      );
+      ));
     }
     return CircleAvatar(
       radius: 20,
@@ -4270,11 +4285,11 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional>
         : widget.fotoProfissional.trim();
 
     if (foto.startsWith('http')) {
-      return CircleAvatar(
+      return CorOriginal(child: CircleAvatar(
         radius: 13,
         backgroundColor: const Color(0xFFE5E7EB),
         backgroundImage: NetworkImage(foto),
-      );
+      ));
     }
     return CircleAvatar(
       radius: 13,
@@ -4376,7 +4391,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
+              CorOriginal(interface: true, child: Container(
                 width: 72,
                 height: 72,
                 decoration: const BoxDecoration(
@@ -4388,7 +4403,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional>
                   size: 36,
                   color: Colors.white,
                 ),
-              ),
+              )),
               const SizedBox(height: 16),
               const Text(
                 'Nenhuma mensagem ainda',
@@ -4640,7 +4655,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional>
                   children: [
                     GestureDetector(
                       onTap: () => _visualizarImagemEmTelaCheia(fotoUrl),
-                      child: Image.network(
+                      child: ImagemApp(child: Image.network(
                         fotoUrl,
                         width: double.infinity,
                         height: 300,
@@ -4653,7 +4668,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional>
                             color: Colors.grey,
                           ),
                         ),
-                      ),
+                      )),
                     ),
                     Positioned(
                       top: 8,
@@ -4944,7 +4959,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional>
                       mainAxisSize: MainAxisSize.min,
                       children: List.generate(barras.length, (index) {
                         final ehParteTocada = index < barrasTocadas;
-                        return Container(
+                        return CorOriginal(interface: true, ativo: ehParteTocada, child: Container(
                           margin: const EdgeInsets.symmetric(horizontal: 1.2),
                           width: 2.8,
                           height: barras[index].toDouble(),
@@ -4956,7 +4971,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional>
                                       : const Color(0xFFD1D5DB)),
                             borderRadius: BorderRadius.circular(2),
                           ),
-                        );
+                        ));
                       }),
                     ),
                     const SizedBox(height: 5),
@@ -5403,8 +5418,8 @@ class _PulsoVermelhoState extends State<_PulsoVermelho>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..repeat(reverse: true);
+      duration: duracao(const Duration(milliseconds: 900)),
+    )..repetir(reverse: true);
   }
 
   @override
@@ -5480,8 +5495,8 @@ class _IndicadorDigitandoState extends State<_IndicadorDigitando>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..repeat();
+      duration: duracao(const Duration(milliseconds: 1200)),
+    )..repetir();
   }
 
   @override

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../utils/movimento.dart';
 
 /// "Segmented Circular Loading Animation": 4 arcos girando em volta de um
 /// ícone. Os arcos alternam entre azul e cinza numa onda contínua.
@@ -31,8 +32,8 @@ class _CarregamentoSegmentadoState extends State<CarregamentoSegmentado>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 1800),
-  )..repeat();
+    duration: duracao(const Duration(milliseconds: 1800)),
+  )..repetir();
 
   @override
   void dispose() {
@@ -46,7 +47,7 @@ class _CarregamentoSegmentadoState extends State<CarregamentoSegmentado>
     if (semAnimacao && _controller.isAnimating) {
       _controller.stop();
     } else if (!semAnimacao && !_controller.isAnimating) {
-      _controller.repeat();
+      _controller.repetir();
     }
 
     return SizedBox.square(

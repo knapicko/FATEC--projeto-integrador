@@ -24,6 +24,8 @@ import 'widgets/avisos_bottom_sheet.dart';
 import 'historico_pedidos_cliente.dart';
 import 'meus_servicos_avaliados_cliente.dart';
 import 'servicos_favoritos_cliente.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 class TelaMeuPerfilClientePage extends StatefulWidget {
   final bool isVisitante;
@@ -172,13 +174,13 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
     final Widget avatar =
         _fotoPerfilUrl != null && _fotoPerfilUrl!.trim().isNotEmpty
         ? ClipOval(
-            child: Image.network(
+            child: ImagemApp(child: Image.network(
               _fotoPerfilUrl!,
               width: 72,
               height: 72,
               fit: BoxFit.cover,
               errorBuilder: (_, _, _) => _buildFallbackAvatar(initials),
-            ),
+            )),
           )
         : _buildFallbackAvatar(initials);
 
@@ -222,7 +224,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
   }
 
   Widget _buildFallbackAvatar(String initials) {
-    return Container(
+    return CorOriginal(interface: true, child: Container(
       width: 72,
       height: 72,
       decoration: const BoxDecoration(color: _blue, shape: BoxShape.circle),
@@ -237,7 +239,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
           ),
         ),
       ),
-    );
+    ));
   }
 
   void _fecharAvisoAtual() {
@@ -431,72 +433,92 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
   }
 
   Widget _buildTopHeader() {
-    return Container(
-      width: double.infinity,
-      color: _blue,
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          _buildAvatar(),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  _nomeCompleto,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 19,
-                    height: 1.05,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                InkWell(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const EditarInformacoesPage(),
-                      ),
-                    );
-                  },
-                  child: const Text(
-                    'Editar Informações >',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      height: 1.0,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                ),
-                if (!widget.isVisitante) ...[
-                  const SizedBox(height: 4),
-                  InkWell(
-                    onTap: () {},
-                    child: Text(
-                      'Seguindo',
+    return Stack(
+      children: [
+        CorOriginal(interface: true, child: Container(
+          width: double.infinity,
+          color: _blue,
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              _buildAvatar(),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      _nomeCompleto,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 14,
-                        height: 1.0,
-                        decoration: TextDecoration.underline,
-                        decorationColor: Colors.white,
+                        fontSize: 19,
+                        height: 1.05,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 4),
+                    InkWell(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const EditarInformacoesPage(),
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        'Editar Informações >',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          height: 1.0,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                    ),
+                    if (!widget.isVisitante) ...[
+                      const SizedBox(height: 4),
+                      InkWell(
+                        onTap: () {},
+                        child: Text(
+                          'Seguindo',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            height: 1.0,
+                            decoration: TextDecoration.underline,
+                            decorationColor: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        )),
+        Positioned(
+          top: 4,
+          right: 4,
+          child: BotaoAjuda(
+            cor: Colors.white,
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Este é o seu perfil.',
+              conteudo: [
+                'Aqui ficam os seus dados, pedidos, avaliações, favoritos, endereços e configurações.',
+                'Os itens com ! amarelo são o que falta para fazer o seu primeiro pedido.',
               ],
+              rodape: 56,
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

@@ -20,6 +20,8 @@ import 'politica_de_privacidade.dart';
 import 'completar_cadastro.dart';
 import 'tela_home_profissional.dart';
 import 'login.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
 
 // ================= TELA: CADASTRO DO CLIENTE (ETAPA 1) =================
 class CadastroClientePage extends StatefulWidget {
@@ -675,8 +677,8 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
                           _erroCpf = null;
                           _erroNomeFantasia = null;
                         }),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
+                        child: CorOriginal(interface: true, ativo: _isPessoaFisica, child: AnimatedContainer(
+                          duration: duracao(const Duration(milliseconds: 200)),
                           decoration: BoxDecoration(
                             color: _isPessoaFisica
                                 ? const Color(0xFF00A2FF)
@@ -694,7 +696,7 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                        ),
+                        )),
                       ),
                     ),
                     Expanded(
@@ -705,8 +707,8 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
                           _erroRazaoSocial = null;
                           _erroNomeFantasia = null;
                         }),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
+                        child: CorOriginal(interface: true, ativo: !_isPessoaFisica, child: AnimatedContainer(
+                          duration: duracao(const Duration(milliseconds: 200)),
                           decoration: BoxDecoration(
                             color: !_isPessoaFisica
                                 ? const Color(0xFF00A2FF)
@@ -724,7 +726,7 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                        ),
+                        )),
                       ),
                     ),
                   ],
@@ -859,7 +861,7 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
               SizedBox(
                 width: double.infinity,
                 height: 55,
-                child: ElevatedButton(
+                child: CorOriginal(interface: true, child: ElevatedButton(
                   onPressed: _continuarCadastro,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00A2FF),
@@ -876,7 +878,7 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                ),
+                )),
               ),
 
               const SizedBox(height: 20),
@@ -911,10 +913,10 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : Image.asset(
+                      : ImagemApp(child: Image.asset(
                           'assets/images/icone/google-logo.png',
                           height: 22,
-                        ),
+                        )),
                   label: Text(
                     _carregandoGoogle
                         ? 'Conectando...'
@@ -965,7 +967,7 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
   }
 
   Widget _buildStepCircle(String step, {required bool isActive}) {
-    return Container(
+    return CorOriginal(interface: true, ativo: isActive, child: Container(
       width: 34,
       height: 34,
       decoration: BoxDecoration(
@@ -982,7 +984,7 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
           ),
         ),
       ),
-    );
+    ));
   }
 
   Widget _buildStepLine() {
@@ -999,8 +1001,8 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
       behavior: HitTestBehavior.opaque,
       child: Row(
         children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
+          CorOriginal(interface: true, ativo: isSelected, child: AnimatedContainer(
+            duration: duracao(const Duration(milliseconds: 150)),
             width: 22,
             height: 22,
             decoration: BoxDecoration(
@@ -1018,7 +1020,7 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
                     child: Icon(Icons.circle, size: 8, color: Colors.white),
                   )
                 : null,
-          ),
+          )),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -1149,7 +1151,7 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
+            duration: duracao(const Duration(milliseconds: 250)),
             curve: Curves.easeInOut,
             height: 56,
             decoration: BoxDecoration(
@@ -1178,7 +1180,7 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                     alignment: Alignment.centerLeft,
                     children: [
                       AnimatedPositioned(
-                        duration: const Duration(milliseconds: 200),
+                        duration: duracao(const Duration(milliseconds: 200)),
                         curve: Curves.easeInOut,
                         left: 0,
                         right: 0,
@@ -1188,7 +1190,7 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               AnimatedDefaultTextStyle(
-                                duration: const Duration(milliseconds: 200),
+                                duration: duracao(const Duration(milliseconds: 200)),
                                 style: TextStyle(
                                   color: labelColor,
                                   fontSize: shouldFloat ? 11 : 16,
@@ -1199,7 +1201,7 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                                 child: Text(widget.label),
                               ),
                               AnimatedOpacity(
-                                duration: const Duration(milliseconds: 200),
+                                duration: duracao(const Duration(milliseconds: 200)),
                                 opacity: shouldFloat ? 1.0 : 0.0,
                                 child: Text(
                                   '*',
@@ -1217,7 +1219,7 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                         ),
                       ),
                       AnimatedPositioned(
-                        duration: const Duration(milliseconds: 200),
+                        duration: duracao(const Duration(milliseconds: 200)),
                         curve: Curves.easeInOut,
                         left: 0,
                         right: 0,
@@ -1269,7 +1271,7 @@ class _InputFieldWithAnimationState extends State<_InputFieldWithAnimation> {
                               )
                             : widget.onTap),
                     child: AnimatedScale(
-                      duration: const Duration(milliseconds: 200),
+                      duration: duracao(const Duration(milliseconds: 200)),
                       scale: _isFocused ? 1.05 : 1.0,
                       child: Icon(
                         dynamicIcon,
@@ -1733,7 +1735,7 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
             SizedBox(
               width: double.infinity,
               height: 55,
-              child: ElevatedButton(
+              child: CorOriginal(interface: true, child: ElevatedButton(
                 onPressed:
                     (_aceitouTermos && _aceitouPrivacidade && !_carregando)
                     ? _finalizarCadastroBanco
@@ -1758,7 +1760,7 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-              ),
+              )),
             ),
             const SizedBox(height: 20),
           ],
@@ -1806,8 +1808,8 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
       children: [
         GestureDetector(
           onTap: onTapCheckbox,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
+          child: CorOriginal(interface: true, ativo: value, child: AnimatedContainer(
+            duration: duracao(const Duration(milliseconds: 220)),
             curve: Curves.easeInOut,
             width: 22,
             height: 22,
@@ -1822,7 +1824,7 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
             child: value
                 ? const Icon(Icons.check, color: Colors.white, size: 15)
                 : null,
-          ),
+          )),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -1850,7 +1852,7 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
   }
 
   Widget _buildStepCircle(String step, {required bool isActive}) {
-    return Container(
+    return CorOriginal(interface: true, ativo: isActive, child: Container(
       width: 34,
       height: 34,
       decoration: BoxDecoration(
@@ -1867,7 +1869,7 @@ class _CadastroClienteEtapa2PageState extends State<CadastroClienteEtapa2Page> {
           ),
         ),
       ),
-    );
+    ));
   }
 
   Widget _buildStepLine() {

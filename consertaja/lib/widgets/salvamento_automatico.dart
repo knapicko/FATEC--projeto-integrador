@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../utils/movimento.dart';
 
 enum EstadoSalvamento { ocioso, salvando, salvo, erro }
 
@@ -119,7 +120,7 @@ class IndicadorSalvamento extends StatelessWidget {
           ),
         };
         return AnimatedSwitcher(
-          duration: const Duration(milliseconds: 220),
+          duration: duracao(const Duration(milliseconds: 220)),
           child: Row(
             key: ValueKey(controle.estado),
             mainAxisSize: MainAxisSize.min,

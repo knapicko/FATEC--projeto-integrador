@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'login.dart';
+import 'utils/movimento.dart';
+import 'widgets/imagem_app.dart';
 
 class AtualizarSenhaPage extends StatefulWidget {
   const AtualizarSenhaPage({super.key});
@@ -243,7 +245,7 @@ class _AtualizarSenhaPageState extends State<AtualizarSenhaPage> {
             SizedBox(
               width: double.infinity,
               height: 55,
-              child: ElevatedButton(
+              child: CorOriginal(interface: true, child: ElevatedButton(
                 onPressed: _carregando ? null : _atualizarSenha,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF00A2FF),
@@ -262,7 +264,7 @@ class _AtualizarSenhaPageState extends State<AtualizarSenhaPage> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-              ),
+              )),
             ),
             const SizedBox(height: 20),
           ],
@@ -402,7 +404,7 @@ class _InputFieldWithAnimationState extends State<InputFieldWithAnimation> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
+            duration: duracao(const Duration(milliseconds: 250)),
             curve: Curves.easeInOut,
             height: 56,
             decoration: BoxDecoration(
@@ -427,7 +429,7 @@ class _InputFieldWithAnimationState extends State<InputFieldWithAnimation> {
                     alignment: Alignment.centerLeft,
                     children: [
                       AnimatedPositioned(
-                        duration: const Duration(milliseconds: 200),
+                        duration: duracao(const Duration(milliseconds: 200)),
                         curve: Curves.easeInOut,
                         left: 0,
                         right: 0,
@@ -437,7 +439,7 @@ class _InputFieldWithAnimationState extends State<InputFieldWithAnimation> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               AnimatedDefaultTextStyle(
-                                duration: const Duration(milliseconds: 200),
+                                duration: duracao(const Duration(milliseconds: 200)),
                                 style: TextStyle(
                                   color: labelColor,
                                   fontSize: shouldFloat ? 11 : 16,
@@ -448,7 +450,7 @@ class _InputFieldWithAnimationState extends State<InputFieldWithAnimation> {
                                 child: Text(widget.label),
                               ),
                               AnimatedOpacity(
-                                duration: const Duration(milliseconds: 200),
+                                duration: duracao(const Duration(milliseconds: 200)),
                                 opacity: shouldFloat ? 1.0 : 0.0,
                                 child: Text(
                                   '*',
@@ -466,7 +468,7 @@ class _InputFieldWithAnimationState extends State<InputFieldWithAnimation> {
                         ),
                       ),
                       AnimatedPositioned(
-                        duration: const Duration(milliseconds: 200),
+                        duration: duracao(const Duration(milliseconds: 200)),
                         curve: Curves.easeInOut,
                         left: 0,
                         right: 0,
@@ -516,7 +518,7 @@ class _InputFieldWithAnimationState extends State<InputFieldWithAnimation> {
                               )
                             : widget.onTap),
                     child: AnimatedScale(
-                      duration: const Duration(milliseconds: 200),
+                      duration: duracao(const Duration(milliseconds: 200)),
                       scale: _isFocused ? 1.05 : 1.0,
                       child: Icon(
                         dynamicIcon,

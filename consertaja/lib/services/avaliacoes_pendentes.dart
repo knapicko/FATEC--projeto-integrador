@@ -5,6 +5,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'notificacoes/notificacao_service.dart';
+import '../widgets/imagem_app.dart';
+import '../utils/movimento.dart';
 
 SupabaseClient get _db => Supabase.instance.client;
 
@@ -476,7 +478,7 @@ class _SheetAvaliarServicoState extends State<SheetAvaliarServico> {
                   color: Color(0xFFE0F2FE),
                   shape: BoxShape.circle,
                 ),
-                child: CircleAvatar(
+                child: CorOriginal(child: CircleAvatar(
                   radius: 36,
                   backgroundColor: _azul,
                   backgroundImage: p.foto != null
@@ -494,7 +496,7 @@ class _SheetAvaliarServicoState extends State<SheetAvaliarServico> {
                           ),
                         )
                       : null,
-                ),
+                )),
               ),
               const SizedBox(height: 8),
               Text(
@@ -530,7 +532,7 @@ class _SheetAvaliarServicoState extends State<SheetAvaliarServico> {
                     onTap: () => setState(() => _nota = i + 1),
                     child: AnimatedScale(
                       scale: ativo ? 1.12 : 1,
-                      duration: const Duration(milliseconds: 160),
+                      duration: duracao(const Duration(milliseconds: 160)),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 4),
                         child: Icon(
@@ -670,7 +672,7 @@ class _SheetAvaliarServicoState extends State<SheetAvaliarServico> {
               SizedBox(
                 width: double.infinity,
                 height: 54,
-                child: FilledButton(
+                child: CorOriginal(interface: true, child: FilledButton(
                   onPressed: _enviando ? null : _enviar,
                   style: FilledButton.styleFrom(
                     backgroundColor: _azul,
@@ -692,7 +694,7 @@ class _SheetAvaliarServicoState extends State<SheetAvaliarServico> {
                             fontWeight: FontWeight.w800,
                           ),
                         ),
-                ),
+                )),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(context),

@@ -12,6 +12,14 @@ mixin TutorialDaTela<T extends StatefulWidget> on State<T> {
   final Map<String, GlobalKey> _chavesTut = {};
   bool _tutPedido = false;
 
+  /// Balões da explicação desta tela (para o botão "?").
+  List<PassoTutorial> Function()? _passosDaTela;
+
+  /// Balões para o botão "?" (os mesmos do tutorial da primeira visita, ou
+  /// [reserva] quando a tela ainda não registrou nenhum).
+  List<PassoTutorial> passosAjuda({List<PassoTutorial> Function()? reserva}) =>
+      (_passosDaTela ?? reserva)?.call() ?? const [];
+
   GlobalKey chaveTut(String nome) =>
       _chavesTut.putIfAbsent(nome, () => GlobalKey(debugLabel: 'tut_$nome'));
 
@@ -43,6 +51,7 @@ mixin TutorialDaTela<T extends StatefulWidget> on State<T> {
     bool sair = false,
     Duration atraso = const Duration(milliseconds: 650),
   }) {
+    _passosDaTela = passos;
     if (_tutPedido) return;
     _tutPedido = true;
     WidgetsBinding.instance.addPostFrameCallback((_) async {

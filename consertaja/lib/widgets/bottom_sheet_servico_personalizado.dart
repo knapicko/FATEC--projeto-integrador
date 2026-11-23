@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -11,6 +10,8 @@ import '../models/servico_profissional.dart';
 import '../services/servicos_profissional_service.dart';
 import '../utils/iniciais.dart';
 import '../utils/funcao_servico.dart';
+import 'imagem_app.dart';
+import '../utils/movimento.dart';
 
 /// Bottom Sheet moderno e detalhado para envio de Serviço Personalizado no Chat.
 class BottomSheetServicoPersonalizado extends StatefulWidget {
@@ -87,7 +88,7 @@ class BottomSheetServicoPersonalizado extends StatefulWidget {
       barrierColor: Colors.black.withValues(alpha: 0.45),
       builder: (ctx) {
         return BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+          filter: desfoque(5),
           child: BottomSheetServicoPersonalizado(
             nomeCliente: nomeCliente,
             fotoCliente: fotoCliente,
@@ -639,7 +640,8 @@ class _BottomSheetServicoPersonalizadoState
   bool get _edicao => widget.idSolicitacaoOrigem != null;
 
   Widget _buildAvisoEdicao() {
-    final codigo = 'OS #${widget.idSolicitacaoOrigem.toString().padLeft(4, '0')}';
+    final codigo =
+        'OS #${widget.idSolicitacaoOrigem.toString().padLeft(4, '0')}';
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -707,7 +709,7 @@ class _BottomSheetServicoPersonalizadoState
                   child:
                       widget.fotoCliente != null &&
                           widget.fotoCliente!.trim().isNotEmpty
-                      ? Image.network(
+                      ? ImagemApp(child: Image.network(
                           widget.fotoCliente!,
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Center(
@@ -719,7 +721,7 @@ class _BottomSheetServicoPersonalizadoState
                               ),
                             ),
                           ),
-                        )
+                        ))
                       : Center(
                           child: Text(
                             obterIniciais(widget.nomeCliente),
@@ -870,7 +872,7 @@ class _BottomSheetServicoPersonalizadoState
                   ],
                 ),
               ),
-              Switch.adaptive(
+              CorOriginal(interface: true, ativo: _baseadoEmServicoExistente, child: Switch.adaptive(
                 value: _baseadoEmServicoExistente,
                 activeColor: _primaryBlue,
                 onChanged: (val) {
@@ -889,7 +891,7 @@ class _BottomSheetServicoPersonalizadoState
                     }
                   });
                 },
-              ),
+              )),
             ],
           ),
           if (_baseadoEmServicoExistente) ...[
@@ -1024,7 +1026,7 @@ class _BottomSheetServicoPersonalizadoState
                       leading: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: s.imagemUrl != null && s.imagemUrl!.isNotEmpty
-                            ? Image.network(
+                            ? ImagemApp(child: Image.network(
                                 s.imagemUrl!,
                                 width: 44,
                                 height: 44,
@@ -1039,7 +1041,7 @@ class _BottomSheetServicoPersonalizadoState
                                     size: 20,
                                   ),
                                 ),
-                              )
+                              ))
                             : Container(
                                 width: 44,
                                 height: 44,
@@ -1137,12 +1139,12 @@ class _BottomSheetServicoPersonalizadoState
                         ClipRRect(
                           borderRadius: BorderRadius.circular(10),
                           child: kIsWeb
-                              ? Image.network(
+                              ? ImagemApp(child: Image.network(
                                   _imagemSelecionada!.path,
                                   width: 52,
                                   height: 52,
                                   fit: BoxFit.cover,
-                                )
+                                ))
                               : Image.file(
                                   File(_imagemSelecionada!.path),
                                   width: 52,
@@ -1193,7 +1195,7 @@ class _BottomSheetServicoPersonalizadoState
                       children: [
                         ClipRRect(
                           borderRadius: BorderRadius.circular(10),
-                          child: Image.network(
+                          child: ImagemApp(child: Image.network(
                             _imagemUrlExistente!,
                             width: 52,
                             height: 52,
@@ -1207,7 +1209,7 @@ class _BottomSheetServicoPersonalizadoState
                                 color: Color(0xFF94A3B8),
                               ),
                             ),
-                          ),
+                          )),
                         ),
                         const SizedBox(width: 12),
                         const Expanded(
@@ -1659,14 +1661,14 @@ class _BottomSheetServicoPersonalizadoState
                 ),
                 child: selecionado && permitido
                     ? Center(
-                        child: Container(
+                        child: CorOriginal(interface: true, child: Container(
                           width: 8,
                           height: 8,
                           decoration: const BoxDecoration(
                             color: _primaryBlue,
                             shape: BoxShape.circle,
                           ),
-                        ),
+                        )),
                       )
                     : null,
               ),
@@ -1730,7 +1732,7 @@ class _BottomSheetServicoPersonalizadoState
           SizedBox(
             width: double.infinity,
             height: 48,
-            child: ElevatedButton.icon(
+            child: CorOriginal(interface: true, child: ElevatedButton.icon(
               onPressed: _enviando ? null : _submeterProposta,
               icon: _enviando
                   ? const SizedBox(
@@ -1765,7 +1767,7 @@ class _BottomSheetServicoPersonalizadoState
                   borderRadius: BorderRadius.circular(14),
                 ),
               ),
-            ),
+            )),
           ),
         ],
       ),

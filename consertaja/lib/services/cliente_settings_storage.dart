@@ -56,6 +56,31 @@ class ClienteSettingsStorage {
     await file.writeAsString(jsonEncode(document), flush: true);
   }
 
+  /// Guarda quem foi o último usuário logado neste aparelho (as notificações
+  /// em segundo plano leem as preferências dele).
+  Future<void> marcarUltimoUsuario(String userId) async {
+    final file = await _settingsFile();
+    Map<String, dynamic> document = <String, dynamic>{'profiles': {}};
+    if (await file.exists()) {
+      final decoded = jsonDecode(await file.readAsString());
+      if (decoded is Map<String, dynamic>) document = decoded;
+    }
+    if (document['ultimoUsuario'] == userId) return;
+    document['ultimoUsuario'] = userId;
+    await file.writeAsString(jsonEncode(document), flush: true);
+  }
+
+  /// Configurações do último usuário logado (ou vazio).
+  Future<Map<String, dynamic>> loadUltimoUsuario() async {
+    final file = await _settingsFile();
+    if (!await file.exists()) return <String, dynamic>{};
+    final decoded = jsonDecode(await file.readAsString());
+    if (decoded is! Map<String, dynamic>) return <String, dynamic>{};
+    final id = decoded['ultimoUsuario']?.toString();
+    if (id == null) return <String, dynamic>{};
+    return load(id);
+  }
+
   Future<File> _settingsFile() async {
     final directory = await getApplicationDocumentsDirectory();
     return File(

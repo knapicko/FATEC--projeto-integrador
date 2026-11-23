@@ -10,6 +10,8 @@ import 'utils/voltar_fluxo_solicitacao.dart';
 import 'widgets/skeletons_telas.dart';
 import 'widgets/codigo_flutuante.dart';
 import 'dart:async';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 /// Retirado no Local — etapa 4 → etapa 5.
 ///
@@ -222,6 +224,17 @@ class _ConfirmarRetiradaClientePageState
           'Retirada no Local',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
+        actions: [
+          BotaoAjuda(
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Aqui você confirma a retirada do seu item.',
+              conteudo: [
+                'Confira o que foi feito e confirme quando estiver com o item em mãos.',
+              ],
+            ),
+          ),
+        ],
       ),
       body: _carregando
           ? const SkeletonEtapaFluxo(comMapa: false)
@@ -386,7 +399,7 @@ class _ConfirmarRetiradaClientePageState
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                 child: SizedBox(
                   height: 52,
-                  child: FilledButton.icon(
+                  child: CorOriginal(interface: true, child: FilledButton.icon(
                     onPressed: habilitado ? _confirmarRetirada : null,
                     icon: _enviando
                         ? const SizedBox(
@@ -414,7 +427,7 @@ class _ConfirmarRetiradaClientePageState
                         borderRadius: BorderRadius.circular(26),
                       ),
                     ),
-                  ),
+                  )),
                 ),
               ),
             ),

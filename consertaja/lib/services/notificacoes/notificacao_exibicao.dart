@@ -16,6 +16,7 @@ import 'package:image/image.dart' as img;
 
 import 'notificacao_app.dart';
 import 'notificacao_tipos.dart';
+import '../app_settings_controller.dart';
 
 class NotificacaoExibicao {
   NotificacaoExibicao._();
@@ -192,9 +193,86 @@ class NotificacaoExibicao {
     }
   }
 
+  /// Configurações → Notificações: qual chave liga/desliga cada aviso.
+  static String chaveDoTipo(NotificacaoApp n) {
+    switch (n.tipo) {
+      case TipoNotificacao.conversa:
+        return 'notifications.messages';
+      case TipoNotificacao.radarProf:
+      case TipoNotificacao.radarCliente:
+        return 'notifications.radar';
+      case TipoNotificacao.global:
+        return 'notifications.promotions';
+      case TipoNotificacao.sistema:
+        return 'notifications.reminders';
+      case TipoNotificacao.feedback:
+        return 'notifications.feedback';
+      case TipoNotificacao.solicitacao:
+        // Etapas de pagamento (aguardando pagamento / pago / estorno).
+        final status = n.fkStatus;
+        final pagamento =
+            status == 2 ||
+            status == 3 ||
+            n.dados['evento']?.toString().contains('pagamento') == true ||
+            n.dados['evento']?.toString().contains('estorno') == true;
+        return pagamento ? 'notifications.payments' : 'notifications.orders';
+    }
+  }
+
+  /// Preferências do usuário (no app aberto vêm do controlador; no push em
+  /// segundo plano, que roda em outro isolate, vêm do arquivo).
+  static Future<Map<String, dynamic>> _preferencias() async {
+    final cfg = AppSettingsController.instance;
+    if (cfg.userId != 'anonymous') return cfg.settings;
+    return AppSettingsController.lerDoArquivo();
+  }
+
   static Future<void> mostrar(NotificacaoApp n) async {
     if (kIsWeb) return;
+    final pref = await _preferencias();
+    // Desligado pelo usuário: não aparece no celular (continua na lista de
+    // notificações do app).
+    if (pref['notifications.enabled'] == false) return;
+    if (pref[chaveDoTipo(n)] == false) return;
     await inicializar();
+
+    final hora = DateTime.now().hour;
+    final silencioNoturno =
+        pref['notifications.quietHours'] == true && (hora >= 22 || hora < 7);
+    final som = pref['notifications.sound'] != false && !silencioNoturno;
+    final vibra = pref['notifications.vibration'] != false && !silencioNoturno;
+    final mostrarConteudo = pref['security.showNotificationContent'] != false;
+    // No Android 8+ som e vibração são do CANAL: cada combinação usa um canal
+    // próprio (criado na hora, se ainda não existir).
+    final sufixo = som && vibra
+        ? ''
+        : som
+        ? '_sem_vibracao'
+        : vibra
+        ? '_sem_som'
+        : '_silencioso';
+    final canalId = '${n.tipo.canalId}$sufixo';
+    final canalNome = sufixo.isEmpty
+        ? n.tipo.canalNome
+        : '${n.tipo.canalNome} (${som ? 'sem vibração' : vibra ? 'sem som' : 'silencioso'})';
+    if (sufixo.isNotEmpty) {
+      await plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.createNotificationChannel(
+            AndroidNotificationChannel(
+              canalId,
+              canalNome,
+              description: n.tipo.canalDescricao,
+              importance: n.tipo.importancia,
+              playSound: som,
+              enableVibration: vibra,
+              ledColor: kAzulNotificacao,
+              enableLights: true,
+            ),
+          );
+    }
 
     final cor = Color(n.corArgb);
     final foto = await _fotoRedonda(n.imagemUrl);
@@ -227,9 +305,17 @@ class NotificacaoExibicao {
     }
 
     final android = AndroidNotificationDetails(
-      n.tipo.canalId,
-      n.tipo.canalNome,
+      canalId,
+      canalNome,
       channelDescription: n.tipo.canalDescricao,
+      playSound: som,
+      enableVibration: vibra,
+      // Segurança → "Mostrar conteúdo das notificações": desligado, a tela
+      // de bloqueio esconde o texto (visibilidade privada).
+      visibility: mostrarConteudo
+          ? NotificationVisibility.public
+          : NotificationVisibility.private,
+
       importance: n.tipo.importancia,
       priority: n.tipo.importancia == Importance.high
           ? Priority.high
@@ -259,6 +345,7 @@ class NotificacaoExibicao {
         iOS: DarwinNotificationDetails(
           threadIdentifier: n.tipo.banco,
           subtitle: n.tipo.rotulo,
+          presentSound: som,
         ),
       ),
       payload: n.paraPayload(),

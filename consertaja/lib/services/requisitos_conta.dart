@@ -6,6 +6,7 @@ import '../meus_dados_financeiros_profissional.dart';
 import '../meus_enderecos.dart';
 import '../metodo_entrega_profissional.dart';
 import '../utils/bottom_navigation_bar_profissional.dart';
+import '../widgets/imagem_app.dart';
 
 SupabaseClient get _db => Supabase.instance.client;
 
@@ -483,7 +484,7 @@ class RequisitosConta {
               SizedBox(
                 width: double.infinity,
                 height: 52,
-                child: FilledButton(
+                child: CorOriginal(interface: true, child: FilledButton(
                   onPressed: () => Navigator.pop(ctx, itens.isEmpty),
                   style: FilledButton.styleFrom(
                     backgroundColor: azul,
@@ -496,7 +497,7 @@ class RequisitosConta {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                ),
+                )),
               ),
             ],
           ),

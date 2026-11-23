@@ -18,6 +18,8 @@ import 'widgets/dialogo_documento.dart';
 import 'termos_de_uso.dart';
 import 'politica_de_privacidade.dart';
 import 'utils/funcao_servico.dart';
+import 'utils/movimento.dart';
+import 'widgets/imagem_app.dart';
 
 // Reaproveita as telas de documento/facial que já existem no fluxo normal
 // do profissional (não duplicamos essa lógica).
@@ -597,7 +599,7 @@ class _CompletarCadastroClientePageState
                         _erroRazaoSocial = null;
                       }),
                       child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
+                        duration: duracao(const Duration(milliseconds: 200)),
                         decoration: BoxDecoration(
                           color: _isPessoaFisica
                               ? Colors.white
@@ -622,7 +624,7 @@ class _CompletarCadastroClientePageState
                         _erroCpf = null;
                       }),
                       child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
+                        duration: duracao(const Duration(milliseconds: 200)),
                         decoration: BoxDecoration(
                           color: !_isPessoaFisica
                               ? Colors.white
@@ -1147,7 +1149,7 @@ class _CompletarCadastroProfissionalPageState
                     child: GestureDetector(
                       onTap: () => setState(() => _isPessoaFisica = true),
                       child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
+                        duration: duracao(const Duration(milliseconds: 200)),
                         decoration: BoxDecoration(
                           color: _isPessoaFisica
                               ? Colors.white
@@ -1169,7 +1171,7 @@ class _CompletarCadastroProfissionalPageState
                     child: GestureDetector(
                       onTap: () => setState(() => _isPessoaFisica = false),
                       child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
+                        duration: duracao(const Duration(milliseconds: 200)),
                         decoration: BoxDecoration(
                           color: !_isPessoaFisica
                               ? Colors.white
@@ -1738,7 +1740,7 @@ Future<void> _voltarDoCadastro(BuildContext context) async {
 }
 
 PreferredSizeWidget _appBarAzul(String titulo) {
-  return AppBar(
+  return BarraCorOriginal(child: AppBar(
     backgroundColor: _azul,
     foregroundColor: Colors.white,
     surfaceTintColor: _azul,
@@ -1762,7 +1764,7 @@ PreferredSizeWidget _appBarAzul(String titulo) {
         fontWeight: FontWeight.bold,
       ),
     ),
-  );
+  ));
 }
 
 /// Botão principal: branco com texto azul quando liberado; cinza com cadeado

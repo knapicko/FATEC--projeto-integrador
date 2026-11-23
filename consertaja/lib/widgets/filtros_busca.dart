@@ -7,6 +7,8 @@ import '../utils/cor_oficio.dart';
 import '../utils/funcao_servico.dart';
 import 'tag_oficio.dart';
 import '../utils/texto_busca.dart';
+import 'imagem_app.dart';
+import '../utils/movimento.dart';
 
 /// Métodos de realização existentes (mesmo texto de solicitacoes.tipo_execucao).
 const kMetodosRealizacao = [
@@ -391,7 +393,7 @@ class _FiltrosSheetState extends State<_FiltrosSheet> {
     final aberto = _expandidos.contains(nome);
     final escura = CorOficio.corTexto(cor);
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
+      duration: duracao(const Duration(milliseconds: 180)),
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: marcadas > 0 ? cor.withValues(alpha: 0.12) : _campo,
@@ -459,7 +461,7 @@ class _FiltrosSheetState extends State<_FiltrosSheet> {
                     }),
                     icon: AnimatedRotation(
                       turns: aberto ? 0.5 : 0,
-                      duration: const Duration(milliseconds: 180),
+                      duration: duracao(const Duration(milliseconds: 180)),
                       child: Icon(Icons.expand_more_rounded, color: escura),
                     ),
                   ),
@@ -468,7 +470,7 @@ class _FiltrosSheetState extends State<_FiltrosSheet> {
             ),
           ),
           AnimatedSize(
-            duration: const Duration(milliseconds: 200),
+            duration: duracao(const Duration(milliseconds: 200)),
             curve: Curves.easeOutCubic,
             alignment: Alignment.topCenter,
             child: aberto
@@ -479,16 +481,11 @@ class _FiltrosSheetState extends State<_FiltrosSheet> {
                       runSpacing: 8,
                       children: [
                         for (final o in funcoes)
-                          _chip(
-                            o.funcao,
-                            _f.funcoes.contains(o.funcao),
-                            () {
-                              final novo = {..._f.funcoes};
-                              if (!novo.remove(o.funcao)) novo.add(o.funcao);
-                              setState(() => _f = _f.copiar(funcoes: novo));
-                            },
-                            cor: cor,
-                          ),
+                          _chip(o.funcao, _f.funcoes.contains(o.funcao), () {
+                            final novo = {..._f.funcoes};
+                            if (!novo.remove(o.funcao)) novo.add(o.funcao);
+                            setState(() => _f = _f.copiar(funcoes: novo));
+                          }, cor: cor),
                       ],
                     ),
                   )
@@ -525,7 +522,7 @@ class _FiltrosSheetState extends State<_FiltrosSheet> {
       onTap: aoTocar,
       borderRadius: BorderRadius.circular(20),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
+        duration: duracao(const Duration(milliseconds: 160)),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: fundo,
@@ -551,8 +548,8 @@ class _FiltrosSheetState extends State<_FiltrosSheet> {
           padding: const EdgeInsets.symmetric(vertical: 6),
           child: Row(
             children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
+              CorOriginal(interface: true, ativo: marcado, child: AnimatedContainer(
+                duration: duracao(const Duration(milliseconds: 150)),
                 width: 22,
                 height: 22,
                 decoration: BoxDecoration(
@@ -566,7 +563,7 @@ class _FiltrosSheetState extends State<_FiltrosSheet> {
                 child: marcado
                     ? const Icon(Icons.check, size: 16, color: Colors.white)
                     : null,
-              ),
+              )),
               const SizedBox(width: 10),
               Text(
                 texto,
@@ -580,7 +577,7 @@ class _FiltrosSheetState extends State<_FiltrosSheet> {
   Widget _avatar(ProfissionalFiltro p, {double r = 20}) {
     final foto = p.foto ?? '';
     final temFoto = foto.startsWith('http');
-    return CircleAvatar(
+    return CorOriginal(child: CircleAvatar(
       radius: r,
       backgroundColor: _azul,
       backgroundImage: temFoto ? NetworkImage(foto) : null,
@@ -591,7 +588,7 @@ class _FiltrosSheetState extends State<_FiltrosSheet> {
               color: Colors.white,
               size: r,
             ),
-    );
+    ));
   }
 
   @override
@@ -855,7 +852,7 @@ class _FiltrosSheetState extends State<_FiltrosSheet> {
               child: SizedBox(
                 width: double.infinity,
                 height: 54,
-                child: FilledButton(
+                child: CorOriginal(interface: true, child: FilledButton(
                   onPressed: () => Navigator.pop(context, _f),
                   style: FilledButton.styleFrom(
                     backgroundColor: _azul,
@@ -870,7 +867,7 @@ class _FiltrosSheetState extends State<_FiltrosSheet> {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                ),
+                )),
               ),
             ),
           ),

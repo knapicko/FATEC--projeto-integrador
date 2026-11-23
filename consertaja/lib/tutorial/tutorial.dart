@@ -9,6 +9,9 @@ import 'package:flutter/services.dart';
 
 import 'caixa_tutorial.dart';
 import 'tutorial_visto.dart';
+import '../utils/movimento.dart';
+import '../services/app_settings_controller.dart';
+import '../widgets/imagem_app.dart';
 
 /// Um balão do tutorial.
 ///
@@ -31,6 +34,7 @@ class PassoTutorial {
     this.ilustracao,
     this.ehFinal = false,
     this.apenasAoPular = false,
+    this.apontar = false,
   });
 
   final String texto;
@@ -47,6 +51,10 @@ class PassoTutorial {
   /// Só aparece quando a pessoa toca em "Pular" (fim de uma parte do
   /// tutorial que continua em outra tela).
   final bool apenasAoPular;
+
+  /// Círculo pulsando + seta animada apontando para o alvo (ex.: o botão
+  /// de ajuda "?").
+  final bool apontar;
 }
 
 enum ResultadoTutorial { concluido, pulado, naoMostrado, interrompido }
@@ -62,8 +70,8 @@ RenderBox? caixaDoAlvo(GlobalKey chave) {
 
 /// Fala final padrão (o "Pular" sempre termina nela).
 const String kFalaFinalTutorial =
-    'Pronto! Se precisar de ajuda depois, é só tocar no botão de tutorial '
-    'que eu explico tudo de novo.';
+    'Pronto! Se precisar de ajuda depois, é só tocar no botão "?", aqui em '
+    'cima, que eu explico a tela de novo.';
 
 /// Último balão (o "Pular" sempre termina nele).
 PassoTutorial passoFinalTutorial({
@@ -199,13 +207,13 @@ class _TutorialOverlayState extends State<_TutorialOverlay>
   /// Entrada: a caixa surge (cresce de um ponto) e dá um pulinho.
   late final AnimationController _entrada = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 1100),
+    duration: duracao(const Duration(milliseconds: 1100)),
   );
 
   /// Saída: a caixa pula e some (encolhe até um ponto, girando no lugar).
   late final AnimationController _saida = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 1350),
+    duration: duracao(const Duration(milliseconds: 1350)),
   );
   late final Ticker _ticker;
 
@@ -231,9 +239,17 @@ class _TutorialOverlayState extends State<_TutorialOverlay>
   // 2 embaixo à esquerda, 3 em cima à esquerda).
   int _cantoPular = 0;
 
-  /// Brilho azul atrás da caixa (0 → 1): aparece quando ela está em cima da
-  /// área destacada, para a caixa não se misturar com o que está embaixo.
-  double _halo = 0;
+  // Ilustrações: cada uma aparece só uma vez no fluxo (a não ser em balões
+  // seguidos, continuando a mesma explicação).
+  final Set<Type> _ilustracoesVistas = {};
+  Type? _ilustracaoAnterior;
+  bool _mostrarIlustracao = false;
+
+  /// Pulsação da seta/círculo de [PassoTutorial.apontar].
+  late final AnimationController _pulsar = AnimationController(
+    vsync: this,
+    duration: duracao(const Duration(milliseconds: 900)),
+  )..repetir(reverse: true);
   Duration _ultimo = Duration.zero;
 
   PassoTutorial get _passo => widget.passos[_indice];
@@ -252,6 +268,7 @@ class _TutorialOverlayState extends State<_TutorialOverlay>
     _digitacao?.cancel();
     _entrada.dispose();
     _saida.dispose();
+    _pulsar.dispose();
     super.dispose();
   }
 
@@ -283,7 +300,9 @@ class _TutorialOverlayState extends State<_TutorialOverlay>
         : (agora - _ultimo).inMicroseconds / 1e6;
     _ultimo = agora;
     // Suavização independente da taxa de quadros.
-    final k = 1 - math.pow(0.0009, dt).toDouble();
+    final k = AppSettingsController.semAnimacao
+        ? 1.0
+        : 1 - math.pow(0.0009, dt).toDouble();
 
     _alvo = _medirAlvo();
     final cont = _conteudoKey.currentContext?.findRenderObject() as RenderBox?;
@@ -325,9 +344,6 @@ class _TutorialOverlayState extends State<_TutorialOverlay>
         : (destino.center.dx - t / 2).clamp(12.0, tela.width - t - 12);
     _xCaixa = _xCaixa < 0 ? xDestino : _xCaixa + (xDestino - _xCaixa) * k;
 
-    final caixaRect = Rect.fromLTWH(_xCaixa, _yCaixa, t, t).deflate(t * 0.15);
-    final sobreDestaque = _furo != null && caixaRect.overlaps(_furo!);
-    _halo += ((sobreDestaque ? 1.0 : 0.0) - _halo) * k;
     _escolherCantoPular(tela, pad);
     setState(() {});
   }
@@ -396,9 +412,19 @@ class _TutorialOverlayState extends State<_TutorialOverlay>
     }
     await _garantirVisivel(p);
     if (!mounted) return;
+    final il = p.ilustracao;
+    final tipo = il?.runtimeType;
+    final mostra =
+        tipo != null &&
+        (!_ilustracoesVistas.contains(tipo) || _ilustracaoAnterior == tipo);
+    if (tipo != null) _ilustracoesVistas.add(tipo);
+    _ilustracaoAnterior = mostra ? tipo : null;
     setState(() {
       _ocupado = false;
-      _pulos++;
+      _mostrarIlustracao = mostra;
+      // O pulinho é só no primeiro balão; nos outros a caixa só balança
+      // enquanto fala (igual ao onboarding).
+      if (_pulos == 0) _pulos++;
     });
     HapticFeedback.selectionClick();
     _digitar(p.texto);
@@ -439,6 +465,11 @@ class _TutorialOverlayState extends State<_TutorialOverlay>
   }
 
   void _digitar(String texto) {
+    // Reduzir animações: o texto aparece inteiro, sem efeito de digitação.
+    if (AppSettingsController.semAnimacao) {
+      setState(() => _mostrado = texto);
+      return;
+    }
     var n = 0;
     _digitacao = Timer.periodic(const Duration(milliseconds: 22), (t) {
       if (!mounted) return t.cancel();
@@ -549,16 +580,72 @@ class _TutorialOverlayState extends State<_TutorialOverlay>
                   1,
                   1,
                 ),
-              child: CaixaTutorial(
-                falando: _digitando,
-                pulos: _pulos,
-                tamanho: t,
+              // A caixa é uma ilustração: mantém as cores no modo escuro.
+              child: CorOriginal(
+                child: CaixaTutorial(
+                  falando: _digitando,
+                  pulos: _pulos,
+                  tamanho: t,
+                ),
               ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// Círculo que pulsa em volta do alvo e uma seta que "cutuca" ele.
+  List<Widget> _indicador(Rect alvo, double visivel) {
+    final p = Curves.easeInOut.transform(_pulsar.value);
+    final raio = math.max(alvo.width, alvo.height) / 2 + 10 + p * 8;
+    final c = alvo.center;
+    // A seta vem de baixo à esquerda do alvo, apontando para ele.
+    const angulo = -math.pi / 4; // aponta para cima-direita
+    final distancia = raio + 26 - p * 10;
+    final pontaSeta = c + Offset(-distancia * 0.7071, distancia * 0.7071);
+    return [
+      Positioned(
+        left: c.dx - raio,
+        top: c.dy - raio,
+        width: raio * 2,
+        height: raio * 2,
+        child: IgnorePointer(
+          child: Opacity(
+            opacity: visivel,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: _azul.withValues(alpha: 0.9 - p * 0.4),
+                  width: 3,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+      Positioned(
+        left: pontaSeta.dx - 22,
+        top: pontaSeta.dy - 22,
+        width: 44,
+        height: 44,
+        child: IgnorePointer(
+          child: Opacity(
+            opacity: visivel,
+            child: Transform.rotate(
+              angle: angulo,
+              child: const Icon(
+                Icons.arrow_upward_rounded,
+                color: _azul,
+                size: 44,
+                shadows: [Shadow(color: Colors.white, blurRadius: 6)],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ];
   }
 
   // ── Layout ────────────────────────────────────────────────────────────────
@@ -574,6 +661,11 @@ class _TutorialOverlayState extends State<_TutorialOverlay>
     final saida =
         1 - Curves.easeIn.transform(((_saida.value - 0.6) / 0.4).clamp(0, 1));
     final visivel = entrada * saida;
+    // O brilho azul acompanha a caixa: cresce quando ela surge e some quando
+    // ela some.
+    final saidaCaixa =
+        ((_entrada.value - 0.18) / 0.44).clamp(0.0, 1.0) *
+        (1 - ((_saida.value - 0.44) / 0.26).clamp(0.0, 1.0));
     // O balão só aparece depois que a caixa surgiu e some logo na saída.
     final balaoVisivel =
         (1 - (_saida.value * 5).clamp(0.0, 1.0)) *
@@ -595,21 +687,32 @@ class _TutorialOverlayState extends State<_TutorialOverlay>
               onTap: _tocar,
               child: ClipPath(
                 clipper: _Furo(furo, _passo.raio),
-                child: BackdropFilter(
-                  filter: ui.ImageFilter.blur(
-                    sigmaX: 6 * visivel,
-                    sigmaY: 6 * visivel,
-                  ),
-                  child: ColoredBox(
-                    color: const Color(
-                      0xFFD9DDE3,
-                    ).withValues(alpha: 0.5 * visivel),
-                    child: const SizedBox.expand(),
-                  ),
-                ),
+                child: AppSettingsController.semTransparencia
+                    // Reduzir transparências: fundo sólido, sem desfoque.
+                    ? ColoredBox(
+                        color: const Color(
+                          0xFFD9DDE3,
+                        ).withValues(alpha: 0.94 * visivel),
+                        child: const SizedBox.expand(),
+                      )
+                    : BackdropFilter(
+                        filter: ui.ImageFilter.blur(
+                          sigmaX: 6 * visivel,
+                          sigmaY: 6 * visivel,
+                        ),
+                        child: ColoredBox(
+                          color: const Color(
+                            0xFFD9DDE3,
+                          ).withValues(alpha: 0.5 * visivel),
+                          child: const SizedBox.expand(),
+                        ),
+                      ),
               ),
             ),
           ),
+          // Círculo pulsando + seta animada apontando o alvo.
+          if (furo != null && _passo.apontar && !_ocupado && !_terminando)
+            ..._indicador(furo, visivel),
           // Contorno do destaque (o toque passa para o tutorial).
           if (furo != null)
             Positioned.fromRect(
@@ -648,13 +751,12 @@ class _TutorialOverlayState extends State<_TutorialOverlay>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     AnimatedSize(
-                      duration: const Duration(milliseconds: 280),
+                      duration: duracao(const Duration(milliseconds: 280)),
                       curve: Curves.easeOutCubic,
                       alignment: Alignment.bottomCenter,
                       child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 260),
-                        child:
-                            _ocupado || _terminando || _passo.ilustracao == null
+                        duration: duracao(const Duration(milliseconds: 260)),
+                        child: _ocupado || _terminando || !_mostrarIlustracao
                             ? const SizedBox(key: ValueKey('sem'), width: 1)
                             : Padding(
                                 key: ValueKey('il$_indice'),
@@ -664,7 +766,7 @@ class _TutorialOverlayState extends State<_TutorialOverlay>
                       ),
                     ),
                     AnimatedOpacity(
-                      duration: const Duration(milliseconds: 220),
+                      duration: duracao(const Duration(milliseconds: 220)),
                       curve: Curves.easeOut,
                       opacity: _ocupado ? 0 : balaoVisivel,
                       child: _Balao(
@@ -679,30 +781,29 @@ class _TutorialOverlayState extends State<_TutorialOverlay>
                 ),
               ),
             ),
-            // Brilho azul fraco atrás da caixa (sobre o destaque).
-            if (_halo > 0.01)
-              Positioned(
-                left: _xCaixa - _tamCaixa * 0.2,
-                top: _yCaixa - _tamCaixa * 0.2,
-                width: _tamCaixa * 1.4,
-                height: _tamCaixa * 1.4,
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          _azul.withValues(alpha: 0.42 * _halo * visivel),
-                          _azul.withValues(alpha: 0.18 * _halo * visivel),
-                          _azul.withValues(alpha: 0),
-                        ],
-                        stops: const [0, 0.55, 1],
-                      ),
+            // Brilho azul fraco atrás da caixa (sempre, do mesmo tamanho).
+            Positioned(
+              left: _xCaixa - _tamCaixa * 0.35,
+              top: _yCaixa - _tamCaixa * 0.35,
+              width: _tamCaixa * 1.7,
+              height: _tamCaixa * 1.7,
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        _azul.withValues(alpha: 0.38 * visivel * saidaCaixa),
+                        _azul.withValues(alpha: 0.16 * visivel * saidaCaixa),
+                        _azul.withValues(alpha: 0),
+                      ],
+                      stops: const [0, 0.55, 1],
                     ),
-                    child: const SizedBox.expand(),
                   ),
+                  child: const SizedBox.expand(),
                 ),
               ),
+            ),
             // A caixa.
             Positioned(
               left: _xCaixa,
@@ -719,7 +820,7 @@ class _TutorialOverlayState extends State<_TutorialOverlay>
           // Pular: num canto livre (nunca em cima do balão, da caixa ou do
           // destaque); muda de canto deslizando.
           AnimatedPositioned(
-            duration: const Duration(milliseconds: 380),
+            duration: duracao(const Duration(milliseconds: 380)),
             curve: Curves.easeInOutCubic,
             left: pularRect.left,
             top: pularRect.top,
@@ -728,7 +829,7 @@ class _TutorialOverlayState extends State<_TutorialOverlay>
             child: IgnorePointer(
               ignoring: ultimo || _terminando,
               child: AnimatedOpacity(
-                duration: const Duration(milliseconds: 220),
+                duration: duracao(const Duration(milliseconds: 220)),
                 opacity: ultimo || _terminando ? 0 : visivel,
                 child: Material(
                   color: Colors.white.withValues(alpha: 0.95),
@@ -827,7 +928,7 @@ class _Balao extends StatelessWidget {
                 Align(
                   alignment: Alignment.centerRight,
                   child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 200),
+                    duration: duracao(const Duration(milliseconds: 200)),
                     opacity: digitando ? 0 : 1,
                     child: Text(
                       ultimo ? 'Toque para fechar ✓' : 'Toque para continuar ›',

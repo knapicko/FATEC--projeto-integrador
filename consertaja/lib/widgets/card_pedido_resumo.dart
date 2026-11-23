@@ -4,6 +4,7 @@ import '../services/pedidos_cliente_service.dart';
 import '../utils/cor_oficio.dart';
 import '../utils/iniciais.dart';
 import 'avisos_bottom_sheet.dart';
+import 'imagem_app.dart';
 
 const _texto = Color(0xFF111827);
 const _sec = Color(0xFF6B7280);
@@ -36,11 +37,11 @@ Widget imagemPedido(String? url, String titulo, {double tamanho = 64}) {
       width: tamanho,
       height: tamanho,
       child: url != null
-          ? Image.network(
+          ? ImagemApp(child: Image.network(
               url,
               fit: BoxFit.cover,
               errorBuilder: (_, _, _) => _semImagem(titulo),
-            )
+            ))
           : _semImagem(titulo),
     ),
   );
@@ -55,7 +56,7 @@ Widget _semImagem(String titulo) => Container(
 /// Linha do prestador: mini foto + nome.
 Widget prestadorPedido(PedidoResumo p) => Row(
   children: [
-    CircleAvatar(
+    CorOriginal(child: CircleAvatar(
       radius: 10,
       backgroundColor: const Color(0xFF0FB3FF),
       backgroundImage: p.fotoPrestador != null
@@ -71,7 +72,7 @@ Widget prestadorPedido(PedidoResumo p) => Row(
               ),
             )
           : null,
-    ),
+    )),
     const SizedBox(width: 6),
     Expanded(
       child: Text(
@@ -265,7 +266,8 @@ Widget listaVaziaPerfil(IconData icone, String titulo, String texto) =>
       ],
     );
 
-AppBar appBarPerfil(String titulo) => AppBar(
+AppBar appBarPerfil(String titulo, {List<Widget>? acoes}) => AppBar(
+  actions: acoes,
   backgroundColor: Colors.white,
   surfaceTintColor: Colors.white,
   elevation: 0,

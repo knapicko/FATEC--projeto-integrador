@@ -12,6 +12,9 @@ import 'widgets/imagem_servico.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/funcao_servico.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
 
 class PagamentoPedidoPage extends StatefulWidget {
   final int idSolicitacao;
@@ -757,6 +760,17 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage>
               ),
             ),
           ),
+          BotaoAjuda(
+            cor: _azul,
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Aqui você paga o seu pedido.',
+              conteudo: [
+                'Confira o serviço, os valores e o endereço, e escolha a forma de pagamento.',
+                'O valor fica retido e só vai para o profissional quando o serviço for concluído.',
+              ],
+            ),
+          ),
           GestureDetector(onTap: _abrirPerfil, child: _buildAvatarConta(36)),
         ],
       ),
@@ -919,11 +933,11 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage>
         width: 18,
         height: 18,
         child: foto.startsWith('http')
-            ? Image.network(
+            ? ImagemApp(child: Image.network(
                 foto,
                 fit: BoxFit.cover,
                 errorBuilder: (_, _, _) => _fallbackMiniProf(),
-              )
+              ))
             : _fallbackMiniProf(),
       ),
     );
@@ -1067,7 +1081,7 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage>
           borderRadius: BorderRadius.circular(16),
           onTap: bloqueado ? null : () => setState(() => _metodo = metodo.id),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
+            duration: duracao(const Duration(milliseconds: 180)),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
@@ -1275,7 +1289,7 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage>
           SizedBox(
             width: double.infinity,
             height: 54,
-            child: FilledButton(
+            child: CorOriginal(interface: true, child: FilledButton(
               onPressed: _podePagar ? _abrirConfirmacaoMetodo : null,
               style: FilledButton.styleFrom(
                 backgroundColor: _azul,
@@ -1309,7 +1323,7 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage>
                         Icon(Icons.arrow_forward_rounded, size: 20),
                       ],
                     ),
-            ),
+            )),
           ),
         ],
       ),
@@ -1422,7 +1436,7 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage>
             SizedBox(
               width: double.infinity,
               height: 48,
-              child: FilledButton(
+              child: CorOriginal(interface: true, child: FilledButton(
                 onPressed: () => Navigator.pop(sheetContext, true),
                 style: FilledButton.styleFrom(
                   backgroundColor: _azul,
@@ -1432,7 +1446,7 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage>
                   ),
                 ),
                 child: const Text('Confirmar pagamento'),
-              ),
+              )),
             ),
             const SizedBox(height: 6),
             SizedBox(
@@ -1500,11 +1514,11 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage>
       padding: const EdgeInsets.all(1.5),
       child: ClipOval(
         child: foto.startsWith('http')
-            ? Image.network(
+            ? ImagemApp(child: Image.network(
                 foto,
                 fit: BoxFit.cover,
                 errorBuilder: (_, _, _) => _avatarFallback(iniciais),
-              )
+              ))
             : _avatarFallback(iniciais),
       ),
     );
@@ -1600,7 +1614,7 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage>
           SizedBox(
             width: double.infinity,
             height: 50,
-            child: FilledButton.icon(
+            child: CorOriginal(interface: true, child: FilledButton.icon(
               onPressed: () => Navigator.of(context).pop(true),
               icon: const Icon(Icons.arrow_forward),
               label: const Text('Voltar ao pedido'),
@@ -1611,7 +1625,7 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage>
                   borderRadius: BorderRadius.circular(14),
                 ),
               ),
-            ),
+            )),
           ),
         ],
       ),
@@ -1876,7 +1890,7 @@ class _BottomSheetNovoCartaoState extends State<_BottomSheetNovoCartao> {
                   SizedBox(
                     width: double.infinity,
                     height: 50,
-                    child: FilledButton(
+                    child: CorOriginal(interface: true, child: FilledButton(
                       onPressed: _usarCartao,
                       style: FilledButton.styleFrom(
                         backgroundColor: _azul,
@@ -1889,7 +1903,7 @@ class _BottomSheetNovoCartaoState extends State<_BottomSheetNovoCartao> {
                         _editando ? 'Salvar alterações' : 'Usar este cartão',
                         style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
-                    ),
+                    )),
                   ),
                 ],
               ),

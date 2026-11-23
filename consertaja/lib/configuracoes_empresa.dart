@@ -9,6 +9,8 @@ import 'tela_inicial.dart';
 import 'widgets/avisos_bottom_sheet.dart';
 import 'tutorial/tutorial.dart';
 import 'tutorial/tutorial_da_tela.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 class ConfiguracoesEmpresaPage extends StatefulWidget {
   const ConfiguracoesEmpresaPage({super.key, this.tutorialESair = false});
@@ -771,6 +773,17 @@ class _ConfiguracoesEmpresaPageState extends State<ConfiguracoesEmpresaPage>
           ),
         ),
         actions: [
+          BotaoAjuda(
+            passos: () => passosAjuda(
+              reserva: () => explicacaoDaTela(
+                context,
+                tela: 'Estas são as configurações da empresa.',
+                conteudo: [
+                  'Aqui você muda o nome, a tag, os ofícios e o tipo de perfil da loja.',
+                ],
+              ),
+            ),
+          ),
           // Sai da conta de usuário (não só da empresa).
           TextButton.icon(
             onPressed: () async {
@@ -818,7 +831,7 @@ class _ConfiguracoesEmpresaPageState extends State<ConfiguracoesEmpresaPage>
                         ),
                         child: Row(
                           children: [
-                            Container(
+                            CorOriginal(interface: true, child: Container(
                               width: 38,
                               height: 38,
                               decoration: const BoxDecoration(
@@ -830,7 +843,7 @@ class _ConfiguracoesEmpresaPageState extends State<ConfiguracoesEmpresaPage>
                                 color: Colors.white,
                                 size: 22,
                               ),
-                            ),
+                            )),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
@@ -1856,7 +1869,7 @@ class _SecaoTipoPerfilState extends State<_SecaoTipoPerfil> {
         ),
         child: Row(
           children: [
-            Container(
+            CorOriginal(interface: true, ativo: sel, child: Container(
               width: 32,
               height: 32,
               decoration: BoxDecoration(
@@ -1868,7 +1881,7 @@ class _SecaoTipoPerfilState extends State<_SecaoTipoPerfil> {
                 size: 18,
                 color: sel ? Colors.white : const Color(0xFF6E7481),
               ),
-            ),
+            )),
             const SizedBox(width: 10),
             Expanded(
               child: Column(

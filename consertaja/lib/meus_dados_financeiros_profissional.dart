@@ -9,6 +9,9 @@ import 'widgets/skeletons_telas.dart';
 import 'widgets/aviso_obrigatorio.dart';
 import 'tutorial/tutorial.dart';
 import 'tutorial/tutorial_da_tela.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
 
 class MeusDadosFinanceirosProfissionalPage extends StatefulWidget {
   const MeusDadosFinanceirosProfissionalPage({super.key});
@@ -76,7 +79,7 @@ class _MeusDadosFinanceirosProfissionalPageState
     super.initState();
     _shakeController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 550),
+      duration: duracao(const Duration(milliseconds: 550)),
     );
     _shakeAnimation = TweenSequence<double>([
       TweenSequenceItem(tween: Tween(begin: 0, end: -7), weight: 1),
@@ -416,7 +419,7 @@ class _MeusDadosFinanceirosProfissionalPageState
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
-                child: FilledButton.icon(
+                child: CorOriginal(interface: true, child: FilledButton.icon(
                   onPressed: () {
                     Navigator.of(ctx).pop();
                     Future<void>.delayed(
@@ -437,7 +440,7 @@ class _MeusDadosFinanceirosProfissionalPageState
                     'Cadastrar chave Pix',
                     style: TextStyle(fontWeight: FontWeight.w700),
                   ),
-                ),
+                )),
               ),
             ],
           ),
@@ -624,7 +627,7 @@ class _MeusDadosFinanceirosProfissionalPageState
                             const SizedBox(height: 8),
                             SizedBox(
                               width: double.infinity,
-                              child: ElevatedButton(
+                              child: CorOriginal(interface: true, child: ElevatedButton(
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: _primaryBlue,
                                   foregroundColor: Colors.white,
@@ -644,7 +647,7 @@ class _MeusDadosFinanceirosProfissionalPageState
                                   'Salvar Chave',
                                   style: TextStyle(fontWeight: FontWeight.bold),
                                 ),
-                              ),
+                              )),
                             ),
                           ],
                         ),
@@ -948,22 +951,18 @@ class _MeusDadosFinanceirosProfissionalPageState
               ),
             ),
           ),
-          IconButton(
-            icon: const Icon(
-              Icons.help_outline,
-              color: Color(0xFF475569),
-              size: 22,
+          BotaoAjuda(
+            cor: const Color(0xFF475569),
+            tamanhoIcone: 22,
+            passos: () => passosAjuda(
+              reserva: () => explicacaoDaTela(
+                context,
+                tela: 'Aqui você escolhe como recebe dos clientes.',
+                conteudo: [
+                  'Ative as formas de pagamento e cadastre a sua chave Pix.',
+                ],
+              ),
             ),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Configure as formas de pagamento que estarão visíveis no seu checkout oficial e orçamentos.',
-                  ),
-                  duration: Duration(seconds: 3),
-                ),
-              );
-            },
           ),
           InkWell(
             onTap: () {
@@ -976,7 +975,7 @@ class _MeusDadosFinanceirosProfissionalPageState
               );
             },
             borderRadius: BorderRadius.circular(20),
-            child: Container(
+            child: CorOriginal(interface: true, child: Container(
               width: 34,
               height: 34,
               decoration: const BoxDecoration(
@@ -985,7 +984,7 @@ class _MeusDadosFinanceirosProfissionalPageState
               ),
               child: ClipOval(
                 child: _fotoPerfilUrl != null && _fotoPerfilUrl!.isNotEmpty
-                    ? Image.network(
+                    ? ImagemApp(child: Image.network(
                         _fotoPerfilUrl!,
                         fit: BoxFit.cover,
                         errorBuilder: (_, _, _) => const Icon(
@@ -993,10 +992,10 @@ class _MeusDadosFinanceirosProfissionalPageState
                           color: Colors.white,
                           size: 20,
                         ),
-                      )
+                      ))
                     : const Icon(Icons.person, color: Colors.white, size: 20),
               ),
-            ),
+            )),
           ),
           const SizedBox(width: 4),
         ],
@@ -1043,14 +1042,14 @@ class _MeusDadosFinanceirosProfissionalPageState
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
+              CorOriginal(interface: true, child: Container(
                 width: 7,
                 height: 7,
                 decoration: const BoxDecoration(
                   color: _primaryBlue,
                   shape: BoxShape.circle,
                 ),
-              ),
+              )),
               const SizedBox(width: 6),
               Text(
                 '$formas ${formas == 1 ? 'forma ativa' : 'formas ativas'}',
@@ -1176,14 +1175,14 @@ class _MeusDadosFinanceirosProfissionalPageState
                 ),
               ),
               const SizedBox(width: 8),
-              CupertinoSwitch(
+              CorOriginal(interface: true, ativo: _aceitaPix, child: CupertinoSwitch(
                 value: _aceitaPix,
                 activeTrackColor: _primaryBlue,
                 onChanged: (val) {
                   setState(() => _aceitaPix = val);
                   _salvarNoBanco();
                 },
-              ),
+              )),
             ],
           ),
 
@@ -1449,14 +1448,14 @@ class _MeusDadosFinanceirosProfissionalPageState
                 ),
               ),
               const SizedBox(width: 8),
-              CupertinoSwitch(
+              CorOriginal(interface: true, ativo: _aceitaCartaoCredito, child: CupertinoSwitch(
                 value: _aceitaCartaoCredito,
                 activeTrackColor: _primaryBlue,
                 onChanged: (val) {
                   setState(() => _aceitaCartaoCredito = val);
                   _salvarNoBanco();
                 },
-              ),
+              )),
             ],
           ),
 
@@ -1597,14 +1596,14 @@ class _MeusDadosFinanceirosProfissionalPageState
             ),
           ),
           const SizedBox(width: 8),
-          CupertinoSwitch(
+          CorOriginal(interface: true, ativo: _aceitaCartaoDebito, child: CupertinoSwitch(
             value: _aceitaCartaoDebito,
             activeTrackColor: _primaryBlue,
             onChanged: (val) {
               setState(() => _aceitaCartaoDebito = val);
               _salvarNoBanco();
             },
-          ),
+          )),
         ],
       ),
     );
@@ -1690,14 +1689,14 @@ class _MeusDadosFinanceirosProfissionalPageState
             ),
           ),
           const SizedBox(width: 8),
-          CupertinoSwitch(
+          CorOriginal(interface: true, ativo: _aceitaBoleto, child: CupertinoSwitch(
             value: _aceitaBoleto,
             activeTrackColor: _primaryBlue,
             onChanged: (val) {
               setState(() => _aceitaBoleto = val);
               _salvarNoBanco();
             },
-          ),
+          )),
         ],
       ),
     );

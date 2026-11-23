@@ -12,6 +12,8 @@ import 'utils/bottom_navigation_bar_cliente.dart';
 import 'utils/iniciais.dart';
 import 'utils/app_navigation_util.dart';
 import 'utils/funcao_servico.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 class SeguindoClientePage extends StatefulWidget {
   final bool isVisitante;
@@ -173,7 +175,7 @@ class _SeguindoClientePageState extends State<SeguindoClientePage> {
     return AppBackHandler(
       child: Scaffold(
         backgroundColor: _background,
-        appBar: AppBar(
+        appBar: BarraCorOriginal(child: AppBar(
           backgroundColor: _primaryBlue,
           elevation: 0,
           leading: IconButton(
@@ -194,7 +196,17 @@ class _SeguindoClientePageState extends State<SeguindoClientePage> {
             ),
           ),
           centerTitle: true,
-        ),
+          actions: [
+            BotaoAjuda(
+              cor: Colors.white,
+              passos: () => explicacaoDaTela(
+                context,
+                tela: 'Aqui ficam os profissionais e lojas que você segue.',
+                conteudo: ['Toque em um deles para abrir o perfil.'],
+              ),
+            ),
+          ],
+        )),
         body: Column(
           children: [
             _buildBarraPesquisa(),
@@ -342,7 +354,7 @@ class _SeguindoClientePageState extends State<SeguindoClientePage> {
                   const SizedBox(height: 16),
                   Align(
                     alignment: Alignment.centerRight,
-                    child: ElevatedButton.icon(
+                    child: CorOriginal(interface: true, child: ElevatedButton.icon(
                       onPressed: () =>
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
@@ -365,7 +377,7 @@ class _SeguindoClientePageState extends State<SeguindoClientePage> {
                           borderRadius: BorderRadius.circular(7),
                         ),
                       ),
-                    ),
+                    )),
                   ),
                 ],
               ),
@@ -395,10 +407,10 @@ class _SeguindoClientePageState extends State<SeguindoClientePage> {
 
   Widget _buildAvatar(_ProfissionalSeguido profissional) {
     if (profissional.fotoUrl.startsWith('http')) {
-      return CircleAvatar(
+      return CorOriginal(child: CircleAvatar(
         radius: 27,
         backgroundImage: NetworkImage(profissional.fotoUrl),
-      );
+      ));
     }
     return CircleAvatar(
       radius: 27,

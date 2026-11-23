@@ -59,6 +59,19 @@ class TutorialVisto {
     return (await _vistos()).contains(chave);
   }
 
+  /// Configurações → "Rever os tutoriais": todos voltam a aparecer.
+  static Future<void> resetar() async {
+    final uid = _uid;
+    if (uid == null) return;
+    _cache = <String>{};
+    _uidCache = uid;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('tutoriais_vistos_$uid');
+    } catch (_) {}
+    await Supabase.instance.client.rpc('resetar_meus_tutoriais');
+  }
+
   static Future<void> marcar(String chave) async {
     final uid = _uid;
     if (uid == null) return;

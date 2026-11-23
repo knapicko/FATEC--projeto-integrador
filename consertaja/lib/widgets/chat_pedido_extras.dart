@@ -5,6 +5,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../utils/fluxo_solicitacao.dart';
 import '../utils/iniciais.dart';
+import 'imagem_app.dart';
+import '../utils/movimento.dart';
 
 const _azul = Color(0xFF0FB3FF);
 const _azulEscuro = Color(0xFF006DCC);
@@ -350,7 +352,7 @@ class _SheetPropostaRadarState extends State<_SheetPropostaRadar> {
             backgroundColor: Colors.black,
             foregroundColor: Colors.white,
           ),
-          body: Center(child: InteractiveViewer(child: Image.network(url))),
+          body: Center(child: InteractiveViewer(child: ImagemApp(child: Image.network(url)))),
         ),
       ),
     );
@@ -390,7 +392,7 @@ class _SheetPropostaRadarState extends State<_SheetPropostaRadar> {
               const SizedBox(height: 18),
               Row(
                 children: [
-                  CircleAvatar(
+                  CorOriginal(child: CircleAvatar(
                     radius: 26,
                     backgroundColor: _azul,
                     backgroundImage: foto.startsWith('http')
@@ -405,7 +407,7 @@ class _SheetPropostaRadarState extends State<_SheetPropostaRadar> {
                               fontWeight: FontWeight.w800,
                             ),
                           ),
-                  ),
+                  )),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -451,7 +453,7 @@ class _SheetPropostaRadarState extends State<_SheetPropostaRadar> {
                       onTap: () => _verImagem(imagens[i]),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(16),
-                        child: Image.network(
+                        child: ImagemApp(child: Image.network(
                           imagens[i],
                           width: imagens.length == 1 ? 300 : 180,
                           height: 150,
@@ -464,7 +466,7 @@ class _SheetPropostaRadarState extends State<_SheetPropostaRadar> {
                               color: _sec,
                             ),
                           ),
-                        ),
+                        )),
                       ),
                     ),
                   ),
@@ -513,7 +515,7 @@ class _SheetPropostaRadarState extends State<_SheetPropostaRadar> {
                 ),
               ),
               const SizedBox(height: 20),
-              ElevatedButton(
+              CorOriginal(interface: true, child: ElevatedButton(
                 onPressed: _enviando ? null : _salvar,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _azul,
@@ -540,7 +542,7 @@ class _SheetPropostaRadarState extends State<_SheetPropostaRadar> {
                           fontWeight: FontWeight.w800,
                         ),
                       ),
-              ),
+              )),
             ],
           ),
         ),
@@ -720,7 +722,7 @@ Future<void> abrirSheetEtapasPedido(
               ),
             ),
             const SizedBox(height: 14),
-            ElevatedButton.icon(
+            CorOriginal(interface: true, child: ElevatedButton.icon(
               onPressed: () {
                 Navigator.pop(ctx);
                 onIrParaPedido();
@@ -739,7 +741,7 @@ Future<void> abrirSheetEtapasPedido(
                   borderRadius: BorderRadius.circular(16),
                 ),
               ),
-            ),
+            )),
           ],
         ),
       ),
@@ -784,13 +786,13 @@ class _ItemEtapaState extends State<_ItemEtapa>
     with SingleTickerProviderStateMixin {
   late final AnimationController _pulso = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 1400),
+    duration: duracao(const Duration(milliseconds: 1400)),
   );
 
   @override
   void initState() {
     super.initState();
-    if (widget.atual) _pulso.repeat();
+    if (widget.atual) _pulso.repetir();
   }
 
   @override

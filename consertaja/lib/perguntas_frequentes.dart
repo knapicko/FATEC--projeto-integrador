@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 class _FaqItem {
   final String pergunta;
@@ -222,6 +224,17 @@ class _PerguntasFrequentesPageState extends State<PerguntasFrequentesPage> {
               fontWeight: FontWeight.bold,
             ),
           ),
+          const Spacer(),
+          BotaoAjuda(
+            cor: _blue,
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Esta é a Central de Ajuda.',
+              conteudo: [
+                'Busque a sua dúvida ou toque em uma pergunta para ver a resposta.',
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -379,7 +392,7 @@ class _PerguntasFrequentesPageState extends State<PerguntasFrequentesPage> {
   }
 
   Widget _buildBannerSuporte() {
-    return Container(
+    return CorOriginal(interface: true, child: Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
       decoration: BoxDecoration(
@@ -453,6 +466,6 @@ class _PerguntasFrequentesPageState extends State<PerguntasFrequentesPage> {
           ),
         ],
       ),
-    );
+    ));
   }
 }

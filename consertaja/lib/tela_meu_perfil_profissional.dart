@@ -27,6 +27,8 @@ import 'certificados.dart';
 import 'minhas_avaliacoes_profissional.dart';
 import 'tela_configuracoes_cliente.dart';
 import 'meu_historico_servico_profissional.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 class TelaMeuPerfilProfissionalPage extends StatefulWidget {
   final bool isVisitante;
@@ -190,13 +192,13 @@ class _TelaMeuPerfilProfissionalPageState
     final Widget avatar =
         _fotoPerfilUrl != null && _fotoPerfilUrl!.trim().isNotEmpty
         ? ClipOval(
-            child: Image.network(
+            child: ImagemApp(child: Image.network(
               _fotoPerfilUrl!,
               width: 72,
               height: 72,
               fit: BoxFit.cover,
               errorBuilder: (_, _, _) => _buildFallbackAvatar(initials),
-            ),
+            )),
           )
         : _buildFallbackAvatar(initials);
 
@@ -221,7 +223,7 @@ class _TelaMeuPerfilProfissionalPageState
   }
 
   Widget _buildFallbackAvatar(String initials) {
-    return Container(
+    return CorOriginal(interface: true, child: Container(
       width: 72,
       height: 72,
       decoration: const BoxDecoration(color: _blue, shape: BoxShape.circle),
@@ -236,7 +238,7 @@ class _TelaMeuPerfilProfissionalPageState
           ),
         ),
       ),
-    );
+    ));
   }
 
   void _fecharAvisoAtual() {
@@ -426,43 +428,63 @@ class _TelaMeuPerfilProfissionalPageState
   }
 
   Widget _buildTopHeader() {
-    return Container(
-      width: double.infinity,
-      color: _blue,
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 18),
-      child: Column(
-        children: [
-          _buildAvatar(),
-          const SizedBox(height: 12),
-          Text(
-            _nomeCompleto,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 19,
-              height: 1.05,
-              fontWeight: FontWeight.w700,
+    return Stack(
+      children: [
+        CorOriginal(interface: true, child: Container(
+          width: double.infinity,
+          color: _blue,
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 18),
+          child: Column(
+            children: [
+              _buildAvatar(),
+              const SizedBox(height: 12),
+              Text(
+                _nomeCompleto,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 19,
+                  height: 1.05,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (_email.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  _email,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    height: 1.0,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        )),
+        Positioned(
+          top: 4,
+          right: 4,
+          child: BotaoAjuda(
+            cor: Colors.white,
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Este é o seu perfil de profissional.',
+              conteudo: [
+                'Aqui ficam os seus dados, avaliações, histórico, documentos, endereços e configurações.',
+                'Os itens com ! amarelo são obrigatórios para oferecer serviços.',
+              ],
+              rodape: 56,
             ),
           ),
-          if (_email.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              _email,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                height: 1.0,
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-          ],
-        ],
-      ),
+        ),
+      ],
     );
   }
 

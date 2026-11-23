@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'widgets/documento_markdown.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 class SobreConsertaJaPage extends StatelessWidget {
   const SobreConsertaJaPage({super.key});
@@ -50,6 +52,18 @@ O Conserta Já foi pensado especialmente para valorizar profissões tradicionais
           preferredSize: const Size.fromHeight(1),
           child: Container(color: Colors.grey.shade200, height: 1),
         ),
+        actions: [
+          BotaoAjuda(
+            cor: _textDark,
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Aqui você conhece o ConsertaJá.',
+              conteudo: [
+                'Veja a nossa história, a versão do app e como falar com a gente.',
+              ],
+            ),
+          ),
+        ],
       ),
       body: Container(
         margin: const EdgeInsets.all(16),
@@ -70,18 +84,18 @@ O Conserta Já foi pensado especialmente para valorizar profissões tradicionais
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Center(
-                child: Container(
+                child: CorOriginal(interface: true, child: Container(
                   width: 160,
                   height: 160,
                   decoration: BoxDecoration(
                     color: _logoBlue,
                     borderRadius: BorderRadius.circular(28),
                   ),
-                  child: Image.asset(
+                  child: ImagemApp(child: Image.asset(
                     'assets/images/caixa/caixa_normal.png',
                     fit: BoxFit.contain,
-                  ),
-                ),
+                  )),
+                )),
               ),
               const SizedBox(height: 16),
               DocumentoMarkdown(data: _conteudo),

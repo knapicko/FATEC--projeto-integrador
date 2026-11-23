@@ -12,6 +12,8 @@ import 'tela_meu_perfil_profissional.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
 import 'widgets/skeletons_telas.dart';
 import 'widgets/codigo_flutuante.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 class ProfissionalNoLocalAtendimentoPresencialPage extends StatefulWidget {
   final int idSolicitacao;
@@ -435,7 +437,7 @@ class _ProfissionalNoLocalAtendimentoPresencialPageState
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: temSalva
-                    ? Image.network(salvas[index], fit: BoxFit.cover)
+                    ? ImagemApp(child: Image.network(salvas[index], fit: BoxFit.cover))
                     : temArquivo
                     ? Image.file(File(arquivos[index].path), fit: BoxFit.cover)
                     : const Column(
@@ -516,6 +518,17 @@ class _ProfissionalNoLocalAtendimentoPresencialPageState
           ],
         ),
         actions: [
+          BotaoAjuda(
+            cor: _texto,
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Esta é a tela do atendimento no local.',
+              conteudo: [
+                'Valide o código do cliente para começar o atendimento e o cronômetro.',
+                'Registre as fotos de antes e depois e finalize quando terminar.',
+              ],
+            ),
+          ),
           TextButton(
             onPressed: () {},
             child: const Text(
@@ -525,7 +538,7 @@ class _ProfissionalNoLocalAtendimentoPresencialPageState
           ),
           IconButton(
             onPressed: _abrirPerfil,
-            icon: CircleAvatar(
+            icon: CorOriginal(child: CircleAvatar(
               radius: 15,
               backgroundImage: widget.fotoPerfilProfissional?.isNotEmpty == true
                   ? NetworkImage(widget.fotoPerfilProfissional!)
@@ -533,7 +546,7 @@ class _ProfissionalNoLocalAtendimentoPresencialPageState
               child: widget.fotoPerfilProfissional?.isNotEmpty == true
                   ? null
                   : const Icon(Icons.person, size: 18),
-            ),
+            )),
           ),
         ],
       ),
@@ -569,11 +582,11 @@ class _ProfissionalNoLocalAtendimentoPresencialPageState
           Expanded(
             child: Column(
               children: [
-                CircleAvatar(
+                CorOriginal(interface: true, child: CircleAvatar(
                   radius: 13,
                   backgroundColor: _azul,
                   child: const Icon(Icons.check, color: Colors.white, size: 15),
-                ),
+                )),
                 const SizedBox(height: 5),
                 Text(
                   e,
@@ -664,7 +677,7 @@ class _ProfissionalNoLocalAtendimentoPresencialPageState
         const Divider(height: 22),
         Row(
           children: [
-            CircleAvatar(
+            CorOriginal(child: CircleAvatar(
               radius: 19,
               backgroundImage: widget.fotoCliente?.isNotEmpty == true
                   ? NetworkImage(widget.fotoCliente!)
@@ -672,7 +685,7 @@ class _ProfissionalNoLocalAtendimentoPresencialPageState
               child: widget.fotoCliente?.isNotEmpty == true
                   ? null
                   : const Icon(Icons.person),
-            ),
+            )),
             const SizedBox(width: 10),
             Expanded(
               child: Column(

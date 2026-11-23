@@ -19,6 +19,9 @@ import 'utils/voltar_fluxo_solicitacao.dart';
 import 'widgets/codigo_flutuante.dart';
 import 'widgets/dialogo_sheet.dart';
 import 'services/stripe_pagamento_service.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
 
 class TelaRecebeDevolucaoProfissionalPage extends StatefulWidget {
   final int idSolicitacao;
@@ -136,8 +139,8 @@ class _TelaRecebeDevolucaoProfissionalPageState
 
     _sonarController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1600),
-    )..repeat();
+      duration: duracao(const Duration(milliseconds: 1600)),
+    )..repetir();
 
     _sonarAnimation = CurvedAnimation(
       parent: _sonarController,
@@ -146,7 +149,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
 
     _shakeController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 400),
+      duration: duracao(const Duration(milliseconds: 400)),
     );
 
     _shakeAnimation = Tween<double>(
@@ -541,7 +544,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
               SizedBox(
                 width: double.infinity,
                 height: 48,
-                child: FilledButton(
+                child: CorOriginal(interface: true, child: FilledButton(
                   onPressed: () {
                     Navigator.of(ctx).pop();
                     Navigator.of(context).pushReplacement(
@@ -573,7 +576,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
                     'Continuar para a Bancada',
                     style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
                   ),
-                ),
+                )),
               ),
             ],
           ),
@@ -770,6 +773,16 @@ class _TelaRecebeDevolucaoProfissionalPageState
               ],
             ),
           ),
+          BotaoAjuda(
+            cor: _textoEscuro,
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Aqui você recebe o item de volta do cliente.',
+              conteudo: [
+                'Confira o código e as fotos, e confirme o recebimento.',
+              ],
+            ),
+          ),
           // Botão SOS
           GestureDetector(
             onTap: _abrirSos,
@@ -817,12 +830,12 @@ class _TelaRecebeDevolucaoProfissionalPageState
                 child:
                     widget.fotoPerfilProfissional != null &&
                         widget.fotoPerfilProfissional!.isNotEmpty
-                    ? Image.network(
+                    ? ImagemApp(child: Image.network(
                         widget.fotoPerfilProfissional!,
                         fit: BoxFit.cover,
                         errorBuilder: (_, _, _) =>
                             _avatarFallbackProfissional(),
-                      )
+                      ))
                     : _avatarFallbackProfissional(),
               ),
             ),
@@ -834,7 +847,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
 
   Widget _avatarFallbackProfissional() {
     final nome = widget.nomeProfissional ?? 'Profissional';
-    return Container(
+    return CorOriginal(interface: true, child: Container(
       color: _azul,
       alignment: Alignment.center,
       child: Text(
@@ -845,7 +858,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
           fontWeight: FontWeight.bold,
         ),
       ),
-    );
+    ));
   }
 
   // ==========================================
@@ -890,7 +903,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
           // Linha de modalidade e chip
           Row(
             children: [
-              Container(
+              CorOriginal(interface: true, child: Container(
                 width: 40,
                 height: 40,
                 decoration: const BoxDecoration(
@@ -902,7 +915,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
                   color: Colors.white,
                   size: 20,
                 ),
-              ),
+              )),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -934,7 +947,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
                   ],
                 ),
               ),
-              Container(
+              CorOriginal(interface: true, child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 5,
@@ -951,7 +964,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-              ),
+              )),
             ],
           ),
           const SizedBox(height: 18),
@@ -977,28 +990,28 @@ class _TelaRecebeDevolucaoProfissionalPageState
                               Expanded(
                                 child: isFirst
                                     ? const SizedBox()
-                                    : Container(
+                                    : CorOriginal(interface: true, ativo: index <= etapaAtual + 1, child: Container(
                                         height: 3,
                                         color: index <= etapaAtual + 1
                                             ? _azul
                                             : const Color(0xFFCBD5E1),
-                                      ),
+                                      )),
                               ),
                               const SizedBox(width: 30),
                               Expanded(
                                 child: isLast
                                     ? const SizedBox()
-                                    : Container(
+                                    : CorOriginal(interface: true, ativo: index <= etapaAtual, child: Container(
                                         height: 3,
                                         color: index <= etapaAtual
                                             ? _azul
                                             : const Color(0xFFCBD5E1),
-                                      ),
+                                      )),
                               ),
                             ],
                           ),
                           if (isDone)
-                            Container(
+                            CorOriginal(interface: true, child: Container(
                               width: 32,
                               height: 32,
                               decoration: const BoxDecoration(
@@ -1010,7 +1023,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
                                 size: 18,
                                 color: Colors.white,
                               ),
-                            )
+                            ))
                           else if (isCurrent)
                             _buildSonarStepCircle(icones[index])
                           else
@@ -1132,19 +1145,19 @@ class _TelaRecebeDevolucaoProfissionalPageState
                       child:
                           widget.fotoCliente != null &&
                               widget.fotoCliente!.isNotEmpty
-                          ? Image.network(
+                          ? ImagemApp(child: Image.network(
                               widget.fotoCliente!,
                               fit: BoxFit.cover,
                               errorBuilder: (_, _, _) =>
                                   _avatarFallbackCliente(),
-                            )
+                            ))
                           : _avatarFallbackCliente(),
                     ),
                   ),
                   Positioned(
                     bottom: 0,
                     right: 0,
-                    child: Container(
+                    child: CorOriginal(interface: true, child: Container(
                       width: 16,
                       height: 16,
                       decoration: const BoxDecoration(
@@ -1156,7 +1169,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
                         color: Colors.white,
                         size: 11,
                       ),
-                    ),
+                    )),
                   ),
                 ],
               ),
@@ -1316,7 +1329,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
                 ),
               ),
               const Spacer(),
-              Container(
+              CorOriginal(interface: true, child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
                   vertical: 4,
@@ -1333,7 +1346,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-              ),
+              )),
             ],
           ),
           const SizedBox(height: 14),
@@ -1420,13 +1433,13 @@ class _TelaRecebeDevolucaoProfissionalPageState
                     child: Stack(
                       alignment: Alignment.bottomCenter,
                       children: [
-                        Image.network(
+                        ImagemApp(child: Image.network(
                           _anexoClienteUrl!,
                           height: 150,
                           width: double.infinity,
                           fit: BoxFit.cover,
                           errorBuilder: (_, _, _) => _placeholderFotoCliente(),
-                        ),
+                        )),
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(
@@ -1763,7 +1776,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
+            CorOriginal(interface: true, child: Container(
               width: 40,
               height: 40,
               decoration: const BoxDecoration(
@@ -1775,7 +1788,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
                 color: Colors.white,
                 size: 20,
               ),
-            ),
+            )),
             const SizedBox(height: 8),
             const Text(
               'Foto do\nrecebimento',
@@ -1823,7 +1836,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
       ),
       child: Column(
         children: [
-          Container(
+          CorOriginal(interface: true, child: Container(
             width: 40,
             height: 40,
             decoration: const BoxDecoration(
@@ -1831,7 +1844,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.key_rounded, color: Colors.white, size: 20),
-          ),
+          )),
           const SizedBox(height: 8),
           Text(
             _ehDevolucao
@@ -2142,7 +2155,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
           child: SizedBox(
             width: double.infinity,
             height: 52,
-            child: FilledButton.icon(
+            child: CorOriginal(interface: true, child: FilledButton.icon(
               onPressed: _verificarConclusaoDevolucao,
               icon: const Icon(Icons.hourglass_top_rounded, size: 20),
               label: const Text(
@@ -2156,7 +2169,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
                   borderRadius: BorderRadius.circular(26),
                 ),
               ),
-            ),
+            )),
           ),
         ),
       ),
@@ -2193,7 +2206,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Container(
+                        CorOriginal(interface: true, child: Container(
                           width: 20,
                           height: 20,
                           decoration: const BoxDecoration(
@@ -2205,7 +2218,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
                             color: Colors.white,
                             size: 12,
                           ),
-                        ),
+                        )),
                         const SizedBox(width: 8),
                         const Text(
                           'Código de Liberação do Cliente',
@@ -2230,7 +2243,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
               child: SizedBox(
                 width: double.infinity,
                 height: 52,
-                child: FilledButton.icon(
+                child: CorOriginal(interface: true, child: FilledButton.icon(
                   onPressed: habilitado ? _confirmarColeta : null,
                   icon: _enviando
                       ? const SizedBox(
@@ -2266,7 +2279,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
                       borderRadius: BorderRadius.circular(26),
                     ),
                   ),
-                ),
+                )),
               ),
             ),
           ],

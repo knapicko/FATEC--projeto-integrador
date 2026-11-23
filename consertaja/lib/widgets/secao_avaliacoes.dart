@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../utils/iniciais.dart';
 import 'skeleton_loading.dart';
+import 'imagem_app.dart';
 
 class _Avaliacao {
   const _Avaliacao({
@@ -165,7 +166,7 @@ class _SecaoAvaliacoesState extends State<SecaoAvaliacoes> {
             backgroundColor: Colors.black,
             foregroundColor: Colors.white,
           ),
-          body: Center(child: InteractiveViewer(child: Image.network(url))),
+          body: Center(child: InteractiveViewer(child: ImagemApp(child: Image.network(url)))),
         ),
       ),
     );
@@ -189,7 +190,7 @@ class _SecaoAvaliacoesState extends State<SecaoAvaliacoes> {
         children: [
           Row(
             children: [
-              CircleAvatar(
+              CorOriginal(child: CircleAvatar(
                 radius: 18,
                 backgroundColor: const Color(0xFF0FB3FF),
                 backgroundImage: foto.startsWith('http')
@@ -205,7 +206,7 @@ class _SecaoAvaliacoesState extends State<SecaoAvaliacoes> {
                           fontWeight: FontWeight.w800,
                         ),
                       ),
-              ),
+              )),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -277,7 +278,7 @@ class _SecaoAvaliacoesState extends State<SecaoAvaliacoes> {
                                   color: Colors.white,
                                 ),
                               )
-                            : Image.network(m, fit: BoxFit.cover),
+                            : ImagemApp(child: Image.network(m, fit: BoxFit.cover)),
                       ),
                     ),
                   );

@@ -6,6 +6,9 @@ import 'widgets/aviso_obrigatorio.dart';
 import 'services/requisitos_conta.dart';
 import 'tutorial/tutorial.dart';
 import 'tutorial/tutorial_da_tela.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'utils/movimento.dart';
+import 'widgets/imagem_app.dart';
 
 /// Dados de uma exceção de calendário (dia bloqueado total ou parcialmente).
 class _DadosExcecao {
@@ -1534,7 +1537,18 @@ class _AlterarDisponibilidadePageState extends State<AlterarDisponibilidadePage>
               ),
             ),
           ),
-          const SizedBox(width: 48),
+          BotaoAjuda(
+            cor: _blue,
+            passos: () => passosAjuda(
+              reserva: () => explicacaoDaTela(
+                context,
+                tela: 'Aqui você define quando atende.',
+                conteudo: [
+                  'Escolha os dias e horários da semana e bloqueie datas no calendário.',
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1644,7 +1658,7 @@ class _AlterarDisponibilidadePageState extends State<AlterarDisponibilidadePage>
             final ativo = _diasSemanaAtivos.contains(index);
             return GestureDetector(
               onTap: () => _alternarDiaSemana(index),
-              child: Container(
+              child: CorOriginal(interface: true, ativo: ativo, child: Container(
                 width: 36,
                 height: 36,
                 alignment: Alignment.center,
@@ -1660,7 +1674,7 @@ class _AlterarDisponibilidadePageState extends State<AlterarDisponibilidadePage>
                     fontSize: 13,
                   ),
                 ),
-              ),
+              )),
             );
           }),
         ),
@@ -2023,14 +2037,14 @@ class _AlterarDisponibilidadePageState extends State<AlterarDisponibilidadePage>
               ),
             ),
             const SizedBox(width: 12),
-            Switch(
+            CorOriginal(interface: true, ativo: _selecaoMultiplaAtiva, child: Switch(
               value: _selecaoMultiplaAtiva,
               activeTrackColor: _blue,
               activeThumbColor: Colors.white,
               inactiveTrackColor: const Color(0xFFE0E0E0),
               inactiveThumbColor: Colors.white,
               onChanged: _alternarModoSelecaoMultipla,
-            ),
+            )),
           ],
         ),
         if (_selecaoMultiplaAtiva && _datasSelecionadasMultipla.isNotEmpty) ...[
@@ -2327,7 +2341,7 @@ class _AlterarDisponibilidadePageState extends State<AlterarDisponibilidadePage>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (exibirFabDesbloquear) ...[
-                    FloatingActionButton(
+                    CorOriginal(interface: true, child: FloatingActionButton(
                       onPressed: _salvandoLote
                           ? null
                           : _confirmarDesbloqueioLote,
@@ -2346,7 +2360,7 @@ class _AlterarDisponibilidadePageState extends State<AlterarDisponibilidadePage>
                               Icons.lock_open_outlined,
                               color: Colors.white,
                             ),
-                    ),
+                    )),
                     if (exibirFabBloquear) const SizedBox(width: 12),
                   ],
                   if (exibirFabBloquear)
@@ -2550,7 +2564,7 @@ class _GerenciarExcecaoBottomSheetState
     return GestureDetector(
       onTap: () => onChanged(!value),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: duracao(const Duration(milliseconds: 200)),
         width: 48,
         height: 28,
         padding: const EdgeInsets.all(3),
@@ -2559,7 +2573,7 @@ class _GerenciarExcecaoBottomSheetState
           borderRadius: BorderRadius.circular(14),
         ),
         child: AnimatedAlign(
-          duration: const Duration(milliseconds: 200),
+          duration: duracao(const Duration(milliseconds: 200)),
           alignment: value ? Alignment.centerRight : Alignment.centerLeft,
           child: Container(
             width: 22,
@@ -2828,7 +2842,7 @@ class _GerenciarExcecaoBottomSheetState
                 const SizedBox(height: 24),
                 SizedBox(
                   height: 50,
-                  child: ElevatedButton(
+                  child: CorOriginal(interface: true, child: ElevatedButton(
                     onPressed: _confirmando ? null : _confirmar,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _blue,
@@ -2855,7 +2869,7 @@ class _GerenciarExcecaoBottomSheetState
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                  ),
+                  )),
                 ),
                 const SizedBox(height: 10),
                 if (isEdicao && widget.onRetirar != null) ...[

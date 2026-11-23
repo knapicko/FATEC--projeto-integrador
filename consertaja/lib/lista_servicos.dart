@@ -16,6 +16,10 @@ import 'services/requisitos_conta.dart';
 import 'widgets/formas_pagamento.dart';
 import 'tela_chat_profissional.dart';
 import 'tela_mensagens.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'services/app_settings_controller.dart';
+import 'widgets/dialogo_sheet.dart';
 
 class EnderecoItemLista {
   final int idEndereco;
@@ -243,7 +247,11 @@ class _ListaServicosState extends State<ListaServicos> {
         var pagamentos = const <String>[];
         try {
           final conta = await _supabase
-              .from(idGrupoEmpresa != null ? 'grupo_empresa' : 'dados_profissionais')
+              .from(
+                idGrupoEmpresa != null
+                    ? 'grupo_empresa'
+                    : 'dados_profissionais',
+              )
               .select('pagamento_aceito')
               .eq(
                 idGrupoEmpresa != null ? 'id_grupo_empresa' : 'id_profissional',
@@ -603,12 +611,12 @@ class _ListaServicosState extends State<ListaServicos> {
                             item.imagemUrl != null &&
                                 (item.imagemUrl!.startsWith('http://') ||
                                     item.imagemUrl!.startsWith('https://'))
-                            ? Image.network(
+                            ? ImagemApp(child: Image.network(
                                 item.imagemUrl!,
                                 fit: BoxFit.cover,
                                 errorBuilder: (_, _, _) =>
                                     _placeholderServico(),
-                              )
+                              ))
                             : _placeholderServico(),
                       ),
                     ),
@@ -884,12 +892,68 @@ class _ListaServicosState extends State<ListaServicos> {
     return '$dataStr - $horaStr';
   }
 
+  /// Revisão antes de enviar: quantos pedidos, para quem e o endereço.
+  Future<bool?> _confirmarEnvio() {
+    final n = _itens.length;
+    return mostrarDialogoComoSheet<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(n > 1 ? 'Enviar $n solicitações?' : 'Enviar a solicitação?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              n > 1
+                  ? 'Cada profissional da lista recebe o seu pedido e responde '
+                        'com o orçamento.'
+                  : 'O profissional recebe o seu pedido e responde com o '
+                        'orçamento.',
+            ),
+            if (_enderecoUsuario.trim().isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.location_on_outlined,
+                    size: 20,
+                    color: Color(0xFF0FB3FF),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(_enderecoUsuario)),
+                ],
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Revisar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Enviar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── Envio das solicitações (botão Continuar) ─────────────────────────────
   // Para cada item em `ass_servicos_lista`, cria UMA linha em `solicitacoes`
   // com os dados do serviço, depois apaga os itens da lista.
   Future<void> _enviarSolicitacoes() async {
     if (_itens.isEmpty || _enviandoSolicitacao) return;
     if (!await RequisitosConta.garantirEnderecoCliente(context)) return;
+    // Preferências → "Confirmar antes de enviar solicitações".
+    if (AppSettingsController.instance.confirmarSolicitacao) {
+      if (!mounted) return;
+      final ok = await _confirmarEnvio();
+      if (ok != true) return;
+    }
+    if (!mounted) return;
     setState(() => _enviandoSolicitacao = true);
     try {
       final user = _supabase.auth.currentUser;
@@ -1008,7 +1072,9 @@ class _ListaServicosState extends State<ListaServicos> {
   void _conversarNoChat(List<ItemServicoLista> enviados) {
     final contas = {
       for (final i in enviados)
-        i.idGrupoEmpresa != null ? 'g${i.idGrupoEmpresa}' : 'p${i.idProfissional}':
+        i.idGrupoEmpresa != null
+                ? 'g${i.idGrupoEmpresa}'
+                : 'p${i.idProfissional}':
             i,
     };
     final Widget destino;
@@ -1123,7 +1189,7 @@ class _ListaServicosState extends State<ListaServicos> {
               SizedBox(
                 width: double.infinity,
                 height: 48,
-                child: ElevatedButton(
+                child: CorOriginal(interface: true, child: ElevatedButton(
                   onPressed: () => Navigator.pop(ctx),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _azul,
@@ -1137,7 +1203,7 @@ class _ListaServicosState extends State<ListaServicos> {
                     'Entendido',
                     style: TextStyle(fontWeight: FontWeight.w800),
                   ),
-                ),
+                )),
               ),
               const SizedBox(height: 10),
               SizedBox(
@@ -1224,7 +1290,7 @@ class _ListaServicosState extends State<ListaServicos> {
 
   // ── 1. Cabeçalho Superior ──────────────────────────────────────────────────
   Widget _buildHeader(int count) {
-    return Container(
+    return CorOriginal(interface: true, child: Container(
       color: _azul,
       child: SafeArea(
         bottom: false,
@@ -1252,6 +1318,17 @@ class _ListaServicosState extends State<ListaServicos> {
                       letterSpacing: -0.2,
                     ),
                   ),
+                  const Spacer(),
+                  BotaoAjuda(
+                    cor: Colors.white,
+                    passos: () => explicacaoDaTela(
+                      context,
+                      tela: 'Esta é a sua lista de serviços.',
+                      conteudo: [
+                        'Junte serviços de vários profissionais, confira o endereço e envie as solicitações de uma vez.',
+                      ],
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 2),
@@ -1263,7 +1340,7 @@ class _ListaServicosState extends State<ListaServicos> {
           ),
         ),
       ),
-    );
+    ));
   }
 
   // ── 2. Card do Serviço (Design Fiel ao Print com Lixeira Vermelha) ──────────
@@ -1424,11 +1501,11 @@ class _ListaServicosState extends State<ListaServicos> {
                         item.imagemUrl != null &&
                             (item.imagemUrl!.startsWith('http://') ||
                                 item.imagemUrl!.startsWith('https://'))
-                        ? Image.network(
+                        ? ImagemApp(child: Image.network(
                             item.imagemUrl!,
                             fit: BoxFit.cover,
                             errorBuilder: (_, _, _) => _placeholderServico(),
-                          )
+                          ))
                         : _placeholderServico(),
                   ),
                 ),
@@ -1588,14 +1665,14 @@ class _ListaServicosState extends State<ListaServicos> {
     if (item.fotoPrestador != null &&
         (item.fotoPrestador!.startsWith('http://') ||
             item.fotoPrestador!.startsWith('https://'))) {
-      return CircleAvatar(
+      return CorOriginal(child: CircleAvatar(
         radius: 21,
         backgroundColor: const Color(0xFFE2E8F0),
         backgroundImage: NetworkImage(item.fotoPrestador!),
-      );
+      ));
     }
 
-    return Container(
+    return CorOriginal(interface: true, child: Container(
       width: 42,
       height: 42,
       decoration: BoxDecoration(
@@ -1615,7 +1692,7 @@ class _ListaServicosState extends State<ListaServicos> {
           ),
         ),
       ),
-    );
+    ));
   }
 
   Widget _placeholderServico() {
@@ -1750,7 +1827,7 @@ class _ListaServicosState extends State<ListaServicos> {
             SizedBox(
               width: double.infinity,
               height: 52,
-              child: ElevatedButton(
+              child: CorOriginal(interface: true, child: ElevatedButton(
                 onPressed: _enviandoSolicitacao ? null : _enviarSolicitacoes,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _azul,
@@ -1776,7 +1853,7 @@ class _ListaServicosState extends State<ListaServicos> {
                           fontWeight: FontWeight.w800,
                         ),
                       ),
-              ),
+              )),
             ),
           ],
         ),

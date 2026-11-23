@@ -7,6 +7,7 @@ import 'utils/abrir_solicitacao.dart';
 import 'widgets/card_pedido_resumo.dart';
 import 'widgets/selo_conta_ativa.dart';
 import 'widgets/skeleton_loading.dart';
+import 'tutorial/botao_ajuda.dart';
 
 SupabaseClient get _db => Supabase.instance.client;
 
@@ -184,7 +185,21 @@ class _MeuHistoricoServicoProfissionalPageState
     final conta = _conta;
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
-      appBar: appBarPerfil('Histórico de Serviços'),
+      appBar: appBarPerfil(
+        'Histórico de Serviços',
+        acoes: [
+          BotaoAjuda(
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Aqui fica o histórico dos serviços que você recebeu.',
+              conteudo: [
+                'O selo no topo mostra de qual conta são os serviços: independente ou loja.',
+                'Toque em um serviço para abrir a etapa dele.',
+              ],
+            ),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _carregar,
         child: _erro != null
@@ -232,10 +247,7 @@ class _MeuHistoricoServicoProfissionalPageState
                     ),
                     const SizedBox(height: 10),
                     for (final p in l)
-                      CardPedidoResumo(
-                        pedido: p,
-                        aoTocar: () => _tocar(p),
-                      ),
+                      CardPedidoResumo(pedido: p, aoTocar: () => _tocar(p)),
                   ],
                 ],
               ),

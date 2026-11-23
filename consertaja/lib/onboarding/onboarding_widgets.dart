@@ -8,6 +8,8 @@ import '../widgets/seletor_ddi.dart';
 import '../termos_de_uso.dart';
 import '../politica_de_privacidade.dart';
 import '../services/validacao_documento.dart';
+import '../widgets/imagem_app.dart';
+import '../utils/movimento.dart';
 
 /// Identifica com precisão o tipo de identificador digitado no login:
 /// Retorna 'CPF:', 'CNPJ:', 'Email:' ou 'Telefone:' (ou placeholder quando vazio).
@@ -596,10 +598,10 @@ class GoogleButton extends StatelessWidget {
             : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Image.asset(
+                  ImagemApp(child: Image.asset(
                     'assets/images/icone/google-logo.png',
                     height: 22,
-                  ),
+                  )),
                   const SizedBox(width: 12),
                   const Text(
                     'Continuar com Google',
@@ -755,15 +757,15 @@ class CaixaCharacter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 520),
+      duration: duracao(const Duration(milliseconds: 520)),
       curve: Curves.easeInOutCubic,
       width: size,
       height: size,
       child: Center(
         child: AnimatedSwitcher(
-          duration: semTransicao
+          duration: duracao(semTransicao
               ? Duration.zero
-              : const Duration(milliseconds: 340),
+              : const Duration(milliseconds: 340)),
           switchInCurve: Curves.easeInOut,
           switchOutCurve: Curves.easeInOut,
           layoutBuilder: (currentChild, previousChildren) {
@@ -783,7 +785,7 @@ class CaixaCharacter extends StatelessWidget {
           child: SizedBox(
             width: size,
             height: size,
-            child: Image.asset(
+            child: ImagemApp(child: Image.asset(
               asset,
               key: ValueKey(asset),
               fit: BoxFit.contain,
@@ -794,7 +796,7 @@ class CaixaCharacter extends StatelessWidget {
                 size: size * 0.7,
                 color: Colors.white,
               ),
-            ),
+            )),
           ),
         ),
       ),
@@ -810,8 +812,8 @@ class BubbleTransitionSwitcher extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 520),
-      reverseDuration: const Duration(milliseconds: 340),
+      duration: duracao(const Duration(milliseconds: 520)),
+      reverseDuration: duracao(const Duration(milliseconds: 340)),
       switchInCurve: Curves.easeOutCubic,
       switchOutCurve: Curves.easeInCubic,
       transitionBuilder: (child, animation) {
@@ -1086,12 +1088,12 @@ class _FalaBalao extends StatefulWidget {
 class _FalaBalaoState extends State<_FalaBalao> with TickerProviderStateMixin {
   late final AnimationController _entrada = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 460),
+    duration: duracao(const Duration(milliseconds: 460)),
     value: widget.item.jaVisivel ? 1 : 0,
   );
   late final AnimationController _saida = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 380),
+    duration: duracao(const Duration(milliseconds: 380)),
   );
   Timer? _atraso;
   Timer? _digitacao;
@@ -1211,7 +1213,7 @@ class _FalaBalaoState extends State<_FalaBalao> with TickerProviderStateMixin {
       },
       child: TweenAnimationBuilder<double>(
         tween: Tween<double>(end: widget.historico ? 1 : 0),
-        duration: const Duration(milliseconds: 480),
+        duration: duracao(const Duration(milliseconds: 480)),
         curve: Curves.easeInOutCubic,
         builder: (context, h, _) => _BalaoMorph(
           texto: _mostrado.isEmpty ? ' ' : _mostrado,
@@ -1344,7 +1346,7 @@ class AccountTypeCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
+        duration: duracao(const Duration(milliseconds: 220)),
         margin: const EdgeInsets.only(bottom: 14),
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(

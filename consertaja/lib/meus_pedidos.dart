@@ -27,6 +27,9 @@ import 'servico_concluido_cliente.dart';
 import 'utils/cor_status.dart';
 import 'tutorial/tutorial.dart';
 import 'tutorial/tutorial_da_tela.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
 
 class PedidoCliente {
   final int id;
@@ -119,8 +122,8 @@ class MeusPedidosState extends State<MeusPedidosPage>
     super.initState();
     _piscarController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..repeat(reverse: true);
+      duration: duracao(const Duration(milliseconds: 1200)),
+    )..repetir(reverse: true);
     carregar();
   }
 
@@ -931,6 +934,19 @@ class MeusPedidosState extends State<MeusPedidosPage>
             ),
           ),
           const Spacer(),
+          BotaoAjuda(
+            cor: azul,
+            passos: () => passosAjuda(
+              reserva: () => explicacaoDaTela(
+                context,
+                tela: 'Aqui ficam todos os seus pedidos.',
+                conteudo: [
+                  'Filtre por situação e toque em um pedido para abrir a etapa dele.',
+                ],
+                rodape: 56,
+              ),
+            ),
+          ),
           IconButton(
             onPressed: () => setState(() {
               buscaAtiva = !buscaAtiva;
@@ -962,20 +978,20 @@ class MeusPedidosState extends State<MeusPedidosPage>
     final f = (fotoCli ?? '').trim();
     if (f.isNotEmpty) {
       return ClipOval(
-        child: Image.network(
+        child: ImagemApp(child: Image.network(
           f,
           width: 36,
           height: 36,
           fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => avatarIni(),
-        ),
+        )),
       );
     }
     return avatarIni();
   }
 
   Widget avatarIni() {
-    return Container(
+    return CorOriginal(interface: true, child: Container(
       width: 36,
       height: 36,
       alignment: Alignment.center,
@@ -988,7 +1004,7 @@ class MeusPedidosState extends State<MeusPedidosPage>
           fontWeight: FontWeight.bold,
         ),
       ),
-    );
+    ));
   }
 
   Widget campoBusca() {
@@ -1043,7 +1059,7 @@ class MeusPedidosState extends State<MeusPedidosPage>
           final ativo = filtro == fl;
           return GestureDetector(
             onTap: () => setState(() => filtro = fl),
-            child: Container(
+            child: CorOriginal(interface: true, ativo: ativo, child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
               decoration: BoxDecoration(
                 color: ativo ? azul : Colors.white,
@@ -1085,7 +1101,7 @@ class MeusPedidosState extends State<MeusPedidosPage>
                   ),
                 ],
               ),
-            ),
+            )),
           );
         },
       ),
@@ -1303,7 +1319,7 @@ class MeusPedidosState extends State<MeusPedidosPage>
                             ),
                           ),
                           const SizedBox(width: 4),
-                          Container(
+                          CorOriginal(interface: true, child: Container(
                             width: 16,
                             height: 16,
                             decoration: const BoxDecoration(
@@ -1315,7 +1331,7 @@ class MeusPedidosState extends State<MeusPedidosPage>
                               color: Colors.white,
                               size: 10,
                             ),
-                          ),
+                          )),
                         ],
                       ),
                       const SizedBox(height: 2),
@@ -1388,7 +1404,7 @@ class MeusPedidosState extends State<MeusPedidosPage>
                   ),
                 ),
                 const SizedBox(width: 8),
-                ElevatedButton(
+                CorOriginal(interface: true, child: ElevatedButton(
                   onPressed: () => _aoClicarPedido(p),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: azul,
@@ -1407,7 +1423,7 @@ class MeusPedidosState extends State<MeusPedidosPage>
                     ),
                   ),
                   child: Text(_rotuloBotaoCard(p)),
-                ),
+                )),
               ],
             ),
             if (p.fkStatus != 6 &&
@@ -1417,7 +1433,7 @@ class MeusPedidosState extends State<MeusPedidosPage>
               SizedBox(
                 width: double.infinity,
                 height: 42,
-                child: FilledButton.icon(
+                child: CorOriginal(interface: true, child: FilledButton.icon(
                   onPressed: () => ehAguardandoPagamento(p)
                       ? abrirQrcodePix(p)
                       : abrirPagamento(p),
@@ -1439,7 +1455,7 @@ class MeusPedidosState extends State<MeusPedidosPage>
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                ),
+                )),
               ),
             ],
             if (p.status.trim().toLowerCase() == 'aguardando cliente') ...[
@@ -1583,11 +1599,11 @@ class MeusPedidosState extends State<MeusPedidosPage>
         width: 64,
         height: 64,
         child: u.isNotEmpty
-            ? Image.network(
+            ? ImagemApp(child: Image.network(
                 u,
                 fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) => phServ(p),
-              )
+              ))
             : phServ(p),
       ),
     );

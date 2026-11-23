@@ -9,6 +9,7 @@ import 'utils/funcao_servico.dart';
 import 'widgets/card_pedido_resumo.dart';
 import 'widgets/card_servico_popular.dart';
 import 'widgets/skeleton_loading.dart';
+import 'tutorial/botao_ajuda.dart';
 
 /// Serviços que o cliente favoritou (coração na tela do serviço).
 class ServicosFavoritosClientePage extends StatefulWidget {
@@ -75,7 +76,20 @@ class _ServicosFavoritosClientePageState
     final l = _servicos;
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
-      appBar: appBarPerfil('Serviços Favoritados'),
+      appBar: appBarPerfil(
+        'Serviços Favoritados',
+        acoes: [
+          BotaoAjuda(
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Aqui ficam os serviços que você favoritou.',
+              conteudo: [
+                'Toque em um serviço para ver os detalhes e pedir. Para tirar dos favoritos, use o coração.',
+              ],
+            ),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _carregar,
         child: _erro != null

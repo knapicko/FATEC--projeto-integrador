@@ -10,6 +10,9 @@ import 'services/notificacoes/notificacao_service.dart';
 import 'services/notificacoes/notificacao_tipos.dart';
 import 'widgets/skeletons_telas.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
 
 enum _Filtro { todas, novas, vistas, conta, pedidos, mensagens, radar }
 
@@ -395,7 +398,7 @@ class _MinhasNotificacoesPageState extends State<MinhasNotificacoesPage> {
 
     return AnimatedSlide(
       offset: _modoSelecao ? Offset.zero : const Offset(0, 1),
-      duration: const Duration(milliseconds: 260),
+      duration: duracao(const Duration(milliseconds: 260)),
       curve: Curves.easeOutCubic,
       child: Container(
         color: Colors.white,
@@ -603,7 +606,7 @@ class _MinhasNotificacoesPageState extends State<MinhasNotificacoesPage> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 18, 8, 10),
       child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 220),
+        duration: duracao(const Duration(milliseconds: 220)),
         child: _buscando
             ? Row(
                 key: const ValueKey('busca'),
@@ -658,6 +661,17 @@ class _MinhasNotificacoesPageState extends State<MinhasNotificacoesPage> {
                         fontSize: 24,
                         fontWeight: FontWeight.w800,
                       ),
+                    ),
+                  ),
+                  BotaoAjuda(
+                    cor: _texto,
+                    tamanhoIcone: 26,
+                    passos: () => explicacaoDaTela(
+                      context,
+                      tela: 'Aqui ficam as suas notificações.',
+                      conteudo: [
+                        'Toque em uma notificação para abrir a tela dela. Use a busca, a seleção e os filtros aqui em cima.',
+                      ],
                     ),
                   ),
                   IconButton(
@@ -958,7 +972,7 @@ class _MinhasNotificacoesPageState extends State<MinhasNotificacoesPage> {
       onTap: () => _modoSelecao ? _alternar(n) : _abrir(n),
       onLongPress: () => _modoSelecao ? _alternar(n) : _entrarSelecao(n),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
+        duration: duracao(const Duration(milliseconds: 180)),
         color: selecionada
             ? const Color(0xFFCDEBFB)
             : naoLida
@@ -970,13 +984,13 @@ class _MinhasNotificacoesPageState extends State<MinhasNotificacoesPage> {
           children: [
             // Seleção (caixinha) ou bolinha azul = não lida.
             AnimatedSize(
-              duration: const Duration(milliseconds: 200),
+              duration: duracao(const Duration(milliseconds: 200)),
               curve: Curves.easeOutCubic,
               child: _modoSelecao
                   ? Padding(
                       padding: const EdgeInsets.fromLTRB(8, 15, 10, 0),
                       child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 160),
+                        duration: duracao(const Duration(milliseconds: 160)),
                         width: 22,
                         height: 22,
                         decoration: BoxDecoration(
@@ -1149,13 +1163,13 @@ class _MinhasNotificacoesPageState extends State<MinhasNotificacoesPage> {
       );
       if (url == null || url.isEmpty || url == 'null') return inicial;
       return ClipOval(
-        child: Image.network(
+        child: ImagemApp(child: Image.network(
           url,
           width: 54,
           height: 54,
           fit: BoxFit.cover,
           errorBuilder: (_, _, _) => inicial,
-        ),
+        )),
       );
     }
     if (url == null || url.isEmpty || url == 'null') {
@@ -1168,13 +1182,13 @@ class _MinhasNotificacoesPageState extends State<MinhasNotificacoesPage> {
         clipBehavior: Clip.none,
         children: [
           ClipOval(
-            child: Image.network(
+            child: ImagemApp(child: Image.network(
               url,
               width: 54,
               height: 54,
               fit: BoxFit.cover,
               errorBuilder: (_, _, _) => _iconeTipo(icone, cor),
-            ),
+            )),
           ),
           Positioned(
             right: -3,

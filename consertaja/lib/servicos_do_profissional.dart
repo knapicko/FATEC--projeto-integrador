@@ -7,6 +7,8 @@ import 'utils/cor_oficio.dart';
 import 'utils/texto_busca.dart';
 import 'widgets/card_servico_popular.dart';
 import 'widgets/filtros_busca.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 /// Todos os serviços de um profissional/loja, com busca, ordenação e
 /// filtros (aberto pelo "Ver todos" do perfil).
@@ -123,6 +125,15 @@ class _ServicosDoProfissionalPageState
           'Serviços de ${widget.nome}',
           style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
         ),
+        actions: [
+          BotaoAjuda(
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Aqui ficam os serviços deste profissional.',
+              conteudo: ['Toque em um serviço para ver os detalhes e pedir.'],
+            ),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -150,7 +161,7 @@ class _ServicosDoProfissionalPageState
                 Badge(
                   isLabelVisible: _filtros.ativo,
                   label: Text('${_filtros.quantidadeAtivos}'),
-                  child: Material(
+                  child: CorOriginal(interface: true, child: Material(
                     color: _azul,
                     borderRadius: BorderRadius.circular(16),
                     child: InkWell(
@@ -162,7 +173,7 @@ class _ServicosDoProfissionalPageState
                         child: Icon(Icons.tune_rounded, color: Colors.white),
                       ),
                     ),
-                  ),
+                  )),
                 ),
               ],
             ),

@@ -24,6 +24,9 @@ import 'services/stripe_pagamento_service.dart';
 import 'dart:math' show sin;
 import 'tutorial/tutorial.dart';
 import 'tutorial/tutorial_da_tela.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
 
 class AcompanharDeslocamentoPage extends StatefulWidget {
   final int idSolicitacao;
@@ -92,7 +95,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
   bool? _estadoCodigo;
   late final AnimationController _tremor = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 420),
+    duration: duracao(const Duration(milliseconds: 420)),
   );
   bool _confirmandoDevolucao = false;
 
@@ -185,8 +188,8 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
         '#PED-2026-${widget.idSolicitacao.toString().padLeft(4, '0')}';
     _sonarController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1700),
-    )..repeat();
+      duration: duracao(const Duration(milliseconds: 1700)),
+    )..repetir();
     _carregarDadosIniciais();
     _configurarRealtime();
     _iniciarPolling();
@@ -588,72 +591,6 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
     );
   }
 
-  void _mostrarAjuda() {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE2E8F0),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Row(
-                children: [
-                  Icon(Icons.help_outline, color: azul, size: 24),
-                  SizedBox(width: 8),
-                  Text(
-                    'Acompanhamento em Tempo Real',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
-                      color: escuro,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                '• O mapa exibe a posição do profissional em tempo real enquanto ele se desloca até o seu local.\n'
-                '• Mantenha seu telefone por perto para receber o profissional.\n'
-                '• Forneça o código de confirmação apenas quando o prestador estiver pessoalmente no local com você.',
-                style: TextStyle(
-                  fontSize: 13.5,
-                  color: cinzaTexto,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  style: FilledButton.styleFrom(backgroundColor: azul),
-                  child: const Text('Entendido'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   String _tempoEstimadoTexto() {
     if (_duracaoSegundos == null) return '8 - 12 minutos';
     final min = (_duracaoSegundos! / 60).ceil();
@@ -814,9 +751,17 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
               ),
             ),
           ),
-          IconButton(
-            onPressed: _mostrarAjuda,
-            icon: const Icon(Icons.help_outline, color: azul, size: 24),
+          BotaoAjuda(
+            cor: azul,
+            passos: () => passosAjuda(
+              reserva: () => explicacaoDaTela(
+                context,
+                tela: 'Aqui você acompanha o profissional a caminho.',
+                conteudo: [
+                  'Veja a previsão de chegada, as etapas, o mapa e o código de confirmação.',
+                ],
+              ),
+            ),
           ),
           GestureDetector(
             onTap: _abrirMeuPerfilCliente,
@@ -830,11 +775,11 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
               child: ClipOval(
                 child:
                     _fotoPerfilCliente != null && _fotoPerfilCliente!.isNotEmpty
-                    ? Image.network(
+                    ? ImagemApp(child: Image.network(
                         _fotoPerfilCliente!,
                         fit: BoxFit.cover,
                         errorBuilder: (_, _, _) => _avatarFallbackCliente(),
-                      )
+                      ))
                     : _avatarFallbackCliente(),
               ),
             ),
@@ -845,7 +790,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
   }
 
   Widget _avatarFallbackCliente() {
-    return Container(
+    return CorOriginal(interface: true, child: Container(
       color: azul,
       alignment: Alignment.center,
       child: Text(
@@ -856,7 +801,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
           fontWeight: FontWeight.bold,
         ),
       ),
-    );
+    ));
   }
 
   /// 2. Status do GPS
@@ -877,14 +822,14 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
+          CorOriginal(interface: true, child: Container(
             width: 8,
             height: 8,
             decoration: const BoxDecoration(
               color: azul,
               shape: BoxShape.circle,
             ),
-          ),
+          )),
           const SizedBox(width: 8),
           Text(
             _profissionalNoLocal
@@ -903,7 +848,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
 
   /// Card animado com efeito Sonar informando que o Profissional Chegou
   Widget _buildAvisoProfissionalChegou() {
-    return Container(
+    return CorOriginal(interface: true, child: Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -986,12 +931,12 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
           ),
         ],
       ),
-    );
+    ));
   }
 
   /// 3. Card "PREVISÃO DE CHEGADA" (Fundo Azul #0FB3FF com ícone de Moto)
   Widget _buildCardPrevisaoChegada() {
-    return Container(
+    return CorOriginal(interface: true, child: Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -1054,7 +999,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
           ),
         ],
       ),
-    );
+    ));
   }
 
   /// 4. Timeline de Progresso com Etapas e Barra Linear
@@ -1113,7 +1058,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                 children: [
                   Expanded(
                     flex: chegou ? 100 : 62,
-                    child: Container(color: azul),
+                    child: CorOriginal(interface: true, child: Container(color: azul)),
                   ),
                   if (!chegou)
                     Expanded(
@@ -1360,7 +1305,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
           ),
         ),
         const SizedBox(height: 3),
-        Container(
+        CorOriginal(interface: true, child: Container(
           width: 34,
           height: 34,
           decoration: BoxDecoration(
@@ -1376,7 +1321,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
             ],
           ),
           child: const Icon(Icons.home, color: Colors.white, size: 18),
-        ),
+        )),
       ],
     );
   }
@@ -1387,7 +1332,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
+        CorOriginal(interface: true, child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
             color: azul,
@@ -1412,7 +1357,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
               color: Colors.white,
             ),
           ),
-        ),
+        )),
         const SizedBox(height: 3),
         if (chegou)
           AnimatedBuilder(
@@ -1470,12 +1415,12 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                       child: ClipOval(
                         child:
                             _fotoPrestador != null && _fotoPrestador!.isNotEmpty
-                            ? Image.network(
+                            ? ImagemApp(child: Image.network(
                                 _fotoPrestador!,
                                 fit: BoxFit.cover,
                                 errorBuilder: (_, _, _) =>
                                     _avatarFallbackPrestador(),
-                              )
+                              ))
                             : _avatarFallbackPrestador(),
                       ),
                     ),
@@ -1483,7 +1428,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                     Positioned(
                       bottom: 0,
                       right: 0,
-                      child: Container(
+                      child: CorOriginal(interface: true, child: Container(
                         width: 18,
                         height: 18,
                         decoration: BoxDecoration(
@@ -1496,7 +1441,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                           color: Colors.white,
                           size: 11,
                         ),
-                      ),
+                      )),
                     ),
                   ],
                 ),
@@ -1523,18 +1468,18 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                 ),
                 child: ClipOval(
                   child: _fotoPrestador != null && _fotoPrestador!.isNotEmpty
-                      ? Image.network(
+                      ? ImagemApp(child: Image.network(
                           _fotoPrestador!,
                           fit: BoxFit.cover,
                           errorBuilder: (_, _, _) => _avatarFallbackPrestador(),
-                        )
+                        ))
                       : _avatarFallbackPrestador(),
                 ),
               ),
               Positioned(
                 bottom: -2,
                 right: -2,
-                child: Container(
+                child: CorOriginal(interface: true, child: Container(
                   width: 18,
                   height: 18,
                   decoration: BoxDecoration(
@@ -1547,7 +1492,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                     color: Colors.white,
                     size: 11,
                   ),
-                ),
+                )),
               ),
             ],
           ),
@@ -1556,7 +1501,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
   }
 
   Widget _avatarFallbackPrestador() {
-    return Container(
+    return CorOriginal(interface: true, child: Container(
       color: azul,
       alignment: Alignment.center,
       child: Text(
@@ -1567,7 +1512,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
           fontWeight: FontWeight.bold,
         ),
       ),
-    );
+    ));
   }
 
   /// 6. Card de Detalhes do Profissional/Loja e Veículo
@@ -1595,11 +1540,11 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                 decoration: const BoxDecoration(shape: BoxShape.circle),
                 child: ClipOval(
                   child: _fotoPrestador != null && _fotoPrestador!.isNotEmpty
-                      ? Image.network(
+                      ? ImagemApp(child: Image.network(
                           _fotoPrestador!,
                           fit: BoxFit.cover,
                           errorBuilder: (_, _, _) => _avatarFallbackPrestador(),
-                        )
+                        ))
                       : _avatarFallbackPrestador(),
                 ),
               ),
@@ -1755,7 +1700,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
           SizedBox(
             width: double.infinity,
             height: 48,
-            child: FilledButton.icon(
+            child: CorOriginal(interface: true, child: FilledButton.icon(
               onPressed: _abrirChat,
               icon: const Icon(Icons.chat_bubble_outline, size: 18),
               label: const Text(
@@ -1768,7 +1713,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                   borderRadius: BorderRadius.circular(24),
                 ),
               ),
-            ),
+            )),
           ),
         ],
       ),
@@ -2136,7 +2081,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
     return SizedBox(
       width: double.infinity,
       height: 52,
-      child: FilledButton.icon(
+      child: CorOriginal(interface: true, child: FilledButton.icon(
         onPressed: habilitado ? _confirmarDevolucao : null,
         icon: _confirmandoDevolucao
             ? const SizedBox(
@@ -2164,7 +2109,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
             borderRadius: BorderRadius.circular(26),
           ),
         ),
-      ),
+      )),
     );
   }
 

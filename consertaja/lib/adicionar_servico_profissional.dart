@@ -15,6 +15,8 @@ import 'package:image_picker/image_picker.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/cor_oficio.dart';
 import 'widgets/dialogo_sheet.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 // Cor do ofício: mesma regra do app inteiro (nome `cor` ou hex `cod_cor`).
@@ -295,6 +297,19 @@ class _AdicionarServicoProfissionalPageState
                       ),
                     ),
                   ),
+                  BotaoAjuda(
+                    cor: _primaryBlue,
+                    tamanhoIcone: 22,
+                    passos: () => explicacaoDaTela(
+                      context,
+                      tela: 'Aqui você cria ou edita um serviço.',
+                      conteudo: [
+                        'Escolha um serviço do catálogo ou crie o seu: título, descrição, preço, foto e função.',
+                        'Os itens obrigatórios da conta precisam estar completos para salvar.',
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
                   IconButton(
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
@@ -426,13 +441,13 @@ class _AdicionarServicoProfissionalPageState
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: s.imagemUrl != null && s.imagemUrl!.isNotEmpty
-                ? Image.network(
+                ? ImagemApp(child: Image.network(
                     s.imagemUrl!,
                     width: 72,
                     height: 72,
                     fit: BoxFit.cover,
                     errorBuilder: (ctx, e, st) => _placeholderImg(72),
-                  )
+                  ))
                 : _placeholderImg(72),
           ),
           const SizedBox(width: 12),
@@ -556,14 +571,14 @@ class _AdicionarServicoProfissionalPageState
           ClipRRect(
             borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
             child: item.imagemUrl != null && item.imagemUrl!.isNotEmpty
-                ? Image.network(
+                ? ImagemApp(child: Image.network(
                     item.imagemUrl!,
                     height: 100,
                     width: double.infinity,
                     fit: BoxFit.cover,
                     errorBuilder: (ctx, e, st) =>
                         _placeholderImgCor(100, catColor),
-                  )
+                  ))
                 : _placeholderImgCor(100, catColor),
           ),
 
@@ -651,7 +666,7 @@ class _AdicionarServicoProfissionalPageState
 
   // ── Seção 3: Criar serviço personalizado ─────────────────────────────────
   Widget _buildCardPersonalizado() {
-    return Container(
+    return CorOriginal(interface: true, child: Container(
       padding: const EdgeInsets.fromLTRB(18, 24, 18, 20),
       decoration: BoxDecoration(
         color: _deepBlue,
@@ -714,7 +729,7 @@ class _AdicionarServicoProfissionalPageState
           ),
         ],
       ),
-    );
+    ));
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -1615,7 +1630,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
                   SizedBox(
                     width: double.infinity,
                     height: 50,
-                    child: ElevatedButton(
+                    child: CorOriginal(interface: true, child: ElevatedButton(
                       onPressed: _salvando ? null : _salvar,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _deepBlue,
@@ -1646,7 +1661,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
-                    ),
+                    )),
                   ),
                 ],
               ),
@@ -1705,14 +1720,14 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
     if (_imagemLocalNova != null) {
       // Para mobile usamos Image.file; na web Image.network com o path
       if (kIsWeb) {
-        imagem = Image.network(
+        imagem = ImagemApp(child: Image.network(
           _imagemLocalNova!.path,
           height: 160,
           width: double.infinity,
           fit: BoxFit.cover,
           errorBuilder: (ctx, e, st) =>
               Container(height: 160, color: const Color(0xFFEAF9FF)),
-        );
+        ));
       } else {
         imagem = Image.file(
           File(_imagemLocalNova!.path),
@@ -1722,7 +1737,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
         );
       }
     } else {
-      imagem = Image.network(
+      imagem = ImagemApp(child: Image.network(
         _imagemUrlExistente!,
         height: 160,
         width: double.infinity,
@@ -1736,7 +1751,7 @@ class _FormularioServicoSheetState extends State<_FormularioServicoSheet> {
             size: 40,
           ),
         ),
-      );
+      ));
     }
 
     return Stack(

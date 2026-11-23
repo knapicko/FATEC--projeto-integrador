@@ -16,6 +16,8 @@ import '../services/auth_navigation.dart';
 import '../tela_inicial.dart' show BotaoGoogleCircular;
 import '../widgets/avisos_bottom_sheet.dart';
 import '../widgets/caixa_flutuante.dart';
+import '../widgets/imagem_app.dart';
+import '../utils/movimento.dart';
 
 class ConversationalOnboardingScreen extends StatefulWidget {
   final bool iniciarLogin;
@@ -389,14 +391,14 @@ class _ConversationalOnboardingScreenState
                       children: [
                         // Top bar com transição suave de tamanho e fade (Morphing)
                         AnimatedSize(
-                          duration: const Duration(milliseconds: 500),
+                          duration: duracao(const Duration(milliseconds: 500)),
                           curve: Curves.easeInOutCubic,
                           child: _buildTopBar(mostraProgresso),
                         ),
 
                         // Título opcional de seção ("Email e telefone", "Dados da empresa") com Morphing
                         AnimatedSize(
-                          duration: const Duration(milliseconds: 500),
+                          duration: duracao(const Duration(milliseconds: 500)),
                           curve: Curves.easeInOutCubic,
                           child: _buildHeaderTitle(step),
                         ),
@@ -421,9 +423,9 @@ class _ConversationalOnboardingScreenState
                                       child: Align(
                                         alignment: Alignment.bottomCenter,
                                         child: AnimatedSize(
-                                          duration: const Duration(
+                                          duration: duracao(const Duration(
                                             milliseconds: 520,
-                                          ),
+                                          )),
                                           curve: Curves.easeInOutCubic,
                                           alignment: Alignment.bottomCenter,
                                           // Sem recorte: enquanto o balão
@@ -431,12 +433,12 @@ class _ConversationalOnboardingScreenState
                                           // o do anterior ficavam cortados.
                                           clipBehavior: Clip.none,
                                           child: AnimatedSwitcher(
-                                            duration: const Duration(
+                                            duration: duracao(const Duration(
                                               milliseconds: 600,
-                                            ),
-                                            reverseDuration: const Duration(
+                                            )),
+                                            reverseDuration: duracao(const Duration(
                                               milliseconds: 300,
-                                            ),
+                                            )),
                                             layoutBuilder:
                                                 (
                                                   currentChild,
@@ -536,7 +538,7 @@ class _ConversationalOnboardingScreenState
 
                         // Rodapé com botões contextuais: morpha de altura ao aparecer/sumir
                         AnimatedSize(
-                          duration: const Duration(milliseconds: 500),
+                          duration: duracao(const Duration(milliseconds: 500)),
                           curve: Curves.easeInOutCubic,
                           child: Center(
                             child: ConstrainedBox(
@@ -704,11 +706,11 @@ class _ConversationalOnboardingScreenState
 
         // Botões que ficam logo abaixo do balão (Passo 7 e Passo 10)
         AnimatedSize(
-          duration: const Duration(milliseconds: 420),
+          duration: duracao(const Duration(milliseconds: 420)),
           curve: Curves.easeInOutCubic,
           alignment: Alignment.topCenter,
           child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 320),
+            duration: duracao(const Duration(milliseconds: 320)),
             switchInCurve: const Interval(0.4, 1, curve: Curves.easeOut),
             switchOutCurve: Curves.easeIn,
             child: KeyedSubtree(
@@ -1733,13 +1735,13 @@ class _CaixaFalanteState extends State<_CaixaFalante>
   /// Balanço contínuo enquanto fala.
   late final AnimationController _tremor = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 680),
+    duration: duracao(const Duration(milliseconds: 680)),
   );
 
   /// Entra/sai suave do balanço (0 = parado, 1 = falando).
   late final AnimationController _intensidade = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 260),
+    duration: duracao(const Duration(milliseconds: 260)),
   );
 
   bool get _falando => _timer != null;
@@ -1793,7 +1795,7 @@ class _CaixaFalanteState extends State<_CaixaFalante>
         const Duration(milliseconds: 95),
         (_) => _proximoQuadro(),
       );
-      _tremor.repeat();
+      _tremor.repetir();
       _intensidade.forward();
     } else if (!falando && _timer != null) {
       _timer!.cancel();
@@ -1862,7 +1864,7 @@ class _CaixaFalanteState extends State<_CaixaFalante>
       alignment: Alignment.center,
       children: [
         AnimatedContainer(
-          duration: const Duration(milliseconds: 520),
+          duration: duracao(const Duration(milliseconds: 520)),
           curve: Curves.easeInOutCubic,
           width: widget.size,
           height: widget.size,
@@ -1872,11 +1874,11 @@ class _CaixaFalanteState extends State<_CaixaFalante>
               for (final quadro in _QuadrosFala.todos)
                 Opacity(
                   opacity: mostraQuadro && quadro == atual ? 1 : 0,
-                  child: Image.asset(
+                  child: ImagemApp(child: Image.asset(
                     quadro,
                     fit: BoxFit.contain,
                     gaplessPlayback: true,
-                  ),
+                  )),
                 ),
             ],
           ),

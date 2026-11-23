@@ -28,6 +28,9 @@ import 'widgets/avaliacao_bottom_sheet.dart';
 import 'utils/funcao_servico.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
 import 'widgets/skeletons_telas.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
 
 // A enum ModalidadeExecucao agora vive em utils/fluxo_solicitacao.dart e é
 // reexportada aqui para manter compatibilidade com os imports existentes.
@@ -221,8 +224,8 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
     super.initState();
     _sonarController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2400),
-    )..repeat();
+      duration: duracao(const Duration(milliseconds: 2400)),
+    )..repetir();
 
     _sonarAnimation = CurvedAnimation(
       parent: _sonarController,
@@ -1323,13 +1326,13 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                                 style: const TextStyle(color: _textoMuted),
                               ),
                               const SizedBox(height: 12),
-                              FilledButton(
+                              CorOriginal(interface: true, child: FilledButton(
                                 onPressed: _carregarDadosCompletos,
                                 style: FilledButton.styleFrom(
                                   backgroundColor: _azul,
                                 ),
                                 child: const Text('Tentar novamente'),
-                              ),
+                              )),
                             ],
                           ),
                         ),
@@ -1376,7 +1379,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                                         const SizedBox(height: 14),
                                         SizedBox(
                                           height: 52,
-                                          child: FilledButton.icon(
+                                          child: CorOriginal(interface: true, child: FilledButton.icon(
                                             onPressed: _abrirResumoConclusao,
                                             icon: const Icon(
                                               Icons.receipt_long_rounded,
@@ -1394,7 +1397,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                                                     BorderRadius.circular(26),
                                               ),
                                             ),
-                                          ),
+                                          )),
                                         ),
                                       ],
                                       if (_idStatusSolicitacao != 6) ...[
@@ -1459,7 +1462,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                                 ignoring: _botoesNoLugar,
                                 child: AnimatedOpacity(
                                   opacity: _botoesNoLugar ? 0 : 1,
-                                  duration: const Duration(milliseconds: 160),
+                                  duration: duracao(const Duration(milliseconds: 160)),
                                   child: Container(
                                     color: const Color(0xFFF1F5F9),
                                     padding: EdgeInsets.fromLTRB(
@@ -1525,7 +1528,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
             children: [
               _buildEtapasAndamentoCompacto(),
               const SizedBox(height: 12),
-              Container(
+              CorOriginal(interface: true, child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: _azul,
@@ -1545,7 +1548,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                     ),
                   ],
                 ),
-              ),
+              )),
             ],
           ),
         ),
@@ -1597,7 +1600,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Image.network(url, height: 90, fit: BoxFit.cover),
+                ImagemApp(child: Image.network(url, height: 90, fit: BoxFit.cover)),
                 Text(grupo.key, style: const TextStyle(fontSize: 11)),
               ],
             ),
@@ -1648,9 +1651,19 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          BotaoAjuda(
+            cor: _azul,
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Esta é a tela do seu pedido.',
+              conteudo: [
+                'Aqui você acompanha a etapa atual e faz as ações do momento.',
+              ],
+            ),
+          ),
           GestureDetector(
             onTap: _navegarParaPerfilLogado,
-            child: Container(
+            child: CorOriginal(interface: true, child: Container(
               width: 42,
               height: 42,
               decoration: BoxDecoration(
@@ -1664,16 +1677,16 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
               child: ClipOval(
                 child:
                     _fotoPerfilLogado != null && _fotoPerfilLogado!.isNotEmpty
-                    ? Image.network(
+                    ? ImagemApp(child: Image.network(
                         _fotoPerfilLogado!,
                         width: 42,
                         height: 42,
                         fit: BoxFit.cover,
                         errorBuilder: (_, _, _) => _iconeAvatarLogadoFallback(),
-                      )
+                      ))
                     : _iconeAvatarLogadoFallback(),
               ),
-            ),
+            )),
           ),
           const SizedBox(width: 8),
         ],
@@ -1720,7 +1733,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
+          CorOriginal(interface: true, child: Container(
             width: 48,
             height: 48,
             decoration: const BoxDecoration(
@@ -1732,7 +1745,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
               color: Colors.white,
               size: 28,
             ),
-          ),
+          )),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -1741,7 +1754,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Container(
+                    CorOriginal(interface: true, child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 10,
                         vertical: 4,
@@ -1765,7 +1778,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                           ),
                         ],
                       ),
-                    ),
+                    )),
                     Text(
                       _codigoPedido,
                       style: const TextStyle(
@@ -1900,28 +1913,28 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                             Expanded(
                               child: isFirst
                                   ? const SizedBox()
-                                  : Container(
+                                  : CorOriginal(interface: true, ativo: index <= etapaAtual + 1, child: Container(
                                       height: 3,
                                       color: index <= etapaAtual + 1
                                           ? _azul
                                           : const Color(0xFFCBD5E1),
-                                    ),
+                                    )),
                             ),
                             const SizedBox(width: 28),
                             Expanded(
                               child: isLast
                                   ? const SizedBox()
-                                  : Container(
+                                  : CorOriginal(interface: true, ativo: index <= etapaAtual, child: Container(
                                       height: 3,
                                       color: index <= etapaAtual
                                           ? _azul
                                           : const Color(0xFFCBD5E1),
-                                    ),
+                                    )),
                             ),
                           ],
                         ),
                         if (isDone)
-                          Container(
+                          CorOriginal(interface: true, child: Container(
                             width: 30,
                             height: 30,
                             decoration: const BoxDecoration(
@@ -1933,7 +1946,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                               size: 16,
                               color: Colors.white,
                             ),
-                          )
+                          ))
                         else if (isCurrent)
                           _buildCirculoSonarCurrent(icones[index], size: 30)
                         else
@@ -2093,28 +2106,28 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                               Expanded(
                                 child: isFirst
                                     ? const SizedBox()
-                                    : Container(
+                                    : CorOriginal(interface: true, ativo: index <= etapaAtual + 1, child: Container(
                                         height: 3,
                                         color: index <= etapaAtual + 1
                                             ? _azul
                                             : const Color(0xFFCBD5E1),
-                                      ),
+                                      )),
                               ),
                               const SizedBox(width: 36),
                               Expanded(
                                 child: isLast
                                     ? const SizedBox()
-                                    : Container(
+                                    : CorOriginal(interface: true, ativo: index <= etapaAtual, child: Container(
                                         height: 3,
                                         color: index <= etapaAtual
                                             ? _azul
                                             : const Color(0xFFCBD5E1),
-                                      ),
+                                      )),
                               ),
                             ],
                           ),
                           if (isDone)
-                            Container(
+                            CorOriginal(interface: true, child: Container(
                               width: 36,
                               height: 36,
                               decoration: const BoxDecoration(
@@ -2126,7 +2139,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                                 size: 18,
                                 color: Colors.white,
                               ),
-                            )
+                            ))
                           else if (isCurrent)
                             _buildCirculoSonarCurrent(icones[index], size: 36)
                           else
@@ -2332,20 +2345,20 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                 children: [
                   ClipOval(
                     child: _fotoCliente != null && _fotoCliente!.isNotEmpty
-                        ? Image.network(
+                        ? ImagemApp(child: Image.network(
                             _fotoCliente!,
                             width: 56,
                             height: 56,
                             fit: BoxFit.cover,
                             errorBuilder: (_, _, _) =>
                                 _avatarFallback(_nomeCliente),
-                          )
+                          ))
                         : _avatarFallback(_nomeCliente),
                   ),
                   Positioned(
                     bottom: 0,
                     right: 0,
-                    child: Container(
+                    child: CorOriginal(interface: true, child: Container(
                       width: 18,
                       height: 18,
                       decoration: BoxDecoration(
@@ -2358,7 +2371,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                         color: Colors.white,
                         size: 10,
                       ),
-                    ),
+                    )),
                   ),
                 ],
               ),
@@ -2433,7 +2446,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
   }
 
   Widget _avatarFallback(String nome) {
-    return Container(
+    return CorOriginal(interface: true, child: Container(
       width: 56,
       height: 56,
       alignment: Alignment.center,
@@ -2446,7 +2459,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
           fontWeight: FontWeight.bold,
         ),
       ),
-    );
+    ));
   }
 
   // ==========================================
@@ -2572,11 +2585,11 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                     height: 180,
                     child:
                         _imagemAnexoUrl != null && _imagemAnexoUrl!.isNotEmpty
-                        ? Image.network(
+                        ? ImagemApp(child: Image.network(
                             _imagemAnexoUrl!,
                             fit: BoxFit.cover,
                             errorBuilder: (_, _, _) => _imagemAnexoFallback(),
-                          )
+                          ))
                         : _imagemAnexoFallback(),
                   ),
                   Positioned(
@@ -2721,7 +2734,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
+              CorOriginal(interface: true, child: Container(
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
@@ -2729,7 +2742,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(iconeModalidade, color: Colors.white, size: 24),
-              ),
+              )),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -2757,7 +2770,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                   ],
                 ),
               ),
-              Container(
+              CorOriginal(interface: true, child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
                   vertical: 5,
@@ -2781,7 +2794,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                     ),
                   ],
                 ),
-              ),
+              )),
             ],
           ),
           const SizedBox(height: 14),
@@ -3207,7 +3220,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                   ),
                 ),
               ),
-              Container(
+              CorOriginal(interface: true, child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 6,
@@ -3224,7 +3237,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-              ),
+              )),
             ],
           ),
           const SizedBox(height: 14),
@@ -3579,7 +3592,8 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         child: FilledButton.icon(
           onPressed: () => Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => ServicoConcluidoPage(idSolicitacao: _idSolicitacao),
+              builder: (_) =>
+                  ServicoConcluidoPage(idSolicitacao: _idSolicitacao),
             ),
           ),
           icon: const Icon(Icons.task_alt_rounded, size: 20),
@@ -3594,7 +3608,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
               borderRadius: BorderRadius.circular(26),
             ),
           ),
-        )
+        ),
       );
     }
 
@@ -3636,7 +3650,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
       return SizedBox(
         width: double.infinity,
         height: 52,
-        child: FilledButton.icon(
+        child: CorOriginal(interface: true, child: FilledButton.icon(
           onPressed: _abrirDevolucaoNoLocal,
           icon: const Icon(Icons.assignment_turned_in_outlined, size: 20),
           label: const Text('Aguardando confirmação do cliente'),
@@ -3647,14 +3661,14 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
               borderRadius: BorderRadius.circular(26),
             ),
           ),
-        ),
+        )),
       );
     }
     if (fluxo.aguardandoDevolucao || fluxo.devolucaoDeslocando) {
       return SizedBox(
         width: double.infinity,
         height: 52,
-        child: FilledButton.icon(
+        child: CorOriginal(interface: true, child: FilledButton.icon(
           onPressed: () => _abrirTelaDeslocamento(),
           icon: const Icon(Icons.navigation_rounded, size: 20),
           label: Text(
@@ -3670,7 +3684,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
               borderRadius: BorderRadius.circular(26),
             ),
           ),
-        ),
+        )),
       );
     }
 
@@ -3694,7 +3708,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
       return SizedBox(
         width: double.infinity,
         height: 52,
-        child: FilledButton.icon(
+        child: CorOriginal(interface: true, child: FilledButton.icon(
           onPressed: () => _abrirTelaDeslocamento(),
           icon: const Icon(Icons.navigation_rounded, size: 20),
           label: Text(
@@ -3709,7 +3723,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
               borderRadius: BorderRadius.circular(26),
             ),
           ),
-        ),
+        )),
       );
     }
     if (fluxo.profissionalChegou) {
@@ -3717,7 +3731,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
       return SizedBox(
         width: double.infinity,
         height: 52,
-        child: FilledButton.icon(
+        child: CorOriginal(interface: true, child: FilledButton.icon(
           onPressed: domicilio
               ? _abrirAtendimentoNoLocal
               : _abrirRecebimentoNoCliente,
@@ -3735,7 +3749,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
               borderRadius: BorderRadius.circular(26),
             ),
           ),
-        ),
+        )),
       );
     }
 
@@ -3743,7 +3757,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
       return SizedBox(
         width: double.infinity,
         height: 52,
-        child: FilledButton.icon(
+        child: CorOriginal(interface: true, child: FilledButton.icon(
           onPressed: () => _abrirAndamento(),
           icon: _iniciandoServico
               ? const SizedBox(
@@ -3766,7 +3780,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
               borderRadius: BorderRadius.circular(26),
             ),
           ),
-        ),
+        )),
       );
     }
 
@@ -3810,7 +3824,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
           botaoPrincipal = SizedBox(
             width: double.infinity,
             height: 52,
-            child: FilledButton.icon(
+            child: CorOriginal(interface: true, child: FilledButton.icon(
               onPressed: _iniciandoServico ? null : _iniciarServico,
               icon: _iniciandoServico
                   ? const SizedBox(
@@ -3838,7 +3852,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                   borderRadius: BorderRadius.circular(26),
                 ),
               ),
-            ),
+            )),
           );
         }
         break;
@@ -3854,7 +3868,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         botaoPrincipal = SizedBox(
           width: double.infinity,
           height: 52,
-          child: FilledButton.icon(
+          child: CorOriginal(interface: true, child: FilledButton.icon(
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -3882,7 +3896,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                 borderRadius: BorderRadius.circular(26),
               ),
             ),
-          ),
+          )),
         );
         break;
 
@@ -3897,7 +3911,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         botaoPrincipal = SizedBox(
           width: double.infinity,
           height: 52,
-          child: FilledButton.icon(
+          child: CorOriginal(interface: true, child: FilledButton.icon(
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -3925,7 +3939,7 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
                 borderRadius: BorderRadius.circular(26),
               ),
             ),
-          ),
+          )),
         );
         break;
     }
@@ -3937,34 +3951,34 @@ class _SolicitacaoEstadoPageState extends State<SolicitacaoEstadoPage>
         Row(
           children: [
             Expanded(
-                child: SizedBox(
-                  height: 48,
-                  child: FilledButton.icon(
-                    // Antes "Salvar na Agenda": agora abre o chat do cliente.
-                    onPressed: _abrirChat,
-                    icon: const Icon(
-                      Icons.chat_bubble_outline_rounded,
+              child: SizedBox(
+                height: 48,
+                child: FilledButton.icon(
+                  // Antes "Salvar na Agenda": agora abre o chat do cliente.
+                  onPressed: _abrirChat,
+                  icon: const Icon(
+                    Icons.chat_bubble_outline_rounded,
+                    color: _textoEscuro,
+                    size: 18,
+                  ),
+                  label: const Text(
+                    'Chat com o cliente',
+                    style: TextStyle(
                       color: _textoEscuro,
-                      size: 18,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13.5,
                     ),
-                    label: const Text(
-                      'Chat com o cliente',
-                      style: TextStyle(
-                        color: _textoEscuro,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13.5,
-                      ),
-                    ),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFFF1F5F9),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(24),
-                      ),
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFF1F5F9),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
                     ),
                   ),
                 ),
               ),
+            ),
             if (_temDataAgendada) const SizedBox(width: 10),
             Expanded(
               child: SizedBox(

@@ -1,0 +1,6 @@
+# Tags usadas pelos testes do Plano de Testes PT-CJ-01
+tags:
+  defeito:
+    # Testes que documentam defeitos conhecidos (DEF-01, DEF-02, DEF-03).
+    # Falham até a correção. Para rodar só a regressão:
+    #   flutter test --exclude-tags defeito

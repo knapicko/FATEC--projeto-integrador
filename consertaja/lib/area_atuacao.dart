@@ -4,6 +4,8 @@ import 'widgets/salvamento_automatico.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/icone_oficio.dart';
 import 'utils/funcao_servico.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 class AreaAtuacaoPage extends StatefulWidget {
   const AreaAtuacaoPage({super.key});
@@ -139,7 +141,7 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
       child: IconeOficio.imagemPorFuncao(nome, tamanho: 54),
     );
     if (url.isEmpty || url == 'null') return reserva;
-    return Image.network(
+    return ImagemApp(child: Image.network(
       url,
       width: double.infinity,
       height: 194,
@@ -148,7 +150,7 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
           ? child
           : const SkeletonBox(height: 194, borderRadius: 0),
       errorBuilder: (_, _, _) => reserva,
-    );
+    ));
   }
 
   void _abrirSeletorOficio(int slotIndex) {
@@ -208,7 +210,7 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
                       final oficio = opcoes[index];
                       final nome = oficio['funcao']?.toString() ?? '';
                       return ListTile(
-                        leading: Container(
+                        leading: CorOriginal(interface: true, child: Container(
                           width: 40,
                           height: 40,
                           alignment: Alignment.center,
@@ -220,7 +222,7 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
                             oficio['funcao']?.toString(),
                             tamanho: 28,
                           ),
-                        ),
+                        )),
                         title: Text(nome),
                         onTap: () {
                           setState(() {
@@ -322,7 +324,16 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
               ),
             ),
           ),
-          const SizedBox(width: 48),
+          BotaoAjuda(
+            cor: _blue,
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Aqui ficam as suas áreas de atuação.',
+              conteudo: [
+                'Marque as funções que você faz. Você só atende pedidos e cria serviços dessas áreas.',
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -395,7 +406,7 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
           Positioned(
             top: 8,
             right: 8,
-            child: Container(
+            child: CorOriginal(interface: true, child: Container(
               width: 22,
               height: 22,
               decoration: const BoxDecoration(
@@ -403,7 +414,7 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.check, color: Colors.white, size: 14),
-            ),
+            )),
           ),
           // Ocupa o card inteiro: ícone e nome ficam no centro.
           Positioned.fill(
@@ -568,7 +579,7 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: List.generate(
                           _oficiosSelecionados.length,
-                          (dotIndex) => Container(
+                          (dotIndex) => CorOriginal(interface: true, ativo: dotIndex == _detalheAtual, child: Container(
                             width: 8,
                             height: 8,
                             margin: const EdgeInsets.only(right: 8),
@@ -578,7 +589,7 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
                                   : const Color(0xFFC5C9D5),
                               shape: BoxShape.circle,
                             ),
-                          ),
+                          )),
                         ),
                       ),
                       const SizedBox(height: 14),

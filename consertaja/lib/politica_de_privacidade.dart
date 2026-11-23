@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'widgets/documento_markdown.dart';
+import 'tutorial/botao_ajuda.dart';
 
 class PoliticaDePrivacidadePage extends StatelessWidget {
   const PoliticaDePrivacidadePage({super.key});
@@ -350,6 +351,18 @@ A continuidade do uso da plataforma após a publicação das alterações poder�
           preferredSize: const Size.fromHeight(1),
           child: Container(color: Colors.grey.shade200, height: 1),
         ),
+        actions: [
+          BotaoAjuda(
+            cor: _textDark,
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Esta é a política de privacidade do ConsertaJá.',
+              conteudo: [
+                'Aqui explicamos quais dados usamos e como cuidamos deles.',
+              ],
+            ),
+          ),
+        ],
       ),
       body: Container(
         margin: const EdgeInsets.all(16),

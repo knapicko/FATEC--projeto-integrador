@@ -28,6 +28,8 @@ import 'utils/cor_oficio.dart';
 import 'widgets/borda_gradiente_animada.dart';
 import 'tutorial/tutorial.dart';
 import 'tutorial/tutorial_da_tela.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 /// Tela "Mensagens": lista de conversas do usuário logado (cliente ou profissional),
 /// com visual moderno, atualização em tempo real, indicador de presença online,
@@ -1176,7 +1178,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage>
     return AppBackHandler(
       child: Scaffold(
         backgroundColor: _background,
-        appBar: AppBar(
+        appBar: BarraCorOriginal(child: AppBar(
           backgroundColor: _primaryBlue,
           elevation: 0,
           scrolledUnderElevation: 0,
@@ -1197,6 +1199,16 @@ class _TelaMensagensPageState extends State<TelaMensagensPage>
           // Foto da MINHA conta (empresa ou profissional) no topo direito,
           // circular com borda azul 0xFF0FB3FF.
           actions: [
+            BotaoAjuda(
+              cor: Colors.white,
+              passos: () => passosAjuda(
+                reserva: () => explicacaoDaTela(
+                  context,
+                  tela: 'Aqui ficam as suas conversas.',
+                  conteudo: ['Toque em uma conversa para abrir o chat.'],
+                ),
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.only(right: 12),
               child: Center(
@@ -1207,7 +1219,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage>
               ),
             ),
           ],
-        ),
+        )),
         body: Column(
           children: [
             alvoTut('busca', _buildBarraPesquisa()),
@@ -1286,11 +1298,11 @@ class _TelaMensagensPageState extends State<TelaMensagensPage>
         : 'Conta';
     final Widget imagem;
     if (foto.startsWith('http')) {
-      imagem = CircleAvatar(
+      imagem = CorOriginal(child: CircleAvatar(
         radius: 15,
         backgroundColor: const Color(0xFFE5E7EB),
         backgroundImage: NetworkImage(foto),
-      );
+      ));
     } else {
       imagem = CircleAvatar(
         radius: 15,
@@ -1830,7 +1842,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage>
 
   Widget _buildBadgeNaoLidas(int quantidade) {
     final texto = quantidade > 99 ? '99+' : '$quantidade';
-    return Container(
+    return CorOriginal(interface: true, child: Container(
       constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
@@ -1847,7 +1859,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage>
           height: 1.1,
         ),
       ),
-    );
+    ));
   }
 
   Widget _buildAvatar(_ConversaResumo conversa) {
@@ -1855,11 +1867,11 @@ class _TelaMensagensPageState extends State<TelaMensagensPage>
     final temFoto = conversa.fotoUrl.trim().startsWith('http');
 
     final Widget avatar = temFoto
-        ? CircleAvatar(
+        ? CorOriginal(child: CircleAvatar(
             radius: 27,
             backgroundColor: const Color(0xFFE5E7EB),
             backgroundImage: NetworkImage(conversa.fotoUrl),
-          )
+          ))
         : CircleAvatar(
             radius: 27,
             backgroundColor: const Color(0xFFDCE5EE),
@@ -1884,7 +1896,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage>
             Positioned(
               right: 0,
               bottom: 0,
-              child: Container(
+              child: CorOriginal(interface: true, child: Container(
                 width: 13,
                 height: 13,
                 decoration: BoxDecoration(
@@ -1892,7 +1904,7 @@ class _TelaMensagensPageState extends State<TelaMensagensPage>
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white, width: 2.2),
                 ),
-              ),
+              )),
             ),
         ],
       ),

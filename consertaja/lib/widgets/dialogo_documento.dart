@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'documento_markdown.dart';
 import 'dialogo_sheet.dart';
+import 'imagem_app.dart';
 
 /// Exibe um pop-up (dialog) com o conteúdo de um documento legal
 /// (Termos de Uso ou Política de Privacidade).
@@ -65,7 +66,7 @@ Future<void> mostrarDialogoDocumento(
                 child: SizedBox(
                   width: double.infinity,
                   height: 46,
-                  child: ElevatedButton(
+                  child: CorOriginal(interface: true, child: ElevatedButton(
                     onPressed: () => Navigator.pop(dialogContext),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF00A2FF),
@@ -82,7 +83,7 @@ Future<void> mostrarDialogoDocumento(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
+                  )),
                 ),
               ),
             ],

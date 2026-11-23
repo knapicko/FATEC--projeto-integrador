@@ -40,7 +40,11 @@ List<String> formasDePagamento(Object? valor) {
 
 /// Chips com ícone + nome das formas de pagamento aceitas.
 class ChipsPagamento extends StatelessWidget {
-  const ChipsPagamento({super.key, required this.formas, this.compacto = false});
+  const ChipsPagamento({
+    super.key,
+    required this.formas,
+    this.compacto = false,
+  });
 
   final List<String> formas;
 

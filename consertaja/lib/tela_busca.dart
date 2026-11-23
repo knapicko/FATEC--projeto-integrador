@@ -27,6 +27,10 @@ import 'package:latlong2/latlong.dart' show LatLng;
 import 'services/home_cliente_service.dart';
 import 'services/solicitacao_geografica_service.dart';
 import 'widgets/card_profissional_vitrine.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
+import 'services/app_settings_controller.dart';
 
 enum _AbaResultado { todos, servicos, profissionais }
 
@@ -181,7 +185,9 @@ class _TelaBuscaState extends State<TelaBusca> {
   Future<void> _carregarRecentes() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final lista = prefs.getStringList(_chaveRecentes) ?? const [];
+      final lista = AppSettingsController.instance.salvarHistoricoBusca
+          ? prefs.getStringList(_chaveRecentes) ?? const <String>[]
+          : const <String>[];
       if (mounted) setState(() => _recentes = lista);
     } catch (_) {}
   }
@@ -189,6 +195,8 @@ class _TelaBuscaState extends State<TelaBusca> {
   Future<void> _salvarRecente(String termo) async {
     final t = termo.trim();
     if (t.isEmpty) return;
+    // Privacidade → "Salvar buscas recentes" desligado.
+    if (!AppSettingsController.instance.salvarHistoricoBusca) return;
     final nova = [
       t,
       ..._recentes.where((x) => x.toLowerCase() != t.toLowerCase()),
@@ -992,8 +1000,8 @@ class _TelaBuscaState extends State<TelaBusca> {
         );
         if (!ativo) _executarBusca(_controllerBusca.text, true);
       },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
+      child: CorOriginal(interface: true, ativo: ativo, child: AnimatedContainer(
+        duration: duracao(const Duration(milliseconds: 160)),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: ativo ? _primaryBlue : Colors.white,
@@ -1011,12 +1019,12 @@ class _TelaBuscaState extends State<TelaBusca> {
             fontWeight: FontWeight.w500,
           ),
         ),
-      ),
+      )),
     );
   }
 
   Widget _buildVerifiedBadge() {
-    return Container(
+    return CorOriginal(interface: true, child: Container(
       width: 16,
       height: 16,
       decoration: BoxDecoration(
@@ -1025,7 +1033,7 @@ class _TelaBuscaState extends State<TelaBusca> {
         border: Border.all(color: Colors.white, width: 1.5),
       ),
       child: const Icon(Icons.check, color: Colors.white, size: 10),
-    );
+    ));
   }
 
   Widget _buildRatingBadge(double avaliacao) {
@@ -1067,7 +1075,7 @@ class _TelaBuscaState extends State<TelaBusca> {
   }
 
   Widget _buildCabecalhoResultados() {
-    return Container(
+    return CorOriginal(interface: true, child: Container(
       color: _primaryBlue,
       child: Column(
         children: [
@@ -1114,6 +1122,17 @@ class _TelaBuscaState extends State<TelaBusca> {
                         ],
                       ),
                     ),
+                  ),
+                ),
+                BotaoAjuda(
+                  cor: Colors.white,
+                  passos: () => explicacaoDaTela(
+                    context,
+                    tela: 'Esta é a busca do ConsertaJá.',
+                    conteudo: [
+                      'Digite o que precisa: aparecem serviços e profissionais, de qualquer região.',
+                      'Use os filtros para refinar, ou peça direto no Radar no ícone ao lado.',
+                    ],
                   ),
                 ),
                 IconButton(
@@ -1171,7 +1190,7 @@ class _TelaBuscaState extends State<TelaBusca> {
           ),
         ],
       ),
-    );
+    ));
   }
 
   Widget _buildCarrosselPerfisVerificados() {
@@ -1224,24 +1243,24 @@ class _TelaBuscaState extends State<TelaBusca> {
           ClipRRect(
             borderRadius: BorderRadius.circular(24),
             child: _imagemEhUrl(perfil.caminhoImagem)
-                ? Image.network(
+                ? ImagemApp(child: Image.network(
                     perfil.caminhoImagem!,
                     width: 48,
                     height: 48,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
+                    errorBuilder: (_, __, ___) => CorOriginal(interface: true, child: Container(
                       width: 48,
                       height: 48,
                       color: _primaryBlue,
                       child: const Icon(Icons.store, color: Colors.white),
-                    ),
-                  )
-                : Container(
+                    )),
+                  ))
+                : CorOriginal(interface: true, child: Container(
                     width: 48,
                     height: 48,
                     color: _primaryBlue,
                     child: const Icon(Icons.store, color: Colors.white),
-                  ),
+                  )),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -1377,24 +1396,24 @@ class _TelaBuscaState extends State<TelaBusca> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             usaImagemRede
-                ? Image.network(
+                ? ImagemApp(child: Image.network(
                     servico.caminhoImagem,
                     height: 140,
                     width: double.infinity,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) =>
                         _placeholderImagemServico(height: 140),
-                  )
+                  ))
                 : (servico.caminhoImagem.isNotEmpty &&
                       !servico.caminhoImagem.contains('panela.png'))
-                ? Image.asset(
+                ? ImagemApp(child: Image.asset(
                     servico.caminhoImagem,
                     height: 140,
                     width: double.infinity,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) =>
                         _placeholderImagemServico(height: 140),
-                  )
+                  ))
                 : _placeholderImagemServico(height: 140),
             Padding(
               padding: const EdgeInsets.all(12),
@@ -1521,20 +1540,20 @@ class _TelaBuscaState extends State<TelaBusca> {
                                 _imagemEhUrl(profissional.caminhoImagem))
                             ? ClipRRect(
                                 borderRadius: BorderRadius.circular(28),
-                                child: Image.network(
+                                child: ImagemApp(child: Image.network(
                                   profissional.caminhoImagem!,
                                   width: 56,
                                   height: 56,
                                   fit: BoxFit.cover,
                                   errorBuilder: (_, __, ___) =>
                                       _buildLojaPlaceholder(),
-                                ),
+                                )),
                               )
                             : _buildLojaPlaceholder()
                       : ClipRRect(
                           borderRadius: BorderRadius.circular(28),
                           child: _imagemEhUrl(profissional.caminhoImagem)
-                              ? Image.network(
+                              ? ImagemApp(child: Image.network(
                                   profissional.caminhoImagem!,
                                   width: 56,
                                   height: 56,
@@ -1553,7 +1572,7 @@ class _TelaBuscaState extends State<TelaBusca> {
                                       ),
                                     ),
                                   ),
-                                )
+                                ))
                               : Container(
                                   width: 56,
                                   height: 56,
@@ -1693,7 +1712,7 @@ class _TelaBuscaState extends State<TelaBusca> {
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
-            child: ElevatedButton(
+            child: CorOriginal(interface: true, child: ElevatedButton(
               onPressed: () {
                 if (profissional.isLoja) {
                   Navigator.push(
@@ -1737,7 +1756,7 @@ class _TelaBuscaState extends State<TelaBusca> {
                 'Ver Perfil',
                 style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
               ),
-            ),
+            )),
           ),
         ],
       ),
@@ -1903,10 +1922,10 @@ class _TelaBuscaState extends State<TelaBusca> {
   Widget _buildTelaBuscaInicial() {
     return Column(
       children: [
-        Container(
+        CorOriginal(interface: true, child: Container(
           height: MediaQuery.of(context).padding.top,
           color: _primaryBlue,
-        ),
+        )),
         Container(
           color: Colors.white,
           child: Column(
@@ -2122,10 +2141,10 @@ class _TelaBuscaState extends State<TelaBusca> {
   Widget _buildTelaResultados() {
     return Column(
       children: [
-        Container(
+        CorOriginal(interface: true, child: Container(
           height: MediaQuery.of(context).padding.top,
           color: _primaryBlue,
-        ),
+        )),
         _buildCabecalhoResultados(),
         Expanded(
           child: Container(

@@ -10,6 +10,9 @@ import 'services/chat_theme_storage.dart';
 import 'utils/iniciais.dart';
 import 'widgets/fundos_chat.dart';
 import 'widgets/skeletons_telas.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
 
 /// Configurações do tema do chat retornadas ao sair da tela.
 class TemaChatConfig {
@@ -392,6 +395,19 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
             preferredSize: const Size.fromHeight(1),
             child: Container(color: const Color(0xFFF1F5F9), height: 1),
           ),
+          actions: [
+            BotaoAjuda(
+              cor: const Color(0xFF0F172A),
+              passos: () => explicacaoDaTela(
+                context,
+                tela: 'Aqui você personaliza o visual do chat.',
+                conteudo: [
+                  'Escolha a cor dos balões e o fundo da conversa. Dá para usar uma foto sua também.',
+                  'A prévia mostra como vai ficar antes de salvar.',
+                ],
+              ),
+            ),
+          ],
         ),
         body: _carregandoInicial
             ? const SkeletonTemasChat()
@@ -522,14 +538,14 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
+                  CorOriginal(interface: true, child: Container(
                     width: 7,
                     height: 7,
                     decoration: const BoxDecoration(
                       color: Color(0xFF0284C7),
                       shape: BoxShape.circle,
                     ),
-                  ),
+                  )),
                   const SizedBox(width: 6),
                   const Text(
                     'Ao Vivo',
@@ -593,7 +609,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
                         // Avatar com indicador online
                         Stack(
                           children: [
-                            CircleAvatar(
+                            CorOriginal(child: CircleAvatar(
                               radius: 20,
                               backgroundColor: const Color(0xFF0A3977),
                               backgroundImage: (foto != null && foto.isNotEmpty)
@@ -609,7 +625,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
                                       ),
                                     )
                                   : null,
-                            ),
+                            )),
                             Positioned(
                               right: 0,
                               bottom: 0,
@@ -896,7 +912,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        Container(
+                        CorOriginal(interface: true, child: Container(
                           width: 36,
                           height: 36,
                           decoration: const BoxDecoration(
@@ -908,7 +924,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
                             color: Colors.white,
                             size: 19,
                           ),
-                        ),
+                        )),
                       ],
                     ),
                   ),
@@ -967,7 +983,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
                       _salvarTemaLocalmente();
                     },
                     child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
+                      duration: duracao(const Duration(milliseconds: 180)),
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
@@ -1013,7 +1029,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
       child: GestureDetector(
         onTap: _abrirModalCorPersonalizada,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
+          duration: duracao(const Duration(milliseconds: 180)),
           width: 44,
           height: 44,
           decoration: BoxDecoration(
@@ -1433,7 +1449,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
                         return GestureDetector(
                           onTap: () => atualizarCor(c),
                           child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 150),
+                            duration: duracao(const Duration(milliseconds: 150)),
                             width: 38,
                             height: 38,
                             decoration: BoxDecoration(
@@ -1621,8 +1637,8 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
                     });
                   },
                   borderRadius: BorderRadius.circular(20),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
+                  child: CorOriginal(interface: true, ativo: ativa, child: AnimatedContainer(
+                    duration: duracao(const Duration(milliseconds: 150)),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 7,
@@ -1639,7 +1655,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
                         color: ativa ? Colors.white : const Color(0xFF475569),
                       ),
                     ),
-                  ),
+                  )),
                 ),
               );
             }).toList(),
@@ -1757,7 +1773,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
               Positioned(
                 top: 8,
                 left: 8,
-                child: Container(
+                child: CorOriginal(interface: true, child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 7,
                     vertical: 3,
@@ -1774,7 +1790,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                ),
+                )),
               ),
 
             // Check circle azul no topo direito quando selecionado
@@ -1782,7 +1798,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
               Positioned(
                 top: 8,
                 right: 8,
-                child: Container(
+                child: CorOriginal(interface: true, child: Container(
                   width: 22,
                   height: 22,
                   decoration: const BoxDecoration(
@@ -1790,7 +1806,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.check, color: Colors.white, size: 14),
-                ),
+                )),
               ),
 
             // Tarja inferior translúcida com títulos
@@ -2010,7 +2026,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
               ],
             ),
           ),
-          Switch(
+          CorOriginal(interface: true, ativo: _aplicarATodas, child: Switch(
             value: _aplicarATodas,
             activeThumbColor: Colors.white,
             activeTrackColor: _corAzulPadrao,
@@ -2022,7 +2038,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
               });
               _salvarTemaLocalmente();
             },
-          ),
+          )),
         ],
       ),
     );
@@ -2039,10 +2055,10 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
 
     if (_imagemGaleriaSelecionada != null) {
       if (kIsWeb) {
-        backgroundWidget = Image.network(
+        backgroundWidget = ImagemApp(child: Image.network(
           _imagemGaleriaSelecionada!.path,
           fit: BoxFit.cover,
-        );
+        ));
       } else {
         backgroundWidget = Image.file(
           File(_imagemGaleriaSelecionada!.path),
@@ -2057,11 +2073,11 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
         errorBuilder: (_, _, _) => _buildDoodleWidget(),
       );
     } else if (_planoFundoId.startsWith('http')) {
-      backgroundWidget = Image.network(
+      backgroundWidget = ImagemApp(child: Image.network(
         _planoFundoId,
         fit: BoxFit.cover,
         errorBuilder: (_, _, _) => _buildDoodleWidget(),
-      );
+      ));
     } else {
       // Procura na lista de opções
       final op = _opcoesFundo.firstWhere(
@@ -2074,11 +2090,11 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
           backgroundWidget = _buildDoodleWidget();
           break;
         case _TipoFundo.asset:
-          backgroundWidget = Image.asset(
+          backgroundWidget = ImagemApp(child: Image.asset(
             op.assetPath!,
             fit: BoxFit.cover,
             errorBuilder: (_, _, _) => _buildDoodleWidget(),
-          );
+          ));
           break;
         case _TipoFundo.solido:
           backgroundWidget = Container(color: op.corSolida);
@@ -2124,7 +2140,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
   }
 
   Widget _buildDoodleWidget() {
-    return Image.asset(
+    return ImagemApp(child: Image.asset(
       _doodleDefaultAsset,
       fit: BoxFit.cover,
       repeat: ImageRepeat.repeat,
@@ -2135,7 +2151,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
           child: Container(color: Colors.white),
         );
       },
-    );
+    ));
   }
 
   Widget _buildThumbnailFundo(_OpcaoFundo opcao) {
@@ -2143,11 +2159,11 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
       case _TipoFundo.doodle:
         return _buildDoodleWidget();
       case _TipoFundo.asset:
-        return Image.asset(
+        return ImagemApp(child: Image.asset(
           opcao.assetPath!,
           fit: BoxFit.cover,
           errorBuilder: (_, _, _) => _buildDoodleWidget(),
-        );
+        ));
       case _TipoFundo.solido:
         return Container(color: opcao.corSolida);
       case _TipoFundo.gradiente:

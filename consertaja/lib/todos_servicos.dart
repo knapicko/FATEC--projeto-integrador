@@ -7,6 +7,8 @@ import 'utils/cor_oficio.dart';
 import 'widgets/card_servico_popular.dart';
 import 'widgets/filtros_busca.dart';
 import 'widgets/skeleton_loading.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 /// Todos os serviços disponíveis, do mais bem avaliado para o menos, com
 /// busca, ordenação e filtros.
@@ -140,6 +142,17 @@ class _TodosServicosPageState extends State<TodosServicosPage> {
             'Todos os serviços',
             style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
           ),
+          actions: [
+            BotaoAjuda(
+              passos: () => explicacaoDaTela(
+                context,
+                tela: 'Este é o catálogo com todos os serviços.',
+                conteudo: [
+                  'Busque, filtre e ordene. Toque em um serviço para ver os detalhes e pedir.',
+                ],
+              ),
+            ),
+          ],
         ),
         body: Column(
           children: [
@@ -174,7 +187,7 @@ class _TodosServicosPageState extends State<TodosServicosPage> {
                   Badge(
                     isLabelVisible: _filtros.ativo,
                     label: Text('${_filtros.quantidadeAtivos}'),
-                    child: Material(
+                    child: CorOriginal(interface: true, child: Material(
                       color: _azul,
                       borderRadius: BorderRadius.circular(16),
                       child: InkWell(
@@ -186,7 +199,7 @@ class _TodosServicosPageState extends State<TodosServicosPage> {
                           child: Icon(Icons.tune_rounded, color: Colors.white),
                         ),
                       ),
-                    ),
+                    )),
                   ),
                 ],
               ),

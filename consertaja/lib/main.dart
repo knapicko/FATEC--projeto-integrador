@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -13,6 +14,8 @@ import 'services/verificacao_online.dart';
 import 'utils/app_navigation_util.dart';
 import 'widgets/codigo_flutuante.dart';
 import 'package:flutter/services.dart';
+import 'widgets/imagem_app.dart';
+import 'services/rede_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
@@ -51,6 +54,7 @@ void main() async {
   // Lê o arquivo de configurações do cliente antes de desenhar o app, para que
   // fonte/tema/filtros já abram aplicados em todas as telas.
   await AppSettingsController.instance.iniciar();
+  unawaited(RedeService.instance.iniciar());
 
   // Notificações: Firebase (só FCM), canais, permissão, token e Realtime.
   // Sem o google-services.json o app abre normalmente, só sem push.
@@ -226,12 +230,12 @@ class _StartupSplash extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Image.asset(
+            ImagemApp(child: Image.asset(
               'assets/images/icone/icone_consertaja.png',
               width: 92,
               height: 92,
               fit: BoxFit.contain,
-            ),
+            )),
             SizedBox(height: 16),
             Text(
               'ConsertaJá',
@@ -268,10 +272,10 @@ class TelaEscolhaConta extends StatelessWidget {
             children: [
               SizedBox(height: alturaDaTela * 0.01),
 
-              Image.asset(
+              ImagemApp(child: Image.asset(
                 'assets/images/Logo.png',
                 height: alturaDaTela * 0.12,
-              ),
+              )),
               SizedBox(height: alturaDaTela * 0.02),
 
               const Text(

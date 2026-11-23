@@ -7,6 +7,8 @@ import 'models/postagem_resumo.dart';
 import 'services/postagens_profissional_service.dart';
 import 'widgets/skeleton_loading.dart';
 import 'widgets/dialogo_sheet.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
 
 class MinhasPostagensProfissionalPage extends StatefulWidget {
   const MinhasPostagensProfissionalPage({super.key});
@@ -403,6 +405,18 @@ class _MinhasPostagensProfissionalPageState
           ),
         ),
         centerTitle: true,
+        actions: [
+          BotaoAjuda(
+            cor: _titleDark,
+            passos: () => explicacaoDaTela(
+              context,
+              tela: 'Aqui ficam todas as suas postagens.',
+              conteudo: [
+                'Os clientes veem essas postagens no seu perfil. Toque em uma para ver ou apagar.',
+              ],
+            ),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -537,11 +551,11 @@ class _MinhasPostagensProfissionalPageState
                 child: SizedBox(
                   width: double.infinity,
                   child: postagem.imagemUrl != null
-                      ? Image.network(
+                      ? ImagemApp(child: Image.network(
                           postagem.imagemUrl!,
                           fit: BoxFit.cover,
                           errorBuilder: (_, _, _) => _buildPlaceholderImagem(),
-                        )
+                        ))
                       : _buildPlaceholderImagem(),
                 ),
               ),

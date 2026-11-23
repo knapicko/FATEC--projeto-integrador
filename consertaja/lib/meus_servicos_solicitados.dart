@@ -30,6 +30,9 @@ import 'servico_concluido.dart';
 import 'utils/cor_status.dart';
 import 'tutorial/tutorial.dart';
 import 'tutorial/tutorial_da_tela.dart';
+import 'tutorial/botao_ajuda.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
 
 /// Solicitação de serviço recebida pelo profissional (conta independente ou
 /// conta empresa). Cada linha de `solicitacoes` vira um card.
@@ -184,10 +187,10 @@ class _MeusServicosSolicitadosPageState
     super.initState();
     _animacaoDevolucao = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1800),
+      duration: duracao(const Duration(milliseconds: 1800)),
       lowerBound: 0.88,
       upperBound: 1,
-    )..repeat(reverse: true);
+    )..repetir(reverse: true);
     _inicializar();
   }
 
@@ -1297,7 +1300,7 @@ class _MeusServicosSolicitadosPageState
             SizedBox(
               width: double.infinity,
               height: 48,
-              child: FilledButton(
+              child: CorOriginal(interface: true, child: FilledButton(
                 onPressed: () => Navigator.pop(context, true),
                 style: FilledButton.styleFrom(
                   backgroundColor: _azul,
@@ -1309,7 +1312,7 @@ class _MeusServicosSolicitadosPageState
                   'Sim, aceitar pedido',
                   style: TextStyle(fontWeight: FontWeight.w800),
                 ),
-              ),
+              )),
             ),
             const SizedBox(height: 9),
             SizedBox(
@@ -1529,9 +1532,17 @@ class _MeusServicosSolicitadosPageState
                   ),
                 ),
               ),
-              IconButton(
-                onPressed: null,
-                icon: Icon(Icons.more_vert, color: Color(0xFFCBD5E1)),
+              BotaoAjuda(
+                cor: Colors.white,
+                passos: () => passosAjuda(
+                  reserva: () => explicacaoDaTela(
+                    context,
+                    tela: 'Aqui chegam os pedidos dos clientes.',
+                    conteudo: [
+                      'Filtre por situação e toque em um pedido para responder e seguir as etapas.',
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
@@ -1582,7 +1593,7 @@ class _MeusServicosSolicitadosPageState
                     ),
                     if (filtro == FiltroSolicitacao.novos && total > 0) ...[
                       const SizedBox(width: 6),
-                      Container(
+                      CorOriginal(interface: true, child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 7,
                           vertical: 2,
@@ -1599,7 +1610,7 @@ class _MeusServicosSolicitadosPageState
                             fontWeight: FontWeight.w800,
                           ),
                         ),
-                      ),
+                      )),
                     ],
                   ],
                 ),
@@ -2096,7 +2107,7 @@ class _MeusServicosSolicitadosPageState
                   ],
                 ),
               ),
-              Container(
+              CorOriginal(interface: true, child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 11,
                   vertical: 8,
@@ -2112,7 +2123,7 @@ class _MeusServicosSolicitadosPageState
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-              ),
+              )),
             ],
           ),
           const SizedBox(height: 14),
@@ -2254,7 +2265,7 @@ class _MeusServicosSolicitadosPageState
     Widget aceitar = SizedBox(
       height: 44,
       width: double.infinity,
-      child: ElevatedButton(
+      child: CorOriginal(interface: true, child: ElevatedButton(
         onPressed: () => _aceitar(item),
         style: ElevatedButton.styleFrom(
           backgroundColor: _azul,
@@ -2268,7 +2279,7 @@ class _MeusServicosSolicitadosPageState
           'Aceitar Pedido',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
-      ),
+      )),
     );
     Widget recusarOuDetalhes = SizedBox(
       height: 44,
@@ -2326,7 +2337,7 @@ class _MeusServicosSolicitadosPageState
   Widget? _botaoPrincipalAceito(SolicitacaoRecebida item, double vp) {
     final fluxo = _fluxo(item);
     Widget acao(String texto, IconData icone, VoidCallback onPressed) =>
-        FilledButton.icon(
+        CorOriginal(interface: true, child: FilledButton.icon(
           onPressed: onPressed,
           icon: Icon(icone, size: 18),
           label: Text(texto, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -2335,7 +2346,7 @@ class _MeusServicosSolicitadosPageState
             foregroundColor: Colors.white,
             padding: EdgeInsets.symmetric(vertical: vp, horizontal: 8),
           ),
-        );
+        ));
     Widget aguardando(String texto, IconData icone) => FilledButton.icon(
       onPressed: null,
       icon: Icon(icone, size: 18),
@@ -2459,13 +2470,13 @@ class _MeusServicosSolicitadosPageState
   Widget _buildImagemServicoAceito(SolicitacaoRecebida item) {
     final anexo = item.imagemAnexoUrl?.trim() ?? '';
     if (anexo.isNotEmpty) {
-      return Image.network(
+      return ImagemApp(child: Image.network(
         anexo,
         width: double.infinity,
         height: 130,
         fit: BoxFit.cover,
         errorBuilder: (_, _, _) => _imagemServicoFallback(item),
-      );
+      ));
     }
     return _imagemServicoFallback(item);
   }
@@ -2487,20 +2498,20 @@ class _MeusServicosSolicitadosPageState
     final foto = item.fotoCliente?.trim() ?? '';
     if (foto.isNotEmpty) {
       return ClipOval(
-        child: Image.network(
+        child: ImagemApp(child: Image.network(
           foto,
           width: 44,
           height: 44,
           fit: BoxFit.cover,
           errorBuilder: (_, _, _) => _avatarIniciais(item.nomeCliente),
-        ),
+        )),
       );
     }
     return _avatarIniciais(item.nomeCliente);
   }
 
   Widget _avatarIniciais(String nome) {
-    return Container(
+    return CorOriginal(interface: true, child: Container(
       width: 44,
       height: 44,
       alignment: Alignment.center,
@@ -2513,6 +2524,6 @@ class _MeusServicosSolicitadosPageState
           fontWeight: FontWeight.bold,
         ),
       ),
-    );
+    ));
   }
 }

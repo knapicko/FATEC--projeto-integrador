@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../utils/cor_oficio.dart';
 import '../utils/icone_oficio.dart';
+import 'imagem_app.dart';
 
 /// Imagem de capa de um serviço: usa `imagemUrl` quando houver; senão exibe
 /// o símbolo da função/ofício sobre a cor da categoria — mesmo padrão de
@@ -30,13 +31,13 @@ class ImagemServico extends StatelessWidget {
   Widget build(BuildContext context) {
     final url = imagemUrl?.trim() ?? '';
     if (url.isNotEmpty) {
-      return Image.network(
+      return ImagemApp(child: Image.network(
         url,
         height: height,
         width: width ?? double.infinity,
         fit: fit,
         errorBuilder: (_, __, ___) => _placeholder(),
-      );
+      ));
     }
     return _placeholder();
   }

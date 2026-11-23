@@ -13,6 +13,8 @@ import 'tela_home.dart';
 import 'utils/app_navigation_util.dart';
 import 'widgets/avisos_bottom_sheet.dart';
 import 'widgets/caixa_flutuante.dart';
+import 'widgets/imagem_app.dart';
+import 'utils/movimento.dart';
 
 /// Visitante escolheu entrar/cadastrar (bottom sheet de visitante): vai
 /// para o onboarding e, ao voltar, para a tela inicial.
@@ -63,12 +65,12 @@ class _TelaInicialState extends State<TelaInicial>
 
   late final AnimationController _intro = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 2400),
+    duration: duracao(const Duration(milliseconds: 2400)),
     value: _introJaExibida ? 1 : 0,
   );
   late final AnimationController _flutuar = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 3200),
+    duration: duracao(const Duration(milliseconds: 3200)),
   );
 
   // Etapas da intro (frações de _intro).
@@ -126,7 +128,7 @@ class _TelaInicialState extends State<TelaInicial>
 
   Future<void> _iniciarAnimacoes() async {
     final semMovimento = MediaQuery.of(context).disableAnimations;
-    if (!semMovimento) _flutuar.repeat();
+    if (!semMovimento) _flutuar.repetir();
     if (_introJaExibida || semMovimento) {
       _intro.value = 1;
       _introJaExibida = true;
@@ -388,7 +390,7 @@ class _TelaInicialState extends State<TelaInicial>
                                       _transicionando || _autenticandoGoogle
                                       ? 0
                                       : 1,
-                                  duration: const Duration(milliseconds: 280),
+                                  duration: duracao(const Duration(milliseconds: 280)),
                                   child: const Padding(
                                     padding: EdgeInsets.only(top: 16),
                                     child: Text.rich(
@@ -432,7 +434,7 @@ class _TelaInicialState extends State<TelaInicial>
                                       _transicionando || _autenticandoGoogle
                                       ? 0
                                       : 1,
-                                  duration: const Duration(milliseconds: 280),
+                                  duration: duracao(const Duration(milliseconds: 280)),
                                   child: IgnorePointer(
                                     ignoring:
                                         _transicionando || _autenticandoGoogle,
@@ -622,11 +624,11 @@ class BotaoGoogleCircular extends StatelessWidget {
                       color: Color(0xFF0FB3FF),
                     ),
                   )
-                : Image.asset(
+                : ImagemApp(child: Image.asset(
                     'assets/images/icone/google-logo.png',
                     width: 26,
                     height: 26,
-                  ),
+                  )),
           ),
         ),
       ),

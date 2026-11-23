@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'imagem_app.dart';
 
 /// Na primeira vez que o usuário chega a uma home (depois de baixar o app),
 /// mostra um bottom sheet explicando e pedindo de uma vez as permissões que o
@@ -149,7 +150,7 @@ class _SheetPermissoes extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               height: 54,
-              child: FilledButton(
+              child: CorOriginal(interface: true, child: FilledButton(
                 onPressed: () => Navigator.pop(context, true),
                 style: FilledButton.styleFrom(
                   backgroundColor: _azul,
@@ -159,7 +160,7 @@ class _SheetPermissoes extends StatelessWidget {
                   'Permitir tudo',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                 ),
-              ),
+              )),
             ),
             const SizedBox(height: 6),
             Center(
