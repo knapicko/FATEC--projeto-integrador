@@ -11,6 +11,8 @@ import 'utils/cor_oficio.dart';
 import 'services/requisitos_conta.dart';
 import 'widgets/aviso_obrigatorio.dart';
 import 'informacoes_servico_profissional.dart';
+import 'tutorial/tutorial.dart';
+import 'tutorial/tutorial_da_tela.dart';
 
 // ── Helper ──────────────────────────────────────────────────────────────────
 // Cor do ofício: mesma regra do app inteiro (nome `cor` ou hex `cod_cor`).
@@ -28,7 +30,8 @@ class MeusServicosProfissionalPage extends StatefulWidget {
 }
 
 class _MeusServicosProfissionalPageState
-    extends State<MeusServicosProfissionalPage> {
+    extends State<MeusServicosProfissionalPage>
+    with TutorialDaTela<MeusServicosProfissionalPage> {
   // ── Cores (padrão do projeto) ──────────────────────────────────────────
   static const Color _blue = Color(0xFF0FB3FF);
   static const Color _background = Color(0xFFF6F7F9);
@@ -188,6 +191,44 @@ class _MeusServicosProfissionalPageState
   @override
   Widget build(BuildContext context) {
     final categorias = _categorias();
+    if (!_carregando) {
+      final temServico = _servicosFiltrados.isNotEmpty;
+      tutorialDaTela(
+        chave: 'meus_servicos',
+        passos: () => [
+          PassoTutorial(
+            'Aqui ficam todos os serviços que você oferece. Use a busca para '
+            'achar um rapidinho.',
+            alvo: chaveTut('busca'),
+            raio: 14,
+          ),
+          if (_todosServicos.isNotEmpty)
+            PassoTutorial(
+              'Estes filtros separam os serviços por ofício.',
+              alvo: chaveTut('chips'),
+              raio: 12,
+            ),
+          if (temServico) ...[
+            PassoTutorial(
+              'Tocando no card, você vê o serviço do jeito que o cliente vê, '
+              'com as avaliações dele.',
+              alvo: chaveTut('card'),
+            ),
+            PassoTutorial(
+              'E o lápis serve para editar o serviço rapidinho.',
+              alvo: chaveTut('card'),
+            ),
+          ],
+          if (!_ehMembroEmpresa)
+            PassoTutorial(
+              'Para criar um serviço, toque em "Novo Serviço". A sua conta '
+              'precisa estar com os itens obrigatórios completos.',
+              alvo: chaveTut('novo'),
+              raio: 24,
+            ),
+        ],
+      );
+    }
 
     return Scaffold(
       backgroundColor: _background,
@@ -228,11 +269,11 @@ class _MeusServicosProfissionalPageState
                 // Campo de busca
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                  child: _buildSearchBar(),
+                  child: alvoTut('busca', _buildSearchBar()),
                 ),
                 // Chips de categoria
                 if (!_carregando && _todosServicos.isNotEmpty)
-                  _buildCategoryChips(categorias),
+                  alvoTut('chips', _buildCategoryChips(categorias)),
                 if (!_carregando && _todosServicos.isNotEmpty)
                   const SizedBox(height: 12),
               ],
@@ -252,8 +293,9 @@ class _MeusServicosProfissionalPageState
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                       itemCount: _servicosFiltrados.length,
                       itemBuilder: (context, index) {
-                        final card = _buildCardServico(
-                          _servicosFiltrados[index],
+                        final card = KeyedSubtree(
+                          key: index == 0 ? chaveTut('card') : null,
+                          child: _buildCardServico(_servicosFiltrados[index]),
                         );
                         if (!_semEndereco) return card;
                         return Column(
@@ -307,6 +349,7 @@ class _MeusServicosProfissionalPageState
       floatingActionButton: _ehMembroEmpresa
           ? null
           : FloatingActionButton.extended(
+              key: chaveTut('novo'),
               onPressed: () => _abrirTelaServico(),
               backgroundColor: _blue,
               foregroundColor: Colors.white,

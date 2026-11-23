@@ -10,7 +10,6 @@ import 'services/notificacoes/notificacao_service.dart';
 import 'services/notificacoes/notificacao_tipos.dart';
 import 'widgets/skeletons_telas.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'utils/bottom_navigation_bar_profissional.dart';
 
 enum _Filtro { todas, novas, vistas, conta, pedidos, mensagens, radar }
 
@@ -47,8 +46,8 @@ class MinhasNotificacoesPage extends StatefulWidget {
     this.soDaContaProfissionalAtiva = false,
   });
 
-  /// Profissional: esconde as notificações da OUTRA conta (independente x
-  /// loja). As gerais (ConsertaJá) e as de cliente continuam aparecendo.
+  /// Mantido por compatibilidade: a central sempre mostra só as
+  /// notificações da conta profissional ativa (independente x loja).
   final bool soDaContaProfissionalAtiva;
 
   /// Profissional: convites de empresa pendentes (aparecem num card no topo).
@@ -105,9 +104,8 @@ class _MinhasNotificacoesPageState extends State<MinhasNotificacoesPage> {
   Future<void> _carregar() async {
     try {
       var lista = await NotificacaoRepositorio.listar();
-      if (widget.soDaContaProfissionalAtiva) {
-        lista = await _daContaAtiva(lista);
-      }
+      // Profissional: só as da conta ativa (independente x loja).
+      lista = await _daContaAtiva(lista);
       if (!mounted) return;
       setState(() {
         _todas = lista;
@@ -123,38 +121,73 @@ class _MinhasNotificacoesPageState extends State<MinhasNotificacoesPage> {
     }
   }
 
-  /// Mantém só as notificações da conta profissional ativa.
+  /// Mantém só as notificações da conta profissional ativa (independente x
+  /// loja). As gerais e as de cliente continuam aparecendo.
   Future<List<NotificacaoApp>> _daContaAtiva(List<NotificacaoApp> lista) async {
-    final empresa =
-        await BottomNavigationBarProfissional.precarregarContaEmpresa();
-    // Solicitação -> é de loja? (fk_grupo_empresa preenchido)
-    final idsSol = {
+    final ativo = await NotificacaoService.instance.perfilAtivo();
+    if (ativo == 'cliente') return lista;
+    final empresa = ativo == 'empresa';
+    // Antigas sem perfil_destino: descobre pelo pedido ou pela conversa.
+    final semPerfil = [
       for (final n in lista)
-        if (n.papel != 'cliente' && n.fkSolicitacao != null) n.fkSolicitacao!,
+        if (n.perfilDestino == null && n.papel != 'cliente') n,
+    ];
+    final idsSol = {
+      for (final n in semPerfil)
+        if (n.fkSolicitacao != null) n.fkSolicitacao!,
+    };
+    final idsConv = {
+      for (final n in semPerfil)
+        if (n.fkConversa != null) n.fkConversa!,
     };
     final solDeLoja = <int, bool>{};
-    if (idsSol.isNotEmpty) {
-      try {
-        final rows = await Supabase.instance.client
-            .from('solicitacoes')
-            .select('id_solicitacao, fk_grupo_empresa')
-            .inFilter('id_solicitacao', idsSol.toList());
-        for (final r in rows) {
+    final convDeLoja = <int, bool>{};
+    final db = Supabase.instance.client;
+    try {
+      if (idsSol.isNotEmpty) {
+        for (final r
+            in await db
+                .from('solicitacoes')
+                .select('id_solicitacao, fk_grupo_empresa')
+                .inFilter('id_solicitacao', idsSol.toList())) {
           solDeLoja[(r['id_solicitacao'] as num).toInt()] =
               r['fk_grupo_empresa'] != null;
         }
-      } catch (_) {}
-    }
+      }
+      if (idsConv.isNotEmpty) {
+        for (final r
+            in await db
+                .from('conversas')
+                .select('id_conversa, fk_grupo_empresa')
+                .inFilter('id_conversa', idsConv.toList())) {
+          convDeLoja[(r['id_conversa'] as num).toInt()] =
+              r['fk_grupo_empresa'] != null;
+        }
+      }
+    } catch (_) {}
+
     bool? deLoja(NotificacaoApp n) {
-      // Notificação do lado cliente: não é de nenhuma conta profissional.
+      switch (n.perfilDestino) {
+        case 'empresa':
+          return true;
+        case 'independente':
+          return false;
+        case 'cliente':
+          return null;
+      }
       if (n.papel == 'cliente') return null;
       final perfil = n.dados['perfil']?.toString();
       if (perfil == 'empresa') return true;
       if (perfil == 'profissional' || perfil == 'independente') return false;
+      if (n.fkConversa != null && convDeLoja.containsKey(n.fkConversa)) {
+        return convDeLoja[n.fkConversa!];
+      }
+      if (n.fkSolicitacao != null && solDeLoja.containsKey(n.fkSolicitacao)) {
+        return solDeLoja[n.fkSolicitacao!];
+      }
       if (n.dados.containsKey('id_grupo_empresa')) {
         return n.dados['id_grupo_empresa'] != null;
       }
-      if (n.fkSolicitacao != null) return solDeLoja[n.fkSolicitacao!];
       return null; // gerais (ConsertaJá, Global...)
     }
 

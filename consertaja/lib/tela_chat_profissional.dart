@@ -45,6 +45,8 @@ import 'widgets/chat_pedido_extras.dart';
 import 'services/solicitacao_geografica_service.dart';
 import 'widgets/avisos_bottom_sheet.dart';
 import 'widgets/dialogo_sheet.dart';
+import 'tutorial/tutorial.dart';
+import 'tutorial/tutorial_da_tela.dart';
 
 class TelaChatProfissional extends StatefulWidget {
   final String nomeProfissional;
@@ -81,7 +83,8 @@ class TelaChatProfissional extends StatefulWidget {
   State<TelaChatProfissional> createState() => _TelaChatProfissionalState();
 }
 
-class _TelaChatProfissionalState extends State<TelaChatProfissional> {
+class _TelaChatProfissionalState extends State<TelaChatProfissional>
+    with TutorialDaTela<TelaChatProfissional> {
   static const Color _primaryBlue = Color(0xFF0FB3FF);
   static const Color _chatBackground = Color(0xFFF6F8FA);
 
@@ -2130,6 +2133,10 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
           );
           _idGrupoEmpresaConversa = widget.idGrupoEmpresa;
           await _obterOuCriarConversaEmpresa(widget.idGrupoEmpresa!);
+        } else if (widget.idProfissional == null &&
+            widget.idSolicitacao != null) {
+          // Só o pedido (ex.: tela de atendimento): a conversa do pedido.
+          await _abrirConversaExistenteDaSolicitacao();
         } else {
           if (widget.idProfissional == null) {
             setState(() {
@@ -2521,15 +2528,18 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
       return;
     }
 
-    final conversaExistente = await _supabase
-        .from('conversas')
-        .select('id_conversa')
-        .eq('fk_usuario', _idUsuarioLogado!)
-        .eq('fk_grupo_empresa', idGrupo)
-        .maybeSingle();
+    final idExistente = await _melhorConversa(
+      await _supabase
+          .from('conversas')
+          .select('id_conversa')
+          .eq('fk_usuario', _idUsuarioLogado!)
+          .eq('fk_grupo_empresa', idGrupo)
+          .order('id_conversa', ascending: true)
+          .limit(20),
+    );
 
-    if (conversaExistente != null) {
-      _idConversa = (conversaExistente['id_conversa'] as num?)?.toInt();
+    if (idExistente != null) {
+      _idConversa = idExistente;
     } else {
       // Monta o insert pedindo fk_profissional NULL + fk_grupo_empresa;
       // se o banco antigo ainda exige fk_profissional NOT NULL, cai para o
@@ -2552,6 +2562,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
               .select('id_conversa')
               .eq('fk_usuario', _idUsuarioLogado!)
               .eq('fk_grupo_empresa', idGrupo)
+              .limit(1)
               .maybeSingle();
           _idConversa = (conversaCriada?['id_conversa'] as num?)?.toInt();
         } else {
@@ -2561,17 +2572,50 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
     }
   }
 
+  /// Entre várias conversas do mesmo par, a que tem a mensagem mais recente
+  /// (antes `maybeSingle` dava erro e o chat abria vazio).
+  Future<int?> _melhorConversa(List<dynamic> linhas) async {
+    final ids = [
+      for (final l in linhas)
+        if ((l['id_conversa'] as num?) != null)
+          (l['id_conversa'] as num).toInt(),
+    ];
+    if (ids.isEmpty) return null;
+    if (ids.length == 1) return ids.first;
+    try {
+      final ultima = await _supabase
+          .from('mensagens')
+          .select('fk_conversa')
+          .inFilter('fk_conversa', ids)
+          .order('data_envio', ascending: false)
+          .limit(1)
+          .maybeSingle();
+      final id = (ultima?['fk_conversa'] as num?)?.toInt();
+      if (id != null) return id;
+    } catch (_) {}
+    return ids.first;
+  }
+
   Future<void> _abrirOuCriarConversa() async {
     _souProfissionalNaConversa = false;
-    final conversaExistente = await _supabase
+    final linhas = await _supabase
         .from('conversas')
-        .select('id_conversa')
+        .select('id_conversa, fk_grupo_empresa')
         .eq('fk_usuario', _idUsuarioLogado!)
         .eq('fk_profissional', widget.idProfissional!)
-        .maybeSingle();
+        .order('id_conversa', ascending: true)
+        .limit(20);
+    // Conversa individual com o profissional (não a da loja).
+    final individuais = [
+      for (final l in linhas)
+        if (l['fk_grupo_empresa'] == null) l,
+    ];
+    final idExistente = await _melhorConversa(
+      individuais.isNotEmpty ? individuais : linhas,
+    );
 
-    if (conversaExistente != null) {
-      _idConversa = (conversaExistente['id_conversa'] as num?)?.toInt();
+    if (idExistente != null) {
+      _idConversa = idExistente;
     } else {
       try {
         final novaConversa = await _supabase
@@ -2590,6 +2634,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
               .select('id_conversa')
               .eq('fk_usuario', _idUsuarioLogado!)
               .eq('fk_profissional', widget.idProfissional!)
+              .limit(1)
               .maybeSingle();
           _idConversa = (conversaCriada?['id_conversa'] as num?)?.toInt();
         } else {
@@ -3233,6 +3278,45 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_carregando && _erroCarregamento == null) {
+      // Barra de cima (contato + pedido): do topo até o começo da lista.
+      Rect? barraContato() {
+        final lista = rectTut('mensagens');
+        if (lista == null) return null;
+        final topo = MediaQuery.of(context).padding.top;
+        return Rect.fromLTRB(0, topo, lista.right, lista.top);
+      }
+
+      tutorialDaTela(
+        chave: _souProfissionalNaConversa ? 'chat_prof' : 'chat_cliente',
+        passos: () => [
+          PassoTutorial(
+            _souProfissionalNaConversa
+                ? 'Aqui em cima fica o cliente e o pedido ligado a esta '
+                      'conversa.'
+                : 'Aqui em cima fica com quem você está falando e o pedido '
+                      'ligado a esta conversa.',
+            alvoRect: barraContato,
+            raio: 0,
+            folga: 0,
+          ),
+          PassoTutorial(
+            'Aqui aparecem as mensagens. Propostas de preço e etapas do '
+            'pedido também chegam por aqui.',
+            alvo: chaveTut('mensagens'),
+            raio: 0,
+            folga: 0,
+          ),
+          PassoTutorial(
+            'Escreva aqui embaixo, ou use os botões para mandar fotos, '
+            'arquivos e áudios.',
+            alvo: chaveTut('entrada'),
+            raio: 14,
+            folga: 2,
+          ),
+        ],
+      );
+    }
     return Scaffold(
       backgroundColor: _chatBackground,
       appBar: _buildBarraContato(),
@@ -3301,7 +3385,10 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                     Positioned.fill(child: _buildBackgroundChat()),
                     Column(
                       children: [
-                        Expanded(child: _buildListaMensagens()),
+                        Expanded(
+                          key: chaveTut('mensagens'),
+                          child: _buildListaMensagens(),
+                        ),
                         if (_propostaRadar case final p?)
                           BarraPropostaRadar(
                             proposta: p,
@@ -3310,7 +3397,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional> {
                             onRecusar: () => _responderPropostaRadar(false),
                             onAlterar: _alterarPropostaRadar,
                           ),
-                        _buildBarraInput(),
+                        alvoTut('entrada', _buildBarraInput()),
                       ],
                     ),
                   ],

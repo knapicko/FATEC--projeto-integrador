@@ -28,9 +28,14 @@ import 'services/requisitos_conta.dart';
 import 'certificados.dart';
 import 'widgets/dialogo_sheet.dart';
 import 'widgets/aviso_obrigatorio.dart';
+import 'tutorial/tutorial.dart';
+import 'tutorial/tutorial_da_tela.dart';
 
 class GestaoEquipePage extends StatefulWidget {
-  const GestaoEquipePage({super.key});
+  const GestaoEquipePage({super.key, this.tutorialESair = false});
+
+  /// Aberta pelo tutorial da home: mostra a explicação e volta.
+  final bool tutorialESair;
 
   @override
   State<GestaoEquipePage> createState() => _GestaoEquipePageState();
@@ -100,7 +105,8 @@ class _MembroEquipe {
   });
 }
 
-class _GestaoEquipePageState extends State<GestaoEquipePage> {
+class _GestaoEquipePageState extends State<GestaoEquipePage>
+    with TutorialDaTela<GestaoEquipePage> {
   static const Color _primaryBlue = Color(0xFF0FB3FF);
   static const Color _bgLight = Color(0xFFF8FAFC);
   static const Color _titleDark = Color(0xFF1E293B);
@@ -2360,6 +2366,48 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
 
   @override
   Widget build(BuildContext context) {
+    tutorialDaTela(
+      chave: 'gestao_empresa',
+      sair: widget.tutorialESair,
+      passos: () => [
+        PassoTutorial(
+          'Esta é a Gestão de Empresa. Aqui fica o perfil da sua loja, do '
+          'jeito que os clientes veem.',
+          alvo: chaveTut('perfil'),
+        ),
+        PassoTutorial(
+          'Aqui você convida profissionais para a sua equipe, pelo e-mail, '
+          'CPF ou CNPJ deles.',
+          alvo: chaveTut('convite'),
+          alinhamentoRolagem: 0.15,
+        ),
+        PassoTutorial(
+          'Também dá para copiar um link de convite e mandar para quem você '
+          'quiser.',
+          alvo: chaveTut('link'),
+          raio: 20,
+        ),
+        PassoTutorial(
+          'Em "Equipe Atual" ficam todos os membros da loja.',
+          alvo: chaveTut('equipe'),
+          raio: 12,
+        ),
+        PassoTutorial(
+          'Aqui ficam os serviços que a empresa oferece aos clientes.',
+          alvo: chaveTut('servicos'),
+        ),
+        PassoTutorial(
+          'E nesta parte você conta um pouco sobre a empresa.',
+          alvo: chaveTut('sobre'),
+        ),
+        PassoTutorial(
+          'Na engrenagem lá em cima ficam as Configurações da Empresa.',
+          alvo: chaveTut('config'),
+          raio: 24,
+          folga: 4,
+        ),
+      ],
+    );
     return Scaffold(
       backgroundColor: _bgLight,
       appBar: AppBar(
@@ -2381,6 +2429,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
         ),
         actions: [
           IconButton(
+            key: chaveTut('config'),
             tooltip: _configPendente
                 ? 'Defina a tag personalizada e os ofícios da empresa'
                 : 'Configurações',
@@ -2426,11 +2475,12 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
               ),
             ),
             const SizedBox(height: 8),
-            _buildPerfilEmpresarialCard(),
+            alvoTut('perfil', _buildPerfilEmpresarialCard()),
             const SizedBox(height: 20),
 
             // ================= CARD NOVO MEMBRO =================
             Container(
+              key: chaveTut('convite'),
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -2554,6 +2604,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
                       ),
                       const Spacer(),
                       Material(
+                        key: chaveTut('link'),
                         color: const Color(0xFFEFF6FF),
                         borderRadius: BorderRadius.circular(20),
                         child: InkWell(
@@ -2591,6 +2642,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
 
             // ================= SEÇÃO EQUIPE ATUAL =================
             Row(
+              key: chaveTut('equipe'),
               children: [
                 const Text(
                   'Equipe Atual',
@@ -2626,11 +2678,11 @@ class _GestaoEquipePageState extends State<GestaoEquipePage> {
             // Lista de Cards dos Membros
             ..._membros.map((membro) => _buildMembroCard(membro)),
             const SizedBox(height: 24),
-            _buildServicosDisponibilizados(),
+            alvoTut('servicos', _buildServicosDisponibilizados()),
             const SizedBox(height: 24),
 
             // ================= SEÇÃO SOBRE A EMPRESA =================
-            _buildSecaoSobreEmpresa(),
+            alvoTut('sobre', _buildSecaoSobreEmpresa()),
             const SizedBox(height: 30),
           ],
         ),

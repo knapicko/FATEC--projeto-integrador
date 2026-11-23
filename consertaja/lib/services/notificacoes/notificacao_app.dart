@@ -19,6 +19,7 @@ class NotificacaoApp {
     this.fkSolicitacaoGeografica,
     this.fkStatus,
     this.dados = const {},
+    this.perfilDestino,
   });
 
   /// null para feedbacks locais (não ficam no banco).
@@ -35,6 +36,10 @@ class NotificacaoApp {
   final int? fkSolicitacaoGeografica;
   final int? fkStatus;
   final Map<String, dynamic> dados;
+
+  /// Conta de quem recebe: 'cliente' | 'independente' | 'empresa'; null =
+  /// geral (gravado pelo servidor, docs/sql/v0_10_ajustes.sql).
+  final String? perfilDestino;
 
   VisualStatus? get visualStatus => VisualStatus.de(fkStatus);
 
@@ -60,6 +65,7 @@ class NotificacaoApp {
     fkSolicitacaoGeografica: fkSolicitacaoGeografica,
     fkStatus: fkStatus,
     dados: dados,
+    perfilDestino: perfilDestino,
   );
 
   static int? _int(Object? v) {
@@ -102,6 +108,7 @@ class NotificacaoApp {
       fkSolicitacaoGeografica: _int(m['fk_solicitacao_geografica']),
       fkStatus: _int(m['fk_status']),
       dados: _mapa(m['dados']),
+      perfilDestino: _texto(m['perfil_destino']),
     );
   }
 
@@ -119,6 +126,7 @@ class NotificacaoApp {
     'fk_solicitacao_geografica': fkSolicitacaoGeografica,
     'fk_status': fkStatus,
     'dados': dados,
+    'perfil_destino': perfilDestino,
   });
 
   static NotificacaoApp? dePayload(String? payload) {

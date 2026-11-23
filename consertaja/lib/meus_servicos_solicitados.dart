@@ -28,6 +28,8 @@ import 'utils/funcao_servico.dart';
 import 'solicitacao_geografica_profissional.dart';
 import 'servico_concluido.dart';
 import 'utils/cor_status.dart';
+import 'tutorial/tutorial.dart';
+import 'tutorial/tutorial_da_tela.dart';
 
 /// Solicitação de serviço recebida pelo profissional (conta independente ou
 /// conta empresa). Cada linha de `solicitacoes` vira um card.
@@ -155,7 +157,9 @@ class MeusServicosSolicitadosPage extends StatefulWidget {
 
 class _MeusServicosSolicitadosPageState
     extends State<MeusServicosSolicitadosPage>
-    with SingleTickerProviderStateMixin {
+    with
+        SingleTickerProviderStateMixin,
+        TutorialDaTela<MeusServicosSolicitadosPage> {
   static const Color _azul = Color(0xFF0FB3FF);
   static const Color _textoEscuro = Color(0xFF0F172A);
   static const Color _textoMuted = Color(0xFF64748B);
@@ -1354,6 +1358,24 @@ class _MeusServicosSolicitadosPageState
 
   @override
   Widget build(BuildContext context) {
+    if (!_carregando) {
+      tutorialDaTela(
+        chave: 'servicos_solicitados',
+        passos: () => [
+          PassoTutorial(
+            'Aqui chegam os pedidos dos clientes. Use os filtros para ver os '
+            'novos, os em andamento, os concluídos...',
+            alvo: chaveTut('filtros'),
+            raio: 12,
+          ),
+          PassoTutorial(
+            'Os serviços em andamento ficam em cima. Toque em um pedido para '
+            'ver os detalhes, aceitar e seguir as etapas.',
+            alvo: chaveTut('lista'),
+          ),
+        ],
+      );
+    }
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
@@ -1361,8 +1383,9 @@ class _MeusServicosSolicitadosPageState
         body: Column(
           children: [
             _buildHeader(),
-            _buildFiltros(),
+            alvoTut('filtros', _buildFiltros()),
             Expanded(
+              key: chaveTut('lista'),
               child: _carregando
                   ? const SkeletonPage(layout: SkeletonLayout.cards)
                   : _erro != null

@@ -26,6 +26,8 @@ import 'solicitacao_geografica_profissional.dart';
 import 'utils/cor_status.dart';
 import 'utils/cor_oficio.dart';
 import 'widgets/borda_gradiente_animada.dart';
+import 'tutorial/tutorial.dart';
+import 'tutorial/tutorial_da_tela.dart';
 
 /// Tela "Mensagens": lista de conversas do usuário logado (cliente ou profissional),
 /// com visual moderno, atualização em tempo real, indicador de presença online,
@@ -44,7 +46,8 @@ class TelaMensagensPage extends StatefulWidget {
   State<TelaMensagensPage> createState() => _TelaMensagensPageState();
 }
 
-class _TelaMensagensPageState extends State<TelaMensagensPage> {
+class _TelaMensagensPageState extends State<TelaMensagensPage>
+    with TutorialDaTela<TelaMensagensPage> {
   static const Color _primaryBlue = Color(0xFF0FB3FF);
   static const Color _background = Color(0xFFF6F8FB);
   static const Color _titleDark = Color(0xFF111827);
@@ -264,6 +267,9 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
 
       final List<Map<String, dynamic>> conversas;
       var idsGrupos = <int>[];
+      // Para separar as conversas da conta independente e da loja.
+      int? idProfSeparar;
+      int? idGrupoSeparar;
 
       if (isProfissional) {
         final idProf = (dadosProfMeu?['id_profissional'] as num?)?.toInt();
@@ -287,6 +293,31 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
             }
           } catch (_) {}
         }
+        // A loja do dono também vale na conta independente (para esconder
+        // os contatos que são só da loja).
+        if (idGrupoMeu == null) {
+          try {
+            final dp = await _supabase
+                .from('dados_profissionais')
+                .select('fk_perfil')
+                .eq('fk_usuario', idUsuario)
+                .limit(1)
+                .maybeSingle();
+            final perfil = dp?['fk_perfil'];
+            if (perfil != null) {
+              final g = await _supabase
+                  .from('grupo_empresa')
+                  .select('id_grupo_empresa')
+                  .eq('fk_perfil', perfil)
+                  .limit(1)
+                  .maybeSingle();
+              idGrupoSeparar = (g?['id_grupo_empresa'] as num?)?.toInt();
+            }
+          } catch (_) {}
+        } else {
+          idGrupoSeparar = idGrupoMeu;
+        }
+        idProfSeparar = idProf;
         if (idProf == null && idGrupoMeu == null) {
           _aplicarLista([]);
           return;
@@ -309,7 +340,8 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
           if (idProf != null) {
             final query = _supabase.from('conversas').select();
             dynamic q = query.eq('fk_profissional', idProf);
-            if (temColunaGrupo && idGrupoMeu != null) {
+            // Conta independente: nunca as conversas da loja.
+            if (temColunaGrupo) {
               q = q.isFilter('fk_grupo_empresa', null);
             }
             todas.addAll(
@@ -358,6 +390,69 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
           }
         }
       } catch (_) {}
+
+      // Contato da OUTRA conta (loja x independente): a conversa desta conta
+      // só aparece se tiver mensagens (antes aparecia o contato vazio).
+      if (isProfissional && temColunaGrupo) {
+        try {
+          final outrosClientes = <int>{};
+          if (_contaEmpresaAtiva) {
+            if (idProfSeparar != null) {
+              final r = await _supabase
+                  .from('conversas')
+                  .select('fk_usuario')
+                  .eq('fk_profissional', idProfSeparar)
+                  .isFilter('fk_grupo_empresa', null);
+              for (final c in r as List) {
+                final u = (c['fk_usuario'] as num?)?.toInt();
+                if (u != null) outrosClientes.add(u);
+              }
+            }
+          } else if (idGrupoSeparar != null) {
+            final r = await _supabase
+                .from('conversas')
+                .select('fk_usuario')
+                .eq('fk_grupo_empresa', idGrupoSeparar);
+            for (final c in r as List) {
+              final u = (c['fk_usuario'] as num?)?.toInt();
+              if (u != null) outrosClientes.add(u);
+            }
+          }
+          // Pedidos da outra conta ligados a conversas desta.
+          final solOutraConta = <int>{};
+          final idsSol = {
+            for (final c in conversas)
+              if ((c['fk_solicitacao'] as num?) != null)
+                (c['fk_solicitacao'] as num).toInt(),
+          };
+          if (idsSol.isNotEmpty) {
+            final sols = await _supabase
+                .from('solicitacoes')
+                .select('id_solicitacao, fk_grupo_empresa')
+                .inFilter('id_solicitacao', idsSol.toList());
+            for (final s in sols as List) {
+              final ehLoja = s['fk_grupo_empresa'] != null;
+              if (ehLoja != _contaEmpresaAtiva) {
+                solOutraConta.add((s['id_solicitacao'] as num).toInt());
+              }
+            }
+          }
+          conversas.removeWhere((c) {
+            final id = (c['id_conversa'] as num?)?.toInt();
+            if (id == null || ultimaPorConversa.containsKey(id)) return false;
+            final cliente = (c['fk_usuario'] as num?)?.toInt();
+            final sol = (c['fk_solicitacao'] as num?)?.toInt();
+            return outrosClientes.contains(cliente) ||
+                (sol != null && solOutraConta.contains(sol));
+          });
+        } catch (e) {
+          debugPrint('[mensagens] separar contas: $e');
+        }
+        if (conversas.isEmpty) {
+          _aplicarLista([]);
+          return;
+        }
+      }
 
       final servicoPorConversa = <int, String>{};
       final clientePorSolicitacao = <int, int>{};
@@ -1057,6 +1152,27 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (!widget.isVisitante && !_carregando) {
+      tutorialDaTela(
+        chave: widget.isProfissional ? 'mensagens_prof' : 'mensagens_cliente',
+        passos: () => [
+          PassoTutorial(
+            widget.isProfissional
+                ? 'Aqui ficam as conversas com os seus clientes. Use a busca '
+                      'para achar alguém.'
+                : 'Aqui ficam as conversas com os profissionais. Use a busca '
+                      'para achar alguém.',
+            alvo: chaveTut('busca'),
+            raio: 28,
+          ),
+          PassoTutorial(
+            'Cada conversa mostra o pedido em andamento e quantas mensagens '
+            'você ainda não leu. Toque para abrir o chat.',
+            alvo: chaveTut('lista'),
+          ),
+        ],
+      );
+    }
     return AppBackHandler(
       child: Scaffold(
         backgroundColor: _background,
@@ -1094,8 +1210,8 @@ class _TelaMensagensPageState extends State<TelaMensagensPage> {
         ),
         body: Column(
           children: [
-            _buildBarraPesquisa(),
-            Expanded(child: _buildLista()),
+            alvoTut('busca', _buildBarraPesquisa()),
+            Expanded(key: chaveTut('lista'), child: _buildLista()),
           ],
         ),
         bottomNavigationBar: _buildBottomNavigationBar(),

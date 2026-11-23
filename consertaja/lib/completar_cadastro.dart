@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/gestures.dart';
@@ -78,6 +79,43 @@ bool _validarCnpjLocal(String cnpj) {
 // =========================================================================
 // PÁGINA: COMPLETAR CADASTRO — CLIENTE (pós login Google)
 // =========================================================================
+/// Dados públicos do CNPJ na BrasilAPI: razão social, nome fantasia e data
+/// de fundação (dd/mm/aaaa). null quando não encontra.
+Future<({String? razao, String? fantasia, String? fundacao})?>
+_dadosCnpjBrasilApi(String cnpj) async {
+  try {
+    final r = await http
+        .get(Uri.parse('https://brasilapi.com.br/api/cnpj/v1/$cnpj'))
+        .timeout(const Duration(seconds: 12));
+    if (r.statusCode != 200) return null;
+    final d = json.decode(r.body) as Map<String, dynamic>;
+    String? texto(Object? v) {
+      final t = v?.toString().trim() ?? '';
+      return t.isEmpty || t == 'null' ? null : t;
+    }
+
+    String? fundacao;
+    final iso = texto(
+      d['data_inicio_atividade'] ?? d['data_inicio_atividades'],
+    );
+    if (iso != null) {
+      final data = DateTime.tryParse(iso.split('T').first);
+      if (data != null) {
+        fundacao =
+            '${data.day.toString().padLeft(2, '0')}/'
+            '${data.month.toString().padLeft(2, '0')}/${data.year}';
+      }
+    }
+    return (
+      razao: texto(d['razao_social']),
+      fantasia: texto(d['nome_fantasia']),
+      fundacao: fundacao,
+    );
+  } catch (_) {
+    return null;
+  }
+}
+
 class CompletarCadastroClientePage extends StatefulWidget {
   /// id do usuário já autenticado no Supabase (session.user.id)
   final String authId;
@@ -187,6 +225,14 @@ class _CompletarCadastroClientePageState
         _autoPreencherDadosCnpj();
       }
     });
+    // CNPJ completo (14 dígitos): já busca os dados, sem esperar sair do
+    // campo.
+    _cnpjController.addListener(() {
+      if (!_isPessoaFisica &&
+          _somenteDigitos(_cnpjController.text).length == 14) {
+        _autoPreencherDadosCnpj();
+      }
+    });
   }
 
   @override
@@ -234,25 +280,34 @@ class _CompletarCadastroClientePageState
     } catch (_) {}
   }
 
+  String? _cnpjConsultado;
+
+  /// Razão social, nome fantasia e data de fundação pelo CNPJ (BrasilAPI).
+  /// Não sobrescreve o que a pessoa já digitou.
   Future<void> _autoPreencherDadosCnpj() async {
     final doc = _somenteDigitos(_cnpjController.text);
     if (doc.length < 14 || !_validarCnpjLocal(doc)) return;
-    try {
-      final response = await http.get(
-        Uri.parse('https://brasilapi.com.br/api/cnpj/v1/$doc'),
-      );
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final razaoSocial = data['razao_social'] as String?;
-        final nomeFantasia = data['nome_fantasia'] as String?;
-        if (razaoSocial != null && razaoSocial.isNotEmpty) {
-          _razaoSocialController.text = razaoSocial;
-        }
-        if (nomeFantasia != null && nomeFantasia.isNotEmpty) {
-          _nomeFantasiaController.text = nomeFantasia;
-        }
+    if (_cnpjConsultado == doc) return;
+    _cnpjConsultado = doc;
+    final dados = await _dadosCnpjBrasilApi(doc);
+    if (dados == null || !mounted) {
+      if (dados == null) _cnpjConsultado = null;
+      return;
+    }
+    setState(() {
+      if (dados.razao != null && _razaoSocialController.text.trim().isEmpty) {
+        _razaoSocialController.text = dados.razao!;
       }
-    } catch (_) {}
+      if (dados.fantasia != null &&
+          _nomeFantasiaController.text.trim().isEmpty) {
+        _nomeFantasiaController.text = dados.fantasia!;
+      }
+      if (dados.fundacao != null &&
+          _dataFundacaoController.text.trim().isEmpty) {
+        _dataFundacaoController.text = dados.fundacao!;
+        _erroDataFundacao = null;
+      }
+    });
   }
 
   Future<bool> _validarDocumento() async {
@@ -294,6 +349,10 @@ class _CompletarCadastroClientePageState
         Uri.parse('https://brasilapi.com.br/api/cnpj/v1/$doc'),
       );
       final encontrado = response.statusCode == 200;
+      if (encontrado) {
+        _cnpjConsultado = null;
+        unawaited(_autoPreencherDadosCnpj());
+      }
       setState(() {
         _erroCnpj = encontrado
             ? null
@@ -835,7 +894,38 @@ class _CompletarCadastroProfissionalPageState
     ]) {
       c.addListener(_redesenhar);
     }
+    // CNPJ completo: busca razão social e data de fundação (BrasilAPI).
+    _cnpjController.addListener(() {
+      if (!_isPessoaFisica &&
+          _somenteDigitos(_cnpjController.text).length == 14) {
+        _autoPreencherDadosCnpj();
+      }
+    });
     _carregarOficios();
+  }
+
+  String? _cnpjConsultado;
+
+  Future<void> _autoPreencherDadosCnpj() async {
+    final doc = _somenteDigitos(_cnpjController.text);
+    if (doc.length < 14 || !_validarCnpjLocal(doc)) return;
+    if (_cnpjConsultado == doc) return;
+    _cnpjConsultado = doc;
+    final dados = await _dadosCnpjBrasilApi(doc);
+    if (dados == null || !mounted) {
+      if (dados == null) _cnpjConsultado = null;
+      return;
+    }
+    setState(() {
+      if (dados.razao != null && _razaoSocialController.text.trim().isEmpty) {
+        _razaoSocialController.text = dados.razao!;
+      }
+      if (dados.fundacao != null &&
+          _dataFundacaoController.text.trim().isEmpty) {
+        _dataFundacaoController.text = dados.fundacao!;
+        _erroDataFundacao = null;
+      }
+    });
   }
 
   Future<void> _carregarOficios() async {

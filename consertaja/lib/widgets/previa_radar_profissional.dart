@@ -20,10 +20,14 @@ class PreviaRadarProfissional extends StatefulWidget {
     super.key,
     required this.aoTocar,
     this.altura = 170,
+    this.chaveInfo,
   });
 
   final VoidCallback aoTocar;
   final double altura;
+
+  /// Chave do texto "Há N solicitações..." (destaque do tutorial).
+  final Key? chaveInfo;
 
   @override
   State<PreviaRadarProfissional> createState() =>
@@ -176,7 +180,7 @@ class _PreviaRadarProfissionalState extends State<PreviaRadarProfissional> {
           ),
         ),
         const SizedBox(height: 8),
-        _textoResumo(),
+        KeyedSubtree(key: widget.chaveInfo, child: _textoResumo()),
       ],
     );
   }

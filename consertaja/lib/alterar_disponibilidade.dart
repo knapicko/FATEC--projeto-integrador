@@ -4,6 +4,8 @@ import 'widgets/salvamento_automatico.dart';
 import 'widgets/skeleton_loading.dart';
 import 'widgets/aviso_obrigatorio.dart';
 import 'services/requisitos_conta.dart';
+import 'tutorial/tutorial.dart';
+import 'tutorial/tutorial_da_tela.dart';
 
 /// Dados de uma exceção de calendário (dia bloqueado total ou parcialmente).
 class _DadosExcecao {
@@ -63,8 +65,8 @@ class AlterarDisponibilidadePage extends StatefulWidget {
       _AlterarDisponibilidadePageState();
 }
 
-class _AlterarDisponibilidadePageState
-    extends State<AlterarDisponibilidadePage> {
+class _AlterarDisponibilidadePageState extends State<AlterarDisponibilidadePage>
+    with TutorialDaTela<AlterarDisponibilidadePage> {
   /// Ainda sem disponibilidade salva (aviso amarelo).
   bool _pendente = false;
 
@@ -2292,6 +2294,29 @@ class _AlterarDisponibilidadePageState
         _selecaoMultiplaAtiva && _datasSelecionadasMultipla.isNotEmpty;
     final exibirFabBloquear = exibirFab && _temDatasNaoBloqueadasSelecionadas();
     final exibirFabDesbloquear = exibirFab && _temDatasBloqueadasSelecionadas();
+    if (!_carregando) {
+      tutorialDaTela(
+        chave: 'disponibilidade',
+        passos: () => [
+          PassoTutorial(
+            'Escolha os dias da semana e o horário em que você atende.',
+            alvo: chaveTut('recorrente'),
+          ),
+          PassoTutorial(
+            'No calendário você bloqueia dias ou muda o horário de um dia '
+            'específico, como feriados e férias.',
+            alvo: chaveTut('excecoes'),
+            alinhamentoRolagem: 0.1,
+          ),
+          PassoTutorial(
+            'Não precisa de botão: tudo é salvo sozinho, e aqui embaixo você '
+            'vê quando terminou.',
+            alvo: chaveTut('salvar'),
+            raio: 14,
+          ),
+        ],
+      );
+    }
 
     return Scaffold(
       backgroundColor: _background,
@@ -2364,15 +2389,15 @@ class _AlterarDisponibilidadePageState
                                   'adicionar serviços.',
                             ),
                           _buildIntroducao(),
-                          _buildCardRecorrente(),
+                          alvoTut('recorrente', _buildCardRecorrente()),
                           const SizedBox(height: 16),
-                          _buildCardExcecoes(),
+                          alvoTut('excecoes', _buildCardExcecoes()),
                           const SizedBox(height: 8),
                         ],
                       ),
                     ),
             ),
-            _buildBotaoSalvar(),
+            alvoTut('salvar', _buildBotaoSalvar()),
           ],
         ),
       ),

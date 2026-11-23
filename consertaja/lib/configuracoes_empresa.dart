@@ -7,16 +7,22 @@ import 'utils/icone_oficio.dart';
 import 'utils/funcao_servico.dart';
 import 'tela_inicial.dart';
 import 'widgets/avisos_bottom_sheet.dart';
+import 'tutorial/tutorial.dart';
+import 'tutorial/tutorial_da_tela.dart';
 
 class ConfiguracoesEmpresaPage extends StatefulWidget {
-  const ConfiguracoesEmpresaPage({super.key});
+  const ConfiguracoesEmpresaPage({super.key, this.tutorialESair = false});
+
+  /// Aberta pelo tutorial da home: mostra a explicação e volta.
+  final bool tutorialESair;
 
   @override
   State<ConfiguracoesEmpresaPage> createState() =>
       _ConfiguracoesEmpresaPageState();
 }
 
-class _ConfiguracoesEmpresaPageState extends State<ConfiguracoesEmpresaPage> {
+class _ConfiguracoesEmpresaPageState extends State<ConfiguracoesEmpresaPage>
+    with TutorialDaTela<ConfiguracoesEmpresaPage> {
   static const Color _primaryBlue = Color(0xFF0FB3FF);
   static const Color _titleDark = Color(0xFF1E293B);
   static const Color _textMuted = Color(0xFF64748B);
@@ -711,6 +717,40 @@ class _ConfiguracoesEmpresaPageState extends State<ConfiguracoesEmpresaPage> {
         ? 'TAG'
         : _tagController.text.trim().toUpperCase();
 
+    if (!_carregando) {
+      tutorialDaTela(
+        chave: 'configuracoes_empresa',
+        sair: widget.tutorialESair,
+        passos: () => [
+          PassoTutorial(
+            'Estas são as Configurações da Empresa. Aqui em cima você vê o '
+            'resumo da sua loja.',
+            alvo: chaveTut('resumo'),
+          ),
+          PassoTutorial(
+            'Aqui você muda o nome da empresa, que aparece para os clientes.',
+            alvo: chaveTut('nome'),
+            raio: 10,
+          ),
+          PassoTutorial(
+            'A tag personalizada identifica a sua loja nos serviços e no '
+            'perfil. Escolha o texto e a cor dela.',
+            alvo: chaveTut('tag'),
+            raio: 10,
+          ),
+          PassoTutorial(
+            'Nos ofícios de atuação você define em quais áreas a empresa '
+            'atende.',
+            alvo: chaveTut('oficios'),
+            raio: 10,
+          ),
+          PassoTutorial(
+            'E aqui fica o tipo de perfil da conta.',
+            alvo: chaveTut('tipo'),
+          ),
+        ],
+      );
+    }
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -770,6 +810,7 @@ class _ConfiguracoesEmpresaPageState extends State<ConfiguracoesEmpresaPage> {
                     children: [
                       // ================= CARD DE RESUMO SUPERIOR =================
                       Container(
+                        key: chaveTut('resumo'),
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF1F5F9),
@@ -874,7 +915,8 @@ class _ConfiguracoesEmpresaPageState extends State<ConfiguracoesEmpresaPage> {
                       ),
                       const SizedBox(height: 14),
 
-                      const Text(
+                      Text(
+                        key: chaveTut('nome'),
                         'Nome da Empresa',
                         style: TextStyle(
                           fontSize: 12.5,
@@ -971,6 +1013,7 @@ class _ConfiguracoesEmpresaPageState extends State<ConfiguracoesEmpresaPage> {
 
                       // ================= TAG PERSONALIZADA DA EMPRESA =================
                       Row(
+                        key: chaveTut('tag'),
                         children: const [
                           Icon(
                             Icons.local_offer_outlined,
@@ -1285,6 +1328,7 @@ class _ConfiguracoesEmpresaPageState extends State<ConfiguracoesEmpresaPage> {
 
                       // ================= OFÍCIOS DE ATUAÇÃO =================
                       Row(
+                        key: chaveTut('oficios'),
                         children: [
                           const Icon(
                             Icons.handyman_outlined,
@@ -1430,7 +1474,7 @@ class _ConfiguracoesEmpresaPageState extends State<ConfiguracoesEmpresaPage> {
                       const SizedBox(height: 24),
                       // Tipo de perfil (igual ao "Modificar conta" do
                       // independente).
-                      _SecaoTipoPerfil(idPerfil: _idPerfil),
+                      alvoTut('tipo', _SecaoTipoPerfil(idPerfil: _idPerfil)),
                       const SizedBox(height: 32),
                     ],
                   ),

@@ -25,6 +25,8 @@ import 'utils/funcao_servico.dart';
 import 'widgets/contador_notificacoes.dart';
 import 'servico_concluido_cliente.dart';
 import 'utils/cor_status.dart';
+import 'tutorial/tutorial.dart';
+import 'tutorial/tutorial_da_tela.dart';
 
 class PedidoCliente {
   final int id;
@@ -93,7 +95,7 @@ class MeusPedidosPage extends StatefulWidget {
 }
 
 class MeusPedidosState extends State<MeusPedidosPage>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, TutorialDaTela<MeusPedidosPage> {
   late final AnimationController _piscarController;
   static const Color azul = Color(0xFF0FB3FF);
   static const Color fundo = Color(0xFFF6F8FB);
@@ -825,6 +827,28 @@ class MeusPedidosState extends State<MeusPedidosPage>
 
   @override
   Widget build(BuildContext context) {
+    if (!carregando && !widget.isVisitante) {
+      tutorialDaTela(
+        chave: 'meus_pedidos',
+        passos: () => [
+          PassoTutorial(
+            'Aqui ficam todos os seus pedidos. Use estes filtros para ver os '
+            'abertos, os em andamento e os concluídos.',
+            alvo: chaveTut('filtros'),
+            raio: 12,
+          ),
+          PassoTutorial(
+            'Este resumo mostra como estão os seus pedidos.',
+            alvo: chaveTut('resumo'),
+          ),
+          PassoTutorial(
+            'Toque em um pedido para abrir a etapa dele: pagamento, '
+            'acompanhamento, chat e muito mais.',
+            alvo: chaveTut('lista'),
+          ),
+        ],
+      );
+    }
     return AppBackHandler(
       child: Scaffold(
         backgroundColor: fundo,
@@ -833,8 +857,8 @@ class MeusPedidosState extends State<MeusPedidosPage>
             children: [
               cabecalho(),
               if (buscaAtiva) campoBusca(),
-              pills(),
-              Expanded(child: corpo()),
+              alvoTut('filtros', pills()),
+              Expanded(key: chaveTut('lista'), child: corpo()),
             ],
           ),
         ),
@@ -873,7 +897,7 @@ class MeusPedidosState extends State<MeusPedidosPage>
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
         children: [
-          visaoGeral(),
+          alvoTut('resumo', visaoGeral()),
           const SizedBox(height: 12),
           // Em aberto/andamento primeiro; concluídos por último, depois de
           // uma divisória.

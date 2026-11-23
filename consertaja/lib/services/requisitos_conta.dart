@@ -56,6 +56,54 @@ class RequisitosConta {
   static const disponibilidade = 'disponibilidade';
   static const entrega = 'entrega';
 
+  /// Meio de locomoção (e placa, quando motorizado).
+  static const locomocao = 'locomocao';
+
+  /// Meios de locomoção aceitos e os que exigem placa.
+  static const meiosLocomocao = [
+    'Carro',
+    'Moto',
+    'Bicicleta',
+    'Transporte público',
+    'Caminhão',
+  ];
+  static bool exigePlaca(String? meio) =>
+      meio == 'Carro' || meio == 'Moto' || meio == 'Caminhão';
+
+  /// Placa no padrão antigo (ABC-1234) ou Mercosul (ABC1D23).
+  static bool placaValida(String? placa) => RegExp(
+    r'^[A-Z]{3}-?[0-9][A-Z0-9][0-9]{2}$',
+  ).hasMatch((placa ?? '').trim().toUpperCase());
+
+  /// Falta definir como se locomove (ou a placa do veículo).
+  static Future<bool> locomocaoPendente({
+    int? idGrupo,
+    int? idProfissional,
+  }) async {
+    try {
+      final r = idGrupo != null
+          ? await _db
+                .from('grupo_empresa')
+                .select('meio_locomocao, placa_veiculo')
+                .eq('id_grupo_empresa', idGrupo)
+                .maybeSingle()
+          : idProfissional == null
+          ? null
+          : await _db
+                .from('dados_profissionais')
+                .select('meio_locomocao, placa_veiculo')
+                .eq('id_profissional', idProfissional)
+                .maybeSingle();
+      if (r == null) return false;
+      final meio = r['meio_locomocao']?.toString().trim() ?? '';
+      if (meio.isEmpty || meio == 'null') return true;
+      return exigePlaca(meio) && !placaValida(r['placa_veiculo']?.toString());
+    } catch (_) {
+      // Banco sem as colunas (docs/sql/v0_10_ajustes.sql): não bloqueia.
+      return false;
+    }
+  }
+
   /// A chave PIX só é obrigatória quando o Pix está entre as formas de
   /// pagamento aceitas (sem nada salvo, o padrão é Pix).
   static bool precisaChavePix(Map<String, dynamic>? dados) {
@@ -172,9 +220,11 @@ class RequisitosConta {
   }) async {
     final pend = <String>{};
     try {
+      // Conta ativa confirmada (o cache síncrono podia estar desatualizado
+      // e conferir a OUTRA conta — aí o Radar não abria).
       final empresa =
           contaEmpresa ??
-          BottomNavigationBarProfissional.leituraSincronaContaEmpresa();
+          await BottomNavigationBarProfissional.precarregarContaEmpresa();
       final dp = await dadosProfissionalLogado(
         'id_profissional, fk_perfil, fk_grupo_empresa, anos_experiencia, '
         'chave_pix, pagamento_aceito, metodo_entrega',
@@ -182,7 +232,14 @@ class RequisitosConta {
       // Não conseguiu ler os dados do profissional: considera tudo pendente
       // (antes devolvia "nada pendente" e liberava criar serviço).
       if (dp == null) {
-        return {disponibilidade, entrega, financeiro, enderecos, conta};
+        return {
+          disponibilidade,
+          entrega,
+          locomocao,
+          financeiro,
+          enderecos,
+          conta,
+        };
       }
       final idProf = (dp['id_profissional'] as num?)?.toInt();
 
@@ -226,6 +283,9 @@ class RequisitosConta {
         idProfissional: idProf,
       )) {
         pend.add(entrega);
+      }
+      if (await locomocaoPendente(idGrupo: idGrupo, idProfissional: idProf)) {
+        pend.add(locomocao);
       }
 
       try {
@@ -310,6 +370,8 @@ class RequisitosConta {
     final falta = [
       if (pend.contains(entrega))
         (Icons.local_shipping_outlined, 'Método de entrega', entrega),
+      if (pend.contains(locomocao))
+        (Icons.two_wheeler_outlined, 'Locomoção e placa', locomocao),
       if (pend.contains(financeiro))
         (Icons.account_balance_wallet_outlined, 'Chave PIX', financeiro),
       if (pend.contains(enderecos))
@@ -331,7 +393,7 @@ class RequisitosConta {
     );
     if (escolha is String && context.mounted) {
       final Widget pagina = switch (escolha) {
-        entrega => const MetodoEntregaProfissionalPage(),
+        entrega || locomocao => const MetodoEntregaProfissionalPage(),
         financeiro => const MeusDadosFinanceirosProfissionalPage(),
         enderecos => const MeusEnderecosPage(isProfissional: true),
         _ => AlterarDisponibilidadePage(

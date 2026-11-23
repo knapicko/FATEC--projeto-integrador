@@ -46,6 +46,8 @@ interface Notificacao {
   dados: Record<string, unknown>;
   data_criacao: string;
   push_status: string;
+  /** 'cliente' | 'independente' | 'empresa' | null (geral) — v0_10_ajustes.sql */
+  perfil_destino?: string | null;
 }
 
 function montarMensagem(n: Notificacao, token: string, plataforma: string) {
@@ -68,6 +70,7 @@ function montarMensagem(n: Notificacao, token: string, plataforma: string) {
       n.fk_solicitacao_geografica == null ? '' : String(n.fk_solicitacao_geografica),
     dados: JSON.stringify(n.dados ?? {}),
     data_criacao: n.data_criacao,
+    perfil_destino: n.perfil_destino ?? '',
     canal,
     tag,
   };
@@ -130,11 +133,26 @@ Deno.serve(async (request) => {
       return json({ ok: true, ignorada: n.push_status });
     }
 
-    const { data: dispositivos, error: erroDisp } = await admin
+    const { data: todosDispositivos, error: erroDisp } = await admin
       .from('dispositivos_notificacao')
-      .select('id_dispositivo, token_fcm, plataforma')
+      .select('id_dispositivo, token_fcm, plataforma, perfil_ativo')
       .eq('fk_usuario', n.fk_usuario);
     if (erroDisp) throw erroDisp;
+
+    // Profissional com conta independente E de loja: o aviso de uma conta só
+    // vai para o aparelho que está com essa conta ativa (o outro vê ao trocar).
+    const destino = n.perfil_destino ?? null;
+    const dispositivos = (todosDispositivos ?? []).filter((d) =>
+      destino !== 'independente' && destino !== 'empresa'
+        ? true
+        : d.perfil_ativo === destino
+    );
+    if ((todosDispositivos?.length ?? 0) > 0 && dispositivos.length === 0) {
+      await admin.from('notificacoes')
+        .update({ push_status: 'nao_enviar', push_erro: 'outro perfil ativo' })
+        .eq('id_notificacao', id);
+      return json({ ok: true, enviados: 0, motivo: 'outro_perfil' });
+    }
 
     if (!dispositivos || dispositivos.length === 0) {
       await admin.from('notificacoes')

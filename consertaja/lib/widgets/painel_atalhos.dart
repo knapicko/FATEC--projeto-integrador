@@ -36,12 +36,16 @@ class PainelAtalhos extends StatefulWidget {
     required this.chaveOrdem,
     required this.construir,
     this.porPagina = 9,
+    this.mostrarAtalho,
   });
 
   final List<AtalhoItem> itens;
   final String chaveOrdem;
   final Widget Function(AtalhoItem item) construir;
   final int porPagina;
+
+  /// Quando recebe o id de um atalho, vai para a página dele (tutorial).
+  final ValueNotifier<String?>? mostrarAtalho;
 
   @override
   State<PainelAtalhos> createState() => _PainelAtalhosState();
@@ -60,6 +64,14 @@ class _PainelAtalhosState extends State<PainelAtalhos> {
   void initState() {
     super.initState();
     _carregarOrdem();
+    widget.mostrarAtalho?.addListener(_irParaAtalho);
+  }
+
+  void _irParaAtalho() {
+    final id = widget.mostrarAtalho?.value;
+    if (id == null) return;
+    final i = _ordenados.indexWhere((a) => a.id == id);
+    if (i >= 0) _irPara(i ~/ widget.porPagina);
   }
 
   @override
@@ -73,6 +85,7 @@ class _PainelAtalhosState extends State<PainelAtalhos> {
 
   @override
   void dispose() {
+    widget.mostrarAtalho?.removeListener(_irParaAtalho);
     _timerBorda?.cancel();
     super.dispose();
   }

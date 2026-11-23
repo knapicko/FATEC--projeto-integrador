@@ -9,6 +9,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'widgets/avisos_bottom_sheet.dart';
 import 'widgets/skeleton_loading.dart';
+import 'tutorial/tutorial.dart';
+import 'tutorial/tutorial_da_tela.dart';
 
 const _bucket = 'Certificados Profissional';
 const _azul = Color(0xFF0FB3FF);
@@ -404,7 +406,8 @@ class CertificadosPage extends StatefulWidget {
   State<CertificadosPage> createState() => _CertificadosPageState();
 }
 
-class _CertificadosPageState extends State<CertificadosPage> {
+class _CertificadosPageState extends State<CertificadosPage>
+    with TutorialDaTela<CertificadosPage> {
   int? _idProfissional;
   List<Certificado>? _lista;
 
@@ -459,6 +462,23 @@ class _CertificadosPageState extends State<CertificadosPage> {
   @override
   Widget build(BuildContext context) {
     final lista = _lista;
+    if (lista != null) {
+      tutorialDaTela(
+        chave: 'certificados',
+        passos: () => [
+          PassoTutorial(
+            'Aqui ficam os seus cursos e certificações. Eles aparecem no seu '
+            'perfil e passam mais confiança aos clientes.',
+            alvo: chaveTut('lista'),
+          ),
+          PassoTutorial(
+            'Para cadastrar um certificado, com foto, toque em "Adicionar".',
+            alvo: chaveTut('adicionar'),
+            raio: 20,
+          ),
+        ],
+      );
+    }
     return Scaffold(
       backgroundColor: const Color(0xFFF3F6FA),
       appBar: AppBar(
@@ -471,6 +491,7 @@ class _CertificadosPageState extends State<CertificadosPage> {
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
+        key: chaveTut('adicionar'),
         onPressed: _adicionar,
         backgroundColor: _azul,
         foregroundColor: Colors.white,
@@ -480,68 +501,71 @@ class _CertificadosPageState extends State<CertificadosPage> {
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
       ),
-      body: lista == null
-          ? GridView.count(
-              padding: const EdgeInsets.all(16),
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 0.82,
-              children: List.generate(
-                4,
-                (_) => const SkeletonBox(
-                  height: double.infinity,
-                  borderRadius: 18,
-                ),
-              ),
-            )
-          : lista.isEmpty
-          ? const Center(
-              child: Padding(
-                padding: EdgeInsets.all(32),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.workspace_premium_outlined,
-                      color: _azul,
-                      size: 56,
-                    ),
-                    SizedBox(height: 12),
-                    Text(
-                      'Nenhum certificado ainda',
-                      style: TextStyle(
-                        color: _texto,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 16,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'Adicione cursos e certificações: eles aparecem no seu '
-                      'perfil e passam mais confiança aos clientes.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: _sec),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          : GridView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+      body: KeyedSubtree(
+        key: chaveTut('lista'),
+        child: lista == null
+            ? GridView.count(
+                padding: const EdgeInsets.all(16),
                 crossAxisCount: 2,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
                 childAspectRatio: 0.82,
+                children: List.generate(
+                  4,
+                  (_) => const SkeletonBox(
+                    height: double.infinity,
+                    borderRadius: 18,
+                  ),
+                ),
+              )
+            : lista.isEmpty
+            ? const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.workspace_premium_outlined,
+                        color: _azul,
+                        size: 56,
+                      ),
+                      SizedBox(height: 12),
+                      Text(
+                        'Nenhum certificado ainda',
+                        style: TextStyle(
+                          color: _texto,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Adicione cursos e certificações: eles aparecem no seu '
+                        'perfil e passam mais confiança aos clientes.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: _sec),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            : GridView.builder(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 0.82,
+                ),
+                itemCount: lista.length,
+                itemBuilder: (_, i) => CartaoCertificado(
+                  c: lista[i],
+                  largura: null,
+                  aoRemover: () => _remover(lista[i]),
+                ),
               ),
-              itemCount: lista.length,
-              itemBuilder: (_, i) => CartaoCertificado(
-                c: lista[i],
-                largura: null,
-                aoRemover: () => _remover(lista[i]),
-              ),
-            ),
+      ),
     );
   }
 }

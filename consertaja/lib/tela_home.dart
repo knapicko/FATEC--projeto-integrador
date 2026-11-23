@@ -30,6 +30,9 @@ import 'widgets/skeleton_loading.dart';
 import 'widgets/permissoes_iniciais.dart';
 import 'main.dart' show navigatorKey;
 import 'services/avaliacoes_pendentes.dart';
+import 'tutorial/tutorial.dart';
+import 'tutorial/tutorial_visto.dart';
+import 'tutorial/ilustracoes.dart';
 
 /// Home do cliente (e do visitante).
 class TelaHome extends StatefulWidget {
@@ -55,6 +58,26 @@ class _TelaHomeState extends State<TelaHome> {
   List<ServicoAvaliado>? _servicos;
   EnderecoCliente? _endereco;
 
+  // Tutorial (primeiro acesso): partes destacadas da tela.
+  final _rolagem = ScrollController();
+  final _kCabecalho = GlobalKey();
+  final _kEndereco = GlobalKey();
+  final _kBusca = GlobalKey();
+  final _kCategorias = GlobalKey();
+  final _kVerTodasCategorias = GlobalKey();
+  final _kRegiao = GlobalKey();
+  final _kVerTodosRegiao = GlobalKey();
+  final _kPrimeiroProfissional = GlobalKey();
+  final _kServicos = GlobalKey();
+  final _kVerCatalogo = GlobalKey();
+  final _kBarra = GlobalKey();
+
+  @override
+  void dispose() {
+    _rolagem.dispose();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -63,11 +86,166 @@ class _TelaHomeState extends State<TelaHome> {
     if (!widget.isVisitante) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         await PermissoesIniciais.pedirSePrimeiraVez(context);
+        // Primeiro acesso: tutorial da home.
+        await _tutorial();
         // Pedidos concluídos sem avaliação: pede agora e sempre que um
         // pedido for concluído (em qualquer tela).
         AvaliacoesPendentes.iniciar(navigatorKey);
       });
     }
+  }
+
+  /// Apresentação da home (uma vez por conta).
+  Future<void> _tutorial() async {
+    if (widget.isVisitante) return;
+    if (!await TutorialVisto.esperarSessao(() => mounted)) return;
+    if (await TutorialVisto.jaViu('home_cliente')) return;
+    // Espera as seções carregarem um pouco (para medir os destaques).
+    for (var i = 0; i < 20 && (_regiao == null || _servicos == null); i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+    }
+    if (!mounted) return;
+    Rect? Function() aba(int i) =>
+        Tutorial.itemBarra(_kBarra, indice: i, total: 5);
+    final temProfissional = _regiao?.isNotEmpty == true;
+    await Tutorial.mostrar(
+      context,
+      pularParaFinal: true,
+      chave: 'home_cliente',
+      passos: [
+        const PassoTutorial('Que bom te ver de novo por aqui!'),
+        const PassoTutorial(
+          'Vou te mostrar a tela principal e as partes mais importantes do '
+          'app.',
+        ),
+        const PassoTutorial(
+          'Se quiser, toque em "Pular", no canto de baixo, a qualquer '
+          'momento.',
+        ),
+        PassoTutorial(
+          'Este é o seu cabeçalho: sua foto, o endereço, a busca e as '
+          'notificações.',
+          alvo: _kCabecalho,
+          rolagem: _rolagem,
+          alinhamentoRolagem: 0,
+        ),
+        PassoTutorial(
+          'Aqui fica o seu endereço. Ele é necessário para pedir serviços, e '
+          'você pode trocar quando quiser.',
+          alvo: _kEndereco,
+          raio: 12,
+        ),
+        PassoTutorial(
+          'Na busca você encontra profissionais e serviços, não só os da sua '
+          'região.',
+          alvo: _kBusca,
+        ),
+        PassoTutorial(
+          'Estas são as categorias populares: um atalho para buscar já '
+          'filtrando pela categoria.',
+          alvo: _kCategorias,
+          rolagem: _rolagem,
+          alinhamentoRolagem: 0.15,
+        ),
+        PassoTutorial(
+          'Se você quiser ver todas as categorias, é só tocar em "Ver '
+          'todas".',
+          alvo: _kVerTodasCategorias,
+          raio: 10,
+        ),
+        PassoTutorial(
+          'Aqui aparecem os profissionais que estão a até 5 km de você.',
+          alvo: _kRegiao,
+          rolagem: _rolagem,
+          alinhamentoRolagem: 0.12,
+        ),
+        PassoTutorial(
+          'Se quiser ver todos os profissionais cadastrados, toque em "Ver '
+          'todos".',
+          alvo: _kVerTodosRegiao,
+          raio: 10,
+        ),
+        if (temProfissional)
+          PassoTutorial(
+            'E tocando em um profissional, você abre o perfil dele.',
+            alvo: _kPrimeiroProfissional,
+            raio: 24,
+          ),
+        PassoTutorial(
+          'Estes são os serviços populares: os mais bem avaliados pelos '
+          'clientes.',
+          alvo: _kServicos,
+          rolagem: _rolagem,
+          alinhamentoRolagem: 0.1,
+        ),
+        PassoTutorial(
+          'Se você quiser ver o catálogo completo de serviços, toque em "Ver '
+          'catálogo".',
+          alvo: _kVerCatalogo,
+          raio: 10,
+        ),
+        PassoTutorial(
+          'Este é o Radar! Você descreve o que precisa e o seu pedido vai '
+          'para o mapa.',
+          alvoRect: aba(1),
+          folga: 2,
+          raio: 14,
+          ilustracao: const IlustracaoRadar(),
+        ),
+        PassoTutorial(
+          'Os profissionais perto de você veem o pedido e mandam propostas. '
+          'Aí é só escolher a melhor!',
+          alvoRect: aba(1),
+          folga: 2,
+          raio: 14,
+          ilustracao: const IlustracaoRadar(),
+        ),
+        PassoTutorial(
+          'Em Mensagens ficam as suas conversas com os profissionais.',
+          alvoRect: aba(2),
+          folga: 2,
+          raio: 14,
+        ),
+        PassoTutorial(
+          'Em Pedidos você acompanha tudo o que pediu, do começo ao fim.',
+          alvoRect: aba(3),
+          folga: 2,
+          raio: 14,
+        ),
+        PassoTutorial(
+          'No Perfil ficam os seus dados, endereços e configurações.',
+          alvoRect: aba(4),
+          folga: 2,
+          raio: 14,
+        ),
+        PassoTutorial(
+          'Quando aparecer um ! amarelo, é algo que ainda falta preencher.',
+          alvoRect: aba(4),
+          folga: 2,
+          raio: 14,
+        ),
+        PassoTutorial(
+          'Esses dados são necessários para você fazer o seu primeiro '
+          'pedido. Depois é só aproveitar!',
+          alvoRect: aba(4),
+          folga: 2,
+          raio: 14,
+        ),
+        PassoTutorial(
+          kFalaFinalTutorial,
+          ehFinal: true,
+          antes: () async {
+            if (_rolagem.hasClients) {
+              await _rolagem.animateTo(
+                0,
+                duration: const Duration(milliseconds: 600),
+                curve: Curves.easeInOutCubic,
+              );
+            }
+          },
+        ),
+      ],
+    );
   }
 
   Future<void> _carregarTudo() async {
@@ -173,6 +351,7 @@ class _TelaHomeState extends State<TelaHome> {
               color: _azul,
               onRefresh: _recarregar,
               child: ListView(
+                controller: _rolagem,
                 padding: const EdgeInsets.only(bottom: 24),
                 children: [
                   _cabecalho(),
@@ -192,6 +371,7 @@ class _TelaHomeState extends State<TelaHome> {
             ),
           ),
           bottomNavigationBar: BottomNavigationBarCliente(
+            key: _kBarra,
             currentIndex: 0,
             onReselecionarAbaAtual: (_) => _recarregar(),
             onTap: (index) {
@@ -216,6 +396,7 @@ class _TelaHomeState extends State<TelaHome> {
   Widget _cabecalho() {
     final foto = _eu?.foto;
     return Padding(
+      key: _kCabecalho,
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
       child: Column(
         children: [
@@ -287,6 +468,7 @@ class _TelaHomeState extends State<TelaHome> {
                     ),
                     const SizedBox(height: 2),
                     SeletorEnderecoCliente(
+                      key: _kEndereco,
                       cor: _texto,
                       corIcone: const Color(0xFF0EA5E9),
                       corTrocar: _azul,
@@ -325,6 +507,7 @@ class _TelaHomeState extends State<TelaHome> {
           ),
           const SizedBox(height: 16),
           Row(
+            key: _kBusca,
             children: [
               Expanded(
                 child: Material(
@@ -663,6 +846,7 @@ class _TelaHomeState extends State<TelaHome> {
     String subtitulo, {
     String? acao,
     VoidCallback? aoTocar,
+    Key? chaveAcao,
   }) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 26, 20, 12),
@@ -691,6 +875,7 @@ class _TelaHomeState extends State<TelaHome> {
           ),
           if (acao != null)
             InkWell(
+              key: chaveAcao,
               onTap: aoTocar,
               child: Padding(
                 padding: const EdgeInsets.only(top: 4, left: 8),
@@ -716,10 +901,12 @@ class _TelaHomeState extends State<TelaHome> {
         ? const <OficioInfo>[]
         : (_todasCategorias ? cats : cats.take(7).toList());
     return Column(
+      key: _kCategorias,
       children: [
         _tituloSecao(
           'Categorias Populares',
           'Técnicos e serviços por especialidade',
+          chaveAcao: _kVerTodasCategorias,
           acao: 'Ver todas ›',
           aoTocar: () => setState(() => _todasCategorias = true),
         ),
@@ -842,11 +1029,13 @@ class _TelaHomeState extends State<TelaHome> {
   Widget _secaoRegiao() {
     final lista = _regiao;
     return Column(
+      key: _kRegiao,
       children: [
         _tituloSecao(
           'Profissionais na sua Região',
           'Prontos para atender ${_bairro == 'sua região' ? 'na sua região' : 'na $_bairro'} e arredores',
           acao: 'Ver todos',
+          chaveAcao: _kVerTodosRegiao,
           aoTocar: () => _abrir(const TodosProfissionaisPage()),
         ),
         if (lista != null && lista.isEmpty)
@@ -920,7 +1109,10 @@ class _TelaHomeState extends State<TelaHome> {
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     itemCount: lista.length,
                     separatorBuilder: (_, _) => const SizedBox(width: 14),
-                    itemBuilder: (_, i) => CardProfissionalVitrine(p: lista[i]),
+                    itemBuilder: (_, i) => KeyedSubtree(
+                      key: i == 0 ? _kPrimeiroProfissional : null,
+                      child: CardProfissionalVitrine(p: lista[i]),
+                    ),
                   ),
           ),
       ],
@@ -930,10 +1122,12 @@ class _TelaHomeState extends State<TelaHome> {
   Widget _secaoServicos() {
     final lista = _servicos;
     return Column(
+      key: _kServicos,
       children: [
         _tituloSecao(
           'Serviços Populares',
           'Preços transparentes com garantia de 90 dias',
+          chaveAcao: _kVerCatalogo,
           acao: 'Ver catálogo',
           aoTocar: () => _abrir(const TodosServicosPage()),
         ),

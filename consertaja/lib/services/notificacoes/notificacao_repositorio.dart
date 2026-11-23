@@ -22,11 +22,8 @@ class NotificacaoRepositorio {
   static Future<List<NotificacaoApp>> listar({int limite = 150}) async {
     final rows = await _db
         .from('notificacoes')
-        .select(
-          'id_notificacao, tipo, titulo, conteudo, data_criacao, aberta, '
-          'tela_destino, imagem_url, fk_solicitacao, fk_conversa, '
-          'fk_solicitacao_geografica, fk_status, dados',
-        )
+        // '*': inclui perfil_destino quando a v0_10 já rodou.
+        .select('*')
         .neq('tipo', 'feedback')
         .order('data_criacao', ascending: false)
         .limit(limite);
@@ -62,8 +59,22 @@ class NotificacaoRepositorio {
   }
 
   /// (notificações não lidas sem Conversa, mensagens não lidas)
-  static Future<(int, int)> contadores() async {
-    final r = await _db.rpc('contadores_notificacoes');
+  /// [perfil] ('independente' | 'empresa'): só os do perfil ativo.
+  static Future<(int, int)> contadores({String? perfil}) async {
+    Object? r;
+    if (perfil == 'independente' || perfil == 'empresa') {
+      try {
+        r = await _db.rpc(
+          'contadores_notificacoes',
+          params: {'p_perfil': perfil},
+        );
+      } catch (_) {
+        // Banco sem a v0_10 (função sem o parâmetro).
+        r = await _db.rpc('contadores_notificacoes');
+      }
+    } else {
+      r = await _db.rpc('contadores_notificacoes');
+    }
     if (r is Map) {
       return (
         (r['nao_lidas'] as num?)?.toInt() ?? 0,

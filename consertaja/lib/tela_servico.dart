@@ -21,6 +21,8 @@ import 'services/requisitos_conta.dart';
 import 'widgets/secao_avaliacoes.dart';
 import 'services/pedidos_cliente_service.dart';
 import 'widgets/formas_pagamento.dart';
+import 'tutorial/tutorial.dart';
+import 'tutorial/tutorial_da_tela.dart';
 
 class TelaServico extends StatefulWidget {
   final int? idServico;
@@ -32,7 +34,8 @@ class TelaServico extends StatefulWidget {
   State<TelaServico> createState() => _TelaServicoState();
 }
 
-class _TelaServicoState extends State<TelaServico> {
+class _TelaServicoState extends State<TelaServico>
+    with TutorialDaTela<TelaServico> {
   static const Color _azul = Color(0xFF00A2FF);
   static const Color _azulEscuroPreco = Color(0xFF002B66);
   static const Color _texto = Color(0xFF0F172A);
@@ -173,6 +176,39 @@ class _TelaServicoState extends State<TelaServico> {
         ? servico!.titulo.trim()
         : 'Serviço';
 
+    if (!_carregando && detalhe != null && !SessaoVisitante.ativo) {
+      tutorialDaTela(
+        chave: 'tela_servico',
+        passos: () => [
+          PassoTutorial(
+            'Aqui você vê o preço e a área do serviço.',
+            alvo: chaveTut('preco'),
+            raio: 12,
+          ),
+          PassoTutorial(
+            'Estas são as formas de pagamento e os métodos de realização que '
+            'o profissional aceita.',
+            alvo: chaveTut('pagamento'),
+            alvoRect: uniaoTut(['pagamento', 'metodos']),
+            raio: 12,
+          ),
+          PassoTutorial(
+            'Este é quem oferece o serviço. Toque para ver o perfil completo.',
+            alvo: chaveTut('oferecido'),
+          ),
+          PassoTutorial(
+            'Aqui ficam as avaliações de quem já contratou este serviço.',
+            alvo: chaveTut('avaliacoes'),
+            alinhamentoRolagem: 0.15,
+          ),
+          PassoTutorial(
+            'Gostou? É só pedir o serviço por aqui embaixo.',
+            alvo: chaveTut('pedir'),
+            raio: 12,
+          ),
+        ],
+      );
+    }
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
@@ -194,13 +230,13 @@ class _TelaServicoState extends State<TelaServico> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _buildPrecoETags(detalhe),
+                              alvoTut('preco', _buildPrecoETags(detalhe)),
                               const SizedBox(height: 12),
-                              _buildFormasPagamento(),
+                              alvoTut('pagamento', _buildFormasPagamento()),
                               const SizedBox(height: 12),
-                              _buildPrazoEntrega(),
+                              alvoTut('metodos', _buildPrazoEntrega()),
                               const SizedBox(height: 20),
-                              _buildOferecidoPor(detalhe),
+                              alvoTut('oferecido', _buildOferecidoPor(detalhe)),
                               const SizedBox(height: 22),
                               _buildDetalhes(servico),
                               const SizedBox(height: 26),
@@ -208,6 +244,7 @@ class _TelaServicoState extends State<TelaServico> {
                               const SizedBox(height: 26),
                               // Avaliações (comentários) deste serviço.
                               SecaoAvaliacoes(
+                                key: chaveTut('avaliacoes'),
                                 idServico: servico.id,
                                 padding: EdgeInsets.zero,
                               ),
@@ -218,7 +255,7 @@ class _TelaServicoState extends State<TelaServico> {
                       ],
                     ),
                   ),
-                  _buildBarraInferior(servico),
+                  alvoTut('pedir', _buildBarraInferior(servico)),
                 ],
               ),
       ),
@@ -2016,8 +2053,7 @@ class _TelaServicoState extends State<TelaServico> {
   /// O profissional/loja tirou o endereço: o serviço fica indisponível.
   bool get _prestadorSemEndereco {
     final e = _detalhe?.enderecoFormatado.trim() ?? '';
-    return _detalhe != null &&
-        (e.isEmpty || e == 'Endereço não cadastrado');
+    return _detalhe != null && (e.isEmpty || e == 'Endereço não cadastrado');
   }
 
   void _abrirSheetAdicionarServico() {

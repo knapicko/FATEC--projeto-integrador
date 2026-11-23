@@ -22,6 +22,8 @@ import 'certificados.dart';
 import 'widgets/secao_avaliacoes.dart';
 import 'widgets/calendario_disponibilidade.dart';
 import 'servicos_do_profissional.dart';
+import 'tutorial/tutorial.dart';
+import 'tutorial/tutorial_da_tela.dart';
 
 // Cores temáticas fiéis ao design
 const Color _kPrimaryCyan = Color(0xFF0FB3FF);
@@ -31,7 +33,6 @@ const Color _kDarkSlate = Color(0xFF0F172A);
 const Color _kTextMuted = Color(0xFF64748B);
 const Color _kBorderColor = Color(0xFFE2E8F0);
 const Color _kStarGold = Color(0xFFF59E0B);
-const Color _kCtaNavy = Color(0xFF222938);
 
 /// Ponto verde com animação pulsante para indicar status ativo/online e localização
 class _BlinkingSignalDot extends StatefulWidget {
@@ -151,7 +152,8 @@ class PerfilLoja extends StatefulWidget {
   State<PerfilLoja> createState() => _PerfilLojaState();
 }
 
-class _PerfilLojaState extends State<PerfilLoja> {
+class _PerfilLojaState extends State<PerfilLoja>
+    with TutorialDaTela<PerfilLoja> {
   final ScrollController _scrollController = ScrollController();
 
   // Chaves para rolagem suave entre abas
@@ -505,8 +507,50 @@ class _PerfilLojaState extends State<PerfilLoja> {
       final List<Map<String, dynamic>> novosProfissionais = [];
       final Set<int> idsProfissionaisAdicionados = {};
 
+      // 0. Equipe pela função do servidor (docs/sql/v0_11_ajustes.sql): o
+      //    cliente não tem acesso direto a dados_profissionais.
+      var equipeOk = false;
+      if (idGrupo != null) {
+        try {
+          final r = await supabase.rpc(
+            'equipe_da_loja',
+            params: {'p_id_grupo': idGrupo},
+          );
+          final linhas = r is List ? r : const [];
+          for (final linha in linhas) {
+            final m = Map<String, dynamic>.from(linha as Map);
+            final idProf = (m['id_profissional'] as num?)?.toInt();
+            if (idProf == null || !idsProfissionaisAdicionados.add(idProf)) {
+              continue;
+            }
+            final responsavel = m['responsavel'] == true;
+            if (responsavel) _idProfissionalDono = idProf;
+            novosProfissionais.add({
+              'idProfissional': idProf,
+              'nome':
+                  m['nome']?.toString().trim() ??
+                  (responsavel
+                      ? 'Responsável da Loja'
+                      : 'Profissional da Equipe'),
+              'cargo': responsavel ? 'Responsável' : 'Funcionário',
+              'caminhoImagem': m['foto']?.toString().trim() ?? '',
+              'isResponsavel': responsavel,
+            });
+          }
+          // Responsável primeiro.
+          novosProfissionais.sort(
+            (x, y) => (y['isResponsavel'] == true ? 1 : 0).compareTo(
+              x['isResponsavel'] == true ? 1 : 0,
+            ),
+          );
+          equipeOk = true;
+        } catch (e) {
+          debugPrint('[perfil loja] equipe (rode a v0_11): $e');
+        }
+      }
+
       // 1. Carrega Proprietário (fk_perfil vinculado ao grupo_empresa -> Responsável)
-      if (fkPerfil != null) {
+      if (!equipeOk && fkPerfil != null) {
         try {
           final dadosDono = await supabase
               .from('dados_profissionais')
@@ -549,7 +593,7 @@ class _PerfilLojaState extends State<PerfilLoja> {
       }
 
       // 2. Carrega Membros da equipe (tipo_perfil Loja/Dono -> Responsável, restante -> Funcionário)
-      if (idGrupo != null) {
+      if (!equipeOk && idGrupo != null) {
         try {
           final membros = await supabase
               .from('dados_profissionais')
@@ -1218,148 +1262,221 @@ class _PerfilLojaState extends State<PerfilLoja> {
     );
   }
 
-  Future<void> _abrirSolicitacaoServico() async {
-    // Fluxo antigo (SolicitarServicoPage) removido: a solicitação nasce só no
-    // botão Continuar da lista_servicos.dart. Aqui não faz nada.
-    return;
-  }
-
   @override
   Widget build(BuildContext context) {
+    tutorialDaTela(
+      chave: 'perfil_loja',
+      atraso: const Duration(milliseconds: 1500),
+      passos: () => [
+        PassoTutorial(
+          'Esta é a página da loja: o nome, a tag e o que ela faz.',
+          alvo: chaveTut('info'),
+          alinhamentoRolagem: 0.1,
+        ),
+        PassoTutorial(
+          'Aqui ficam a nota, os seguidores e os números da loja.',
+          alvo: chaveTut('metricas'),
+          raio: 14,
+        ),
+        if (_compartilharFuncionarios)
+          PassoTutorial(
+            'Esta é a equipe de especialistas que trabalha na loja.',
+            alvo: _equipeKey,
+            alinhamentoRolagem: 0.15,
+          ),
+        PassoTutorial(
+          'Estes são os serviços que a loja oferece. Toque em um para ver '
+          'os detalhes e pedir.',
+          alvo: _servicosKey,
+          alinhamentoRolagem: 0.15,
+        ),
+        PassoTutorial(
+          'E aqui ficam as avaliações dos clientes.',
+          alvo: _avaliacoesKey,
+          alinhamentoRolagem: 0.15,
+        ),
+      ],
+    );
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: Colors.white,
-        // Arrastar para baixo recarrega (o banner acompanha o arrasto).
-        body: RefreshIndicator(
-          color: const Color(0xFF0FB3FF),
-          onRefresh: () async {
-            await _carregarDadosEmpresaEProfissionais();
-            if (_idGrupoEmpresa != null) {
-              await _carregarAvaliacoes(_idGrupoEmpresa!);
-            }
-          },
-          child: CustomScrollView(
-            controller: _scrollController,
-            physics: const AlwaysScrollableScrollPhysics(
-              parent: BouncingScrollPhysics(),
+        // Arrastar para baixo recarrega: a cor do banner estica junto, sem
+        // abrir espaço branco em cima (voltar/opções descem com o banner).
+        body: Stack(
+          children: [
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: AnimatedBuilder(
+                animation: _scrollController,
+                builder: (context, _) {
+                  final offset = _scrollController.hasClients
+                      ? _scrollController.offset
+                      : 0.0;
+                  final esticado = offset < 0 ? -offset : 0.0;
+                  // Só aparece no arrasto (rolando, a página cobre o topo).
+                  if (esticado <= 0) return const SizedBox.shrink();
+                  return SizedBox(
+                    height: esticado + 150,
+                    child: _fundoBanner(),
+                  );
+                },
+              ),
             ),
-            slivers: [
-              // 1. Cabeçalho, Informações, Métricas e Busca
-              SliverToBoxAdapter(
-                child: Column(
-                  children: [
-                    _buildCabecalhoSuperiorComLogo(),
-                    const SizedBox(height: 52),
-                    _buildInformacoesLoja(),
-                    const SizedBox(height: 16),
-                    _buildMetricasLoja(),
-                    const SizedBox(height: 12),
-                    // Certificados da empresa (onde ficava a busca).
-                    SecaoCertificados(idGrupoEmpresa: _idGrupoEmpresa),
-                    const SizedBox(height: 6),
-                  ],
+            RefreshIndicator(
+              color: const Color(0xFF0FB3FF),
+              onRefresh: () async {
+                await _carregarDadosEmpresaEProfissionais();
+                if (_idGrupoEmpresa != null) {
+                  await _carregarAvaliacoes(_idGrupoEmpresa!);
+                }
+              },
+              child: CustomScrollView(
+                controller: _scrollController,
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
                 ),
-              ),
-
-              // 2. Abas Sticky Pinned (grudam no topo ao rolar a tela, igual perfil_profissional.dart)
-              SliverPersistentHeader(
-                pinned: true,
-                delegate: _AbasLojaDelegate(
-                  abaAtiva: _abaAtiva,
-                  onAbaTap: (aba, key) => _scrollParaAba(aba, key),
-                  equipeKey: _equipeKey,
-                  servicosKey: _servicosKey,
-                  sobreKey: _sobreKey,
-                  avaliacoesKey: _avaliacoesKey,
-                  mostrarEquipe: _compartilharFuncionarios,
-                ),
-              ),
-
-              // 3. Seção: Equipe de Especialistas (exibida apenas se compartilhar_funcionarios == true)
-              if (_compartilharFuncionarios)
-                SliverToBoxAdapter(key: _equipeKey, child: _buildSecaoEquipe()),
-
-              // 4. Seção: Localização e Atendimento
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                  child: Column(
-                    children: [
-                      if (_idGrupoEmpresa != null) ...[
-                        CalendarioDisponibilidade(
-                          idGrupoEmpresa: _idGrupoEmpresa,
-                        ),
-                        const SizedBox(height: 18),
+                slivers: [
+                  // 1. Cabeçalho, Informações, Métricas e Busca
+                  SliverToBoxAdapter(
+                    child: Column(
+                      children: [
+                        _buildCabecalhoSuperiorComLogo(),
+                        const SizedBox(height: 52),
+                        alvoTut('info', _buildInformacoesLoja()),
+                        const SizedBox(height: 16),
+                        alvoTut('metricas', _buildMetricasLoja()),
+                        const SizedBox(height: 12),
+                        // Certificados da empresa (onde ficava a busca).
+                        SecaoCertificados(idGrupoEmpresa: _idGrupoEmpresa),
+                        const SizedBox(height: 6),
                       ],
-                      _buildSecaoLocalizacao(),
-                    ],
+                    ),
                   ),
-                ),
-              ),
 
-              // 5. Seção: Serviços Oferecidos (Catálogo em Grid 2x2 com preço em _kDarkBlueEnd)
-              SliverToBoxAdapter(
-                key: _servicosKey,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
+                  // 2. Abas Sticky Pinned (grudam no topo ao rolar a tela, igual perfil_profissional.dart)
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: _AbasLojaDelegate(
+                      abaAtiva: _abaAtiva,
+                      onAbaTap: (aba, key) => _scrollParaAba(aba, key),
+                      equipeKey: _equipeKey,
+                      servicosKey: _servicosKey,
+                      sobreKey: _sobreKey,
+                      avaliacoesKey: _avaliacoesKey,
+                      mostrarEquipe: _compartilharFuncionarios,
+                    ),
                   ),
-                  child: _buildServicosEmLinha(),
-                ),
-              ),
 
-              // 6. Seção: Sobre a Loja / Empresa (com Tipos de serviços dinâmicos e Galeria)
-              SliverToBoxAdapter(
-                key: _sobreKey,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildSecaoSobre(),
-                      const SizedBox(height: 28),
-                      _buildSecaoTiposServicos(),
-                      const SizedBox(height: 28),
-                      _buildSecaoGaleria(),
-                    ],
-                  ),
-                ),
-              ),
+                  // 3. Seção: Equipe de Especialistas (exibida apenas se compartilhar_funcionarios == true)
+                  if (_compartilharFuncionarios)
+                    SliverToBoxAdapter(
+                      key: _equipeKey,
+                      child: _buildSecaoEquipe(),
+                    ),
 
-              // 7. Seção: Avaliações e Rodapé Persistente
-              SliverToBoxAdapter(
-                key: _avaliacoesKey,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
+                  // 4. Seção: Localização e Atendimento
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      child: Column(
+                        children: [
+                          if (_idGrupoEmpresa != null) ...[
+                            CalendarioDisponibilidade(
+                              idGrupoEmpresa: _idGrupoEmpresa,
+                            ),
+                            const SizedBox(height: 18),
+                          ],
+                          _buildSecaoLocalizacao(),
+                        ],
+                      ),
+                    ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (_idGrupoEmpresa != null)
-                        SecaoAvaliacoes(
-                          idGrupoEmpresa: _idGrupoEmpresa,
-                          padding: EdgeInsets.zero,
-                        ),
-                      const SizedBox(height: 20),
-                      _buildBarraAcaoRodape(),
-                      const SizedBox(height: 24),
-                    ],
+
+                  // 5. Seção: Serviços Oferecidos (Catálogo em Grid 2x2 com preço em _kDarkBlueEnd)
+                  SliverToBoxAdapter(
+                    key: _servicosKey,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      child: _buildServicosEmLinha(),
+                    ),
                   ),
-                ),
+
+                  // 6. Seção: Sobre a Loja / Empresa (com Tipos de serviços dinâmicos e Galeria)
+                  SliverToBoxAdapter(
+                    key: _sobreKey,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSecaoSobre(),
+                          const SizedBox(height: 28),
+                          _buildSecaoTiposServicos(),
+                          const SizedBox(height: 28),
+                          _buildSecaoGaleria(),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // 7. Seção: Avaliações e Rodapé Persistente
+                  SliverToBoxAdapter(
+                    key: _avaliacoesKey,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (_idGrupoEmpresa != null)
+                            SecaoAvaliacoes(
+                              idGrupoEmpresa: _idGrupoEmpresa,
+                              padding: EdgeInsets.zero,
+                            ),
+                          const SizedBox(height: 32),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
+      ),
+    );
+  }
+
+  /// Cor (ou imagem) do banner, também usada atrás da página no arrasto.
+  Widget _fundoBanner() {
+    final url = _bannerUrlEmpresa ?? '';
+    final rede = url.startsWith('http://') || url.startsWith('https://');
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: rede
+            ? null
+            : LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [_corBanner ?? _kDarkBlueStart, _corBannerEscura],
+              ),
+        image: rede
+            ? DecorationImage(image: NetworkImage(url), fit: BoxFit.cover)
+            : null,
       ),
     );
   }
@@ -3436,79 +3553,6 @@ class _PerfilLojaState extends State<PerfilLoja> {
   // =========================================================================
   // 9. BARRA FIXA / CTA PERSISTENTE (DOCK INFERIOR ESCURO COM BOTÃO DE CONVERSÃO)
   // =========================================================================
-  Widget _buildBarraAcaoRodape() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: _kCtaNavy,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 14,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: const [
-                  Text(
-                    'Precisa de suporte urgente?',
-                    style: TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  SizedBox(height: 2),
-                  Text(
-                    'Chame agora pelo ConsertaJá',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                      color: _kPrimaryCyan,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            ElevatedButton(
-              onPressed: _abrirSolicitacaoServico,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _kPrimaryCyan,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              child: const Text(
-                'Orçamento / Contratar',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   // =========================================================================
   // PLACEHOLDERS REMOVIDOS — sem fallback estático (lista vazia = vazio real).
   // =========================================================================

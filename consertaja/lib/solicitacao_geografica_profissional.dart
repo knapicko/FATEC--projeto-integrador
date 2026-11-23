@@ -23,6 +23,9 @@ import 'widgets/camada_mapa.dart';
 import 'widgets/sonar_pulso.dart';
 import 'widgets/skeletons_telas.dart';
 import 'services/requisitos_conta.dart';
+import 'tutorial/tutorial.dart';
+import 'tutorial/tutorial_da_tela.dart';
+import 'tutorial/ilustracoes.dart';
 
 enum _Aba { proximas, aceitas }
 
@@ -45,7 +48,8 @@ class SolicitacaoGeograficaProfissionalPage extends StatefulWidget {
 }
 
 class _SolicitacaoGeograficaProfissionalPageState
-    extends State<SolicitacaoGeograficaProfissionalPage> {
+    extends State<SolicitacaoGeograficaProfissionalPage>
+    with TutorialDaTela<SolicitacaoGeograficaProfissionalPage> {
   static const Color _azul = Color(0xFF0FB3FF);
   static const Color _azulSelecionado = Color(0xFF1E5AA8);
   static const Color _texto = Color(0xFF1D2430);
@@ -421,6 +425,40 @@ class _SolicitacaoGeograficaProfissionalPageState
 
   @override
   Widget build(BuildContext context) {
+    if (!widget.isVisitante) {
+      Rect? mapaDeCima() {
+        final r = rectTut('mapa');
+        if (r == null) return null;
+        return Rect.fromLTRB(r.left, r.top, r.right, r.top + r.height * 0.5);
+      }
+
+      tutorialDaTela(
+        chave: 'radar_profissional',
+        atraso: const Duration(milliseconds: 1400),
+        passos: () => [
+          PassoTutorial(
+            'Este é o Radar! No mapa aparecem você e os pedidos dos clientes '
+            'num raio de 5 km.',
+            alvoRect: mapaDeCima,
+            ilustracao: const IlustracaoRadar(doProfissional: true),
+          ),
+          PassoTutorial(
+            'Aqui embaixo fica a lista dos pedidos. Toque em um para ver os '
+            'detalhes e mandar a sua proposta de preço.',
+            alvo: chaveTut('lista'),
+          ),
+          PassoTutorial(
+            'Quando o cliente aceitar a sua proposta, o pedido aparece aqui '
+            'para você acompanhar até o pagamento.',
+            alvo: chaveTut('lista'),
+          ),
+          const PassoTutorial(
+            'E sempre que surgir um pedido novo na sua área, você recebe uma '
+            'notificação.',
+          ),
+        ],
+      );
+    }
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
@@ -455,10 +493,10 @@ class _SolicitacaoGeograficaProfissionalPageState
         body: LayoutBuilder(
           builder: (context, c) => Stack(
             children: [
-              Positioned.fill(child: _buildMapa()),
+              Positioned.fill(child: alvoTut('mapa', _buildMapa())),
               const Positioned(top: 6, right: 6, child: CreditoMapa()),
               _buildBotaoLocalizacao(c.maxHeight),
-              _buildSheet(),
+              alvoTut('lista', _buildSheet()),
             ],
           ),
         ),

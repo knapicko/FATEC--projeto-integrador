@@ -1744,11 +1744,41 @@ class _CaixaFalanteState extends State<_CaixaFalante>
 
   bool get _falando => _timer != null;
 
+  /// Parada (sem falar), pisca de vez em quando.
+  Timer? _piscada;
+  bool _piscando = false;
+
   @override
   void initState() {
     super.initState();
     kBaloesDigitando.addListener(_atualizar);
     _atualizar();
+    _agendarPiscada();
+  }
+
+  void _agendarPiscada() {
+    _piscada?.cancel();
+    _piscada = Timer(
+      Duration(milliseconds: 1800 + _sorteio.nextInt(2800)),
+      _piscar,
+    );
+  }
+
+  Future<void> _piscar() async {
+    if (!mounted) return;
+    // Só na pose parada normal (o quadro de olhos fechados é o dela).
+    if (!_falando && widget.poseParada == CaixaAssets.normal) {
+      final duas = _sorteio.nextDouble() < 0.25;
+      for (var i = 0; i < (duas ? 2 : 1); i++) {
+        if (!mounted || _falando) break;
+        setState(() => _piscando = true);
+        await Future<void>.delayed(const Duration(milliseconds: 130));
+        if (!mounted) return;
+        setState(() => _piscando = false);
+        if (duas) await Future<void>.delayed(const Duration(milliseconds: 110));
+      }
+    }
+    if (mounted) _agendarPiscada();
   }
 
   void _atualizar() {
@@ -1811,6 +1841,7 @@ class _CaixaFalanteState extends State<_CaixaFalante>
   void dispose() {
     kBaloesDigitando.removeListener(_atualizar);
     _timer?.cancel();
+    _piscada?.cancel();
     _tremor.dispose();
     _intensidade.dispose();
     super.dispose();
@@ -1822,10 +1853,11 @@ class _CaixaFalanteState extends State<_CaixaFalante>
     // montados (e com a imagem já decodificada); só a opacidade muda. Antes,
     // cada troca de boca criava uma imagem nova, que podia ficar um quadro
     // em branco até carregar.
-    final atual = _QuadrosFala.quadro(
-      olhosFechados: _olhosFechados,
-      boca: _boca,
-    );
+    final piscando = _piscando && !_falando;
+    final atual = piscando
+        ? _QuadrosFala.quadro(olhosFechados: true, boca: 'fechada')
+        : _QuadrosFala.quadro(olhosFechados: _olhosFechados, boca: _boca);
+    final mostraQuadro = _falando || piscando;
     final caixa = Stack(
       alignment: Alignment.center,
       children: [
@@ -1839,7 +1871,7 @@ class _CaixaFalanteState extends State<_CaixaFalante>
             children: [
               for (final quadro in _QuadrosFala.todos)
                 Opacity(
-                  opacity: _falando && quadro == atual ? 1 : 0,
+                  opacity: mostraQuadro && quadro == atual ? 1 : 0,
                   child: Image.asset(
                     quadro,
                     fit: BoxFit.contain,
@@ -1850,7 +1882,7 @@ class _CaixaFalanteState extends State<_CaixaFalante>
           ),
         ),
         Opacity(
-          opacity: _falando ? 0 : 1,
+          opacity: mostraQuadro ? 0 : 1,
           child: CaixaCharacter(asset: widget.poseParada, size: widget.size),
         ),
       ],

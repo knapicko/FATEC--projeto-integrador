@@ -257,6 +257,25 @@ class HomeClienteService {
     'sábado',
   ];
 
+  /// Dados públicos dos profissionais para a vitrine. O cliente não lê a
+  /// tabela dados_profissionais (RLS), por isso usa a função do servidor
+  /// (docs/sql/v0_10_ajustes.sql). [ids] null = todos os independentes.
+  static Future<List<Map<String, dynamic>>> _vitrine(List<int>? ids) async {
+    try {
+      final r = await _db.rpc('vitrine_profissionais', params: {'p_ids': ids});
+      return List<Map<String, dynamic>>.from(
+        (r as List).map((e) => Map<String, dynamic>.from(e as Map)),
+      );
+    } catch (e) {
+      debugPrint('[home] vitrine (rode a v0_10): $e');
+      var q = _db
+          .from('dados_profissionais')
+          .select('id_profissional, fk_usuario, fk_grupo_empresa, fk_perfil');
+      if (ids != null) q = q.inFilter('id_profissional', ids);
+      return List<Map<String, dynamic>>.from(await q);
+    }
+  }
+
   /// Profissionais (independentes) e lojas com funções, se atendem hoje
   /// (agenda), data de criação da conta, tag da loja e nota.
   static Future<List<ProfissionalVitrine>> _montarVitrine({
@@ -267,11 +286,7 @@ class HomeClienteService {
     // Dados dos profissionais
     final dadosProf = <int, Map<String, dynamic>>{};
     if (idsProf.isNotEmpty) {
-      final rows = await _db
-          .from('dados_profissionais')
-          .select('id_profissional, fk_usuario, fk_grupo_empresa, fk_perfil')
-          .inFilter('id_profissional', idsProf);
-      for (final r in rows) {
+      for (final r in await _vitrine(idsProf)) {
         dadosProf[(r['id_profissional'] as num).toInt()] = r;
       }
     }
@@ -545,15 +560,21 @@ class HomeClienteService {
   /// Todos os profissionais independentes e lojas cadastrados.
   static Future<List<ProfissionalVitrine>> todosProfissionais() async {
     try {
-      final dados = await _db
-          .from('dados_profissionais')
-          .select('id_profissional, fk_grupo_empresa');
-      final grupos = await _db.from('grupo_empresa').select('id_grupo_empresa');
+      final dados = await _vitrine(null);
+      final grupos = await _db
+          .from('grupo_empresa')
+          .select('id_grupo_empresa, fk_perfil');
+      // Dono de loja também tem a conta independente (mesmo perfil): aparece.
+      final perfisDono = {
+        for (final g in grupos)
+          if (g['fk_perfil'] != null) (g['fk_perfil'] as num).toInt(),
+      };
       return await _montarVitrine(
         // Funcionários de loja aparecem pela loja; independentes sozinhos.
         idsProf: [
           for (final d in dados)
-            if (d['fk_grupo_empresa'] == null)
+            if (d['fk_grupo_empresa'] == null ||
+                perfisDono.contains((d['fk_perfil'] as num?)?.toInt()))
               (d['id_profissional'] as num).toInt(),
         ],
         idsGrupo: [

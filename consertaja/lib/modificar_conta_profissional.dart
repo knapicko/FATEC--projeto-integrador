@@ -12,9 +12,18 @@ import 'services/cor_dominante_service.dart';
 import 'utils/iniciais.dart';
 import 'widgets/aviso_obrigatorio.dart';
 import 'services/requisitos_conta.dart';
+import 'tutorial/tutorial.dart';
+import 'tutorial/ilustracoes.dart';
 
 class ModificarContaProfissionalPage extends StatefulWidget {
-  const ModificarContaProfissionalPage({super.key});
+  const ModificarContaProfissionalPage({
+    super.key,
+    this.tutorialTipoConta = false,
+  });
+
+  /// Aberta pelo tutorial da home: mostra o "Tipo de conta" e volta
+  /// devolvendo o [ResultadoTutorial].
+  final bool tutorialTipoConta;
 
   @override
   State<ModificarContaProfissionalPage> createState() =>
@@ -29,6 +38,56 @@ class _ModificarContaProfissionalPageState
   static const Color _bg = Color(0xFFF6F6F7);
   static const Color _textDark = Color(0xFF3E4350);
   static const Color _muted = Color(0xFFA2A8B3);
+
+  // Tutorial do tipo de conta (destaques).
+  final _kTituloTipo = GlobalKey();
+  final _kCardLoja = GlobalKey();
+  bool _tutorialIniciado = false;
+
+  Rect? _rectDe(GlobalKey k) {
+    final box = k.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize || !box.attached) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  Future<void> _rodarTutorialTipoConta() async {
+    await Future<void>.delayed(const Duration(milliseconds: 450));
+    if (!mounted) return;
+    Rect? secao() {
+      final a = _rectDe(_kTituloTipo);
+      final b = _rectDe(_kCardLoja);
+      if (a == null) return b;
+      return b == null ? a : a.expandToInclude(b);
+    }
+
+    final r = await Tutorial.mostrar(
+      context,
+      pularParaFinal: true,
+      chave: 'modificar_conta_tipo',
+      forcar: true,
+      comEntrada: false,
+      passos: [
+        PassoTutorial(
+          'Aqui fica o tipo da sua conta: independente ou loja/empresa.',
+          alvo: _kTituloTipo,
+          alvoRect: secao,
+          alinhamentoRolagem: 0.25,
+        ),
+        PassoTutorial(
+          'Para ativar a conta de empresa, é só marcar "Loja / Empresa".',
+          alvo: _kCardLoja,
+        ),
+        const PassoTutorial(
+          'Assim você ganha a conta da loja, com equipe e página própria, '
+          'sem perder a sua conta independente.',
+          ilustracao: IlustracaoEquipe(),
+        ),
+        const PassoTutorial('Agora vamos voltar para a home!'),
+        passoFinalTutorial(apenasAoPular: true),
+      ],
+    );
+    if (mounted) Navigator.of(context).pop(r);
+  }
 
   static const List<String> _opcoesExperiencia = [
     '0-1 ano',
@@ -347,6 +406,12 @@ class _ModificarContaProfissionalPageState
 
   @override
   Widget build(BuildContext context) {
+    if (!_carregando && widget.tutorialTipoConta && !_tutorialIniciado) {
+      _tutorialIniciado = true;
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _rodarTutorialTipoConta(),
+      );
+    }
     return Scaffold(
       backgroundColor: _bg,
       body: SafeArea(
@@ -597,7 +662,8 @@ class _ModificarContaProfissionalPageState
           ),
           if (_isPessoaJuridica) ...[
             const SizedBox(height: 16),
-            const Text(
+            Text(
+              key: _kTituloTipo,
               'TIPO DE CONTA',
               style: TextStyle(
                 color: _textDark,
@@ -615,12 +681,15 @@ class _ModificarContaProfissionalPageState
               selecionado: _tipoConta == _TipoConta.independente,
             ),
             const SizedBox(height: 8),
-            _buildTipoContaCard(
-              tipo: _TipoConta.loja,
-              titulo: 'Loja / Empresa',
-              subtitulo: 'Possuo CNPJ e equipe.',
-              icon: Icons.storefront_outlined,
-              selecionado: _tipoConta == _TipoConta.loja,
+            KeyedSubtree(
+              key: _kCardLoja,
+              child: _buildTipoContaCard(
+                tipo: _TipoConta.loja,
+                titulo: 'Loja / Empresa',
+                subtitulo: 'Possuo CNPJ e equipe.',
+                icon: Icons.storefront_outlined,
+                selecionado: _tipoConta == _TipoConta.loja,
+              ),
             ),
           ],
           const SizedBox(height: 24),

@@ -49,6 +49,9 @@ import 'minhas_avaliacoes_profissional.dart';
 import 'tela_configuracoes_cliente.dart';
 import 'meu_historico_servico_profissional.dart';
 import 'services/solicitacao_geografica_service.dart';
+import 'tutorial/tutorial.dart';
+import 'tutorial/tutorial_visto.dart';
+import 'tutorial/ilustracoes.dart';
 
 class TelaHomeProfissional extends StatefulWidget {
   final bool isVisitante;
@@ -215,8 +218,446 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
     _precarregarInfosContas();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await PermissoesIniciais.pedirSePrimeiraVez(context);
-      if (mounted) _mostrarCompletamentoEquipeSeNecessario();
+      if (mounted) await _mostrarCompletamentoEquipeSeNecessario();
+      if (mounted) await _tutorial();
     });
+  }
+
+  // ── Tutorial (primeiro acesso) ─────────────────────────────────────────────
+
+  final _rolagem = ScrollController();
+  final _kCabecalho = GlobalKey();
+  final _kEndereco = GlobalKey();
+  final _kAreas = GlobalKey();
+  final _kPostagem = GlobalKey();
+  final _kAddImagem = GlobalKey();
+  final _kRadar = GlobalKey();
+  final _kRadarInfo = GlobalKey();
+  final _kEstatisticas = GlobalKey();
+  final _kAgenda = GlobalKey();
+  final _kAtalhos = GlobalKey();
+  final _kBarra = GlobalKey();
+  final _kSheetConta = GlobalKey();
+  final _atalhoEmFoco = ValueNotifier<String?>(null);
+  final Map<String, GlobalKey> _kAtalho = {
+    'conta': GlobalKey(),
+    'empresa': GlobalKey(),
+    'config_empresa': GlobalKey(),
+  };
+
+  /// Chaves dos atalhos só durante o tutorial (arrastar um atalho monta o
+  /// desenho duas vezes, e a mesma chave não pode aparecer duas vezes).
+  bool _tutorialAtivo = false;
+  bool _tutorialRodando = false;
+  BuildContext? _ctxSheetPerfil;
+
+  Rect? _rectDe(GlobalKey k) {
+    final box = k.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize || !box.attached) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  /// Atalho [id] (vai para a página dele); sem ele, o painel inteiro.
+  Rect? Function() _atalho(String id) =>
+      () => _rectDe(_kAtalho[id]!) ?? _rectDe(_kAtalhos);
+
+  Future<void> _rolarTopo() async {
+    if (_rolagem.hasClients) {
+      await _rolagem.animateTo(
+        0,
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeInOutCubic,
+      );
+    }
+  }
+
+  Future<void> _focarAtalho(String id) async {
+    _atalhoEmFoco.value = null;
+    _atalhoEmFoco.value = id;
+    await Future<void>.delayed(const Duration(milliseconds: 320));
+  }
+
+  Future<void> _tutorial() async {
+    if (widget.isVisitante || _tutorialRodando || !mounted) return;
+    if (!await TutorialVisto.esperarSessao(() => mounted)) return;
+    final empresa = _contaEmpresaAtiva;
+    final chave = empresa ? 'home_empresa' : 'home_profissional';
+    if (await TutorialVisto.jaViu(chave)) return;
+    _tutorialRodando = true;
+    // Espera a home carregar (para medir os destaques).
+    try {
+      await Future.wait(
+        [
+          _dadosProfissionalFuture,
+          _enderecoFuture,
+        ].map((f) => f.catchError((_) => null)),
+      );
+    } catch (_) {}
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    if (!mounted) {
+      _tutorialRodando = false;
+      return;
+    }
+    setState(() => _tutorialAtivo = true);
+    try {
+      if (empresa) {
+        await _tutorialEmpresa();
+      } else {
+        await _tutorialIndependente();
+      }
+      // Interrompido (a home saiu no meio): aparece de novo depois.
+      if (Tutorial.ultimoResultado != ResultadoTutorial.interrompido) {
+        await TutorialVisto.marcar(chave);
+      }
+    } finally {
+      _tutorialRodando = false;
+      if (mounted) setState(() => _tutorialAtivo = false);
+    }
+  }
+
+  Future<bool> _ehPessoaJuridica() async {
+    try {
+      final db = Supabase.instance.client;
+      final u = await db
+          .from('usuarios')
+          .select('fk_tipo_pessoa')
+          .eq('auth_id', db.auth.currentUser!.id)
+          .limit(1)
+          .maybeSingle();
+      final tipo = u?['fk_tipo_pessoa'];
+      if (tipo == null) return false;
+      final ass = await db
+          .from('ass_tipo_pessoa')
+          .select('fk_pessoa_juridica')
+          .eq('id_tipo_pessoa', tipo)
+          .maybeSingle();
+      return ass?['fk_pessoa_juridica'] != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Título do Radar + a prévia do mapa (até o texto de baixo).
+  Rect? _rectRadar() {
+    final a = _rectDe(_kRadar);
+    final b = _rectDe(_kRadarInfo);
+    if (a == null) return b;
+    return b == null ? a : a.expandToInclude(b);
+  }
+
+  Rect? Function() _aba(int i) =>
+      Tutorial.itemBarra(_kBarra, indice: i, total: 5);
+
+  Future<void> _tutorialIndependente() async {
+    final cnpj = await _ehPessoaJuridica();
+    if (!mounted) return;
+    final temAreas =
+        (await _oficiosFuture.catchError((_) => null))?.oficios.isNotEmpty ==
+        true;
+    if (!mounted) return;
+    final r = await Tutorial.mostrar(
+      context,
+      pularParaFinal: true,
+      chave: 'home_profissional',
+      forcar: true,
+      marcarVisto: false,
+      passos: [
+        const PassoTutorial('Que bom te ver de novo por aqui!'),
+        const PassoTutorial(
+          'Vou te mostrar a sua tela principal e as partes mais importantes '
+          'do app.',
+        ),
+        const PassoTutorial(
+          'Se quiser, toque em "Pular", no canto de baixo, a qualquer '
+          'momento.',
+        ),
+        PassoTutorial(
+          'Este é o seu cabeçalho: sua foto, o endereço, as áreas em que você '
+          'atua e as notificações.',
+          alvo: _kCabecalho,
+          rolagem: _rolagem,
+          alinhamentoRolagem: 0,
+        ),
+        PassoTutorial(
+          'Este é o seu endereço. Ele é necessário para oferecer serviços e '
+          'usar o Radar.',
+          alvo: _kEndereco,
+          raio: 10,
+        ),
+        PassoTutorial(
+          temAreas
+              ? 'Estas são as suas áreas de atuação. Você só atende pedidos e '
+                    'cria serviços dessas áreas.'
+              : 'Aqui vão aparecer as suas áreas de atuação. Você só atende '
+                    'pedidos e cria serviços delas.',
+          alvo: temAreas ? _kAreas : _kCabecalho,
+          raio: 14,
+        ),
+        PassoTutorial(
+          'Aqui você cria postagens, que os clientes veem no seu perfil.',
+          alvo: _kPostagem,
+          rolagem: _rolagem,
+          alinhamentoRolagem: 0.2,
+        ),
+        PassoTutorial(
+          'Toda postagem precisa de pelo menos uma imagem. Comece tocando '
+          'aqui!',
+          alvo: _kAddImagem,
+          raio: 16,
+          folga: 6,
+        ),
+        PassoTutorial(
+          'Este é o Radar. Os clientes da sua região publicam pedidos, que '
+          'aparecem neste mapa.',
+          alvo: _kRadar,
+          alvoRect: _rectRadar,
+          rolagem: _rolagem,
+          alinhamentoRolagem: 0.15,
+          ilustracao: const IlustracaoRadar(doProfissional: true),
+        ),
+        PassoTutorial(
+          'Você vê os pedidos e manda a sua proposta de preço. O cliente '
+          'escolhe a que achar melhor.',
+          alvo: _kRadar,
+          alvoRect: _rectRadar,
+          ilustracao: const IlustracaoRadar(doProfissional: true),
+        ),
+        PassoTutorial(
+          'Quando um cliente pedir algo na sua área, você recebe uma '
+          'notificação. Aqui aparece quantos pedidos há agora.',
+          alvo: _kRadarInfo,
+          raio: 10,
+        ),
+        PassoTutorial(
+          'Aqui você acompanha os seus serviços: pendentes, ativos, '
+          'concluídos e cancelados.',
+          alvo: _kEstatisticas,
+          rolagem: _rolagem,
+          alinhamentoRolagem: 0.2,
+          raio: 12,
+        ),
+        PassoTutorial(
+          'E esta é a sua agenda da semana, com os dias em que você atende.',
+          alvo: _kAgenda,
+          rolagem: _rolagem,
+          alinhamentoRolagem: 0.25,
+          raio: 12,
+        ),
+        PassoTutorial(
+          'Estes são os atalhos para configurar a sua conta. Deslize para o '
+          'lado para ver mais.',
+          alvo: _kAtalhos,
+          rolagem: _rolagem,
+          alinhamentoRolagem: 0.1,
+        ),
+        PassoTutorial(
+          'Os atalhos com ! amarelo são obrigatórios: sem eles você não '
+          'consegue adicionar serviços nem usar o Radar.',
+          alvo: _kAtalhos,
+        ),
+        PassoTutorial(
+          'Em Mensagens ficam as conversas com os seus clientes.',
+          alvoRect: _aba(2),
+          folga: 2,
+          raio: 14,
+        ),
+        PassoTutorial(
+          'Em Serviços você vê e responde os pedidos que recebe.',
+          alvoRect: _aba(3),
+          folga: 2,
+          raio: 14,
+        ),
+        PassoTutorial(
+          'E no Perfil ficam os seus dados, avaliações e configurações.',
+          alvoRect: _aba(4),
+          folga: 2,
+          raio: 14,
+        ),
+        if (cnpj) ...[
+          PassoTutorial(
+            'Como a sua conta é de CNPJ, você também pode ter uma conta de '
+            'empresa!',
+            alvo: _kAtalhos,
+            alvoRect: _atalho('conta'),
+            rolagem: _rolagem,
+            antes: () => _focarAtalho('conta'),
+            ilustracao: const IlustracaoEquipe(),
+          ),
+          PassoTutorial(
+            'Com ela dá para adicionar funcionários, ter a página da sua loja '
+            'e receber pedidos como empresa.',
+            alvoRect: _atalho('conta'),
+            ilustracao: const IlustracaoEquipe(),
+          ),
+          PassoTutorial(
+            'Para ativar, é pelo atalho "Modificar conta". Vou te mostrar!',
+            alvoRect: _atalho('conta'),
+          ),
+          passoFinalTutorial(apenasAoPular: true),
+        ] else
+          PassoTutorial(kFalaFinalTutorial, ehFinal: true, antes: _rolarTopo),
+      ],
+    );
+    if (!cnpj || r != ResultadoTutorial.concluido || !mounted) {
+      if (mounted) await _rolarTopo();
+      return;
+    }
+
+    // Adendo (CNPJ): tela "Modificar conta" → tipo de conta.
+    final rConta = await Navigator.of(context).push<ResultadoTutorial>(
+      MaterialPageRoute(
+        builder: (_) =>
+            const ModificarContaProfissionalPage(tutorialTipoConta: true),
+      ),
+    );
+    if (!mounted || rConta == ResultadoTutorial.pulado) return;
+    await _rolarTopo();
+    if (!mounted) return;
+    await Tutorial.mostrar(
+      context,
+      pularParaFinal: true,
+      chave: 'home_profissional_troca',
+      forcar: true,
+      marcarVisto: false,
+      comEntrada: false,
+      passos: [
+        PassoTutorial(
+          'De volta! Tocando no seu cabeçalho, você abre as opções da conta.',
+          alvo: _kCabecalho,
+        ),
+        PassoTutorial(
+          'Com a conta de empresa ativa, toque aqui para ver as suas contas.',
+          alvo: _kSheetConta,
+          raio: 14,
+          antes: () async {
+            final d = await _dadosProfissionalFuture.catchError((_) => null);
+            final e = await _enderecoFuture.catchError((_) => null);
+            if (!mounted) return;
+            unawaited(
+              _mostrarBottomSheetPerfil(
+                nome: d?['nome']?.toString() ?? '',
+                fotoUrl: d?['foto_perfil_url']?.toString(),
+                endereco: e ?? '',
+              ),
+            );
+            await Future<void>.delayed(const Duration(milliseconds: 550));
+          },
+          ilustracao: const IlustracaoTrocaConta(),
+        ),
+        PassoTutorial(
+          'Depois é só escolher a conta "Loja" para usar o app como empresa. '
+          'Para voltar, é o mesmo caminho!',
+          alvo: _kSheetConta,
+          raio: 14,
+          ilustracao: const IlustracaoTrocaConta(),
+        ),
+        PassoTutorial(
+          kFalaFinalTutorial,
+          ehFinal: true,
+          antes: () async {
+            final ctx = _ctxSheetPerfil;
+            if (ctx != null && ctx.mounted) Navigator.of(ctx).maybePop();
+            _ctxSheetPerfil = null;
+            await Future<void>.delayed(const Duration(milliseconds: 300));
+          },
+        ),
+      ],
+    );
+    final ctx = _ctxSheetPerfil;
+    if (ctx != null && ctx.mounted) Navigator.of(ctx).maybePop();
+  }
+
+  /// Primeira vez na conta de empresa: Gerenciar Empresa e Configurações.
+  Future<void> _tutorialEmpresa() async {
+    final r1 = await Tutorial.mostrar(
+      context,
+      pularParaFinal: true,
+      chave: 'home_empresa',
+      forcar: true,
+      marcarVisto: false,
+      passos: [
+        PassoTutorial(
+          'Agora você está na sua conta de empresa!',
+          alvo: _kCabecalho,
+          rolagem: _rolagem,
+          alinhamentoRolagem: 0,
+        ),
+        PassoTutorial(
+          'Em "Gerenciar Empresa" você cuida da sua equipe: convida '
+          'funcionários, vê quem faz parte e muito mais.',
+          alvoRect: _atalho('empresa'),
+          rolagem: _rolagem,
+          antes: () async {
+            await _focarAtalho('empresa');
+            final ctx = _kAtalhos.currentContext;
+            if (ctx != null && ctx.mounted) {
+              await Scrollable.ensureVisible(
+                ctx,
+                alignment: 0.2,
+                duration: const Duration(milliseconds: 600),
+                curve: Curves.easeInOutCubic,
+              );
+            }
+          },
+          ilustracao: const IlustracaoEquipe(),
+        ),
+        PassoTutorial(
+          'Vou abrir para você ver como funciona.',
+          alvoRect: _atalho('empresa'),
+        ),
+        passoFinalTutorial(apenasAoPular: true),
+      ],
+    );
+    if (r1 != ResultadoTutorial.concluido || !mounted) return;
+    final r2 = await Navigator.of(context).push<ResultadoTutorial>(
+      MaterialPageRoute(
+        builder: (_) => const GestaoEquipePage(tutorialESair: true),
+      ),
+    );
+    if (!mounted || r2 == ResultadoTutorial.pulado) return;
+    if (_souDonoEmpresa) {
+      final r3 = await Tutorial.mostrar(
+        context,
+        pularParaFinal: true,
+        chave: 'home_empresa_config',
+        forcar: true,
+        marcarVisto: false,
+        comEntrada: false,
+        passos: [
+          PassoTutorial(
+            'Já em "Configurações da Empresa" ficam os dados da loja e como '
+            'ela aparece para os clientes.',
+            alvoRect: _atalho('config_empresa'),
+            antes: () => _focarAtalho('config_empresa'),
+          ),
+          PassoTutorial(
+            'Vamos dar uma olhada!',
+            alvoRect: _atalho('config_empresa'),
+          ),
+          passoFinalTutorial(apenasAoPular: true),
+        ],
+      );
+      if (r3 != ResultadoTutorial.concluido || !mounted) return;
+      final r4 = await Navigator.of(context).push<ResultadoTutorial>(
+        MaterialPageRoute(
+          builder: (_) => const ConfiguracoesEmpresaPage(tutorialESair: true),
+        ),
+      );
+      if (!mounted || r4 == ResultadoTutorial.pulado) return;
+    }
+    _atalhoEmFoco.value = null;
+    _atalhoEmFoco.value = 'empresa';
+    await _rolarTopo();
+    if (!mounted) return;
+    await Tutorial.mostrar(
+      context,
+      pularParaFinal: true,
+      chave: 'home_empresa_fim',
+      forcar: true,
+      marcarVisto: false,
+      comEntrada: false,
+      passos: [passoFinalTutorial()],
+    );
   }
 
   Future<void> _carregarPreferenciaContaAtiva() async {
@@ -357,6 +798,8 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
   @override
   void dispose() {
     _postagemController.dispose();
+    _rolagem.dispose();
+    _atalhoEmFoco.dispose();
     super.dispose();
   }
 
@@ -1330,6 +1773,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
             () => _pendencias = {
               'enderecos',
               'entrega',
+              'locomocao',
               'financeiro',
               'disponibilidade',
               'conta',
@@ -1370,6 +1814,13 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
             idProfissional: idProf,
           )) {
         pendencias.add('entrega');
+      }
+      // Locomoção (carro, moto...) e placa: também no atalho de entrega.
+      if (await RequisitosConta.locomocaoPendente(
+        idGrupo: grupo != null ? idGrupo : null,
+        idProfissional: idProf,
+      )) {
+        pendencias.add('locomocao');
       }
 
       // Disponibilidade: sem dias definidos.
@@ -2105,6 +2556,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withValues(alpha: 0.35),
       builder: (bottomSheetContext) {
+        _ctxSheetPerfil = bottomSheetContext;
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () => Navigator.of(bottomSheetContext).pop(),
@@ -2159,6 +2611,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                   tipoSnapshot.data?.trim() == 'Loja';
 
                               return Material(
+                                key: _kSheetConta,
                                 color: Colors.transparent,
                                 child: InkWell(
                                   borderRadius: BorderRadius.circular(12),
@@ -2829,6 +3282,10 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                 _inicializarFutures();
               });
               unawaited(_salvarPreferenciaContaAtiva(novoEstado));
+              Future<void>.delayed(
+                const Duration(milliseconds: 900),
+                () => _tutorial(),
+              );
               messenger.showSnackBar(
                 SnackBar(
                   content: Text('Conta alternada para $nomeInativo'),
@@ -3299,6 +3756,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
               );
             },
             child: ListView(
+              controller: _rolagem,
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(16),
               children: [
@@ -3337,6 +3795,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                 : '#$tagEmpresa';
 
                             return Container(
+                              key: _kCabecalho,
                               decoration: _cardDecoration(),
                               child: Material(
                                 color: Colors.transparent,
@@ -3443,6 +3902,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                                   ),
                                                   const SizedBox(height: 4),
                                                   Text(
+                                                    key: _kEndereco,
                                                     enderecoTexto,
                                                     style: TextStyle(
                                                       fontSize: 11,
@@ -3463,6 +3923,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                                         if (oficios.isNotEmpty) ...[
                                           const SizedBox(height: 10),
                                           Wrap(
+                                            key: _kAreas,
                                             spacing: 8,
                                             runSpacing: 8,
                                             alignment: WrapAlignment.end,
@@ -3523,17 +3984,21 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                         'Nome não encontrado';
                     final fotoUrl =
                         snapshot.data?['foto_perfil_url'] as String?;
-                    return _buildCaixaCriacaoPostagem(
-                      fotoUrl: fotoUrl,
-                      nome: nomeCompleto,
+                    return KeyedSubtree(
+                      key: _kPostagem,
+                      child: _buildCaixaCriacaoPostagem(
+                        fotoUrl: fotoUrl,
+                        nome: nomeCompleto,
+                      ),
                     );
                   },
                 ),
                 const SizedBox(height: 20),
 
                 // ================= RADAR GEOGRÁFICO =================
-                const Row(
-                  children: [
+                Row(
+                  key: _kRadar,
+                  children: const [
                     Text(
                       'Radar Geográfico',
                       style: TextStyle(
@@ -3551,6 +4016,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                 // tocar abre o Radar. Ao voltar, a prévia recarrega.
                 PreviaRadarProfissional(
                   key: ValueKey('previaRadar$_versaoPreviaRadar'),
+                  chaveInfo: _kRadarInfo,
                   aoTocar: () async {
                     await Navigator.of(context).push(
                       AppNavigationUtil.rotaSemAnimacao(
@@ -3588,6 +4054,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                           String v(String chave) =>
                               c == null ? '–' : '${c[chave] ?? 0}';
                           return Row(
+                            key: _kEstatisticas,
                             children: [
                               Expanded(
                                 child: _buildStatCard(
@@ -3627,7 +4094,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      _buildWeekCalendar(),
+                      KeyedSubtree(key: _kAgenda, child: _buildWeekCalendar()),
                     ],
                   ),
                 ),
@@ -3638,22 +4105,28 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
                 FutureBuilder<String?>(
                   future: _tipoPerfilFuture,
                   builder: (context, snapshot) => Container(
+                    key: _kAtalhos,
                     padding: const EdgeInsets.symmetric(
                       vertical: 20,
                       horizontal: 12,
                     ),
                     decoration: _cardDecoration(),
                     child: PainelAtalhos(
+                      mostrarAtalho: _atalhoEmFoco,
                       chaveOrdem: _contaEmpresaAtiva
                           ? 'atalhos_home_empresa_v1'
                           : 'atalhos_home_independente_v1',
                       itens: _atalhos(snapshot.data),
-                      construir: (a) => _buildQuickOption(
-                        a.icone,
-                        a.rotulo,
-                        onTap: a.aoTocar,
-                        pendente: a.pendente,
-                        bloqueado: a.bloqueado,
+                      construir: (a) => KeyedSubtree(
+                        // Só no tutorial (ver _tutorialAtivo).
+                        key: _tutorialAtivo ? _kAtalho[a.id] : null,
+                        child: _buildQuickOption(
+                          a.icone,
+                          a.rotulo,
+                          onTap: a.aoTocar,
+                          pendente: a.pendente,
+                          bloqueado: a.bloqueado,
+                        ),
                       ),
                     ),
                   ),
@@ -3674,7 +4147,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           ),
         ),
         bottomNavigationBar: BottomNavigationBarProfissional(
-          key: const ValueKey('bottomProfissional'),
+          key: _kBarra,
           currentIndex: _currentIndex,
           isContaEmpresa: _contaEmpresaAtiva,
           // A barra recebe diretamente o estado da conta ativa para alternar
@@ -4161,6 +4634,7 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           ),
           const SizedBox(width: 8),
           Material(
+            key: _kAddImagem,
             color: Colors.transparent,
             child: InkWell(
               onTap: () => _abrirCriacaoPostagem(fotoUrl: fotoUrl, nome: nome),
@@ -4449,7 +4923,9 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
         id: 'entrega',
         icone: Icons.local_shipping_outlined,
         rotulo: 'Método de\nEntrega',
-        pendente: _pendencias.contains('entrega'),
+        pendente:
+            _pendencias.contains('entrega') ||
+            _pendencias.contains('locomocao'),
         aoTocar: () => _abrirAtalho(const MetodoEntregaProfissionalPage()),
       ),
       const AtalhoItem(

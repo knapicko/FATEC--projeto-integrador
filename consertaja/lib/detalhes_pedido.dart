@@ -24,6 +24,8 @@ import 'utils/funcao_servico.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
 import 'widgets/skeletons_telas.dart';
 import 'servico_concluido_cliente.dart';
+import 'tutorial/tutorial.dart';
+import 'tutorial/tutorial_da_tela.dart';
 
 class DetalhesPedidoPage extends StatefulWidget {
   final int idSolicitacao;
@@ -62,7 +64,10 @@ class _EtapaVisualConfig {
 }
 
 class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
-    with SingleTickerProviderStateMixin, VoltarParaPedidosMixin {
+    with
+        SingleTickerProviderStateMixin,
+        VoltarParaPedidosMixin,
+        TutorialDaTela<DetalhesPedidoPage> {
   /// Voltar (botão ou sistema) leva para meus_pedidos.dart.
   @override
   bool get voltarComoProfissional => false;
@@ -91,7 +96,9 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       try {
         final r = await _db
             .from('solicitacoes')
-            .select('fk_status, etapa_solicitacao, profissional_finalizado_atendimento')
+            .select(
+              'fk_status, etapa_solicitacao, profissional_finalizado_atendimento',
+            )
             .eq('id_solicitacao', _idSolicitacao)
             .maybeSingle();
         if (r == null || !mounted) return;
@@ -104,6 +111,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       } catch (_) {}
     });
   }
+
   bool _avisoManutencaoExibido = false;
   bool _avaliadoCliente = false;
   List<Map<String, dynamic>> _avaliacoesCliente = [];
@@ -1400,6 +1408,39 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
   // ===========================================================================
   @override
   Widget build(BuildContext context) {
+    if (!_carregando && _erro == null) {
+      tutorialDaTela(
+        chave: 'detalhes_pedido',
+        passos: () => [
+          PassoTutorial(
+            'Aqui você acompanha a situação do seu pedido.',
+            alvo: chaveTut('situacao'),
+          ),
+          PassoTutorial(
+            'Estas são as etapas do pedido. A que está acesa é a de agora.',
+            alvo: chaveTut('etapas'),
+          ),
+          PassoTutorial(
+            'Este é o profissional. Dá para abrir o perfil dele ou conversar '
+            'pelo chat.',
+            alvo: chaveTut('oferecido'),
+            alinhamentoRolagem: 0.15,
+          ),
+          PassoTutorial(
+            'Aqui fica o resumo dos valores do pedido.',
+            alvo: chaveTut('valores'),
+            alinhamentoRolagem: 0.2,
+          ),
+          if (_fkStatus != 6)
+            PassoTutorial(
+              'E aqui embaixo ficam as ações do momento, como pagar ou '
+              'conversar.',
+              alvo: chaveTut('acoes'),
+              raio: 14,
+            ),
+        ],
+      );
+    }
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
@@ -1416,7 +1457,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
                     : _buildConteudo(),
               ),
               if (!_carregando && _erro == null)
-                if (_fkStatus != 6) _buildBottomBar(),
+                if (_fkStatus != 6) alvoTut('acoes', _buildBottomBar()),
             ],
           ),
         ),
@@ -1528,15 +1569,15 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
             _buildCardServicoConcluido(),
             const SizedBox(height: 14),
           ],
-          _buildCardSituacaoPedido(),
+          alvoTut('situacao', _buildCardSituacaoPedido()),
           const SizedBox(height: 14),
-          _buildCardIdEtapas(),
+          alvoTut('etapas', _buildCardIdEtapas()),
           const SizedBox(height: 14),
           if (_fkStatus != 1) ...[
             _buildCardDiagnosticoETempo(),
             const SizedBox(height: 14),
           ],
-          _buildCardOferecidoPor(),
+          alvoTut('oferecido', _buildCardOferecidoPor()),
           const SizedBox(height: 14),
           _buildCardEvidenciasServico(),
           const SizedBox(height: 14),
@@ -1548,7 +1589,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
           const SizedBox(height: 14),
           _buildCardObservacoesCliente(),
           const SizedBox(height: 14),
-          _buildCardResumoValores(),
+          alvoTut('valores', _buildCardResumoValores()),
           if (_avaliacoesCliente.isNotEmpty) ...[
             const SizedBox(height: 14),
             _buildCardAvaliacoesCliente(),

@@ -22,6 +22,8 @@ import 'utils/voltar_fluxo_solicitacao.dart';
 import 'widgets/codigo_flutuante.dart';
 import 'services/stripe_pagamento_service.dart';
 import 'dart:math' show sin;
+import 'tutorial/tutorial.dart';
+import 'tutorial/tutorial_da_tela.dart';
 
 class AcompanharDeslocamentoPage extends StatefulWidget {
   final int idSolicitacao;
@@ -34,7 +36,10 @@ class AcompanharDeslocamentoPage extends StatefulWidget {
 }
 
 class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
-    with TickerProviderStateMixin, VoltarParaPedidosMixin {
+    with
+        TickerProviderStateMixin,
+        VoltarParaPedidosMixin,
+        TutorialDaTela<AcompanharDeslocamentoPage> {
   /// Voltar (botão ou sistema) leva para meus_pedidos.dart.
   @override
   bool get voltarComoProfissional => false;
@@ -694,6 +699,35 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
       );
     }
 
+    tutorialDaTela(
+      chave: 'acompanhar_deslocamento',
+      passos: () => [
+        PassoTutorial(
+          'Aqui você acompanha o profissional a caminho, com a previsão de '
+          'chegada.',
+          alvo: chaveTut('previsao'),
+        ),
+        PassoTutorial(
+          'Estas são as etapas do deslocamento até o atendimento.',
+          alvo: chaveTut('etapas'),
+        ),
+        PassoTutorial(
+          'No mapa você vê onde ele está agora.',
+          alvo: chaveTut('mapa'),
+          alinhamentoRolagem: 0.15,
+        ),
+        PassoTutorial(
+          'Aqui está o profissional: dá para conversar com ele pelo chat.',
+          alvo: chaveTut('profissional'),
+          alinhamentoRolagem: 0.2,
+        ),
+        PassoTutorial(
+          'E este é o código: mostre ao profissional só quando ele chegar.',
+          alvo: chaveTut('codigo'),
+          alinhamentoRolagem: 0.2,
+        ),
+      ],
+    );
     return Scaffold(
       backgroundColor: cinzaFundo,
       body: SafeArea(
@@ -717,16 +751,16 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                         _buildPillGpsStatusBar(),
                         const SizedBox(height: 10),
                         if (_profissionalNoLocal) ...[
-                          _buildAvisoProfissionalChegou(),
+                          alvoTut('previsao', _buildAvisoProfissionalChegou()),
                         ] else ...[
-                          _buildCardPrevisaoChegada(),
+                          alvoTut('previsao', _buildCardPrevisaoChegada()),
                         ],
                         const SizedBox(height: 12),
-                        _buildTimelineProgresso(),
+                        alvoTut('etapas', _buildTimelineProgresso()),
                         const SizedBox(height: 14),
-                        _buildAreaMapa(),
+                        alvoTut('mapa', _buildAreaMapa()),
                         const SizedBox(height: 14),
-                        _buildCardInfoProfissional(),
+                        alvoTut('profissional', _buildCardInfoProfissional()),
                         const SizedBox(height: 14),
                         _devolucaoNoLocal
                             ? Column(
@@ -738,7 +772,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                                   _buildBotaoConfirmarDevolucao(),
                                 ],
                               )
-                            : _buildCardCodigoConfirmacao(),
+                            : alvoTut('codigo', _buildCardCodigoConfirmacao()),
                         const SizedBox(height: 14),
                         _buildCardInfoServico(),
                         const SizedBox(height: 14),

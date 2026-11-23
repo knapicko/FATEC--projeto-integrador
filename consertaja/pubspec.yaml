@@ -74,6 +74,7 @@ flutter:
     - assets/images/
     - assets/images/caixa/
     - assets/images/caixa/fala/
+    - assets/images/caixa/tutorial/
     - assets/images/caixa_animacao/transparente/
     - assets/images/icone/
     - assets/images/oficios/

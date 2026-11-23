@@ -20,6 +20,8 @@ import 'widgets/avisos_bottom_sheet.dart';
 import 'certificados.dart';
 import 'servicos_do_profissional.dart';
 import 'widgets/secao_avaliacoes.dart';
+import 'tutorial/tutorial.dart';
+import 'tutorial/tutorial_da_tela.dart';
 
 class _DadosEnderecoProfissional {
   final String apelido;
@@ -159,7 +161,8 @@ class PerfilProfissionalPage extends StatefulWidget {
   State<PerfilProfissionalPage> createState() => _PerfilProfissionalPageState();
 }
 
-class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
+class _PerfilProfissionalPageState extends State<PerfilProfissionalPage>
+    with TutorialDaTela<PerfilProfissionalPage> {
   // Cache em memória da cor do banner por profissional (evita "piscar"
   // do azul padrão -> cor real ao reabrir o mesmo perfil).
   static final Map<String, Color> _cacheCorBannerPorNome = {};
@@ -2343,6 +2346,35 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
 
   @override
   Widget build(BuildContext context) {
+    tutorialDaTela(
+      chave: 'perfil_profissional',
+      atraso: const Duration(milliseconds: 1500),
+      passos: () => [
+        PassoTutorial(
+          'Este é o perfil do profissional: foto, nota, seguidores e as áreas '
+          'em que ele atua.',
+          alvo: chaveTut('cabecalho'),
+          alinhamentoRolagem: 0,
+        ),
+        PassoTutorial(
+          'Siga para acompanhar as novidades dele, ou toque em "Conversar" '
+          'para tirar dúvidas antes de pedir.',
+          alvo: chaveTut('acoes'),
+          raio: 14,
+        ),
+        PassoTutorial(
+          'Aqui você vê os dias e horários em que ele atende.',
+          alvo: _disponibilidadeKey,
+          alinhamentoRolagem: 0.15,
+        ),
+        PassoTutorial(
+          'E aqui ficam as avaliações de outros clientes, com fotos e '
+          'comentários.',
+          alvo: _avaliacoesKey,
+          alinhamentoRolagem: 0.15,
+        ),
+      ],
+    );
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
@@ -2359,7 +2391,9 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
             ),
             clipBehavior: Clip.none,
             slivers: [
-              SliverToBoxAdapter(child: _buildCabecalhoVisual()),
+              SliverToBoxAdapter(
+                child: alvoTut('cabecalho', _buildCabecalhoVisual()),
+              ),
               // Certificados (no lugar da antiga barra de busca de serviços).
               SliverToBoxAdapter(
                 child: SecaoCertificados(
@@ -2671,6 +2705,7 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
+            key: chaveTut('acoes'),
             children: [
               Expanded(child: _buildBotaoSeguir()),
               const SizedBox(width: 12),

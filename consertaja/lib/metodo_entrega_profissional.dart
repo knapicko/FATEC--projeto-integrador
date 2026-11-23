@@ -8,6 +8,8 @@ import 'models/metodo_entrega.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
 import 'widgets/aviso_obrigatorio.dart';
 import 'services/requisitos_conta.dart';
+import 'tutorial/tutorial.dart';
+import 'tutorial/tutorial_da_tela.dart';
 
 class MetodoEntregaProfissionalPage extends StatefulWidget {
   const MetodoEntregaProfissionalPage({super.key});
@@ -18,7 +20,8 @@ class MetodoEntregaProfissionalPage extends StatefulWidget {
 }
 
 class _MetodoEntregaProfissionalPageState
-    extends State<MetodoEntregaProfissionalPage> {
+    extends State<MetodoEntregaProfissionalPage>
+    with TutorialDaTela<MetodoEntregaProfissionalPage> {
   static const Color _primaryBlue = Color(0xFF0FB3FF);
   static const Color _titleDark = Color(0xFF1A2B4A);
   static const Color _textMuted = Color(0xFF7D8595);
@@ -36,9 +39,15 @@ class _MetodoEntregaProfissionalPageState
     _salvarPreferencias,
   );
 
+  /// Como se locomove até o cliente (e a placa, se motorizado).
+  String? _meio;
+  final TextEditingController _placa = TextEditingController();
+  bool _locomocaoPendente = false;
+
   @override
   void dispose() {
     _autosave.dispose();
+    _placa.dispose();
     super.dispose();
   }
 
@@ -54,8 +63,12 @@ class _MetodoEntregaProfissionalPageState
     super.initState();
     _carregarPreferencias();
     RequisitosConta.pendenciasProfissional().then((p) {
-      if (mounted)
-        setState(() => _pendente = p.contains(RequisitosConta.entrega));
+      if (mounted) {
+        setState(() {
+          _pendente = p.contains(RequisitosConta.entrega);
+          _locomocaoPendente = p.contains(RequisitosConta.locomocao);
+        });
+      }
     });
   }
 
@@ -159,6 +172,27 @@ class _MetodoEntregaProfissionalPageState
         raw = dados?['metodo_entrega'] as String?;
       }
 
+      // Locomoção e placa (v0_10_ajustes.sql).
+      try {
+        final loc = contaEmpresa
+            ? (idGrupo == null
+                  ? null
+                  : await supabase
+                        .from('grupo_empresa')
+                        .select('meio_locomocao, placa_veiculo')
+                        .eq('id_grupo_empresa', idGrupo)
+                        .maybeSingle())
+            : await supabase
+                  .from('dados_profissionais')
+                  .select('meio_locomocao, placa_veiculo')
+                  .eq('fk_usuario', usuarioId)
+                  .limit(1)
+                  .maybeSingle();
+        final meio = loc?['meio_locomocao']?.toString().trim() ?? '';
+        _meio = RequisitosConta.meiosLocomocao.contains(meio) ? meio : null;
+        _placa.text = loc?['placa_veiculo']?.toString().trim() ?? '';
+      } catch (_) {}
+
       final itensSalvos = _parseMetodoEntrega(raw);
       if (itensSalvos.isEmpty) {
         _selecionadas.add('Leva e Traz');
@@ -257,7 +291,160 @@ class _MetodoEntregaProfissionalPageState
           .eq('fk_usuario', usuarioId);
       await _marcarDefinido('dados_profissionais', 'fk_usuario', usuarioId);
     }
-    if (mounted) setState(() => _pendente = false);
+    await _salvarLocomocao(usuarioId);
+    if (mounted) {
+      setState(() {
+        _pendente = false;
+        _locomocaoPendente = _locomocaoIncompleta;
+      });
+    }
+  }
+
+  String get _placaNormalizada =>
+      _placa.text.trim().toUpperCase().replaceAll(' ', '');
+
+  bool get _locomocaoIncompleta =>
+      _meio == null ||
+      (RequisitosConta.exigePlaca(_meio) &&
+          !RequisitosConta.placaValida(_placaNormalizada));
+
+  Future<void> _salvarLocomocao(int usuarioId) async {
+    if (_meio == null) return;
+    final dados = {
+      'meio_locomocao': _meio,
+      'placa_veiculo': RequisitosConta.exigePlaca(_meio)
+          ? _placaNormalizada
+          : null,
+    };
+    try {
+      final supabase = Supabase.instance.client;
+      if (_contaEmpresaAtiva) {
+        if (_idGrupoEmpresa == null) return;
+        await supabase
+            .from('grupo_empresa')
+            .update(dados)
+            .eq('id_grupo_empresa', _idGrupoEmpresa!);
+      } else {
+        await supabase
+            .from('dados_profissionais')
+            .update(dados)
+            .eq('fk_usuario', usuarioId);
+      }
+    } catch (_) {
+      throw Exception(
+        'banco sem os campos de locomoção (rode docs/sql/v0_10_ajustes.sql).',
+      );
+    }
+  }
+
+  IconData _iconeMeio(String meio) => switch (meio) {
+    'Carro' => Icons.directions_car_rounded,
+    'Moto' => Icons.two_wheeler_rounded,
+    'Bicicleta' => Icons.pedal_bike_rounded,
+    'Transporte público' => Icons.directions_bus_rounded,
+    _ => Icons.local_shipping_rounded,
+  };
+
+  Widget _buildLocomocao() {
+    final exige = RequisitosConta.exigePlaca(_meio);
+    final placaOk = RequisitosConta.placaValida(_placaNormalizada);
+    final semPlaca = _placa.text.trim().isEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_locomocaoPendente)
+          const AvisoObrigatorio(
+            titulo: 'Defina como você se locomove',
+            texto:
+                'Escolha o meio de locomoção (e a placa, se for carro, moto ou '
+                'caminhão). Sem isso não é possível adicionar serviços nem '
+                'usar o Radar.',
+            margem: EdgeInsets.only(bottom: 14),
+          ),
+        Text(
+          _contaEmpresaAtiva
+              ? 'Como a empresa se locomove até o cliente?'
+              : 'Como você se locomove até o cliente?',
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            color: _titleDark,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'O cliente vê essa informação quando você for até ele.',
+          style: TextStyle(fontSize: 14, color: _textMuted),
+        ),
+        const SizedBox(height: 14),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final m in RequisitosConta.meiosLocomocao)
+              ChoiceChip(
+                selected: _meio == m,
+                showCheckmark: false,
+                avatar: Icon(
+                  _iconeMeio(m),
+                  size: 18,
+                  color: _meio == m ? Colors.white : _primaryBlue,
+                ),
+                label: Text(m),
+                labelStyle: TextStyle(
+                  color: _meio == m ? Colors.white : _titleDark,
+                  fontWeight: FontWeight.w700,
+                ),
+                selectedColor: _primaryBlue,
+                backgroundColor: _cardFill,
+                side: BorderSide(
+                  color: _meio == m ? _primaryBlue : _cardBorder,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                onSelected: (_) {
+                  setState(() => _meio = m);
+                  _autosave.agendar();
+                },
+              ),
+          ],
+        ),
+        if (exige) ...[
+          const SizedBox(height: 16),
+          TextField(
+            controller: _placa,
+            textCapitalization: TextCapitalization.characters,
+            maxLength: 8,
+            onChanged: (_) {
+              setState(() {});
+              if (RequisitosConta.placaValida(_placaNormalizada)) {
+                _autosave.agendar();
+              }
+            },
+            decoration: InputDecoration(
+              labelText: 'Placa do veículo',
+              hintText: 'ABC1D23 ou ABC-1234',
+              counterText: '',
+              filled: true,
+              fillColor: Colors.white,
+              prefixIcon: const Icon(Icons.pin_outlined, color: _primaryBlue),
+              errorText: semPlaca || placaOk ? null : 'Placa inválida',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(
+                  color: semPlaca ? corObrigatorio : _cardBorder,
+                  width: semPlaca ? 1.6 : 1,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
   }
 
   /// O profissional escolheu os métodos (não é mais o padrão do cadastro).
@@ -362,6 +549,31 @@ class _MetodoEntregaProfissionalPageState
 
   @override
   Widget build(BuildContext context) {
+    if (!_carregando) {
+      tutorialDaTela(
+        chave: 'metodo_entrega',
+        passos: () => [
+          PassoTutorial(
+            'Marque como os clientes podem enviar ou receber os serviços. '
+            'Dá para marcar mais de um!',
+            alvo: chaveTut('titulo'),
+            alvoRect: uniaoTut(['titulo', 'domicilio']),
+          ),
+          PassoTutorial(
+            'Se o seu trabalho é ir até o cliente, marque "Atendimento em '
+            'Domicílio".',
+            alvo: chaveTut('domicilio'),
+          ),
+          PassoTutorial(
+            'Aqui você diz como se locomove, e a placa se for carro, moto ou '
+            'caminhão.',
+            alvo: chaveTut('locomocao'),
+            alinhamentoRolagem: 0.15,
+          ),
+          const PassoTutorial('Tudo é salvo sozinho, sem botão. Prontinho!'),
+        ],
+      );
+    }
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -409,7 +621,8 @@ class _MetodoEntregaProfissionalPageState
                               margem: EdgeInsets.only(top: 12),
                             ),
                           const SizedBox(height: 12),
-                          const Text(
+                          Text(
+                            key: chaveTut('titulo'),
                             'Configurações de Atendimento\ne Entrega',
                             style: TextStyle(
                               fontSize: 28,
@@ -453,6 +666,7 @@ class _MetodoEntregaProfissionalPageState
                           ),
                           const SizedBox(height: 12),
                           Padding(
+                            key: chaveTut('domicilio'),
                             padding: const EdgeInsets.only(bottom: 12),
                             child: _buildOpcaoEntrega(
                               metodosEntregaOpcoes.firstWhere(
@@ -461,6 +675,10 @@ class _MetodoEntregaProfissionalPageState
                               ),
                             ),
                           ),
+                          const SizedBox(height: 20),
+                          const Divider(height: 1),
+                          const SizedBox(height: 22),
+                          alvoTut('locomocao', _buildLocomocao()),
                           const SizedBox(height: 20),
                         ],
                       ),

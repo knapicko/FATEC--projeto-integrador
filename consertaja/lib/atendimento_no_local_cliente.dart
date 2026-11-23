@@ -2,15 +2,20 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'detalhes_pedido.dart';
 import 'tela_chat_profissional.dart';
 import 'tela_meu_perfil_cliente.dart';
+import 'utils/iniciais.dart';
 import 'utils/voltar_fluxo_solicitacao.dart';
 import 'widgets/skeletons_telas.dart';
 import 'widgets/codigo_flutuante.dart';
 import 'services/stripe_pagamento_service.dart';
 
+/// Cliente acompanhando o atendimento no próprio endereço: etapas reais,
+/// código de início, profissional (nota, veículo e placa), cronômetro ao
+/// vivo, fotos de antes/depois e a confirmação de conclusão.
 class AtendimentoNoLocalClientePage extends StatefulWidget {
   final int idSolicitacao;
 
@@ -29,27 +34,35 @@ class _AtendimentoNoLocalClientePageState
   bool get voltarComoProfissional => false;
 
   static const _azul = Color(0xFF0FB3FF);
-  static const _texto = Color(0xFF253042);
-  static const _muted = Color(0xFF687386);
+  static const _azulEscuro = Color(0xFF0A6E9D);
+  static const _laranja = Color(0xFFF59E0B);
+  static const _verde = Color(0xFF16A34A);
+  static const _texto = Color(0xFF111827);
+  static const _muted = Color(0xFF6B7280);
+  static const _fundo = Color(0xFFF5F7FA);
   final _db = Supabase.instance.client;
 
   bool _carregando = true;
   bool _confirmando = false;
   String _codigoPedido = '';
-  String _nomeCliente = 'Cliente';
   String? _fotoCliente;
   String _nomeProfissional = 'Profissional';
   String? _fotoProfissional;
   String _titulo = 'Atendimento';
   String _endereco = 'Endereço do cliente';
-  String _tipoPrestador = 'Independente';
-  String _metodoPagamento = 'PIX Seguro';
+  bool _loja = false;
   double _valor = 0;
   int _duracao = 0;
   DateTime? _inicio;
+  bool _pausado = false;
   bool _profissionalFinalizou = false;
   String _codigoRecDev = '';
+  double? _nota;
+  int _atendimentos = 0;
+  String? _meioLocomocao;
+  String? _placa;
   Timer? _polling;
+  Timer? _relogio;
   List<String> _antes = [];
   List<String> _depois = [];
 
@@ -58,19 +71,43 @@ class _AtendimentoNoLocalClientePageState
     super.initState();
     CodigoFlutuante.entrarNaTelaDoCodigo();
     _carregar();
-    // Mantém a tela sincronizada com o profissional: início do atendimento
-    // (código validado) e finalização (profissional_finalizado_atendimento).
+    // Sincroniza com o profissional: início (código validado), pausa e
+    // finalização.
     _polling = Timer.periodic(
       const Duration(seconds: 5),
       (_) => _atualizarEstado(),
     );
+    // Cronômetro ao vivo.
+    _relogio = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted && _inicio != null && !_pausado && !_profissionalFinalizou) {
+        setState(() {});
+      }
+    });
   }
 
   @override
   void dispose() {
     _polling?.cancel();
+    _relogio?.cancel();
     CodigoFlutuante.sairDaTelaDoCodigo();
     super.dispose();
+  }
+
+  /// Datas do banco sem fuso são UTC.
+  DateTime? _dataUtc(Object? v) {
+    final t = v?.toString().trim() ?? '';
+    if (t.isEmpty) return null;
+    final temFuso = t.endsWith('Z') || RegExp(r'[+-]\d\d:?\d\d$').hasMatch(t);
+    return DateTime.tryParse(temFuso ? t : '${t}Z');
+  }
+
+  void _aplicarEstado(Map<String, dynamic> row) {
+    _profissionalFinalizou = row['profissional_finalizado_atendimento'] == true;
+    _pausado = row['andamento_pausado'] == true;
+    _inicio = _dataUtc(row['data_inicio_andamento']);
+    _duracao = (row['duracao_atendimento'] as num?)?.toInt() ?? _duracao;
+    _antes = _lista(row['imagens_atendimento_antes']);
+    _depois = _lista(row['imagens_atendimento_depois']);
   }
 
   Future<void> _atualizarEstado() async {
@@ -80,7 +117,7 @@ class _AtendimentoNoLocalClientePageState
           .from('solicitacoes')
           .select(
             'fk_status, profissional_finalizado_atendimento, '
-            'data_inicio_andamento, duracao_atendimento, '
+            'data_inicio_andamento, duracao_atendimento, andamento_pausado, '
             'imagens_atendimento_antes, imagens_atendimento_depois',
           )
           .eq('id_solicitacao', widget.idSolicitacao)
@@ -96,21 +133,15 @@ class _AtendimentoNoLocalClientePageState
         );
         return;
       }
-      setState(() {
-        _profissionalFinalizou =
-            row['profissional_finalizado_atendimento'] == true;
-        _inicio = DateTime.tryParse(
-          row['data_inicio_andamento']?.toString() ?? '',
-        );
-        _duracao = (row['duracao_atendimento'] as num?)?.toInt() ?? _duracao;
-        _antes = _lista(row['imagens_atendimento_antes']);
-        _depois = _lista(row['imagens_atendimento_depois']);
-      });
+      setState(() => _aplicarEstado(row));
     } catch (_) {}
   }
 
   List<String> _lista(dynamic value) => value is List
-      ? value.map((e) => e.toString()).where((e) => e.isNotEmpty).toList()
+      ? value
+            .map((e) => e.toString())
+            .where((e) => e.startsWith('http'))
+            .toList()
       : [];
 
   Future<void> _carregar() async {
@@ -123,78 +154,35 @@ class _AtendimentoNoLocalClientePageState
       _codigoPedido =
           '#PED-2026-${widget.idSolicitacao.toString().padLeft(4, '0')}';
       _valor = (row['valor_final'] as num?)?.toDouble() ?? 0;
-      _duracao = (row['duracao_atendimento'] as num?)?.toInt() ?? 0;
-      _inicio = DateTime.tryParse(
-        row['data_inicio_andamento']?.toString() ?? '',
-      );
-      _profissionalFinalizou =
-          row['profissional_finalizado_atendimento'] == true;
       _codigoRecDev = row['codigo_rec_dev']?.toString().trim() ?? '';
-      _antes = _lista(row['imagens_atendimento_antes']);
-      _depois = _lista(row['imagens_atendimento_depois']);
+      _aplicarEstado(row);
       final fkGrupo = (row['fk_grupo_empresa'] as num?)?.toInt();
       final fkProf = (row['fk_profissional'] as num?)?.toInt();
       final fkUsuario = (row['fk_usuario'] as num?)?.toInt();
       final fkEndereco = (row['fk_endereco'] as num?)?.toInt();
       final fkServico = (row['fk_servico_prof'] as num?)?.toInt();
-      _tipoPrestador = fkGrupo == null ? 'Independente' : 'Empresa / Loja';
+      _loja = fkGrupo != null;
 
-      if (fkUsuario != null) {
-        final user = await _db
-            .from('usuarios')
-            .select('nome, foto_perfil_url')
-            .eq('id_usuario', fkUsuario)
-            .maybeSingle();
-        _nomeCliente = user?['nome']?.toString() ?? _nomeCliente;
-        _fotoCliente = user?['foto_perfil_url']?.toString();
-      }
-      if (fkGrupo != null) {
-        final group = await _db
-            .from('grupo_empresa')
-            .select('nome_empresa, foto_url_empresa')
-            .eq('id_grupo_empresa', fkGrupo)
-            .maybeSingle();
-        _nomeProfissional =
-            group?['nome_empresa']?.toString() ?? _nomeProfissional;
-        _fotoProfissional = group?['foto_url_empresa']?.toString();
-      } else if (fkProf != null) {
-        final prof = await _db
-            .from('dados_profissionais')
-            .select('fk_usuario')
-            .eq('id_profissional', fkProf)
-            .maybeSingle();
-        final idUsuarioProf = (prof?['fk_usuario'] as num?)?.toInt();
-        if (idUsuarioProf != null) {
-          final user = await _db
+      await Future.wait([
+        if (fkUsuario != null)
+          _db
               .from('usuarios')
-              .select('nome, foto_perfil_url')
-              .eq('id_usuario', idUsuarioProf)
-              .maybeSingle();
-          _nomeProfissional = user?['nome']?.toString() ?? _nomeProfissional;
-          _fotoProfissional = user?['foto_perfil_url']?.toString();
-        }
-      }
-      if (fkServico != null) {
-        final service = await _db
-            .from('servicos_profissional')
-            .select('titulo')
-            .eq('id_servico_prof', fkServico)
-            .maybeSingle();
-        _titulo = service?['titulo']?.toString() ?? _titulo;
-      }
-      if (fkEndereco != null) {
-        final address = await _db
-            .from('enderecos')
-            .select('logradouro, numero, complemento, bairro, fk_cidade')
-            .eq('id_endereco', fkEndereco)
-            .maybeSingle();
-        if (address != null) {
-          _endereco =
-              '${address['logradouro'] ?? ''}, ${address['numero'] ?? ''}'
-              '${address['complemento'] == null ? '' : ' - ${address['complemento']}'}'
-              ', ${address['bairro'] ?? ''}';
-        }
-      }
+              .select('foto_perfil_url')
+              .eq('id_usuario', fkUsuario)
+              .maybeSingle()
+              .then((u) => _fotoCliente = _url(u?['foto_perfil_url'])),
+        _carregarPrestador(fkGrupo, fkProf),
+        if (fkServico != null)
+          _db
+              .from('servicos_profissional')
+              .select('titulo')
+              .eq('id_servico_prof', fkServico)
+              .maybeSingle()
+              .then((s) => _titulo = s?['titulo']?.toString() ?? _titulo),
+        if (fkEndereco != null) _carregarEndereco(fkEndereco),
+        _carregarNota(fkGrupo, fkProf),
+        _carregarLocomocao(),
+      ]);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -206,8 +194,135 @@ class _AtendimentoNoLocalClientePageState
     }
   }
 
-  String _tempo(int segundos) =>
-      '${(segundos ~/ 60).toString().padLeft(2, '0')}:${(segundos % 60).toString().padLeft(2, '0')}';
+  String? _url(Object? v) {
+    final s = v?.toString().trim() ?? '';
+    return s.startsWith('http') ? s : null;
+  }
+
+  Future<void> _carregarPrestador(int? fkGrupo, int? fkProf) async {
+    try {
+      if (fkGrupo != null) {
+        final g = await _db
+            .from('grupo_empresa')
+            .select('nome_empresa, foto_url_empresa')
+            .eq('id_grupo_empresa', fkGrupo)
+            .maybeSingle();
+        _nomeProfissional = g?['nome_empresa']?.toString() ?? _nomeProfissional;
+        _fotoProfissional = _url(g?['foto_url_empresa']);
+        return;
+      }
+      if (fkProf == null) return;
+      int? idUsuarioProf;
+      try {
+        final v = await _db.rpc(
+          'vitrine_profissionais',
+          params: {
+            'p_ids': [fkProf],
+          },
+        );
+        if (v is List && v.isNotEmpty) {
+          idUsuarioProf = ((v.first as Map)['fk_usuario'] as num?)?.toInt();
+        }
+      } catch (_) {
+        final p = await _db
+            .from('dados_profissionais')
+            .select('fk_usuario')
+            .eq('id_profissional', fkProf)
+            .maybeSingle();
+        idUsuarioProf = (p?['fk_usuario'] as num?)?.toInt();
+      }
+      if (idUsuarioProf == null) return;
+      final u = await _db
+          .from('usuarios')
+          .select('nome, foto_perfil_url')
+          .eq('id_usuario', idUsuarioProf)
+          .maybeSingle();
+      _nomeProfissional = u?['nome']?.toString() ?? _nomeProfissional;
+      _fotoProfissional = _url(u?['foto_perfil_url']);
+    } catch (_) {}
+  }
+
+  Future<void> _carregarEndereco(int fkEndereco) async {
+    try {
+      final a = await _db
+          .from('enderecos')
+          .select('logradouro, numero, complemento, bairro')
+          .eq('id_endereco', fkEndereco)
+          .maybeSingle();
+      if (a == null) return;
+      String t(Object? v) => v?.toString().trim() ?? '';
+      _endereco = [
+        [
+          t(a['logradouro']),
+          t(a['numero']),
+        ].where((x) => x.isNotEmpty).join(', '),
+        t(a['complemento']),
+        t(a['bairro']),
+      ].where((x) => x.isNotEmpty).join(' · ');
+    } catch (_) {}
+  }
+
+  /// Nota média e atendimentos concluídos do profissional/loja.
+  Future<void> _carregarNota(int? fkGrupo, int? fkProf) async {
+    if (fkGrupo == null && fkProf == null) return;
+    try {
+      var q = _db.from('solicitacoes').select('id_solicitacao, fk_status');
+      q = fkGrupo != null
+          ? q.eq('fk_grupo_empresa', fkGrupo)
+          : q.eq('fk_profissional', fkProf!);
+      final sols = await q;
+      _atendimentos = sols
+          .where((s) => (s['fk_status'] as num?)?.toInt() == 6)
+          .length;
+      final ids = [for (final s in sols) (s['id_solicitacao'] as num).toInt()];
+      if (ids.isEmpty) return;
+      final avs = await _db
+          .from('avaliacoes_solicitacao')
+          .select('nota')
+          .eq('tipo_avaliacao', 'profissional')
+          .inFilter('fk_solicitacao', ids);
+      final notas = [
+        for (final a in avs)
+          if (a['nota'] is num) (a['nota'] as num).toDouble(),
+      ];
+      if (notas.isNotEmpty) {
+        _nota = notas.reduce((x, y) => x + y) / notas.length;
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _carregarLocomocao() async {
+    try {
+      final r = await _db.rpc(
+        'locomocao_da_solicitacao',
+        params: {'p_id_solicitacao': widget.idSolicitacao},
+      );
+      final linha = r is List && r.isNotEmpty ? r.first as Map : null;
+      final meio = linha?['meio_locomocao']?.toString().trim() ?? '';
+      final placa = linha?['placa_veiculo']?.toString().trim() ?? '';
+      _meioLocomocao = meio.isEmpty ? null : meio;
+      _placa = placa.isEmpty ? null : placa;
+    } catch (_) {
+      // Banco sem a v0_10: não mostra o veículo.
+    }
+  }
+
+  int get _segundos {
+    if (_inicio == null) return 0;
+    if (_pausado || _profissionalFinalizou) return _duracao;
+    final corrido = DateTime.now().toUtc().difference(_inicio!).inSeconds;
+    return _duracao + (corrido < 0 ? 0 : corrido);
+  }
+
+  String _tempo(int total) {
+    final h = total ~/ 3600;
+    final m = (total % 3600) ~/ 60;
+    final s = total % 60;
+    String d(int n) => n.toString().padLeft(2, '0');
+    return h > 0 ? '${d(h)}:${d(m)}:${d(s)}' : '${d(m)}:${d(s)}';
+  }
+
+  String _real(double v) => 'R\$ ${v.toStringAsFixed(2).replaceAll('.', ',')}';
 
   Future<void> _confirmarConclusao() async {
     if (!_profissionalFinalizou || _confirmando) return;
@@ -235,20 +350,168 @@ class _AtendimentoNoLocalClientePageState
     }
   }
 
-  Widget _card(Widget child) => Container(
+  void _abrirChat() => Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => TelaChatProfissional(
+        nomeProfissional: _nomeProfissional,
+        fotoProfissional: _fotoProfissional ?? '',
+        oficioPrincipal: _titulo,
+        idSolicitacao: widget.idSolicitacao,
+        // Abre (ou cria pelo servidor) a conversa deste pedido.
+        somenteAbrirConversaExistente: true,
+      ),
+    ),
+  );
+
+  void _abrirFoto(List<String> fotos, int inicial) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+          ),
+          body: PageView.builder(
+            controller: PageController(initialPage: inicial),
+            itemCount: fotos.length,
+            itemBuilder: (_, i) => Center(
+              child: InteractiveViewer(child: Image.network(fotos[i])),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _ajuda() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+        padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE5E7EB),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'Precisa de ajuda?',
+                style: TextStyle(
+                  color: _texto,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 10),
+              ListTile(
+                leading: const Icon(Icons.receipt_long_outlined, color: _azul),
+                title: const Text('Ver detalhes do pedido'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => DetalhesPedidoPage(
+                        idSolicitacao: widget.idSolicitacao,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.chat_outlined, color: _azul),
+                title: Text('Falar com $_nomeProfissional'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _abrirChat();
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.emergency_outlined,
+                  color: Colors.red,
+                ),
+                title: const Text('Emergência (190)'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  launchUrl(Uri.parse('tel:190'));
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Layout ─────────────────────────────────────────────────────────────
+
+  Widget _card({required Widget child, EdgeInsets? padding}) => Container(
     margin: const EdgeInsets.only(bottom: 12),
-    padding: const EdgeInsets.all(14),
+    padding: padding ?? const EdgeInsets.all(16),
     decoration: BoxDecoration(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: const Color(0xFFEDEFF2)),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.03),
+          blurRadius: 10,
+          offset: const Offset(0, 2),
+        ),
+      ],
     ),
     child: child,
   );
 
-  Widget _avatar(String? url, {double size = 42}) => CircleAvatar(
+  Widget _tituloCard(IconData icone, String texto, {Widget? fim}) => Row(
+    children: [
+      Icon(icone, color: _azul, size: 20),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Text(
+          texto,
+          style: const TextStyle(
+            color: _texto,
+            fontWeight: FontWeight.w800,
+            fontSize: 15,
+          ),
+        ),
+      ),
+      ?fim,
+    ],
+  );
+
+  Widget _avatar(String? url, String nome, {double size = 48}) => CircleAvatar(
     radius: size / 2,
-    backgroundImage: url?.isNotEmpty == true ? NetworkImage(url!) : null,
-    child: url?.isNotEmpty == true ? null : const Icon(Icons.person),
+    backgroundColor: _azul,
+    backgroundImage: url != null ? NetworkImage(url) : null,
+    child: url == null
+        ? Text(
+            obterIniciais(nome),
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: size * 0.32,
+            ),
+          )
+        : null,
   );
 
   @override
@@ -260,9 +523,10 @@ class _AtendimentoNoLocalClientePageState
       );
     }
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FA),
+      backgroundColor: _fundo,
       appBar: AppBar(
         backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
         elevation: 0,
         leading: IconButton(
           onPressed: voltarParaPedidos,
@@ -273,19 +537,23 @@ class _AtendimentoNoLocalClientePageState
           children: [
             const Text(
               'Atendimento no Local',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+              style: TextStyle(
+                color: _texto,
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+              ),
             ),
             Text(
               _codigoPedido,
-              style: const TextStyle(fontSize: 10, color: _muted),
+              style: const TextStyle(fontSize: 11, color: _muted),
             ),
           ],
         ),
         actions: [
-          IconButton(onPressed: () {}, icon: const Icon(Icons.info_outline)),
           IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.emergency_outlined, color: Colors.red),
+            tooltip: 'Ajuda',
+            onPressed: _ajuda,
+            icon: const Icon(Icons.help_outline_rounded, color: _texto),
           ),
           IconButton(
             onPressed: () => Navigator.push(
@@ -294,66 +562,129 @@ class _AtendimentoNoLocalClientePageState
                 builder: (_) => const TelaMeuPerfilClientePage(),
               ),
             ),
-            icon: _avatar(_fotoCliente, size: 30),
+            icon: _avatar(_fotoCliente, 'Eu', size: 30),
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(10),
-        children: [
-          _etapas(),
-          if (_inicio == null && _codigoRecDev.isNotEmpty) _codigoCard(),
-          _enderecoCard(),
-          _profissionalCard(),
-          _duracaoCard(),
-          _fotosCard(),
-          _servicoCard(),
-          _confirmacaoCard(),
-        ],
+      body: RefreshIndicator(
+        color: _azul,
+        onRefresh: _atualizarEstado,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 24),
+          children: [
+            _etapas(),
+            if (_inicio == null && _codigoRecDev.isNotEmpty) _codigoCard(),
+            _cronometroCard(),
+            _profissionalCard(),
+            _enderecoCard(),
+            _fotosCard(),
+            _servicoCard(),
+          ],
+        ),
       ),
+      bottomNavigationBar: _barraConfirmacao(),
     );
   }
 
+  /// Etapas reais: Aceito → A caminho → No local → Em atendimento →
+  /// Concluído (esta tela abre com o profissional já no endereço).
   Widget _etapas() {
-    const etapas = ['Aceito', 'A caminho', 'No Local', 'Concluído'];
-    // Esta tela só é aberta com status 34 / etapa 3: as duas primeiras
-    // etapas já foram cumpridas, "No Local" está em andamento.
+    const nomes = ['Aceito', 'A caminho', 'No local', 'Atendendo', 'Concluído'];
+    const icones = [
+      Icons.check_rounded,
+      Icons.directions_run_rounded,
+      Icons.place_rounded,
+      Icons.handyman_rounded,
+      Icons.verified_rounded,
+    ];
+    final atual = _profissionalFinalizou
+        ? 4
+        : _inicio != null
+        ? 3
+        : 2;
+    final textoAtual = switch (atual) {
+      2 => 'O profissional chegou. Informe o código para ele começar.',
+      3 =>
+        _pausado
+            ? 'Atendimento pausado pelo profissional.'
+            : 'O profissional está fazendo o serviço.',
+      _ => 'O profissional finalizou. Confira e confirme a conclusão.',
+    };
     return _card(
-      Row(
+      child: Column(
         children: [
-          for (var i = 0; i < etapas.length; i++)
-            Expanded(
-              child: Column(
-                children: [
-                  CircleAvatar(
-                    radius: 13,
-                    backgroundColor: i < 2
-                        ? _azul
-                        : i == 2
-                        ? const Color(0xFFFB9263)
-                        : const Color(0xFFE2E8F0),
-                    child: Icon(
-                      i < 2
-                          ? Icons.check
-                          : i == 2
-                          ? Icons.place_outlined
-                          : Icons.check_circle_outline,
-                      color: i < 3 ? Colors.white : const Color(0xFF94A3B8),
-                      size: 15,
-                    ),
+          Row(
+            children: [
+              for (var i = 0; i < nomes.length; i++) ...[
+                Expanded(
+                  child: Column(
+                    children: [
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        width: 30,
+                        height: 30,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: i < atual
+                              ? _azul
+                              : i == atual
+                              ? (atual == 4 ? _verde : _laranja)
+                              : const Color(0xFFE5E7EB),
+                          boxShadow: i == atual
+                              ? [
+                                  BoxShadow(
+                                    color: (atual == 4 ? _verde : _laranja)
+                                        .withValues(alpha: 0.35),
+                                    blurRadius: 8,
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        child: Icon(
+                          i < atual ? Icons.check_rounded : icones[i],
+                          size: 16,
+                          color: i <= atual
+                              ? Colors.white
+                              : const Color(0xFF9CA3AF),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        nomes[i],
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: i == atual
+                              ? FontWeight.w800
+                              : FontWeight.w600,
+                          color: i <= atual ? _texto : _muted,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 5),
-                  Text(
-                    etapas[i],
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 9,
-                      color: i < 3 ? _azul : _muted,
-                    ),
-                  ),
-                ],
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF0F9FF),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              textoAtual,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: _azulEscuro,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
               ),
             ),
+          ),
         ],
       ),
     );
@@ -361,38 +692,36 @@ class _AtendimentoNoLocalClientePageState
 
   /// Código que o cliente mostra ao profissional para iniciar o atendimento.
   Widget _codigoCard() => _card(
-    Column(
+    child: Column(
       children: [
-        const Text(
-          'Código de início do atendimento',
-          style: TextStyle(fontWeight: FontWeight.w800, color: _texto),
-        ),
+        _tituloCard(Icons.password_rounded, 'Código de início'),
         const SizedBox(height: 4),
         const Text(
           'Informe este código ao profissional para ele iniciar o atendimento.',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 11, color: _muted),
+          style: TextStyle(fontSize: 12, color: _muted),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             for (final d in _codigoRecDev.padRight(4, '-').split('').take(4))
               Container(
-                width: 48,
-                height: 48,
-                margin: const EdgeInsets.symmetric(horizontal: 4),
+                width: 52,
+                height: 56,
+                margin: const EdgeInsets.symmetric(horizontal: 5),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: const Color(0xFFE0F2FE),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _azul.withValues(alpha: 0.4)),
                 ),
                 child: Text(
                   d,
                   style: const TextStyle(
-                    fontSize: 22,
+                    fontSize: 24,
                     fontWeight: FontWeight.w900,
-                    color: _azul,
+                    color: _azulEscuro,
                   ),
                 ),
               ),
@@ -402,27 +731,268 @@ class _AtendimentoNoLocalClientePageState
     ),
   );
 
-  Widget _enderecoCard() => _card(
-    Row(
+  Widget _cronometroCard() {
+    final rodando = _inicio != null && !_pausado && !_profissionalFinalizou;
+    final status = _inicio == null
+        ? 'Começa quando o código for validado'
+        : _profissionalFinalizou
+        ? 'Tempo total do atendimento'
+        : _pausado
+        ? 'Pausado'
+        : 'Em andamento';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0FB3FF), Color(0xFF0A8FD6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.18),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              _pausado ? Icons.pause_rounded : Icons.timer_outlined,
+              color: Colors.white,
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Tempo de atendimento',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    if (rodando) ...[
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF86EFAC),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                    ],
+                    Flexible(
+                      child: Text(
+                        status,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.9),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Text(
+            _tempo(_segundos),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 28,
+              fontWeight: FontWeight.w900,
+              fontFeatures: [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  IconData _iconeMeio(String meio) => switch (meio) {
+    'Carro' => Icons.directions_car_rounded,
+    'Moto' => Icons.two_wheeler_rounded,
+    'Bicicleta' => Icons.pedal_bike_rounded,
+    'Transporte público' => Icons.directions_bus_rounded,
+    _ => Icons.local_shipping_rounded,
+  };
+
+  Widget _profissionalCard() => _card(
+    child: Column(
       children: [
-        const Icon(Icons.location_on_outlined, color: _azul),
-        const SizedBox(width: 8),
+        Row(
+          children: [
+            _avatar(_fotoProfissional, _nomeProfissional),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _nomeProfissional,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _texto,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _azul.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          _loja ? 'Loja' : 'Independente',
+                          style: const TextStyle(
+                            color: _azulEscuro,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.star_rounded, size: 15, color: _laranja),
+                      const SizedBox(width: 2),
+                      Flexible(
+                        child: Text(
+                          '${_nota == null ? 'Novo' : _nota!.toStringAsFixed(1).replaceAll('.', ',')}'
+                          ' · $_atendimentos '
+                          '${_atendimentos == 1 ? 'atendimento' : 'atendimentos'}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 12, color: _muted),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        if (_meioLocomocao != null) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFEDEFF2)),
+            ),
+            child: Row(
+              children: [
+                Icon(_iconeMeio(_meioLocomocao!), color: _azul),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _meioLocomocao!,
+                    style: const TextStyle(
+                      color: _texto,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                if (_placa != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFF1E3A8A)),
+                    ),
+                    child: Text(
+                      _placa!,
+                      style: const TextStyle(
+                        color: Color(0xFF1E3A8A),
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _abrirChat,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: _azul,
+              side: const BorderSide(color: _azul),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+            label: Text(
+              'Conversar com $_nomeProfissional',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _enderecoCard() => _card(
+    child: Row(
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: _azul.withValues(alpha: 0.1),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.location_on_rounded, color: _azul),
+        ),
+        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Profissional no seu endereço',
-                style: TextStyle(fontWeight: FontWeight.w800),
+                'No seu endereço',
+                style: TextStyle(color: _texto, fontWeight: FontWeight.w800),
               ),
+              const SizedBox(height: 2),
               Text(
                 _endereco,
-                style: const TextStyle(fontSize: 11, color: _muted),
+                style: const TextStyle(fontSize: 12.5, color: _muted),
               ),
               if (_inicio != null)
                 Text(
-                  'Chegou às ${_inicio!.toLocal().hour.toString().padLeft(2, '0')}:${_inicio!.toLocal().minute.toString().padLeft(2, '0')}',
-                  style: const TextStyle(fontSize: 11, color: _muted),
+                  'Atendimento iniciado às '
+                  '${_inicio!.toLocal().hour.toString().padLeft(2, '0')}:'
+                  '${_inicio!.toLocal().minute.toString().padLeft(2, '0')}',
+                  style: const TextStyle(fontSize: 12.5, color: _muted),
                 ),
             ],
           ),
@@ -431,167 +1001,169 @@ class _AtendimentoNoLocalClientePageState
     ),
   );
 
-  Widget _profissionalCard() => _card(
-    Column(
-      children: [
-        Row(
-          children: [
-            _avatar(_fotoProfissional),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _nomeProfissional,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  Text(
-                    _tipoPrestador,
-                    style: const TextStyle(fontSize: 11, color: _muted),
-                  ),
-                  const Text(
-                    '★ 4,9 · 148 atendimentos realizados',
-                    style: TextStyle(fontSize: 11),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        const Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            'Honda CG 160 Cargo · Preta · ABC-4398',
-            style: TextStyle(fontSize: 11, color: _muted),
-          ),
-        ),
-        const SizedBox(height: 10),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => TelaChatProfissional(
-                  nomeProfissional: _nomeProfissional,
-                  fotoProfissional: _fotoProfissional ?? '',
-                  oficioPrincipal: _titulo,
-                  idSolicitacao: widget.idSolicitacao,
-                ),
-              ),
-            ),
-            icon: const Icon(Icons.chat_outlined, size: 17),
-            label: Text('Conversar com $_nomeProfissional'),
-          ),
-        ),
-      ],
-    ),
-  );
-
-  Widget _duracaoCard() => _card(
-    Row(
-      children: [
-        const Icon(Icons.timer_outlined, color: _azul),
-        const SizedBox(width: 8),
-        const Expanded(
-          child: Text(
-            'DURAÇÃO DO SERVIÇO',
-            style: TextStyle(fontWeight: FontWeight.w800),
-          ),
-        ),
-        Text(
-          _tempo(_duracao),
-          style: const TextStyle(
-            color: _azul,
-            fontSize: 21,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ],
-    ),
-  );
-
   Widget _fotosCard() => _card(
-    Column(
+    child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'REGISTRO FOTOGRÁFICO TÉCNICO',
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(child: _foto(_antes, 'Antes')),
-            const SizedBox(width: 8),
-            Expanded(child: _foto(_depois, 'Depois')),
-          ],
-        ),
+        _tituloCard(Icons.photo_library_outlined, 'Fotos do atendimento'),
+        const SizedBox(height: 12),
+        _galeria('Antes', _antes),
+        const SizedBox(height: 12),
+        _galeria('Depois', _depois),
       ],
     ),
   );
 
-  Widget _foto(List<String> fotos, String titulo) => Column(
+  Widget _galeria(String titulo, List<String> fotos) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Container(
-        height: 100,
-        decoration: BoxDecoration(
-          color: const Color(0xFFF1F3F6),
-          borderRadius: BorderRadius.circular(10),
+      Text(
+        '$titulo (${fotos.length})',
+        style: const TextStyle(
+          color: _muted,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
         ),
+      ),
+      const SizedBox(height: 6),
+      SizedBox(
+        height: 84,
         child: fotos.isEmpty
-            ? const Center(child: Icon(Icons.photo_outlined, color: _muted))
-            : ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Image.network(
-                  fotos.first,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
+            ? Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F3F6),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  titulo == 'Antes'
+                      ? 'O profissional ainda não enviou as fotos de antes.'
+                      : 'As fotos de depois aparecem ao finalizar.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: _muted, fontSize: 12),
+                ),
+              )
+            : ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: fotos.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemBuilder: (_, i) => GestureDetector(
+                  onTap: () => _abrirFoto(fotos, i),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(
+                      fotos[i],
+                      width: 84,
+                      height: 84,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Container(
+                        width: 84,
+                        color: const Color(0xFFE5E7EB),
+                        child: const Icon(
+                          Icons.broken_image_outlined,
+                          color: _muted,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
       ),
-      Text(titulo, style: const TextStyle(fontSize: 10, color: _muted)),
     ],
   );
 
   Widget _servicoCard() => _card(
-    Column(
+    child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _tituloCard(Icons.receipt_long_outlined, 'Resumo do pedido'),
+        const SizedBox(height: 10),
         Text(
-          'PEDIDO $_codigoPedido',
-          style: const TextStyle(fontSize: 10, color: _muted),
+          _titulo,
+          style: const TextStyle(
+            color: _texto,
+            fontWeight: FontWeight.w700,
+            fontSize: 15,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Valor total',
+                style: TextStyle(color: _muted, fontSize: 13),
+              ),
+            ),
+            Text(
+              _real(_valor),
+              style: const TextStyle(
+                color: _texto,
+                fontWeight: FontWeight.w900,
+                fontSize: 17,
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 4),
-        Text(_titulo, style: const TextStyle(fontWeight: FontWeight.w800)),
-        const SizedBox(height: 12),
-        Text(
-          'Método de pagamento: $_metodoPagamento',
-          style: const TextStyle(fontSize: 12, color: _muted),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Valor total: R\$ ${_valor.toStringAsFixed(2).replaceAll('.', ',')}',
-          style: const TextStyle(fontWeight: FontWeight.w800),
+        const Text(
+          'O pagamento fica retido e só é liberado ao profissional quando '
+          'você confirmar a conclusão.',
+          style: TextStyle(color: _muted, fontSize: 11.5),
         ),
       ],
     ),
   );
 
-  Widget _confirmacaoCard() => _card(
-    SizedBox(
-      width: double.infinity,
-      child: FilledButton.icon(
-        onPressed: _profissionalFinalizou && !_confirmando
-            ? _confirmarConclusao
-            : null,
-        icon: const Icon(Icons.check_circle_outline),
-        label: Text(
-          _profissionalFinalizou
-              ? 'Confirmar conclusão do serviço'
-              : 'Aguardando conclusão do profissional',
+  Widget _barraConfirmacao() => Container(
+    padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.06),
+          blurRadius: 12,
+          offset: const Offset(0, -2),
+        ),
+      ],
+    ),
+    child: SafeArea(
+      top: false,
+      child: SizedBox(
+        width: double.infinity,
+        height: 50,
+        child: FilledButton.icon(
+          style: FilledButton.styleFrom(
+            backgroundColor: _verde,
+            disabledBackgroundColor: const Color(0xFFE5E7EB),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+          onPressed: _profissionalFinalizou && !_confirmando
+              ? _confirmarConclusao
+              : null,
+          icon: _confirmando
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : Icon(
+                  _profissionalFinalizou
+                      ? Icons.check_circle_outline
+                      : Icons.hourglass_top_rounded,
+                ),
+          label: Text(
+            _profissionalFinalizou
+                ? 'Confirmar conclusão do serviço'
+                : 'Aguardando o profissional finalizar',
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
         ),
       ),
     ),

@@ -7,6 +7,8 @@ import 'tela_meu_perfil_profissional.dart';
 import 'utils/bottom_navigation_bar_profissional.dart';
 import 'widgets/skeletons_telas.dart';
 import 'widgets/aviso_obrigatorio.dart';
+import 'tutorial/tutorial.dart';
+import 'tutorial/tutorial_da_tela.dart';
 
 class MeusDadosFinanceirosProfissionalPage extends StatefulWidget {
   const MeusDadosFinanceirosProfissionalPage({super.key});
@@ -18,7 +20,9 @@ class MeusDadosFinanceirosProfissionalPage extends StatefulWidget {
 
 class _MeusDadosFinanceirosProfissionalPageState
     extends State<MeusDadosFinanceirosProfissionalPage>
-    with SingleTickerProviderStateMixin {
+    with
+        SingleTickerProviderStateMixin,
+        TutorialDaTela<MeusDadosFinanceirosProfissionalPage> {
   static const Color _primaryBlue = Color(0xFF0FB3FF);
   static const Color _background = Color(0xFFF8FAFC);
   static const Color _textDark = Color(0xFF0F172A);
@@ -826,6 +830,33 @@ class _MeusDadosFinanceirosProfissionalPageState
 
   @override
   Widget build(BuildContext context) {
+    if (!_carregando) {
+      tutorialDaTela(
+        chave: 'dados_financeiros',
+        passos: () => [
+          PassoTutorial(
+            'Aqui você escolhe como quer receber dos clientes.',
+            alvo: chaveTut('pills'),
+            raio: 12,
+          ),
+          PassoTutorial(
+            'Com o Pix ativo, cadastre a sua chave: é por ela que você '
+            'recebe.',
+            alvo: chaveTut('pix'),
+          ),
+          PassoTutorial(
+            'Também dá para aceitar cartão de crédito, débito e boleto.',
+            alvo: chaveTut('credito'),
+            alvoRect: uniaoTut(['credito', 'debito', 'boleto']),
+          ),
+          PassoTutorial(
+            'E aqui você conecta a conta que recebe os pagamentos feitos '
+            'pelo app.',
+            alvo: chaveTut('stripe'),
+          ),
+        ],
+      );
+    }
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
@@ -855,7 +886,7 @@ class _MeusDadosFinanceirosProfissionalPageState
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildPillsStatus(),
+                            alvoTut('pills', _buildPillsStatus()),
                             const SizedBox(height: 16),
                             _buildTituloPrincipal(),
                             if (_pixSemChave) ...[
@@ -869,15 +900,15 @@ class _MeusDadosFinanceirosProfissionalPageState
                               ),
                             ],
                             const SizedBox(height: 20),
-                            _buildCardPix(),
+                            alvoTut('pix', _buildCardPix()),
                             const SizedBox(height: 14),
-                            _buildCardCredito(),
+                            alvoTut('credito', _buildCardCredito()),
                             const SizedBox(height: 14),
-                            _buildCardDebito(),
+                            alvoTut('debito', _buildCardDebito()),
                             const SizedBox(height: 14),
-                            _buildCardBoleto(),
+                            alvoTut('boleto', _buildCardBoleto()),
                             const SizedBox(height: 20),
-                            _buildCardStripe(),
+                            alvoTut('stripe', _buildCardStripe()),
                             const SizedBox(height: 14),
                             _buildRodapeInformativo(),
                             const SizedBox(height: 24),

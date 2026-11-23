@@ -26,6 +26,10 @@ import 'widgets/carregamento_segmentado.dart';
 import 'widgets/sonar_pulso.dart';
 import 'services/requisitos_conta.dart';
 import 'widgets/dialogo_sheet.dart';
+import 'utils/bottom_navigation_bar_cliente.dart';
+import 'tela_mensagens.dart';
+import 'meus_pedidos.dart';
+import 'tela_meu_perfil_cliente.dart';
 
 /// formulario → solicitando → aguardando → encontrado (profissional aceitou).
 enum _Etapa { formulario, solicitando, aguardando, encontrado }
@@ -465,7 +469,11 @@ class _SolicitacaoGeograficaClientePageState
   void _enquadrarMapa() {
     final c = _centro;
     if (c == null || !_mapaPronto) return;
-    final altura = MediaQuery.of(context).size.height;
+    // Altura útil: a barra inferior (Home, Radar, Mensagens...) fica embaixo.
+    final altura =
+        MediaQuery.of(context).size.height -
+        kBottomNavigationBarHeight -
+        MediaQuery.of(context).padding.bottom;
     final ocupadoPeloSheet = _minimizado
         ? 96.0
         : switch (_etapa) {
@@ -1637,9 +1645,26 @@ class _SolicitacaoGeograficaClientePageState
 
   // ── Build ─────────────────────────────────────────────────────────────────
 
+  /// Barra inferior do cliente (Radar é a aba 1).
+  void _irParaAba(int index) {
+    final Widget? destino = switch (index) {
+      0 => TelaHome(isVisitante: widget.isVisitante),
+      2 => TelaMensagensPage(isVisitante: widget.isVisitante),
+      3 => MeusPedidosPage(isVisitante: widget.isVisitante),
+      4 => TelaMeuPerfilClientePage(isVisitante: widget.isVisitante),
+      _ => null,
+    };
+    if (destino == null) return;
+    AppNavigationUtil.navegarAba(context, destino, isHome: index == 0);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final altura = MediaQuery.of(context).size.height;
+    // Altura útil: a barra inferior (Home, Radar, Mensagens...) fica embaixo.
+    final altura =
+        MediaQuery.of(context).size.height -
+        kBottomNavigationBarHeight -
+        MediaQuery.of(context).padding.bottom;
     return PopScope(
       // Voltar sai da tela (formulário ou solicitação criada); só é
       // interceptado para recolher o painel ou durante a criação.
@@ -1652,6 +1677,10 @@ class _SolicitacaoGeograficaClientePageState
         child: Scaffold(
           backgroundColor: Colors.white,
           resizeToAvoidBottomInset: true,
+          bottomNavigationBar: BottomNavigationBarCliente(
+            currentIndex: 1,
+            onTap: _irParaAba,
+          ),
           body: Stack(
             children: [
               Positioned.fill(child: _buildMapa()),

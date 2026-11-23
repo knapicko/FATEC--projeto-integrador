@@ -232,6 +232,8 @@ class NotificacaoService extends ChangeNotifier {
   /// Chamado na troca de conta (independente ↔ empresa): o servidor usa o
   /// perfil ativo para escolher as pendências diárias do "Sistema".
   Future<void> atualizarPerfilAtivo() async {
+    // Sino e aba de mensagens passam a contar só o perfil novo.
+    unawaited(atualizarContadores());
     if (!_firebaseOk || _idUsuario == null) return;
     try {
       final token = await FirebaseMessaging.instance.getToken();
@@ -244,6 +246,20 @@ class NotificacaoService extends ChangeNotifier {
     if (Platform.isAndroid) return 'android';
     if (Platform.isIOS) return 'ios';
     return 'outro';
+  }
+
+  /// 'cliente' | 'independente' | 'empresa' (conta ativa neste aparelho).
+  Future<String> perfilAtivo() async {
+    if (_idUsuario == null) return 'cliente';
+    return _perfilAtivo();
+  }
+
+  /// A notificação é da outra conta do profissional (independente x loja)?
+  Future<bool> ehDeOutroPerfil(NotificacaoApp n) async {
+    final destino = n.perfilDestino;
+    if (destino != 'independente' && destino != 'empresa') return false;
+    final ativo = await perfilAtivo();
+    return ativo != 'cliente' && ativo != destino;
   }
 
   Future<String> _perfilAtivo() async {
@@ -274,7 +290,8 @@ class NotificacaoService extends ChangeNotifier {
         n.tipo == TipoNotificacao.conversa &&
         n.fkConversa != null &&
         n.fkConversa == conversaEmTela;
-    if (!daConversaAberta) {
+    // Aviso da outra conta (independente x loja): não aparece agora.
+    if (!daConversaAberta && !await ehDeOutroPerfil(n)) {
       await NotificacaoExibicao.mostrar(n);
     }
     unawaited(atualizarContadores());
@@ -322,7 +339,9 @@ class NotificacaoService extends ChangeNotifier {
   Future<void> atualizarContadores() async {
     if (_idUsuario == null) return;
     try {
-      final (gerais, mensagens) = await NotificacaoRepositorio.contadores();
+      final (gerais, mensagens) = await NotificacaoRepositorio.contadores(
+        perfil: await _perfilAtivo(),
+      );
       if (gerais != naoLidas || mensagens != mensagensNaoLidas) {
         naoLidas = gerais;
         mensagensNaoLidas = mensagens;

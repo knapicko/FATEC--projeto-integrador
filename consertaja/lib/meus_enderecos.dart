@@ -26,6 +26,8 @@ import 'widgets/dialogo_sheet.dart';
 import 'widgets/aviso_obrigatorio.dart';
 import 'widgets/avisos_bottom_sheet.dart';
 import 'services/requisitos_conta.dart';
+import 'tutorial/tutorial.dart';
+import 'tutorial/tutorial_da_tela.dart';
 
 /// Constantes dos nomes das tabelas no Supabase
 const String _tabelaEndereco = 'enderecos';
@@ -196,7 +198,7 @@ class MeusEnderecosPage extends StatefulWidget {
   State<MeusEnderecosPage> createState() => _MeusEnderecosPageState();
 }
 
-class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
+class _MeusEnderecosPageState extends State<MeusEnderecosPage> with TutorialDaTela<MeusEnderecosPage> {
   static const Color _blue = Color(0xFF0FB3FF);
   static const Color _background = Color(0xFFF8F9FA);
   static const Color _textDark = Color(0xFF1A1A1A);
@@ -1461,6 +1463,37 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
         enderecoPrincipal != null && _correspondeBusca(enderecoPrincipal);
     final outrosFiltrados = outrosEnderecos.where(_correspondeBusca).toList();
 
+    if (!_carregando && !widget.isVisitante) {
+      tutorialDaTela(
+        chave: widget.isProfissional
+            ? 'meus_enderecos_prof'
+            : 'meus_enderecos_cliente',
+        passos: () => [
+          PassoTutorial(
+            widget.isProfissional
+                ? 'Aqui fica o endereço onde você atende. É por ele que os '
+                      'clientes e o Radar acham você.'
+                : 'Aqui ficam os seus endereços. Eles são usados para pedir '
+                      'serviços e no Radar.',
+            alvo: chaveTut('busca'),
+            alvoRect: uniaoTut(['busca', 'principal']),
+          ),
+          if (exibirPrincipal)
+            PassoTutorial(
+              widget.isProfissional
+                  ? 'Este é o seu endereço principal.'
+                  : 'Este é o endereço principal: ele vale para os seus '
+                        'pedidos. Dá para trocar quando quiser.',
+              alvo: chaveTut('principal'),
+            ),
+          PassoTutorial(
+            'Para cadastrar um novo endereço, é só tocar aqui.',
+            alvo: chaveTut('adicionar'),
+          ),
+        ],
+      );
+    }
+
     return Scaffold(
       backgroundColor: _background,
       appBar: PreferredSize(
@@ -1479,7 +1512,7 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
                   : 'Sem endereço você não pode pedir serviços, montar sua '
                         'lista nem usar o Radar.',
             ),
-          _buildBarraPesquisa(),
+          alvoTut('busca', _buildBarraPesquisa()),
           Expanded(
             child: _carregando
                 ? const SkeletonPage(layout: SkeletonLayout.cards)
@@ -1520,7 +1553,10 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
                               ? 'Endereço do Profissional'
                               : 'Endereço Principal',
                         ),
-                        _buildCardPrincipal(enderecoPrincipal),
+                        alvoTut(
+                          'principal',
+                          _buildCardPrincipal(enderecoPrincipal),
+                        ),
                         const SizedBox(height: 20),
                       ],
                       if (outrosFiltrados.isNotEmpty) ...[
@@ -1545,7 +1581,7 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage> {
                             ),
                           ),
                         ),
-                      _buildBotaoAdicionar(),
+                      alvoTut('adicionar', _buildBotaoAdicionar()),
                     ],
                   ),
           ),
@@ -1583,7 +1619,7 @@ class AdicionarEnderecoPage extends StatefulWidget {
   State<AdicionarEnderecoPage> createState() => _AdicionarEnderecoPageState();
 }
 
-class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
+class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> with TutorialDaTela<AdicionarEnderecoPage> {
   static const Color _blue = Color(0xFF0FB3FF);
   static const Color _background = Color(0xFFF8F9FA);
   static const Color _textDark = Color(0xFF1A1A1A);
@@ -2683,6 +2719,29 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (!widget.isEdicao && !widget.isVisitante) {
+      tutorialDaTela(
+        chave: 'adicionar_endereco',
+        passos: () => [
+          PassoTutorial(
+            'No mapa você confere o local do endereço e pode ajustar o '
+            'ponto exato.',
+            alvo: chaveTut('mapa'),
+          ),
+          PassoTutorial(
+            'Digite o CEP que a gente completa o resto. O número é '
+            'obrigatório!',
+            alvo: chaveTut('form'),
+            alinhamentoRolagem: 0.05,
+          ),
+          PassoTutorial(
+            'Quando terminar, é só tocar em "Salvar Endereço".',
+            alvo: chaveTut('salvar'),
+            raio: 28,
+          ),
+        ],
+      );
+    }
     return Scaffold(
       backgroundColor: _background,
       appBar: AppBar(
@@ -2713,8 +2772,8 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
             child: SingleChildScrollView(
               child: Column(
                 children: [
-                  _buildMapaPreview(),
-                  _buildFormulario(),
+                  alvoTut('mapa', _buildMapaPreview()),
+                  alvoTut('form', _buildFormulario()),
                   const SizedBox(height: 8),
                 ],
               ),
@@ -2724,6 +2783,7 @@ class _AdicionarEnderecoPageState extends State<AdicionarEnderecoPage> {
             color: _background,
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             child: SizedBox(
+              key: chaveTut('salvar'),
               width: double.infinity,
               height: 52,
               child: ElevatedButton(

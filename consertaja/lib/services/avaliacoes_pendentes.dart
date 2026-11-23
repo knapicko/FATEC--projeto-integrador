@@ -199,56 +199,97 @@ class AvaliacoesPendentes {
     );
   }
 
+  /// Tipo do arquivo pelo nome (padrão: JPEG).
+  static String _tipoMidia(String ext) => switch (ext) {
+    'png' => 'image/png',
+    'webp' => 'image/webp',
+    'gif' => 'image/gif',
+    'heic' || 'heif' => 'image/heic',
+    'mp4' || 'm4v' => 'video/mp4',
+    'mov' => 'video/quicktime',
+    '3gp' => 'video/3gpp',
+    'webm' => 'video/webm',
+    _ => 'image/jpeg',
+  };
+
   /// Envia a nota (serviço e profissional), o comentário e as mídias.
-  static Future<void> enviar({
+  /// Devolve um aviso quando a nota foi salva mas as fotos não (null = ok).
+  static Future<String?> enviar({
     required int idSolicitacao,
     required int nota,
     required String comentario,
     required List<XFile> midias,
   }) async {
-    final uid = _db.auth.currentUser!.id;
-    final urls = <String>[];
-    for (var i = 0; i < midias.length; i++) {
-      final m = midias[i];
-      final nome = m.name.toLowerCase();
-      final ext = nome.contains('.') ? nome.split('.').last : 'jpg';
-      final video = const ['mp4', 'mov', 'm4v', '3gp', 'webm'].contains(ext);
-      final caminho =
-          '$uid/$idSolicitacao/${DateTime.now().millisecondsSinceEpoch}_$i.$ext';
-      await _db.storage
-          .from('Avaliacoes')
-          .uploadBinary(
-            caminho,
-            await m.readAsBytes(),
-            fileOptions: FileOptions(
-              contentType: video
-                  ? 'video/${ext == 'mov' ? 'quicktime' : ext}'
-                  : 'image/${ext == 'jpg' ? 'jpeg' : ext}',
-            ),
-          );
-      urls.add(_db.storage.from('Avaliacoes').getPublicUrl(caminho));
+    // 1) Nota e comentário primeiro: a avaliação não se perde se uma foto
+    //    falhar. Já avaliado (tentativa anterior) segue para as fotos.
+    try {
+      await _db.rpc(
+        'registrar_avaliacoes_cliente',
+        params: {
+          'p_id_solicitacao': idSolicitacao,
+          'p_nota_servico': nota,
+          'p_comentario_servico': comentario,
+          'p_nota_profissional': nota,
+          'p_comentario_profissional': comentario,
+        },
+      );
+    } on PostgrestException catch (e) {
+      if (e.code != '23505') rethrow;
     }
-    await _db.rpc(
-      'registrar_avaliacoes_cliente',
-      params: {
-        'p_id_solicitacao': idSolicitacao,
-        'p_nota_servico': nota,
-        'p_comentario_servico': comentario,
-        'p_nota_profissional': nota,
-        'p_comentario_profissional': comentario,
-      },
-    );
-    if (urls.isNotEmpty) {
-      final atualizadas = await _db
-          .from('avaliacoes_solicitacao')
-          .update({'midias': urls})
-          .eq('fk_solicitacao', idSolicitacao)
-          .inFilter('tipo_avaliacao', ['servico', 'profissional'])
-          .select('id_avaliacao');
-      if ((atualizadas as List).isEmpty) {
-        // Sem a policy de update (docs/sql/v0_5_ajustes.sql) nada é salvo.
-        throw Exception('As fotos não foram salvas na avaliação.');
+    if (midias.isEmpty) return null;
+
+    // 2) Fotos/vídeos.
+    try {
+      final uid = _db.auth.currentUser!.id;
+      final urls = <String>[];
+      for (var i = 0; i < midias.length; i++) {
+        final m = midias[i];
+        final nome = (m.name.isNotEmpty ? m.name : m.path).toLowerCase();
+        var ext = nome.contains('.') ? nome.split('.').last : 'jpg';
+        if (ext.length > 5) ext = 'jpg';
+        final caminho =
+            '$uid/$idSolicitacao/${DateTime.now().millisecondsSinceEpoch}_$i.$ext';
+        await _db.storage
+            .from('Avaliacoes')
+            .uploadBinary(
+              caminho,
+              await m.readAsBytes(),
+              fileOptions: FileOptions(
+                contentType: _tipoMidia(ext),
+                upsert: true,
+              ),
+            );
+        urls.add(_db.storage.from('Avaliacoes').getPublicUrl(caminho));
       }
+      var salvas = 0;
+      try {
+        // Pelo servidor (docs/sql/v0_10_ajustes.sql).
+        final r = await _db.rpc(
+          'anexar_midias_avaliacao',
+          params: {'p_id_solicitacao': idSolicitacao, 'p_midias': urls},
+        );
+        salvas = (r as num?)?.toInt() ?? 0;
+      } catch (_) {
+        final atualizadas = await _db
+            .from('avaliacoes_solicitacao')
+            .update({'midias': urls})
+            .eq('fk_solicitacao', idSolicitacao)
+            .inFilter('tipo_avaliacao', ['servico', 'profissional'])
+            .select('id_avaliacao');
+        salvas = (atualizadas as List).length;
+      }
+      if (salvas == 0) {
+        return 'Sua avaliação foi enviada, mas as fotos não foram salvas.';
+      }
+      return null;
+    } catch (e) {
+      debugPrint('[avaliações] fotos: $e');
+      final t = e.toString().toLowerCase();
+      if (t.contains('too large') || t.contains('413') || t.contains('size')) {
+        return 'Sua avaliação foi enviada, mas um arquivo era grande demais '
+            'e as fotos não foram salvas.';
+      }
+      return 'Sua avaliação foi enviada, mas as fotos não puderam ser salvas.';
     }
   }
 }
@@ -320,11 +361,14 @@ class _SheetAvaliarServicoState extends State<SheetAvaliarServico> {
       final picker = ImagePicker();
       final novos = <XFile>[];
       if (origem == 'fotos') {
-        novos.addAll(await picker.pickMultiImage(imageQuality: 85));
+        novos.addAll(
+          await picker.pickMultiImage(imageQuality: 80, maxWidth: 1600),
+        );
       } else if (origem == 'camera') {
         final f = await picker.pickImage(
           source: ImageSource.camera,
-          imageQuality: 85,
+          imageQuality: 80,
+          maxWidth: 1600,
         );
         if (f != null) novos.add(f);
       } else {
@@ -363,17 +407,18 @@ class _SheetAvaliarServicoState extends State<SheetAvaliarServico> {
       _erro = null;
     });
     try {
-      await AvaliacoesPendentes.enviar(
+      final aviso = await AvaliacoesPendentes.enviar(
         idSolicitacao: widget.pedido.idSolicitacao,
         nota: _nota,
         comentario: _comentario.text.trim(),
         midias: _midias,
       );
       if (!mounted) return;
+      final mensageiro = ScaffoldMessenger.maybeOf(context);
       Navigator.pop(context, true);
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        const SnackBar(
-          content: Text('Avaliação enviada. Obrigado!'),
+      mensageiro?.showSnackBar(
+        SnackBar(
+          content: Text(aviso ?? 'Avaliação enviada. Obrigado!'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -382,7 +427,9 @@ class _SheetAvaliarServicoState extends State<SheetAvaliarServico> {
       if (mounted) {
         setState(() {
           _enviando = false;
-          _erro = 'Não foi possível enviar agora. Tente de novo.';
+          _erro = e is PostgrestException && e.message.trim().isNotEmpty
+              ? 'Não foi possível enviar: ${e.message}'
+              : 'Não foi possível enviar agora. Tente de novo.';
         });
       }
     }
