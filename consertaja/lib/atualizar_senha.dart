@@ -3,28 +3,46 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'onboarding/onboarding_theme.dart';
 import 'onboarding/onboarding_widgets.dart';
+import 'services/biometria_service.dart';
+import 'services/requisitos_conta.dart';
 import 'services/validacao_senha.dart';
 import 'tela_inicial.dart' show abrirEntradaVisitante;
 import 'widgets/imagem_app.dart';
 
-/// Tela aberta pelo link de "Esqueci minha senha" (evento passwordRecovery).
-/// Mesmo visual do onboarding e, no fim, volta para o login do onboarding.
+/// Tela de senha com o visual do onboarding. Dois usos:
+///
+/// - [recuperacao] = true: aberta pelo link de "Esqueci minha senha"
+///   (evento passwordRecovery). Ao salvar, sai da sessão temporária e volta
+///   para o login do onboarding.
+/// - [recuperacao] = false: pessoa logada alterando a senha (Editar dados,
+///   Configurações) ou CRIANDO uma senha (conta feita com o Google). Pede a
+///   senha atual quando a conta já tem uma; ao salvar, volta com `true`.
 class AtualizarSenhaPage extends StatefulWidget {
-  const AtualizarSenhaPage({super.key});
+  const AtualizarSenhaPage({super.key, this.recuperacao = true});
+
+  final bool recuperacao;
 
   @override
   State<AtualizarSenhaPage> createState() => _AtualizarSenhaPageState();
 }
 
 class _AtualizarSenhaPageState extends State<AtualizarSenhaPage> {
+  final TextEditingController _atual = TextEditingController();
   final TextEditingController _senha = TextEditingController();
   final TextEditingController _confirmar = TextEditingController();
 
   bool _carregando = false;
+  bool _atualOculta = true;
   bool _senhaOculta = true;
   bool _confirmarOculta = true;
+  String? _erroAtual;
   String? _erroSenha;
   String? _erroConfirmar;
+
+  /// Conta criada com o Google ainda sem senha: é "criar", não "alterar".
+  late final bool _criando =
+      !widget.recuperacao && !RequisitosConta.contaTemSenha();
+  bool get _pedeAtual => !widget.recuperacao && !_criando;
 
   String get _texto => _senha.text;
   bool get _temTamanho => senhaTemOitoCaracteres(_texto);
@@ -38,6 +56,7 @@ class _AtualizarSenhaPageState extends State<AtualizarSenhaPage> {
   @override
   void initState() {
     super.initState();
+    _atual.addListener(_mudou);
     _senha.addListener(_mudou);
     _confirmar.addListener(_mudou);
   }
@@ -45,6 +64,7 @@ class _AtualizarSenhaPageState extends State<AtualizarSenhaPage> {
   void _mudou() {
     if (!mounted) return;
     setState(() {
+      _erroAtual = null;
       _erroSenha = null;
       _erroConfirmar = null;
     });
@@ -52,12 +72,13 @@ class _AtualizarSenhaPageState extends State<AtualizarSenhaPage> {
 
   @override
   void dispose() {
+    _atual.dispose();
     _senha.dispose();
     _confirmar.dispose();
     super.dispose();
   }
 
-  /// Sai da sessão temporária de recuperação e abre o login do onboarding.
+  /// Recuperação: sai da sessão temporária e abre o login do onboarding.
   Future<void> _irParaLogin({String? aviso}) async {
     try {
       await Supabase.instance.client.auth.signOut();
@@ -70,8 +91,21 @@ class _AtualizarSenhaPageState extends State<AtualizarSenhaPage> {
     }
   }
 
+  void _voltar() {
+    if (_carregando) return;
+    if (widget.recuperacao) {
+      _irParaLogin();
+    } else {
+      Navigator.of(context).maybePop();
+    }
+  }
+
   Future<void> _salvar() async {
     if (_carregando) return;
+    if (_pedeAtual && _atual.text.isEmpty) {
+      setState(() => _erroAtual = 'Digite a sua senha atual.');
+      return;
+    }
     if (!_requisitosOk) {
       setState(
         () => _erroSenha = 'A senha ainda não cumpre todos os requisitos.',
@@ -82,15 +116,77 @@ class _AtualizarSenhaPageState extends State<AtualizarSenhaPage> {
       setState(() => _erroConfirmar = 'As senhas digitadas não coincidem.');
       return;
     }
+    if (_pedeAtual && _atual.text == _senha.text) {
+      setState(
+        () => _erroSenha = 'A nova senha não pode ser igual à senha atual.',
+      );
+      return;
+    }
 
     setState(() => _carregando = true);
+    final auth = Supabase.instance.client.auth;
     try {
-      await Supabase.instance.client.auth.updateUser(
-        UserAttributes(password: _senha.text),
+      // Confere a senha atual (quem está logado e já tem senha).
+      if (_pedeAtual) {
+        final email = auth.currentUser?.email;
+        if (email == null || email.isEmpty) {
+          throw const AuthException('sem e-mail');
+        }
+        try {
+          await auth.signInWithPassword(email: email, password: _atual.text);
+        } on AuthException {
+          if (mounted) {
+            setState(() {
+              _carregando = false;
+              _erroAtual = 'Senha atual incorreta.';
+            });
+          }
+          return;
+        }
+      }
+
+      await auth.updateUser(
+        UserAttributes(
+          password: _senha.text,
+          // Marca a conta como "tem senha" (contas do Google).
+          data: {'senha_definida': true},
+        ),
       );
-      await _irParaLogin(
-        aviso: 'Senha atualizada! Entre com a sua nova senha.',
+
+      if (widget.recuperacao) {
+        await _irParaLogin(
+          aviso: 'Senha atualizada! Entre com a sua nova senha.',
+        );
+        return;
+      }
+
+      // Biometria guardada para esta conta: atualiza a senha do cofre.
+      final user = auth.currentUser;
+      if (user != null &&
+          await BiometriaService.contaGuardada() == user.id) {
+        final cred = await BiometriaService.credenciais();
+        await BiometriaService.salvar(
+          identificador: cred?.$1 ?? user.email ?? '',
+          senha: _senha.text,
+          authId: user.id,
+          nome: await BiometriaService.nomeGuardado(),
+        );
+      }
+      await RequisitosConta.atualizarAbaPendente(
+        profissional: false,
+        forcar: true,
       );
+      if (!mounted) return;
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(
+          content: Text(
+            _criando
+                ? 'Senha criada! Agora você também pode entrar com e-mail e senha.'
+                : 'Senha alterada com sucesso!',
+          ),
+        ),
+      );
+      Navigator.of(context).pop(true);
     } on AuthException catch (e) {
       final msg = e.message.toLowerCase();
       if (!mounted) return;
@@ -99,9 +195,14 @@ class _AtualizarSenhaPageState extends State<AtualizarSenhaPage> {
           _erroSenha = 'A nova senha não pode ser igual à senha atual.';
         } else if (e.code == 'weak_password' || msg.contains('weak')) {
           _erroSenha = 'Essa senha é fraca demais. Tente outra.';
-        } else if (msg.contains('session') || msg.contains('jwt')) {
+        } else if (e.code == 'reauthentication_needed' ||
+            msg.contains('reauthenticat')) {
           _erroSenha =
-              'O link de recuperação expirou. Peça um novo em "Esqueci minha senha".';
+              'Por segurança, saia e entre de novo na conta antes de trocar a senha.';
+        } else if (msg.contains('session') || msg.contains('jwt')) {
+          _erroSenha = widget.recuperacao
+              ? 'O link de recuperação expirou. Peça um novo em "Esqueci minha senha".'
+              : 'Sua sessão expirou. Entre de novo na conta.';
         } else {
           _erroSenha = 'Não foi possível salvar: ${e.message}';
         }
@@ -117,10 +218,21 @@ class _AtualizarSenhaPageState extends State<AtualizarSenhaPage> {
 
   @override
   Widget build(BuildContext context) {
+    final titulo = widget.recuperacao
+        ? 'Criar nova senha'
+        : _criando
+        ? 'Crie uma senha'
+        : 'Alterar senha';
+    final subtitulo = widget.recuperacao
+        ? 'Escolha uma senha nova para a sua conta. Ela precisa ser diferente da anterior.'
+        : _criando
+        ? 'Sua conta foi criada com o Google. Crie uma senha para também entrar '
+              'com e-mail e senha — ela é obrigatória para pedir serviços.'
+        : 'Confirme a sua senha atual e escolha a nova.';
     return PopScope(
-      canPop: false,
+      canPop: !widget.recuperacao,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && !_carregando) _irParaLogin();
+        if (!didPop && widget.recuperacao && !_carregando) _irParaLogin();
       },
       child: Scaffold(
         backgroundColor: OnboardingColors.blue,
@@ -128,7 +240,7 @@ class _AtualizarSenhaPageState extends State<AtualizarSenhaPage> {
           backgroundColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
-            onPressed: _carregando ? null : () => _irParaLogin(),
+            onPressed: _carregando ? null : _voltar,
             icon: const Icon(
               Icons.arrow_back_rounded,
               color: Colors.white,
@@ -155,10 +267,10 @@ class _AtualizarSenhaPageState extends State<AtualizarSenhaPage> {
                       ),
                     ),
                     const SizedBox(height: 20),
-                    const Text(
-                      'Criar nova senha',
+                    Text(
+                      titulo,
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -167,8 +279,7 @@ class _AtualizarSenhaPageState extends State<AtualizarSenhaPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Escolha uma senha nova para a sua conta. '
-                      'Ela precisa ser diferente da anterior.',
+                      subtitulo,
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.85),
@@ -178,8 +289,21 @@ class _AtualizarSenhaPageState extends State<AtualizarSenhaPage> {
                       ),
                     ),
                     const SizedBox(height: 26),
+                    if (_pedeAtual)
+                      OnboardingWhiteField(
+                        label: 'Senha atual',
+                        controller: _atual,
+                        obscure: _atualOculta,
+                        keyboardType: TextInputType.visiblePassword,
+                        errorText: _erroAtual,
+                        suffixIcon: _atualOculta
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                        onSuffix: () =>
+                            setState(() => _atualOculta = !_atualOculta),
+                      ),
                     OnboardingWhiteField(
-                      label: 'Nova senha',
+                      label: _criando ? 'Senha' : 'Nova senha',
                       controller: _senha,
                       obscure: _senhaOculta,
                       keyboardType: TextInputType.visiblePassword,
@@ -218,7 +342,7 @@ class _AtualizarSenhaPageState extends State<AtualizarSenhaPage> {
                       ),
                     ),
                     OnboardingWhiteField(
-                      label: 'Confirmar nova senha',
+                      label: _criando ? 'Confirmar senha' : 'Confirmar nova senha',
                       controller: _confirmar,
                       obscure: _confirmarOculta,
                       keyboardType: TextInputType.visiblePassword,
@@ -231,12 +355,13 @@ class _AtualizarSenhaPageState extends State<AtualizarSenhaPage> {
                     ),
                     const SizedBox(height: 12),
                     PillButton(
-                      label: 'Salvar senha',
+                      label: _criando ? 'Criar senha' : 'Salvar senha',
                       background: Colors.white,
                       foreground: OnboardingColors.blue,
                       loading: _carregando,
-                      bloqueado:
-                          !_requisitosOk || _confirmar.text.isEmpty,
+                      bloqueado: !_requisitosOk ||
+                          _confirmar.text.isEmpty ||
+                          (_pedeAtual && _atual.text.isEmpty),
                       onTap: _salvar,
                     ),
                     const SizedBox(height: 24),

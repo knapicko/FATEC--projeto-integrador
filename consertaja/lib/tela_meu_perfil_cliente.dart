@@ -600,6 +600,8 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                           if (!widget.isVisitante)
                             _buildProfileItem(
                               label: 'Editar Meus Dados',
+                              // Conta do Google sem senha: "!" até criar.
+                              pendente: !RequisitosConta.contaTemSenha(),
                               fallbackIcon: Icons.edit_outlined,
                               onTap: () async {
                                 await Navigator.push(
@@ -610,6 +612,7 @@ class _TelaMeuPerfilClientePageState extends State<TelaMeuPerfilClientePage> {
                                   ),
                                 );
                                 if (mounted) _carregarDadosPerfil();
+                                if (mounted) _atualizarPendencias();
                               },
                             ),
 

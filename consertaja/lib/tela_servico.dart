@@ -2102,7 +2102,7 @@ class _TelaServicoState extends State<TelaServico>
     }
     // Sem endereço cadastrado o cliente não pede nem monta a lista.
     if (!_enderecoConferido) {
-      RequisitosConta.garantirEnderecoCliente(context).then((ok) {
+      RequisitosConta.garantirProntoParaPedir(context).then((ok) {
         if (ok && mounted) {
           _enderecoConferido = true;
           _abrirSheetAdicionarServico();

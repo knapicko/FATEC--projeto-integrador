@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../alterar_disponibilidade.dart';
+import '../atualizar_senha.dart';
 import '../meus_dados_financeiros_profissional.dart';
 import '../meus_enderecos.dart';
 import '../metodo_entrega_profissional.dart';
@@ -49,7 +52,8 @@ class RequisitosConta {
       abaPendenteProfissional.value = pend.isNotEmpty;
     } else {
       _ultimaCliente = agora;
-      abaPendenteCliente.value = !await clienteTemEndereco();
+      abaPendenteCliente.value =
+          !contaTemSenha() || !await clienteTemEndereco();
     }
   }
 
@@ -339,6 +343,60 @@ class RequisitosConta {
       debugPrint('[requisitos] $e');
     }
     return pend;
+  }
+
+  /// A conta já tem senha? Contas criadas com o Google não têm até a pessoa
+  /// criar uma (ver [AtualizarSenhaPage]); aí ela ganha a marca
+  /// `senha_definida` nos metadados.
+  static bool contaTemSenha() {
+    final u = _db.auth.currentUser;
+    if (u == null) return true;
+    if (u.userMetadata?['senha_definida'] == true) return true;
+    if (u.appMetadata['provider']?.toString() == 'email') return true;
+    final provs = u.appMetadata['providers'];
+    if (provs is List && provs.map((e) => e.toString()).contains('email')) {
+      return true;
+    }
+    return (u.identities ?? const []).any((i) => i.provider == 'email');
+  }
+
+  static const senha = 'senha';
+
+  /// Cliente: para pedir um serviço (tela de serviço, lista ou Radar) precisa
+  /// de endereço cadastrado e de uma senha (contas do Google). Mostra o que
+  /// falta e devolve false.
+  static Future<bool> garantirProntoParaPedir(BuildContext context) async {
+    final temEndereco = await clienteTemEndereco();
+    final temSenha = contaTemSenha();
+    if (temEndereco && temSenha) return true;
+    if (!context.mounted) return false;
+    final falta = [
+      if (!temEndereco)
+        (Icons.location_on_outlined, 'Endereço', enderecos),
+      if (!temSenha) (Icons.lock_outline_rounded, 'Criar uma senha', senha),
+    ];
+    final escolha = await _sheet(
+      context,
+      icone: Icons.playlist_add_check_rounded,
+      titulo: 'Falta pouco para pedir',
+      mensagem: !temSenha && temEndereco
+          ? 'Sua conta foi criada com o Google. Para pedir serviços, crie '
+                'uma senha para a sua conta.'
+          : 'Para pedir serviços, defina estes itens da sua conta:',
+      itens: falta,
+      botao: 'Entendi',
+    );
+    if (escolha is String && context.mounted) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => escolha == senha
+              ? const AtualizarSenhaPage(recuperacao: false)
+              : const MeusEnderecosPage(),
+        ),
+      );
+      unawaited(atualizarAbaPendente(profissional: false, forcar: true));
+    }
+    return false;
   }
 
   /// Cliente: sem endereço não pede serviço / não usa o Radar. Mostra o

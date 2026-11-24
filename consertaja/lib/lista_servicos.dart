@@ -946,7 +946,7 @@ class _ListaServicosState extends State<ListaServicos> {
   // com os dados do serviço, depois apaga os itens da lista.
   Future<void> _enviarSolicitacoes() async {
     if (_itens.isEmpty || _enviandoSolicitacao) return;
-    if (!await RequisitosConta.garantirEnderecoCliente(context)) return;
+    if (!await RequisitosConta.garantirProntoParaPedir(context)) return;
     // Preferências → "Confirmar antes de enviar solicitações".
     if (AppSettingsController.instance.confirmarSolicitacao) {
       if (!mounted) return;

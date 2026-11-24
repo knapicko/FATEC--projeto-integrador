@@ -31,6 +31,7 @@ import 'tela_mensagens.dart';
 import 'meus_pedidos.dart';
 import 'tela_meu_perfil_cliente.dart';
 import 'tutorial/botao_ajuda.dart';
+import 'tutorial/tutorial.dart';
 import 'widgets/imagem_app.dart';
 import 'utils/movimento.dart';
 import 'services/app_settings_controller.dart';
@@ -1125,8 +1126,13 @@ class _SolicitacaoGeograficaClientePageState
     _carregarPerfis();
   }
 
-  Widget _sheetEnderecos(BuildContext ctx, List<EnderecoRadar> enderecos) {
+  Widget _sheetEnderecos(
+    BuildContext ctx,
+    List<EnderecoRadar> enderecos, {
+    Key? chave,
+  }) {
     return Container(
+      key: chave,
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(ctx).size.height * 0.75,
       ),
@@ -1286,10 +1292,98 @@ class _SolicitacaoGeograficaClientePageState
     );
   }
 
+  // ── Explicação da tela (botão "?") ───────────────────────────────────────
+
+  final GlobalKey _kTutLocal = GlobalKey(debugLabel: 'tut_radar_local');
+  final GlobalKey _kTutEnderecos = GlobalKey(debugLabel: 'tut_radar_enderecos');
+  BuildContext? _ctxSheetTut;
+
+  Future<void> _fecharSheetTut() async {
+    final ctx = _ctxSheetTut;
+    _ctxSheetTut = null;
+    if (ctx != null && ctx.mounted) {
+      Navigator.of(ctx).maybePop();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    }
+  }
+
+  List<PassoTutorial> _passosAjuda() {
+    final base = explicacaoDaTela(
+      context,
+      tela: 'Este é o Radar: peça um serviço no mapa.',
+      conteudo: [
+        'Descreva o que precisa e envie. Os profissionais perto de você mandam propostas, e você escolhe a melhor.',
+      ],
+      rodape: 56,
+    );
+    // A opção de outro endereço só existe enquanto o pedido é montado.
+    if (_etapa != _Etapa.formulario) return base;
+    return [
+      ...base,
+      PassoTutorial(
+        'Por padrão, o Radar usa a sua localização atual. Ligue este botão '
+        'para pedir o serviço em outro endereço.',
+        alvo: _kTutLocal,
+        raio: 14,
+        folga: 4,
+        antes: () async {
+          if (_minimizado) {
+            _restaurar();
+            await Future<void>.delayed(const Duration(milliseconds: 500));
+          }
+        },
+      ),
+      PassoTutorial(
+        'Ao ligar, abre esta lista com os seus endereços. Escolha um e o '
+        'mapa, o raio de 5 km e o pedido passam a usar esse endereço.',
+        alvo: _kTutEnderecos,
+        raio: 24,
+        folga: 0,
+        antes: () async {
+          if (_ctxSheetTut != null) return;
+          var enderecos = const <EnderecoRadar>[];
+          try {
+            enderecos = await SolicitacaoGeograficaService.meusEnderecos()
+                .timeout(const Duration(seconds: 6));
+          } catch (_) {}
+          if (!mounted) return;
+          unawaited(
+            showModalBottomSheet<Object>(
+              context: context,
+              backgroundColor: Colors.transparent,
+              isScrollControlled: true,
+              builder: (ctx) {
+                _ctxSheetTut = ctx;
+                return _sheetEnderecos(ctx, enderecos, chave: _kTutEnderecos);
+              },
+            ).whenComplete(() => _ctxSheetTut = null),
+          );
+          await Future<void>.delayed(const Duration(milliseconds: 550));
+        },
+      ),
+      PassoTutorial(
+        'Não tem o endereço na lista? Toque em "Adicionar outro endereço" '
+        'para cadastrar um novo; depois é só escolher ele aqui.',
+        alvo: _kTutEnderecos,
+        raio: 24,
+        folga: 0,
+      ),
+      PassoTutorial(
+        'Para voltar a usar a sua localização atual, é só desligar o botão.',
+        alvo: _kTutLocal,
+        raio: 14,
+        folga: 4,
+        ehFinal: true,
+        antes: _fecharSheetTut,
+      ),
+    ];
+  }
+
   /// Switch "Minha localização atual / Outro endereço" (abaixo do título).
   Widget _seletorLocal() {
     final e = _enderecoEscolhido;
     return Padding(
+      key: _kTutLocal,
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: Container(
         padding: const EdgeInsets.fromLTRB(12, 4, 6, 4),
@@ -1787,7 +1881,7 @@ class _SolicitacaoGeograficaClientePageState
     if (DateTime.now().isBefore(_ignorarEnvioAte)) return;
     if (_etapa != _Etapa.formulario || !_formularioCompleto) return;
     _desfocar();
-    if (!await RequisitosConta.garantirEnderecoCliente(context)) return;
+    if (!await RequisitosConta.garantirProntoParaPedir(context)) return;
     if (!_validar()) return;
     final centro = _centro;
     final funcao = _funcao;
@@ -2077,14 +2171,7 @@ class _SolicitacaoGeograficaClientePageState
                           cor: _azul,
                           diametro: 40,
                           tamanhoIcone: 22,
-                          passos: () => explicacaoDaTela(
-                            context,
-                            tela: 'Este é o Radar: peça um serviço no mapa.',
-                            conteudo: [
-                              'Descreva o que precisa e envie. Os profissionais perto de você mandam propostas, e você escolhe a melhor.',
-                            ],
-                            rodape: 56,
-                          ),
+                          passos: _passosAjuda,
                         ),
                       ),
                     ],

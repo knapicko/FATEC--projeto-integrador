@@ -15,6 +15,8 @@ import 'widgets/dialogo_sheet.dart';
 import 'tutorial/botao_ajuda.dart';
 import 'widgets/imagem_app.dart';
 import 'utils/movimento.dart';
+import 'atualizar_senha.dart';
+import 'services/requisitos_conta.dart';
 
 class EditarInformacoesPage extends StatefulWidget {
   const EditarInformacoesPage({super.key});
@@ -771,185 +773,15 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
     }
   }
 
+  /// Mesma tela da recuperação de senha (regras do cadastro, senha atual
+  /// conferida, mensagens de erro claras). Conta do Google sem senha: cria.
   Future<void> _mostrarPopupEdicaoSenha() async {
-    final novaSenhaController = TextEditingController();
-    final confirmarSenhaController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
-    await mostrarDialogoComoSheet<void>(
-      context: context,
-      builder: (context) {
-        return TweenAnimationBuilder<double>(
-          tween: Tween<double>(begin: 0.0, end: 1.0),
-          duration: duracao(const Duration(milliseconds: 250)),
-          curve: Curves.easeInOutBack,
-          builder: (context, value, child) {
-            return Transform.scale(scale: value, child: child);
-          },
-          child: Dialog(
-            backgroundColor: Colors.white,
-            surfaceTintColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Form(
-                key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      'Alterar Senha',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    TextFormField(
-                      controller: novaSenhaController,
-                      obscureText: true,
-                      decoration: InputDecoration(
-                        labelText: 'Nova Senha',
-                        labelStyle: const TextStyle(color: _blue),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.white),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: _blue, width: 2),
-                        ),
-                        filled: true,
-                        fillColor: const Color(0xFFF5F9FF),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Digite a nova senha';
-                        }
-                        if (value.length < 6) {
-                          return 'A senha deve ter no mínimo 6 caracteres';
-                        }
-                        return null;
-                      },
-                      autofocus: true,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: confirmarSenhaController,
-                      obscureText: true,
-                      decoration: InputDecoration(
-                        labelText: 'Confirmar Senha',
-                        labelStyle: const TextStyle(color: _blue),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.white),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: _blue, width: 2),
-                        ),
-                        filled: true,
-                        fillColor: const Color(0xFFF5F9FF),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Confirme a nova senha';
-                        }
-                        if (value != novaSenhaController.text) {
-                          return 'As senhas não coincidem';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: CorOriginal(interface: true, child: ElevatedButton(
-                        onPressed: () async {
-                          if (formKey.currentState!.validate()) {
-                            try {
-                              final user = _supabase.auth.currentUser;
-                              if (user != null) {
-                                await _supabase.auth.updateUser(
-                                  UserAttributes(
-                                    password: novaSenhaController.text,
-                                  ),
-                                );
-                              }
-                              if (context.mounted) {
-                                Navigator.pop(context);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Senha alterada com sucesso!',
-                                    ),
-                                  ),
-                                );
-                              }
-                            } catch (e) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Erro ao alterar senha: $e'),
-                                  ),
-                                );
-                              }
-                            }
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _blue,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: const Text(
-                          'Confirmar',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      )),
-                    ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 44,
-                      child: TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text(
-                          'Cancelar',
-                          style: TextStyle(color: _textGray, fontSize: 15),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const AtualizarSenhaPage(recuperacao: false),
+      ),
     );
+    if (mounted) setState(() {});
   }
 
   // ================= VERIFICAÇÃO POR CÓDIGO =================
@@ -1504,8 +1336,15 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
                 _linha(
                   icone: Icons.lock_outline_rounded,
                   rotulo: 'Senha',
-                  valor: '••••••••••',
-                  acao: _acao('Alterar', _mostrarPopupEdicaoSenha),
+                  valor: RequisitosConta.contaTemSenha()
+                      ? '••••••••••'
+                      : 'Não definida (conta do Google)',
+                  selo: RequisitosConta.contaTemSenha()
+                      ? null
+                      : _seloPendente(),
+                  acao: RequisitosConta.contaTemSenha()
+                      ? _acao('Alterar', _mostrarPopupEdicaoSenha)
+                      : _acao('Criar', _mostrarPopupEdicaoSenha, forte: true),
                 ),
               ]),
               const SizedBox(height: 24),
@@ -1647,6 +1486,30 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
       ),
     ));
   }
+
+  /// "!" de item obrigatório que falta (mesmo aviso da home e do perfil).
+  Widget _seloPendente() => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFEF3C7),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: const Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.priority_high_rounded, size: 12, color: Color(0xFFB45309)),
+        SizedBox(width: 2),
+        Text(
+          'Obrigatória',
+          style: TextStyle(
+            color: Color(0xFFB45309),
+            fontSize: 10.5,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    ),
+  );
 
   Widget _selo(bool verificado) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
