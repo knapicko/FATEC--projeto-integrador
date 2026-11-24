@@ -34,13 +34,46 @@ class VerificacaoOnline {
     }
     await registrarPresenca();
     _timer?.cancel();
+    _ultimoBatimento = DateTime.now();
     _timer = Timer.periodic(_intervaloHeartbeat, (_) {
       registrarPresenca();
+      _somarAtividade();
     });
+  }
+
+  // Tempo com o app aberto (Estatísticas → Constância). Acumula e envia a
+  // cada minuto para não gravar no banco a cada batimento.
+  DateTime? _ultimoBatimento;
+  int _segundosPendentes = 0;
+
+  void _somarAtividade({bool enviarAgora = false}) {
+    final agora = DateTime.now();
+    final antes = _ultimoBatimento;
+    _ultimoBatimento = agora;
+    if (antes != null) {
+      final seg = agora.difference(antes).inSeconds;
+      // Intervalo grande = app estava suspenso: não conta.
+      if (seg > 0 && seg <= _intervaloHeartbeat.inSeconds * 3) {
+        _segundosPendentes += seg;
+      }
+    }
+    if (_segundosPendentes >= 60 || (enviarAgora && _segundosPendentes > 0)) {
+      final enviar = _segundosPendentes;
+      _segundosPendentes = 0;
+      _supabase
+          .rpc('registrar_atividade', params: {'p_segundos': enviar})
+          .catchError((Object e) {
+            // Banco sem a v0_13: só não registra.
+            debugPrint('VerificacaoOnline: atividade: $e');
+            return null;
+          });
+    }
   }
 
   /// Para de atualizar e marca offline imediatamente no banco.
   void parar() {
+    if (_timer != null) _somarAtividade(enviarAgora: true);
+    _ultimoBatimento = null;
     _timer?.cancel();
     _timer = null;
     marcarOffline();

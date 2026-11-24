@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'estatisticas_profissional.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'widgets/skeleton_loading.dart';
 import 'alterar_disponibilidade.dart';
@@ -651,6 +652,18 @@ class _TelaMeuPerfilProfissionalPageState
                               MaterialPageRoute(
                                 builder: (_) =>
                                     const MinhasAvaliacoesProfissionalPage(),
+                              ),
+                            ),
+                          ),
+                          _buildProfileItem(
+                            label: 'Estatísticas e Gráficos',
+                            fallbackIcon: Icons.insights_rounded,
+                            useRoundedIcon: true,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    const EstatisticasProfissionalPage(),
                               ),
                             ),
                           ),

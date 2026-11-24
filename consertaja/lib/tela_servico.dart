@@ -25,6 +25,7 @@ import 'tutorial/tutorial.dart';
 import 'tutorial/tutorial_da_tela.dart';
 import 'tutorial/botao_ajuda.dart';
 import 'widgets/imagem_app.dart';
+import 'services/visualizacoes_service.dart';
 import 'utils/movimento.dart';
 
 class TelaServico extends StatefulWidget {
@@ -159,6 +160,14 @@ class _TelaServicoState extends State<TelaServico>
       _detalhe = detalhe;
       _carregando = false;
     });
+    if (widget.idServico != null) {
+      VisualizacoesService.registrar(
+        idProfissional: detalhe.idProfissional,
+        idGrupoEmpresa: detalhe.idGrupoEmpresa,
+        idServico: widget.idServico,
+        servico: true,
+      );
+    }
     _carregarDadosSheet();
   }
 

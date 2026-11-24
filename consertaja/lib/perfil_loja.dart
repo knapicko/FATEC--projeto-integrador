@@ -26,6 +26,7 @@ import 'tutorial/tutorial.dart';
 import 'tutorial/tutorial_da_tela.dart';
 import 'tutorial/botao_ajuda.dart';
 import 'widgets/imagem_app.dart';
+import 'services/visualizacoes_service.dart';
 import 'utils/movimento.dart';
 
 // Cores temáticas fiéis ao design
@@ -364,6 +365,7 @@ class _PerfilLojaState extends State<PerfilLoja>
       }
 
       if (idGrupo != null) {
+        VisualizacoesService.registrar(idGrupoEmpresa: idGrupo);
         final grupo = await supabase
             .from('grupo_empresa')
             .select(

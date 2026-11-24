@@ -34,6 +34,7 @@ import 'tutorial/botao_ajuda.dart';
 import 'widgets/imagem_app.dart';
 import 'utils/movimento.dart';
 import 'services/app_settings_controller.dart';
+import 'meus_enderecos.dart';
 
 /// formulario → solicitando → aguardando → encontrado (profissional aceitou).
 enum _Etapa { formulario, solicitando, aguardando, encontrado }
@@ -92,6 +93,15 @@ class _SolicitacaoGeograficaClientePageState
   bool _mapaPronto = false;
 
   LatLng? _centro;
+
+  /// Posição atual do cliente (GPS ou endereço ativo) — o padrão do Radar.
+  LatLng? _centroAtual;
+
+  /// Switch "Outro endereço": o mapa, o raio e o pedido usam o endereço
+  /// escolhido em vez da localização atual.
+  bool _outroEndereco = false;
+  EnderecoRadar? _enderecoEscolhido;
+  bool _buscandoEnderecos = false;
   List<FuncaoPedido> _funcoes = [];
   FuncaoPedido? _funcao;
   MetodoEntregaGeo? _metodo;
@@ -341,7 +351,10 @@ class _SolicitacaoGeograficaClientePageState
     }
     final centro = await centroFuture;
     if (!mounted) return;
-    setState(() => _centro = centro);
+    setState(() {
+      _centroAtual = centro;
+      if (!_outroEndereco) _centro = centro;
+    });
     _enquadrarMapa();
     if (!SolicitacaoGeograficaService.ultimaLocalizacaoFoiGps) {
       _mensagem(
@@ -858,8 +871,8 @@ class _SolicitacaoGeograficaClientePageState
           ),
         ],
       ),
-      child: const Icon(
-        Icons.person_pin_circle_rounded,
+      child: Icon(
+        _outroEndereco ? Icons.home_rounded : Icons.person_pin_circle_rounded,
         color: Colors.white,
         size: 24,
       ),
@@ -1046,6 +1059,339 @@ class _SolicitacaoGeograficaClientePageState
   }
 
   /// Bottom sheet estilizado com os 4 métodos de realização.
+  // ── Outro endereço ─────────────────────────────────────────────────────
+
+  Future<void> _alternarOutroEndereco(bool ligar) async {
+    if (_etapa != _Etapa.formulario) return;
+    if (!ligar) {
+      HapticFeedback.selectionClick();
+      setState(() {
+        _outroEndereco = false;
+        _enderecoEscolhido = null;
+        if (_centroAtual != null) _centro = _centroAtual;
+      });
+      _aoMudarCentro();
+      return;
+    }
+    await _escolherEndereco();
+  }
+
+  Future<void> _escolherEndereco() async {
+    if (_buscandoEnderecos) return;
+    FocusScope.of(context).unfocus();
+    setState(() => _buscandoEnderecos = true);
+    var enderecos = const <EnderecoRadar>[];
+    try {
+      enderecos = await SolicitacaoGeograficaService.meusEnderecos();
+    } catch (e) {
+      _mensagem('Não foi possível carregar seus endereços.');
+    } finally {
+      if (mounted) setState(() => _buscandoEnderecos = false);
+    }
+    if (!mounted) return;
+    final escolha = await showModalBottomSheet<Object>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => _sheetEnderecos(ctx, enderecos),
+    );
+    _bloquearEnvioPorUmInstante();
+    if (!mounted) return;
+    if (escolha == 'novo') {
+      await Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const MeusEnderecosPage()),
+      );
+      if (mounted) await _escolherEndereco();
+      return;
+    }
+    if (escolha is! EnderecoRadar || escolha.centro == null) return;
+    HapticFeedback.selectionClick();
+    setState(() {
+      _outroEndereco = true;
+      _enderecoEscolhido = escolha;
+      _centro = escolha.centro;
+    });
+    _aoMudarCentro();
+  }
+
+  /// Centro do Radar mudou: reenquadra o mapa e busca quem está no raio.
+  void _aoMudarCentro() {
+    setState(() {
+      _perfis = [];
+      _perfilAberto = null;
+      _avisoMapa = null;
+    });
+    _enquadrarMapa();
+    _carregarPerfis();
+  }
+
+  Widget _sheetEnderecos(BuildContext ctx, List<EnderecoRadar> enderecos) {
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(ctx).size.height * 0.75,
+      ),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(child: _alca()),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  _iconeRedondo(Icons.home_work_outlined, tamanho: 42),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Pedir para outro endereço',
+                          style: TextStyle(
+                            color: _texto,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'O Radar procura profissionais a até 5 km dele.',
+                          style: TextStyle(color: _textoSec, fontSize: 12.5),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (enderecos.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    'Você ainda não tem endereços cadastrados.',
+                    style: TextStyle(color: _textoSec, fontSize: 13.5),
+                  ),
+                ),
+              for (final e in enderecos) ...[
+                _opcaoEndereco(
+                  e,
+                  selecionado: e.id == _enderecoEscolhido?.id,
+                  aoTocar: e.centro == null
+                      ? null
+                      : () => Navigator.pop(ctx, e),
+                ),
+                const SizedBox(height: 10),
+              ],
+              InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () => Navigator.pop(ctx, 'novo'),
+                child: CustomPaint(
+                  painter: _BordaTracejada(cor: _azul),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 14, horizontal: 14),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add_location_alt_outlined, color: _azul),
+                        SizedBox(width: 8),
+                        Text(
+                          'Adicionar outro endereço',
+                          style: TextStyle(
+                            color: _azul,
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _opcaoEndereco(
+    EnderecoRadar e, {
+    required bool selecionado,
+    VoidCallback? aoTocar,
+  }) {
+    final semMapa = e.centro == null;
+    return Opacity(
+      opacity: semMapa ? 0.55 : 1,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: aoTocar,
+        child: AnimatedContainer(
+          duration: duracao(const Duration(milliseconds: 200)),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: selecionado ? _azulClaro : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selecionado ? _azul : _borda,
+              width: selecionado ? 1.6 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                e.ativo ? Icons.home_rounded : Icons.location_on_outlined,
+                color: selecionado ? _azul : _textoSec,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      e.ativo ? '${e.titulo} (principal)' : e.titulo,
+                      style: const TextStyle(
+                        color: _texto,
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (e.linha.isNotEmpty)
+                      Text(
+                        e.linha,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: _textoSec, fontSize: 12.5),
+                      ),
+                    if (semMapa)
+                      const Text(
+                        'Não conseguimos achar este endereço no mapa.',
+                        style: TextStyle(color: _vermelho, fontSize: 11.5),
+                      ),
+                  ],
+                ),
+              ),
+              if (selecionado)
+                const Icon(Icons.check_circle_rounded, color: _azul),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Switch "Minha localização atual / Outro endereço" (abaixo do título).
+  Widget _seletorLocal() {
+    final e = _enderecoEscolhido;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 4, 6, 4),
+        decoration: BoxDecoration(
+          color: _fundoCampo,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _bordaCampo),
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Icon(
+                  _outroEndereco
+                      ? Icons.home_work_outlined
+                      : Icons.my_location_rounded,
+                  color: _azul,
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _outroEndereco
+                        ? 'Outro endereço'
+                        : 'Minha localização atual',
+                    style: const TextStyle(
+                      color: _texto,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                if (_buscandoEnderecos)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 10),
+                    child: SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: _azul,
+                      ),
+                    ),
+                  ),
+                CorOriginal(
+                  interface: true,
+                  ativo: _outroEndereco,
+                  child: Switch(
+                    value: _outroEndereco,
+                    activeTrackColor: _azul,
+                    onChanged: _buscandoEnderecos
+                        ? null
+                        : _alternarOutroEndereco,
+                  ),
+                ),
+              ],
+            ),
+            AnimatedSize(
+              duration: duracao(const Duration(milliseconds: 220)),
+              curve: Curves.easeOutCubic,
+              child: e == null
+                  ? const SizedBox(width: double.infinity)
+                  : InkWell(
+                      onTap: _escolherEndereco,
+                      borderRadius: BorderRadius.circular(10),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(30, 0, 8, 8),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                e.linha.isEmpty
+                                    ? e.titulo
+                                    : '${e.titulo} · ${e.linha}',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: _textoSec,
+                                  fontSize: 12.5,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Trocar',
+                              style: TextStyle(
+                                color: _azul,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _escolherMetodo() async {
     FocusScope.of(context).unfocus();
     final escolhido = await showModalBottomSheet<MetodoEntregaGeo>(
@@ -2050,6 +2396,7 @@ class _SolicitacaoGeograficaClientePageState
               ],
             ),
           ),
+          _seletorLocal(),
           Flexible(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
@@ -2143,7 +2490,7 @@ class _SolicitacaoGeograficaClientePageState
                 ),
                 SizedBox(height: 2),
                 Text(
-                  'Profissionais da área perto de você vão ver o pedido',
+                  'Profissionais da área perto do local vão ver o pedido',
                   style: TextStyle(color: _textoSec, fontSize: 12.5),
                 ),
               ],

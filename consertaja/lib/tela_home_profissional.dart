@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
+import 'estatisticas_profissional.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -5078,6 +5079,12 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
         icone: Icons.star_outline_rounded,
         rotulo: 'Minhas\nAvaliações',
         aoTocar: () => _abrirAtalho(const MinhasAvaliacoesProfissionalPage()),
+      ),
+      AtalhoItem(
+        id: 'estatisticas',
+        icone: Icons.insights_rounded,
+        rotulo: 'Estatísticas\ne Gráficos',
+        aoTocar: () => _abrirAtalho(const EstatisticasProfissionalPage()),
       ),
       AtalhoItem(
         id: 'notificacoes',

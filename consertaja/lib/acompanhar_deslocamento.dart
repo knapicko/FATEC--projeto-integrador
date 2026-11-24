@@ -170,6 +170,10 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
   String _enderecoLinha2 = '';
   String _complementoOuObs = '';
 
+  // Veículo do profissional/loja (dados_profissionais / grupo_empresa).
+  String? _meioLocomocao;
+  String? _placa;
+
   // Deslocamento em Tempo Real
   LatLng? _posicaoProfissional;
   List<LatLng> _rota = [];
@@ -218,13 +222,46 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
 
   Future<void> _carregarDadosIniciais() async {
     try {
-      await Future.wait([_carregarClienteLogado(), _carregarSolicitacao()]);
+      await Future.wait([
+        _carregarClienteLogado(),
+        _carregarSolicitacao(),
+        _carregarLocomocao(),
+      ]);
       await _carregarDadosDeslocamento();
     } catch (_) {
     } finally {
       if (mounted) setState(() => _carregando = false);
     }
   }
+
+  /// Meio de locomoção e placa de quem atende o pedido (loja ou profissional).
+  Future<void> _carregarLocomocao() async {
+    try {
+      final r = await supabase.rpc(
+        'locomocao_da_solicitacao',
+        params: {'p_id_solicitacao': widget.idSolicitacao},
+      );
+      final linha = r is List && r.isNotEmpty ? r.first as Map : null;
+      final meio = linha?['meio_locomocao']?.toString().trim() ?? '';
+      final placa = linha?['placa_veiculo']?.toString().trim() ?? '';
+      if (!mounted) return;
+      setState(() {
+        _meioLocomocao = meio.isEmpty ? null : meio;
+        _placa = placa.isEmpty ? null : placa.toUpperCase();
+      });
+    } catch (_) {
+      // Banco sem a v0_10: fica "não informado".
+    }
+  }
+
+  IconData get _iconeVeiculo => switch (_meioLocomocao) {
+    'Carro' => Icons.directions_car_rounded,
+    'Moto' => Icons.two_wheeler_rounded,
+    'Bicicleta' => Icons.pedal_bike_rounded,
+    'Transporte público' => Icons.directions_bus_rounded,
+    'Caminhão' => Icons.local_shipping_rounded,
+    _ => Icons.two_wheeler_rounded,
+  };
 
   Future<void> _carregarClienteLogado() async {
     try {
@@ -995,7 +1032,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
               color: Colors.white.withValues(alpha: 0.22),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.two_wheeler, color: Colors.white, size: 30),
+            child: Icon(_iconeVeiculo, color: Colors.white, size: 30),
           ),
         ],
       ),
@@ -1487,8 +1524,8 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                     shape: BoxShape.circle,
                     border: Border.all(color: Colors.white, width: 1.5),
                   ),
-                  child: const Icon(
-                    Icons.two_wheeler,
+                  child: Icon(
+                    _iconeVeiculo,
                     color: Colors.white,
                     size: 11,
                   ),
@@ -1633,24 +1670,24 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
             ),
             child: Row(
               children: [
-                const Icon(Icons.two_wheeler, color: azul, size: 22),
+                Icon(_iconeVeiculo, color: azul, size: 22),
                 const SizedBox(width: 10),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Veículo de deslocamento',
+                      const Text(
+                        'Meio de locomoção',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w500,
                           color: cinzaTexto,
                         ),
                       ),
-                      SizedBox(height: 2),
+                      const SizedBox(height: 2),
                       Text(
-                        'Honda CG 160 Cargo • Prata',
-                        style: TextStyle(
+                        _meioLocomocao ?? 'Não informado',
+                        style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
                           color: escuro,
@@ -1659,7 +1696,7 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                     ],
                   ),
                 ),
-                Container(
+                if (_placa != null) Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 4,
@@ -1669,9 +1706,9 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: const Color(0xFFCBD5E1)),
                   ),
-                  child: const Column(
+                  child: Column(
                     children: [
-                      Text(
+                      const Text(
                         'PLACA',
                         style: TextStyle(
                           fontSize: 8.5,
@@ -1681,8 +1718,8 @@ class _AcompanharDeslocamentoPageState extends State<AcompanharDeslocamentoPage>
                         ),
                       ),
                       Text(
-                        'ABC-4J89',
-                        style: TextStyle(
+                        _placa!,
+                        style: const TextStyle(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w900,
                           color: azul,

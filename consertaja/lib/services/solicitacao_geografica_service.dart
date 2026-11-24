@@ -726,6 +726,61 @@ class SolicitacaoGeograficaService {
     }
   }
 
+  /// Endereços do cliente logado para o Radar em "outro endereço". Os que
+  /// ainda não têm coordenadas são geocodificados antes de voltar.
+  static Future<List<EnderecoRadar>> meusEnderecos() async {
+    final idUsuario = await _meuIdUsuario();
+    if (idUsuario == null) return const [];
+    Future<List<dynamic>> ler() => _db
+        .from('ass_usuario_endereco')
+        .select(
+          'fk_endereco, apelido_endereco, endereco_ativo, tipo_endereco, '
+          'enderecos(logradouro, numero, bairro, complemento, latitude, longitude)',
+        )
+        .eq('fk_usuario', idUsuario);
+    var rows = await ler();
+    final semCoord = [
+      for (final r in rows)
+        if (r['enderecos'] is Map &&
+            (coordenada((r['enderecos'] as Map)['latitude']) == null ||
+                coordenada((r['enderecos'] as Map)['longitude']) == null))
+          (r['fk_endereco'] as num?)?.toInt(),
+    ].whereType<int>().toList();
+    if (semCoord.isNotEmpty) {
+      await garantirCoordenadas(semCoord);
+      rows = await ler();
+    }
+    final lista = <EnderecoRadar>[];
+    for (final r in rows) {
+      final e = r['enderecos'];
+      final id = (r['fk_endereco'] as num?)?.toInt();
+      if (e is! Map || id == null) continue;
+      final logradouro = e['logradouro']?.toString().trim() ?? '';
+      final numero = e['numero']?.toString().trim() ?? '';
+      final bairro = e['bairro']?.toString().trim() ?? '';
+      final lat = coordenada(e['latitude']);
+      final lng = coordenada(e['longitude']);
+      final apelido = r['apelido_endereco']?.toString().trim() ?? '';
+      final tipo = r['tipo_endereco']?.toString().trim() ?? '';
+      lista.add(
+        EnderecoRadar(
+          id: id,
+          titulo: apelido.isNotEmpty
+              ? apelido
+              : (tipo.isNotEmpty ? tipo : 'Endereço'),
+          linha: [
+            numero.isNotEmpty ? '$logradouro, $numero' : logradouro,
+            if (bairro.isNotEmpty) bairro,
+          ].where((t) => t.trim().isNotEmpty).join(' - '),
+          ativo: r['endereco_ativo'] == true,
+          centro: lat != null && lng != null ? LatLng(lat, lng) : null,
+        ),
+      );
+    }
+    lista.sort((a, b) => (b.ativo ? 1 : 0).compareTo(a.ativo ? 1 : 0));
+    return lista;
+  }
+
   /// Números do Radar para explicar uma lista vazia (RPC diagnostico_radar).
   static Future<Map<String, dynamic>?> diagnostico(LatLng ponto) async {
     try {
@@ -1008,4 +1063,23 @@ class SolicitacaoGeograficaService {
       throw Exception(_mensagemRpc(e));
     }
   }
+}
+
+/// Endereço do cliente que pode ser o centro do Radar.
+class EnderecoRadar {
+  const EnderecoRadar({
+    required this.id,
+    required this.titulo,
+    required this.linha,
+    required this.ativo,
+    this.centro,
+  });
+
+  final int id;
+  final String titulo;
+  final String linha;
+  final bool ativo;
+
+  /// null = não foi possível localizar no mapa.
+  final LatLng? centro;
 }

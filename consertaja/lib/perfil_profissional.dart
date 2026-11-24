@@ -24,6 +24,7 @@ import 'tutorial/tutorial.dart';
 import 'tutorial/tutorial_da_tela.dart';
 import 'tutorial/botao_ajuda.dart';
 import 'widgets/imagem_app.dart';
+import 'services/visualizacoes_service.dart';
 import 'utils/movimento.dart';
 
 class _DadosEnderecoProfissional {
@@ -788,6 +789,10 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage>
           }
         }
 
+        // Perfil pessoal do profissional: conta para a conta independente.
+        if (idProfissional != null) {
+          VisualizacoesService.registrar(idProfissional: idProfissional);
+        }
         setState(() {
           _idGrupoEmpresa = idGrupoEmpresa;
           _nome =
