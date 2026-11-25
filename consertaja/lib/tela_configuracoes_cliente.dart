@@ -28,7 +28,7 @@ import 'widgets/imagem_app.dart';
 import 'widgets/skeleton_loading.dart';
 
 /// Versão mostrada no rodapé das configurações.
-const String kVersaoApp = '0.6.2';
+const String kVersaoApp = '0.7.0';
 
 class TelaConfiguracoesClientePage extends StatefulWidget {
   const TelaConfiguracoesClientePage({super.key});

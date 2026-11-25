@@ -10,7 +10,7 @@ REM    reversa). Os simbolos ficam em build\simbolos (NAO subir para o Git;
 REM    guarde-os para ler relatorios de erro da Play Store).
 REM
 REM  Antes: crie android\key.properties com a chave de assinatura
-REM  (veja docs\SEGURANCA.md).
+REM  (veja SEGURANCA.md em consertaja_sql_privado\documentos, fora do Git).
 REM ==================================================================
 cd /d "%~dp0"
 

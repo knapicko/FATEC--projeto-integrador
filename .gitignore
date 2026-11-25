@@ -13,3 +13,7 @@
 .env.*
 **/supabase/.env
 **/supabase/.temp/
+
+# Documentos internos (notas de versão, segurança, notificações): ficam na
+# pasta privada consertaja_sql_privado\documentos, fora do GitHub.
+consertaja/docs/
