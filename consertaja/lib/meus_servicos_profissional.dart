@@ -16,6 +16,7 @@ import 'tutorial/tutorial_da_tela.dart';
 import 'tutorial/botao_ajuda.dart';
 import 'widgets/imagem_app.dart';
 import 'utils/movimento.dart';
+import 'widgets/reativar_servico.dart';
 
 // ── Helper ──────────────────────────────────────────────────────────────────
 // Cor do ofício: mesma regra do app inteiro (nome `cor` ou hex `cod_cor`).
@@ -93,7 +94,8 @@ class _MeusServicosProfissionalPageState
   Future<void> _carregar() async {
     setState(() => _carregando = true);
     final resultados = await Future.wait([
-      ServicosProfissionalService.buscarServicos(),
+      // Inclui os DESATIVADOS (troca de área): o profissional vê e reativa.
+      ServicosProfissionalService.buscarServicos(incluirDesativados: true),
       ServicosProfissionalService.buscarContextoAssociacao(),
       _lerContaEmpresaAtiva(),
     ]);
@@ -117,7 +119,10 @@ class _MeusServicosProfissionalPageState
     if (contaEmpresa) {
       servicosExibidos = idGrupo == null
           ? <ServicoProfissional>[]
-          : await ServicosProfissionalService.buscarServicosEmpresa(idGrupo);
+          : await ServicosProfissionalService.buscarServicosEmpresa(
+              idGrupo,
+              incluirDesativados: true,
+            );
       // Garante: só serviços vinculados ao grupo (sem vazar individuais).
       servicosExibidos = servicosExibidos
           .where((s) => s.fkGrupoEmpresa != null && s.fkGrupoEmpresa == idGrupo)
@@ -490,15 +495,19 @@ class _MeusServicosProfissionalPageState
               child: Stack(
                 children: [
                   // Imagem
-                  AspectRatio(
-                    aspectRatio: 16 / 9,
-                    child: s.imagemUrl != null && s.imagemUrl!.isNotEmpty
-                        ? ImagemApp(child: Image.network(
-                            s.imagemUrl!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (ctx, e, st) => _placeholderImagem(),
-                          ))
-                        : _placeholderImagem(),
+                  Opacity(
+                    opacity: s.desativado ? 0.45 : 1,
+                    child: AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: s.imagemUrl != null && s.imagemUrl!.isNotEmpty
+                          ? ImagemApp(child: Image.network(
+                              s.imagemUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (ctx, e, st) =>
+                                  _placeholderImagem(),
+                            ))
+                          : _placeholderImagem(),
+                    ),
                   ),
 
                   // Tag de categoria (canto inferior esquerdo)
@@ -563,6 +572,18 @@ class _MeusServicosProfissionalPageState
                 ],
               ),
             ),
+
+            // Desativado (troca de área): aviso + Reativar.
+            if (s.desativado)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                child: FaixaServicoDesativado(
+                  compacta: true,
+                  aoReativar: () async {
+                    if (await reativarServico(context, s)) _carregar();
+                  },
+                ),
+              ),
 
             // ── Corpo do card ────────────────────────────────────────────
             Padding(

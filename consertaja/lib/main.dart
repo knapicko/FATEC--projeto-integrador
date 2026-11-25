@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -16,6 +17,7 @@ import 'widgets/codigo_flutuante.dart';
 import 'package:flutter/services.dart';
 import 'widgets/imagem_app.dart';
 import 'services/rede_service.dart';
+import 'services/sessao_segura.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
@@ -26,9 +28,26 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
+  // Versão de produção: nada de logs no logcat (podem conter dados do
+  // usuário, ids e respostas do servidor).
+  if (kReleaseMode) {
+    debugPrint = (String? message, {int? wrapWidth}) {};
+  }
+
+  // A chave publicável é pública por natureza (vai dentro de qualquer APK);
+  // quem protege os dados são as policies (RLS) do banco.
   await Supabase.initialize(
     url: 'https://woqhicdlnkoksypipyoz.supabase.co',
     publishableKey: 'sb_publishable_RFFTWcp3nJ8vEG0hACjwfA_b2thYfaw',
+    authOptions: FlutterAuthClientOptions(
+      // PKCE: o código do link de e-mail (recuperar senha) não serve para
+      // outro app que intercepte o link.
+      authFlowType: AuthFlowType.pkce,
+      // Sessão no cofre do aparelho, não em texto puro.
+      localStorage: SessaoSeguraStorage(
+        chave: 'sb-woqhicdlnkoksypipyoz-auth-token',
+      ),
+    ),
   );
   // 3. CONFIGURAR O LISTENER DIRETAMENTE NO MAIN
   Supabase.instance.client.auth.onAuthStateChange.listen((data) {

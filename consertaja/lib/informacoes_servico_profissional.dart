@@ -19,6 +19,7 @@ import 'tutorial/botao_ajuda.dart';
 import 'widgets/imagem_app.dart';
 import 'utils/movimento.dart';
 import 'utils/abrir_video.dart';
+import 'widgets/reativar_servico.dart';
 
 /// Serviço do profissional (ou da loja) como o cliente vê na tela_servico:
 /// imagem, preço, tags, métodos de realização, formas de pagamento e as
@@ -74,7 +75,11 @@ class _InformacoesServicoProfissionalPageState
 
   Future<void> _carregar() async {
     final resultados = await Future.wait<Object?>([
-      ServicosProfissionalService.buscarDetalhePublico(widget.idServico),
+      // O profissional vê também o serviço DESATIVADO (para reativar).
+      ServicosProfissionalService.buscarDetalhePublico(
+        widget.idServico,
+        incluirDesativado: true,
+      ),
       ContaProfissionalAtiva.carregar(),
     ]);
     final detalhe = resultados[0] as DetalheServicoPublico?;
@@ -1011,6 +1016,18 @@ class _InformacoesServicoProfissionalPageState
                         child: ListView(
                           padding: EdgeInsets.zero,
                           children: [
+                            if (d.servico.desativado)
+                              FaixaServicoDesativado(
+                                aoReativar: () async {
+                                  if (await reativarServico(
+                                    context,
+                                    d.servico,
+                                  )) {
+                                    _mudou = true;
+                                    await _carregar();
+                                  }
+                                },
+                              ),
                             _avisoVisaoCliente(),
                             _imagem(d.servico),
                             Padding(

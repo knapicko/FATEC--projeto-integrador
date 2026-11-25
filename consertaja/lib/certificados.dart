@@ -14,6 +14,7 @@ import 'tutorial/tutorial_da_tela.dart';
 import 'tutorial/botao_ajuda.dart';
 import 'widgets/imagem_app.dart';
 import 'utils/movimento.dart';
+import 'widgets/seletor_data.dart';
 
 const _bucket = 'Certificados Profissional';
 const _azul = Color(0xFF0FB3FF);
@@ -675,7 +676,7 @@ class _FormCertificadoState extends State<_FormCertificado> {
 
   Future<void> _escolherData() async {
     final hoje = DateTime.now();
-    final d = await showDatePicker(
+    final d = await escolherData(
       context: context,
       initialDate: _data ?? hoje,
       firstDate: DateTime(1970),

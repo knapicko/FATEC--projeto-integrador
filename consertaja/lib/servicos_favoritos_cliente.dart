@@ -39,7 +39,9 @@ class _ServicosFavoritosClientePageState
         final rows = await Supabase.instance.client
             .from('servicos_profissional')
             .select('*, $kSelectFuncao')
-            .inFilter('id_servico_prof', ids);
+            .inFilter('id_servico_prof', ids)
+            // Desativado/excluído some dos favoritos (não pode ser pedido).
+            .eq('ativo', true);
         final porId = {
           for (final r in rows)
             (r['id_servico_prof'] as num).toInt(): ServicoProfissional.fromMap(

@@ -8,50 +8,64 @@ class IconeOficio {
   static const String _pastaFuncao = 'assets/images/oficios/funcao';
   static const String _pastaAzul = 'assets/images/oficios/funcao_azul';
 
-  static const Map<String, String> _iconesPorFuncao = {
-    'afiador': '$_pastaFuncao/Afiador.png',
-    'chaveiro': '$_pastaFuncao/Chaveiro.png',
-    'costureira': '$_pastaFuncao/Costureira.png',
-    'desentupidor': '$_pastaFuncao/Desentupidor.png',
-    'eletricista': '$_pastaFuncao/Eletricista.png',
-    'encanador': '$_pastaFuncao/Encanador.png',
-    'funileiro': '$_pastaFuncao/Funileiro.png',
-    'instalador de fechadura': '$_pastaFuncao/Instalador de fechadura.png',
-    'lavador de colchão': '$_pastaFuncao/Lavador de colchão.png',
-    'lavador de tapete': '$_pastaFuncao/Lavador de tapete.png',
-    'marceneiro': '$_pastaFuncao/Marceneiro.png',
-    'montador de móveis': '$_pastaFuncao/Montador de móveis.png',
-    'paneleiro': '$_pastaFuncao/Paneleiro.png',
-    'reparador geral': '$_pastaFuncao/Reparador geral.png',
-    'sapateiro': '$_pastaFuncao/Sapateiro.png',
-    'serralheiro': '$_pastaFuncao/Serralheiro.png',
-    'soldador de utensílios': '$_pastaFuncao/Soldador de utensílios.png',
-    'tapeceiro': '$_pastaFuncao/Tapeceiro.png',
-    'vidraceiro': '$_pastaFuncao/Vidraceiro.png',
+  /// Função (nome em minúsculas, como está em `funcoes.funcao`) → nome do
+  /// arquivo do ícone. Os arquivos têm o MESMO nome da função:
+  /// `funcao/<Nome>.png` (branco) e `funcao_azul/<Nome>_azul_claro.png`.
+  static const Map<String, String> _arquivoPorFuncao = {
+    'afiação': 'Afiação',
+    'alfaiataria': 'Alfaiataria',
+    'chaves e aberturas': 'Chaves e aberturas',
+    'costura': 'Costura',
+    'desentupimento': 'Desentupimento',
+    'elétrica': 'Elétrica',
+    'encanamento': 'Encanamento',
+    'ferraria': 'Ferraria',
+    'funilaria': 'Funilaria',
+    'hidráulica': 'Hidráulica',
+    'higienização de colchões': 'Higienização de colchões',
+    'instalação de fechaduras': 'Instalação de fechaduras',
+    'lavagem de tapetes': 'Lavagem de tapetes',
+    'marcenaria': 'Marcenaria',
+    'montagem de móveis': 'Montagem de móveis',
+    'panelaria': 'Panelaria',
+    'pintura': 'Pintura',
+    'reparos gerais': 'Reparos gerais',
+    'sapataria': 'Sapataria',
+    'selaria e couro': 'Selaria e couro',
+    'serralheria': 'Serralheria',
+    'solda de utensílios': 'Solda de utensílios',
+    'tapeçaria': 'Tapeçaria',
+    'vidraçaria': 'Vidraçaria',
   };
 
-  static const Map<String, String> _iconesPorFuncaoAzul = {
-    'afiador': '$_pastaAzul/Afiador_azul_claro.png',
-    'chaveiro': '$_pastaAzul/Chaveiro_azul_claro.png',
-    'costureira': '$_pastaAzul/Costureira_azul_claro.png',
-    'desentupidor': '$_pastaAzul/Desentupidor_azul_claro.png',
-    'eletricista': '$_pastaAzul/Eletricista_azul_claro.png',
-    'encanador': '$_pastaAzul/Encanador_azul_claro.png',
-    'funileiro': '$_pastaAzul/Funileiro_azul_claro.png',
-    'instalador de fechadura':
-        '$_pastaAzul/Instalador de fechadura_azul_claro.png',
-    'lavador de colchão': '$_pastaAzul/Lavador de colchão_azul_claro.png',
-    'lavador de tapete': '$_pastaAzul/Lavador de tapete_azul_claro.png',
-    'marceneiro': '$_pastaAzul/Marceneiro_azul_claro.png',
-    'montador de móveis': '$_pastaAzul/Montador de móveis_azul_claro.png',
-    'paneleiro': '$_pastaAzul/Paneleiro_azul_claro.png',
-    'reparador geral': '$_pastaAzul/Reparador geral_azul_claro.png',
-    'sapateiro': '$_pastaAzul/Sapateiro_azul_claro.png',
-    'serralheiro': '$_pastaAzul/Serralheiro_azul_claro.png',
-    'soldador de utensílios':
-        '$_pastaAzul/Soldador de utensílios_azul_claro.png',
-    'tapeceiro': '$_pastaAzul/Tapeceiro_azul_claro.png',
-    'vidraceiro': '$_pastaAzul/Vidraceiro_azul_claro.png',
+  /// Nomes antigos (do profissional) e funções parecidas → função com ícone.
+  static const Map<String, String> _apelidos = {
+    'afiador': 'afiação',
+    'chaveiro': 'chaves e aberturas',
+    'costureira': 'costura',
+    'bordado': 'costura',
+    'desentupidor': 'desentupimento',
+    'eletricista': 'elétrica',
+    'encanador': 'encanamento',
+    'funileiro': 'funilaria',
+    'instalador de fechadura': 'instalação de fechaduras',
+    'lavador de colchão': 'higienização de colchões',
+    'lavador de tapete': 'lavagem de tapetes',
+    'marceneiro': 'marcenaria',
+    'montador de móveis': 'montagem de móveis',
+    'paneleiro': 'panelaria',
+    'conserto de panelas': 'panelaria',
+    'reparador geral': 'reparos gerais',
+    'sapateiro': 'sapataria',
+    'serralheiro': 'serralheria',
+    'soldador de utensílios': 'solda de utensílios',
+    'tapeceiro': 'tapeçaria',
+    'vidraceiro': 'vidraçaria',
+    'pintor': 'pintura',
+    'encanador hidráulico': 'hidráulica',
+    'alfaiate': 'alfaiataria',
+    'seleiro': 'selaria e couro',
+    'ferreiro': 'ferraria',
   };
 
   static const Map<String, String> _iconesPorCategoria = {
@@ -62,6 +76,8 @@ class IconeOficio {
     'reparos pessoais': '$_pastaCategorias/reparos_pessoais.png',
     'limpeza especializada': '$_pastaCategorias/limpeza_especializada.png',
     'serviços tradicionais': '$_pastaCategorias/servicos_tradicionais.png',
+    'eletrodomésticos e eletrônicos':
+        '$_pastaCategorias/eletrodomesticos_e_eletronicos.png',
   };
 
   static String? caminhoParaCategoria(String? categoria) {
@@ -69,42 +85,20 @@ class IconeOficio {
     return _iconesPorCategoria[categoria.trim().toLowerCase()];
   }
 
-  /// Nome do serviço (v0.6) → nome antigo do profissional (nome do ícone).
-  static const Map<String, String> _nomeAntigo = {
-    'encanamento': 'encanador',
-    'elétrica': 'eletricista',
-    'desentupimento': 'desentupidor',
-    'reparos gerais': 'reparador geral',
-    'montagem de móveis': 'montador de móveis',
-    'marcenaria': 'marceneiro',
-    'tapeçaria': 'tapeceiro',
-    'chaves e aberturas': 'chaveiro',
-    'instalação de fechaduras': 'instalador de fechadura',
-    'vidraçaria': 'vidraceiro',
-    'serralheria': 'serralheiro',
-    'sapataria': 'sapateiro',
-    'costura': 'costureira',
-    'alfaiataria': 'costureira',
-    'bordado': 'costureira',
-    'lavagem de tapetes': 'lavador de tapete',
-    'higienização de colchões': 'lavador de colchão',
-    'conserto de panelas': 'paneleiro',
-    'afiação': 'afiador',
-    'solda de utensílios': 'soldador de utensílios',
-    'funilaria': 'funileiro',
-    'ferraria': 'serralheiro',
-  };
-
-  static String _chave(String? funcao) {
+  static String? _arquivo(String? funcao) {
     final c = (funcao ?? '').trim().toLowerCase();
-    return _nomeAntigo[c] ?? c;
+    return _arquivoPorFuncao[_apelidos[c] ?? c];
   }
 
-  static String? caminhoParaFuncao(String? funcao) =>
-      _iconesPorFuncao[_chave(funcao)];
+  static String? caminhoParaFuncao(String? funcao) {
+    final a = _arquivo(funcao);
+    return a == null ? null : '$_pastaFuncao/$a.png';
+  }
 
-  static String? caminhoParaFuncaoAzul(String? funcao) =>
-      _iconesPorFuncaoAzul[_chave(funcao)];
+  static String? caminhoParaFuncaoAzul(String? funcao) {
+    final a = _arquivo(funcao);
+    return a == null ? null : '$_pastaAzul/${a}_azul_claro.png';
+  }
 
   static Widget imagem(String? categoria, {double tamanho = 30}) {
     final caminho = caminhoParaCategoria(categoria);
@@ -121,8 +115,34 @@ class IconeOficio {
     ));
   }
 
+  /// Ícone da CATEGORIA (ofício). Os arquivos são brancos; [cor] pinta.
+  static Widget imagemCategoria(
+    String? categoria, {
+    double tamanho = 30,
+    Color cor = Colors.white,
+  }) {
+    final caminho = caminhoParaCategoria(categoria);
+    if (caminho == null) {
+      return Icon(Icons.handyman_outlined, color: cor, size: tamanho);
+    }
+    return ImagemApp(child: Image.asset(
+      caminho,
+      width: tamanho,
+      height: tamanho,
+      fit: BoxFit.contain,
+      color: cor == Colors.white ? null : cor,
+      colorBlendMode: BlendMode.srcIn,
+      errorBuilder: (_, _, _) =>
+          Icon(Icons.handyman_outlined, color: cor, size: tamanho),
+    ));
+  }
+
   static Widget imagemPorFuncao(String? funcao, {double tamanho = 30}) {
     final caminho = caminhoParaFuncao(funcao);
+    // A área de atuação agora é o OFÍCIO (categoria): usa o ícone dela.
+    if (caminho == null && caminhoParaCategoria(funcao) != null) {
+      return imagemCategoria(funcao, tamanho: tamanho);
+    }
     if (caminho == null) {
       return Icon(Icons.handyman_outlined, color: Colors.white, size: tamanho);
     }
@@ -138,6 +158,13 @@ class IconeOficio {
 
   static Widget imagemPorFuncaoAzul(String? funcao, {double tamanho = 30}) {
     final caminho = caminhoParaFuncaoAzul(funcao);
+    if (caminho == null && caminhoParaCategoria(funcao) != null) {
+      return imagemCategoria(
+        funcao,
+        tamanho: tamanho,
+        cor: const Color(0xFF0FB3FF),
+      );
+    }
     if (caminho == null) {
       return Icon(Icons.handyman_outlined, color: Colors.white, size: tamanho);
     }

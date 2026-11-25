@@ -791,6 +791,51 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional>
     }
   }
 
+  // ── Tutorial: painel de enviar/alterar serviço ──────────────────────────
+  bool _sheetServicoTut = false;
+
+  /// Parte de baixo da tela, onde o painel de serviço aparece.
+  Rect? _regiaoSheetTut() {
+    final tela = MediaQuery.of(context).size;
+    return Rect.fromLTRB(0, tela.height * 0.22, tela.width, tela.height);
+  }
+
+  Future<void> _abrirSheetServicoTut() async {
+    if (_sheetServicoTut) return;
+    _sheetServicoTut = true;
+    unawaited(
+      BottomSheetServicoPersonalizado.abrir(
+        context: context,
+        nomeCliente: _nomeContato ?? 'Cliente',
+        fotoCliente: _fotoContato,
+        estaOnline: _contatoOnline,
+        ultimaConexao: _ultimaConexaoContato,
+        idProfissional: _idProfissionalConversa ?? widget.idProfissional,
+        idGrupoEmpresa: _idGrupoEmpresaConversa ?? widget.idGrupoEmpresa,
+        // Só demonstração: nada é enviado durante o tutorial.
+        onEnviar:
+            ({
+              required String titulo,
+              String? descricao,
+              required double valor,
+              int? fkFuncao,
+              String? nomeOficio,
+              required String tipoExecucao,
+              XFile? imagemLocal,
+              String? imagemUrlExistente,
+              int? idSolicitacaoOrigem,
+            }) async {},
+      ).whenComplete(() => _sheetServicoTut = false),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+  }
+
+  Future<void> _fecharSheetServicoTut() async {
+    if (!_sheetServicoTut || !mounted) return;
+    await Navigator.of(context).maybePop();
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+  }
+
   Future<void> _abrirCriarPedido() async {
     if (!_souProfissionalNaConversa) return;
     if (_idConversa == null) {
@@ -3160,7 +3205,9 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional>
           .select(kColunasFuncaoComoOficio)
           .eq('id_funcao', idOficio)
           .maybeSingle();
-      final funcao = oficio?['funcao']?.toString().trim() ?? '';
+      // Área = ofício: mostra a categoria da função.
+      final funcao =
+          (oficio?['categoria'] ?? oficio?['funcao'])?.toString().trim() ?? '';
       if (funcao.isNotEmpty && mounted) {
         setState(() => _oficioContato = funcao);
       }
@@ -3317,6 +3364,34 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional>
             raio: 14,
             folga: 2,
           ),
+          if (_souProfissionalNaConversa) ...[
+            PassoTutorial(
+              'Este botão envia um serviço com preço para o cliente. Se já '
+              'existe um pedido dele ainda não pago, é por aqui que você '
+              'altera o serviço.',
+              alvo: chaveTut('servico'),
+              raio: 22,
+              folga: 4,
+            ),
+            PassoTutorial(
+              'Ao tocar, abre este painel: escolha um dos seus serviços ou '
+              'crie um personalizado, defina o valor, a modalidade de '
+              'atendimento e uma foto, e envie.',
+              alvoRect: _regiaoSheetTut,
+              raio: 24,
+              folga: 0,
+              antes: _abrirSheetServicoTut,
+            ),
+            PassoTutorial(
+              'A proposta chega aqui nas mensagens. Quando o cliente aceitar, '
+              'o pedido segue para o pagamento.',
+              alvo: chaveTut('mensagens'),
+              raio: 0,
+              folga: 0,
+              ehFinal: true,
+              antes: _fecharSheetServicoTut,
+            ),
+          ],
         ],
       );
     }
@@ -5087,18 +5162,22 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional>
                     ),
                     if (_souProfissionalNaConversa) ...[
                       const SizedBox(width: 4),
-                      IconButton(
-                        onPressed: _abrirCriarPedido,
-                        icon: const Icon(
-                          Icons.receipt_long_outlined,
-                          color: Color(0xFF94A3B8),
-                          size: 23,
-                        ),
-                        splashRadius: 18,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(
-                          minWidth: 32,
-                          minHeight: 32,
+                      alvoTut(
+                        'servico',
+                        IconButton(
+                          onPressed: _abrirCriarPedido,
+                          tooltip: 'Enviar ou alterar serviço',
+                          icon: const Icon(
+                            Icons.receipt_long_outlined,
+                            color: Color(0xFF94A3B8),
+                            size: 23,
+                          ),
+                          splashRadius: 18,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 32,
+                            minHeight: 32,
+                          ),
                         ),
                       ),
                     ],

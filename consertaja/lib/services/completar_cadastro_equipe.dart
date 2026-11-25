@@ -6,6 +6,7 @@ import '../verificacao_cadastro.dart'
 import '../tela_inicial.dart';
 import '../widgets/avisos_bottom_sheet.dart';
 import '../widgets/imagem_app.dart';
+import '../widgets/seletor_data.dart';
 
 class CompletarCadastroEquipeDialog extends StatefulWidget {
   const CompletarCadastroEquipeDialog({super.key});
@@ -170,7 +171,7 @@ class _CompletarCadastroEquipeDialogState
     final inicial =
         _dataNascimentoValue ??
         DateTime(agora.year - 25, agora.month, agora.day);
-    final selecionada = await showDatePicker(
+    final selecionada = await escolherData(
       context: context,
       initialDate: inicial,
       firstDate: DateTime(1920),

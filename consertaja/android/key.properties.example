@@ -1,0 +1,8 @@
+# Copie este arquivo para android/key.properties (que NÃO vai para o Git)
+# e preencha com os dados da sua chave de upload da Play Store.
+# Criar a chave (uma vez só; guarde o .jks e as senhas em lugar seguro):
+#   keytool -genkey -v -keystore C:\chaves\consertaja-upload.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+storePassword=SENHA_DO_KEYSTORE
+keyPassword=SENHA_DA_CHAVE
+keyAlias=upload
+storeFile=C:\\chaves\\consertaja-upload.jks

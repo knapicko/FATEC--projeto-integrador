@@ -12,6 +12,7 @@ import 'tutorial_visto.dart';
 import '../utils/movimento.dart';
 import '../services/app_settings_controller.dart';
 import '../widgets/imagem_app.dart';
+import '../widgets/dica_toque.dart';
 
 /// Um balão do tutorial.
 ///
@@ -486,7 +487,27 @@ class _TutorialOverlayState extends State<_TutorialOverlay>
     });
   }
 
+  /// Toques na tela: cada um recomeça a espera do dedinho ([DicaToque]).
+  int _toques = 0;
+
+  /// Canto superior esquerdo do dedinho: centralizado na caixa, logo abaixo
+  /// dela; se não couber embaixo, acima do balão.
+  Offset _posicaoDica(Size tela, EdgeInsets pad) {
+    final m = DicaToque.medida(56);
+    final x = (_xCaixa + _tamCaixa / 2 - m.width / 2).clamp(
+      8.0,
+      tela.width - m.width - 8,
+    );
+    final embaixo = _yCaixa + _tamCaixa + 4;
+    final cabeEmbaixo = embaixo + m.height <= tela.height - pad.bottom - 8;
+    final y = cabeEmbaixo
+        ? embaixo
+        : _yCaixa - _alturaConteudo - m.height - 4;
+    return Offset(x, y);
+  }
+
   void _tocar() {
+    setState(() => _toques++);
     if (_ocupado || _terminando) return;
     if (_digitando) {
       _digitacao?.cancel();
@@ -814,6 +835,18 @@ class _TutorialOverlayState extends State<_TutorialOverlay>
                 behavior: HitTestBehavior.opaque,
                 onTap: _tocar,
                 child: _caixaAnimada(),
+              ),
+            ),
+            // Balão pronto e ninguém tocou: o dedinho aperta logo ABAIXO da
+            // caixa (centralizado nela); sem espaço embaixo, vai para cima
+            // do balão.
+            Positioned(
+              left: _posicaoDica(tela, pad).dx,
+              top: _posicaoDica(tela, pad).dy,
+              child: DicaToque(
+                ativo: !_ocupado && !_terminando && !_digitando,
+                gatilho: '$_indice-$_toques',
+                cor: _azul,
               ),
             ),
           ],

@@ -28,6 +28,7 @@ import 'tutorial/botao_ajuda.dart';
 import 'widgets/imagem_app.dart';
 import 'services/visualizacoes_service.dart';
 import 'utils/movimento.dart';
+import 'services/areas_atuacao_service.dart';
 
 // Cores temáticas fiéis ao design
 const Color _kPrimaryCyan = Color(0xFF0FB3FF);
@@ -464,10 +465,10 @@ class _PerfilLojaState extends State<PerfilLoja>
               .toList();
 
           if (idsOficios.isNotEmpty) {
-            final oficiosData = await supabase
+            final oficiosData = AreasAtuacaoService.comoOficios(await supabase
                 .from('funcoes')
                 .select(kColunasFuncaoComoOficio)
-                .inFilter('id_funcao', idsOficios);
+                .inFilter('id_funcao', idsOficios));
 
             for (final row in oficiosData) {
               final info = OficioInfo.fromMap(row);
@@ -1257,7 +1258,7 @@ class _PerfilLojaState extends State<PerfilLoja>
       MaterialPageRoute(
         builder: (_) => TelaChatProfissional(
           nomeProfissional: _nomeEmpresa,
-          fotoProfissional: _fotoUrlEmpresa ?? 'assets/images/loja_caedss.png',
+          fotoProfissional: _fotoUrlEmpresa ?? '',
           oficioPrincipal: 'Loja e Oficina Especializada',
           idProfissional: _idProfissionalDono,
           // Chat da EMPRESA: usa fk_grupo_empresa (chat próprio da loja).
@@ -1660,25 +1661,20 @@ class _PerfilLojaState extends State<PerfilLoja>
     }
   }
 
+  /// Loja sem foto: as iniciais do nome.
   Widget _buildImagemPadraoOuIniciais() {
-    return ImagemApp(child: Image.asset(
-      'assets/images/loja_caedss.png',
-      fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) {
-        return Container(
-          color: const Color(0xFFE0F2FE),
-          alignment: Alignment.center,
-          child: Text(
-            obterIniciais(_nomeEmpresa),
-            style: const TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.bold,
-              color: _kPrimaryCyan,
-            ),
-          ),
-        );
-      },
-    ));
+    return Container(
+      color: const Color(0xFFE0F2FE),
+      alignment: Alignment.center,
+      child: Text(
+        obterIniciais(_nomeEmpresa),
+        style: const TextStyle(
+          fontSize: 26,
+          fontWeight: FontWeight.bold,
+          color: _kPrimaryCyan,
+        ),
+      ),
+    );
   }
 
   // =========================================================================

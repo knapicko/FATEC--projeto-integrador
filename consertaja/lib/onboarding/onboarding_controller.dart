@@ -20,9 +20,9 @@ import '../tela_home.dart';
 import '../tela_home_profissional.dart';
 import 'onboarding_step.dart';
 import 'onboarding_theme.dart';
-import '../utils/funcao_servico.dart';
 import '../main.dart' show navigatorKey;
 import '../services/conclusao_cadastro_profissional.dart';
+import '../services/areas_atuacao_service.dart';
 
 class OnboardingController extends ChangeNotifier {
   OnboardingController._();
@@ -821,16 +821,22 @@ class OnboardingController extends ChangeNotifier {
     carregandoOficios = true;
     notifyListeners();
     try {
-      final supabase = Supabase.instance.client;
-      final response = await supabase
-          .from('funcoes')
-          .select(kColunasFuncaoComoOficio)
-          .order('funcao');
-      oficios = List<Map<String, dynamic>>.from(response);
+      // Áreas = OFÍCIOS (cada um com as funções que inclui).
+      oficios = await AreasAtuacaoService.carregarOficios();
     } catch (_) {}
     carregandoOficios = false;
     notifyListeners();
   }
+
+  /// Funções dos ofícios escolhidos (rascunho antigo, salvo quando a área
+  /// ainda era a função, usa o próprio id).
+  List<int> _funcoesDosOficiosEscolhidos() => {
+    for (final o in oficiosSelecionados)
+      if (o['funcoes_ids'] is List)
+        ...AreasAtuacaoService.funcoesDe([o])
+      else if (o['id_oficio'] != null)
+        (o['id_oficio'] as num).toInt(),
+  }.toList();
 
   void toggleOficio(Map<String, dynamic> oficio) {
     final isSelected = oficiosSelecionados.any(
@@ -1114,10 +1120,8 @@ class OnboardingController extends ChangeNotifier {
       await ConclusaoCadastroProfissional.concluir(
         authId: authId,
         idFacial: idFacial,
-        funcoes: [
-          for (final o in oficiosSelecionados)
-            if (o['id_oficio'] != null) (o['id_oficio'] as num).toInt(),
-        ],
+        // Todas as funções dos ofícios escolhidos.
+        funcoes: _funcoesDosOficiosEscolhidos(),
         documentos: [
           for (final d in documentosValidados)
             if (d['tipo'] != null) d['tipo'].toString(),
@@ -1376,10 +1380,8 @@ class OnboardingController extends ChangeNotifier {
       await ConclusaoCadastroProfissional.concluir(
         authId: r.user!.id,
         idFacial: idFacial,
-        funcoes: [
-          for (final o in oficiosSelecionados)
-            if (o['id_oficio'] != null) (o['id_oficio'] as num).toInt(),
-        ],
+        // Todas as funções dos ofícios escolhidos.
+        funcoes: _funcoesDosOficiosEscolhidos(),
         documentos: [
           for (final d in documentosValidados)
             if (d['tipo'] != null) d['tipo'].toString(),

@@ -9,6 +9,7 @@ import 'tutorial/tutorial_da_tela.dart';
 import 'tutorial/botao_ajuda.dart';
 import 'utils/movimento.dart';
 import 'widgets/imagem_app.dart';
+import 'widgets/seletor_data.dart';
 
 /// Dados de uma exceção de calendário (dia bloqueado total ou parcialmente).
 class _DadosExcecao {
@@ -1369,7 +1370,7 @@ class _AlterarDisponibilidadePageState extends State<AlterarDisponibilidadePage>
     final dataReferencia =
         (inicio ? _dataInicioFerias : _dataFimFerias) ?? DateTime.now();
 
-    final dataSelecionada = await showDatePicker(
+    final dataSelecionada = await escolherData(
       context: context,
       initialDate: dataReferencia,
       firstDate: DateTime(2020),

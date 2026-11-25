@@ -17,9 +17,10 @@ import 'widgets/foto_perfil_google.dart';
 import 'widgets/dialogo_documento.dart';
 import 'termos_de_uso.dart';
 import 'politica_de_privacidade.dart';
-import 'utils/funcao_servico.dart';
 import 'utils/movimento.dart';
 import 'widgets/imagem_app.dart';
+import 'widgets/seletor_data.dart';
+import 'services/areas_atuacao_service.dart';
 
 // Reaproveita as telas de documento/facial que já existem no fluxo normal
 // do profissional (não duplicamos essa lógica).
@@ -374,7 +375,7 @@ class _CompletarCadastroClientePageState
   }
 
   Future<void> _fazerUploadDataNascimento() async {
-    final dataSelecionada = await showDatePicker(
+    final dataSelecionada = await escolherData(
       context: context,
       initialDate: DateTime.now().subtract(const Duration(days: 365 * 18)),
       firstDate: DateTime(1930),
@@ -404,7 +405,7 @@ class _CompletarCadastroClientePageState
   }
 
   Future<void> _fazerUploadDataFundacao() async {
-    final dataSelecionada = await showDatePicker(
+    final dataSelecionada = await escolherData(
       context: context,
       initialDate: DateTime.now().subtract(const Duration(days: 365 * 5)),
       firstDate: DateTime(1900),
@@ -932,13 +933,11 @@ class _CompletarCadastroProfissionalPageState
 
   Future<void> _carregarOficios() async {
     try {
-      final response = await Supabase.instance.client
-          .from('funcoes')
-          .select(kColunasFuncaoComoOficio)
-          .order('funcao');
+      // Áreas = OFÍCIOS (cada um com as funções que inclui).
+      final response = await AreasAtuacaoService.carregarOficios();
       if (mounted) {
         setState(() {
-          _oficios = List<Map<String, dynamic>>.from(response);
+          _oficios = response;
           _carregandoOficios = false;
         });
       }
@@ -985,7 +984,7 @@ class _CompletarCadastroProfissionalPageState
   }
 
   Future<void> _fazerUploadDataNascimento() async {
-    final dataSelecionada = await showDatePicker(
+    final dataSelecionada = await escolherData(
       context: context,
       initialDate: DateTime.now().subtract(const Duration(days: 365 * 18)),
       firstDate: DateTime(1930),
@@ -1003,7 +1002,7 @@ class _CompletarCadastroProfissionalPageState
   }
 
   Future<void> _fazerUploadDataFundacao() async {
-    final dataSelecionada = await showDatePicker(
+    final dataSelecionada = await escolherData(
       context: context,
       initialDate: DateTime.now().subtract(const Duration(days: 365 * 5)),
       firstDate: DateTime(1900),
@@ -1100,9 +1099,10 @@ class _CompletarCadastroProfissionalPageState
           dataFundacao: converterDataParaIso(
             _dataFundacaoController.text.trim(),
           ),
-          oficiosSelecionados: _oficiosSelecionados
-              .map((e) => (e['id_oficio'] as num).toInt())
-              .toList(),
+          // Todas as funções dos ofícios escolhidos.
+          oficiosSelecionados: AreasAtuacaoService.funcoesDe(
+            _oficiosSelecionados,
+          ),
         ),
       ),
     );

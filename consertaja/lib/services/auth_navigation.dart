@@ -115,8 +115,6 @@ class TelaEscolhaContaCompletar extends StatelessWidget {
                   backgroundImage: NetworkImage(fotoUrlGoogle!),
                 )),
               const SizedBox(height: 12),
-              ImagemApp(child: Image.asset('assets/images/Logo.png', height: 80)),
-              const SizedBox(height: 16),
               const Text(
                 'Complete seu cadastro',
                 style: TextStyle(

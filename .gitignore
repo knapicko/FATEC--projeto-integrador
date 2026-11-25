@@ -1,0 +1,15 @@
+
+# Segurança: scripts SQL do banco (policies, funções, dados) não vão para o
+# GitHub. Ficam na pasta privada consertaja_sql_privado, fora do repositório.
+*.sql
+
+# Chaves de assinatura da Play Store
+**/key.properties
+**/*.jks
+**/*.keystore
+
+# Variáveis e segredos locais
+.env
+.env.*
+**/supabase/.env
+**/supabase/.temp/

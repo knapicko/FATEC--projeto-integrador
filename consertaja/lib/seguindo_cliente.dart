@@ -14,6 +14,7 @@ import 'utils/app_navigation_util.dart';
 import 'utils/funcao_servico.dart';
 import 'tutorial/botao_ajuda.dart';
 import 'widgets/imagem_app.dart';
+import 'services/areas_atuacao_service.dart';
 
 class SeguindoClientePage extends StatefulWidget {
   final bool isVisitante;
@@ -115,10 +116,10 @@ class _SeguindoClientePageState extends State<SeguindoClientePage> {
           .toList();
       final nomesOficios = idsOficio.isEmpty
           ? <String>[]
-          : (await _supabase
+          : (AreasAtuacaoService.comoOficios(await _supabase
                     .from('funcoes')
                     .select(kColunasFuncaoComoOficio)
-                    .inFilter('id_funcao', idsOficio))
+                    .inFilter('id_funcao', idsOficio)))
                 .map((row) => row['funcao']?.toString() ?? '')
                 .where((nome) => nome.isNotEmpty)
                 .take(2)

@@ -28,7 +28,12 @@ async function validarAssinatura(payload: string, header: string, secret: string
   const esperado = [...new Uint8Array(digest)]
     .map((byte) => byte.toString(16).padStart(2, '0'))
     .join('');
-  return esperado === assinatura && Math.abs(Date.now() / 1000 - Number(timestamp)) < 300;
+  // Comparação em tempo constante (não vaza a assinatura pelo tempo de resposta).
+  let diferenca = esperado.length ^ assinatura.length;
+  for (let i = 0; i < Math.min(esperado.length, assinatura.length); i++) {
+    diferenca |= esperado.charCodeAt(i) ^ assinatura.charCodeAt(i);
+  }
+  return diferenca === 0 && Math.abs(Date.now() / 1000 - Number(timestamp)) < 300;
 }
 
 Deno.serve(async (request) => {

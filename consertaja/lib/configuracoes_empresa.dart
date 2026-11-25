@@ -4,13 +4,13 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/icone_oficio.dart';
-import 'utils/funcao_servico.dart';
 import 'tela_inicial.dart';
 import 'widgets/avisos_bottom_sheet.dart';
 import 'tutorial/tutorial.dart';
 import 'tutorial/tutorial_da_tela.dart';
 import 'tutorial/botao_ajuda.dart';
 import 'widgets/imagem_app.dart';
+import 'services/areas_atuacao_service.dart';
 
 class ConfiguracoesEmpresaPage extends StatefulWidget {
   const ConfiguracoesEmpresaPage({super.key, this.tutorialESair = false});
@@ -250,35 +250,22 @@ class _ConfiguracoesEmpresaPageState extends State<ConfiguracoesEmpresaPage>
       _tagController.text = tagCarregada;
 
       // 4. Carrega ofícios disponíveis
-      final oficiosResponse = await _supabase
-          .from('funcoes')
-          .select(kColunasFuncaoComoOficio)
-          .order('funcao');
+      // Áreas da loja = OFÍCIOS (cada um com as funções que inclui).
+      _oficiosDisponiveis = await AreasAtuacaoService.carregarOficios();
 
-      _oficiosDisponiveis = List<Map<String, dynamic>>.from(oficiosResponse);
-
-      // 5. Carrega os ofícios próprios da empresa
+      // 5. Ofícios da empresa (o banco guarda as funções deles)
       if (_idGrupoEmpresa != null) {
-        final associacoes = await _supabase
-            .from('ass_oficio_grupo_empresa')
-            .select('fk_funcao')
-            .eq('fk_grupo_empresa', _idGrupoEmpresa!);
-
-        final idsOficios = associacoes
-            .map((e) => (e['fk_funcao'] as num?)?.toInt())
-            .whereType<int>()
-            .toList();
-
-        _oficiosSelecionados.clear();
-        for (final id in idsOficios) {
-          final oficio = _oficiosDisponiveis.firstWhere(
-            (o) => (o['id_oficio'] as num?)?.toInt() == id,
-            orElse: () => <String, dynamic>{},
+        final funcoes = await AreasAtuacaoService.funcoesDaEmpresa(
+          _idGrupoEmpresa!,
+        );
+        _oficiosSelecionados
+          ..clear()
+          ..addAll(
+            AreasAtuacaoService.oficiosDasFuncoes(
+              _oficiosDisponiveis,
+              funcoes,
+            ).take(3),
           );
-          if (oficio.isNotEmpty && _oficiosSelecionados.length < 3) {
-            _oficiosSelecionados.add(oficio);
-          }
-        }
       }
 
       if (mounted) setState(() => _carregando = false);
@@ -378,19 +365,11 @@ class _ConfiguracoesEmpresaPageState extends State<ConfiguracoesEmpresaPage>
     try {
       await _garantirGrupoEmpresa();
       if (_idGrupoEmpresa != null) {
-        await _supabase
-            .from('ass_oficio_grupo_empresa')
-            .delete()
-            .eq('fk_grupo_empresa', _idGrupoEmpresa!);
-
-        for (final oficio in _oficiosSelecionados) {
-          final idOficio = (oficio['id_oficio'] as num?)?.toInt();
-          if (idOficio == null) continue;
-          await _supabase.from('ass_oficio_grupo_empresa').insert({
-            'fk_grupo_empresa': _idGrupoEmpresa,
-            'fk_funcao': idOficio,
-          });
-        }
+        // Todas as funções dos ofícios escolhidos.
+        await AreasAtuacaoService.salvarEmpresa(
+          _idGrupoEmpresa!,
+          _oficiosSelecionados,
+        );
       }
     } catch (e) {
       debugPrint('Erro ao salvar ofícios no banco: $e');

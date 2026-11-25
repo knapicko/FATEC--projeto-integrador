@@ -54,3 +54,11 @@
 -keepattributes *Annotation*
 -keep class com.google.gson.reflect.TypeToken { *; }
 -keep class * extends com.google.gson.reflect.TypeToken
+
+# Versão de produção sem logs de depuração do Android (menor e sem vazar
+# dados no logcat).
+-assumenosideeffects class android.util.Log {
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+}

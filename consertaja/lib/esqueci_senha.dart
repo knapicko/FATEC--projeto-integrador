@@ -51,14 +51,23 @@ class _EsqueciSenhaPageState extends State<EsqueciSenhaPage> {
     try {
       final supabase = Supabase.instance.client;
 
-      // 1. Procura direto na tabela de e-mails
-      final respostaContagem = await supabase
-          .from('emails')
-          .select('endereco_email')
-          .eq('endereco_email', email)
-          .count(CountOption.exact);
-
-      final int quantidadeEncontrada = respostaContagem.count;
+      // 1. O servidor responde só se o e-mail existe (RPC cadastro_existe);
+      //    sem a função no banco, usa a consulta antiga.
+      int quantidadeEncontrada;
+      try {
+        final existe = await supabase.rpc(
+          'cadastro_existe',
+          params: {'p_tipo': 'email', 'p_valor': email},
+        );
+        quantidadeEncontrada = existe == true ? 1 : 0;
+      } on PostgrestException {
+        final respostaContagem = await supabase
+            .from('emails')
+            .select('endereco_email')
+            .eq('endereco_email', email)
+            .count(CountOption.exact);
+        quantidadeEncontrada = respostaContagem.count;
+      }
 
       // 2. Se a contagem for igual a 0, o e-mail não existe no sistema
       if (quantidadeEncontrada == 0) {

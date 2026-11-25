@@ -55,6 +55,7 @@ import 'tutorial/ilustracoes.dart';
 import 'tutorial/botao_ajuda.dart';
 import 'widgets/imagem_app.dart';
 import 'utils/movimento.dart';
+import 'services/areas_atuacao_service.dart';
 
 class TelaHomeProfissional extends StatefulWidget {
   final bool isVisitante;
@@ -1555,10 +1556,10 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
           );
         }
 
-        final oficiosData = await supabase
+        final oficiosData = AreasAtuacaoService.comoOficios(await supabase
             .from('funcoes')
             .select(kColunasFuncaoComoOficio)
-            .inFilter('id_funcao', idsOficios);
+            .inFilter('id_funcao', idsOficios));
 
         final oficios = <OficioInfo>[];
         for (final row in oficiosData) {
@@ -1629,10 +1630,10 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
       }
 
       // 4. Busca os nomes e cores dos ofícios
-      final oficiosData = await supabase
+      final oficiosData = AreasAtuacaoService.comoOficios(await supabase
           .from('funcoes')
           .select(kColunasFuncaoComoOficio)
-          .inFilter('id_funcao', idsOficios);
+          .inFilter('id_funcao', idsOficios));
 
       final oficios = <OficioInfo>[];
       for (final row in oficiosData) {
@@ -4943,10 +4944,11 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
 
     final independente = tipoPerfil == 'Independente';
     return [
-      const AtalhoItem(
+      AtalhoItem(
         id: 'estatisticas',
         icone: Icons.bar_chart,
         rotulo: 'Estatísticas\ne Gráficos',
+        aoTocar: () => _abrirAtalho(const EstatisticasProfissionalPage()),
       ),
       AtalhoItem(
         id: 'enderecos',
@@ -5079,12 +5081,6 @@ class _TelaHomeProfissionalState extends State<TelaHomeProfissional> {
         icone: Icons.star_outline_rounded,
         rotulo: 'Minhas\nAvaliações',
         aoTocar: () => _abrirAtalho(const MinhasAvaliacoesProfissionalPage()),
-      ),
-      AtalhoItem(
-        id: 'estatisticas',
-        icone: Icons.insights_rounded,
-        rotulo: 'Estatísticas\ne Gráficos',
-        aoTocar: () => _abrirAtalho(const EstatisticasProfissionalPage()),
       ),
       AtalhoItem(
         id: 'notificacoes',

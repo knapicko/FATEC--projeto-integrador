@@ -19,6 +19,8 @@ import '../widgets/avisos_bottom_sheet.dart';
 import '../widgets/caixa_flutuante.dart';
 import '../widgets/imagem_app.dart';
 import '../utils/movimento.dart';
+import '../widgets/seletor_data.dart';
+import '../widgets/dica_toque.dart';
 
 class ConversationalOnboardingScreen extends StatefulWidget {
   final bool iniciarLogin;
@@ -43,6 +45,9 @@ class _ConversationalOnboardingScreenState
   bool _senhaOculta = true;
   bool _confirmarSenhaOculta = true;
   bool _senhaLoginOculta = true;
+
+  /// Conta os toques na tela: cada toque recomeça a espera do dedinho.
+  int _toques = 0;
 
   /// Login por biometria guardado neste celular (Configurações → Segurança).
   bool _temBiometria = false;
@@ -263,7 +268,7 @@ class _ConversationalOnboardingScreenState
     TextEditingController controller,
   ) async {
     final agora = DateTime.now();
-    final selecionada = await showDatePicker(
+    final selecionada = await escolherData(
       context: context,
       initialDate: DateTime(agora.year - 20, 1, 1),
       firstDate: DateTime(1900),
@@ -408,6 +413,7 @@ class _ConversationalOnboardingScreenState
                 behavior: HitTestBehavior.translucent,
                 onTap: () {
                   FocusScope.of(context).unfocus();
+                  setState(() => _toques++);
                   if (podeAvancarPorToque) {
                     _controller.avancarPorToque(context);
                   }
@@ -575,6 +581,20 @@ class _ConversationalOnboardingScreenState
                           ),
                         ),
                       ],
+                    ),
+
+                    // Sem tocar por um tempo numa etapa que avança com
+                    // toque: o dedinho aperta no centro, embaixo da tela.
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 28,
+                      child: Center(
+                        child: DicaToque(
+                          ativo: podeAvancarPorToque && !isSplash,
+                          gatilho: '${step.name}-$_toques',
+                        ),
+                      ),
                     ),
 
                     // Indicador de carregamento

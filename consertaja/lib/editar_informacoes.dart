@@ -17,6 +17,7 @@ import 'widgets/imagem_app.dart';
 import 'utils/movimento.dart';
 import 'atualizar_senha.dart';
 import 'services/requisitos_conta.dart';
+import 'widgets/seletor_data.dart';
 
 class EditarInformacoesPage extends StatefulWidget {
   const EditarInformacoesPage({super.key});
@@ -1103,7 +1104,7 @@ class _EditarInformacoesPageState extends State<EditarInformacoesPage> {
           inicial;
     }
     final agora = DateTime.now();
-    final escolhida = await showDatePicker(
+    final escolhida = await escolherData(
       context: context,
       initialDate: inicial,
       firstDate: DateTime(1900),

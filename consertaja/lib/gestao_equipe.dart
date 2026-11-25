@@ -32,6 +32,7 @@ import 'tutorial/tutorial.dart';
 import 'tutorial/tutorial_da_tela.dart';
 import 'tutorial/botao_ajuda.dart';
 import 'widgets/imagem_app.dart';
+import 'services/areas_atuacao_service.dart';
 
 class GestaoEquipePage extends StatefulWidget {
   const GestaoEquipePage({super.key, this.tutorialESair = false});
@@ -595,10 +596,10 @@ class _GestaoEquipePageState extends State<GestaoEquipePage>
               .whereType<int>()
               .toList();
           if (ids.isNotEmpty) {
-            final oficiosData = await supabase
+            final oficiosData = AreasAtuacaoService.comoOficios(await supabase
                 .from('funcoes')
                 .select(kColunasFuncaoComoOficio)
-                .inFilter('id_funcao', ids);
+                .inFilter('id_funcao', ids));
             oficiosEquipe = oficiosData
                 .map<OficioInfo>(OficioInfo.fromMap)
                 .where((oficio) => oficio.funcao.isNotEmpty)
@@ -1797,6 +1798,27 @@ class _GestaoEquipePageState extends State<GestaoEquipePage>
     );
   }
 
+  /// RPC `localizar_profissional_convite`: devolve só o profissional e o
+  /// nome. null = não achou ou o banco ainda não tem a função.
+  Future<({int idProfissional, String? nome})?> _localizarProfissionalConvite(
+    String identificador,
+  ) async {
+    try {
+      final r = await Supabase.instance.client.rpc(
+        'localizar_profissional_convite',
+        params: {'p_identificador': identificador},
+      );
+      final linha = r is List && r.isNotEmpty ? r.first : r;
+      if (linha is! Map) return null;
+      final id = (linha['id_profissional'] as num?)?.toInt();
+      if (id == null) return null;
+      return (idProfissional: id, nome: linha['nome']?.toString());
+    } catch (e) {
+      debugPrint('localizar_profissional_convite: $e');
+      return null;
+    }
+  }
+
   Future<void> _convidarFuncionario() async {
     final input = _emailController.text.trim();
     if (input.isEmpty) {
@@ -1824,12 +1846,26 @@ class _GestaoEquipePageState extends State<GestaoEquipePage>
       String? nomeAlvo;
       var convitePorCnpj = false;
 
-      if (input.contains('@')) {
+      // E-mail exato: sem curingas do ILIKE ("%" listaria todos os e-mails).
+      final emailExato = input
+          .replaceAll(r'\', r'\\')
+          .replaceAll('%', r'\%')
+          .replaceAll('_', r'\_');
+      // O servidor localiza o profissional (RPC) sem expor CPF/CNPJ/e-mail
+      // de ninguém; sem a função no banco, segue a busca antiga.
+      final achado = await _localizarProfissionalConvite(input);
+      if (achado != null) {
+        idProfissionalAlvo = achado.idProfissional;
+        nomeAlvo = achado.nome;
+        convitePorCnpj =
+            !input.contains('@') &&
+            input.replaceAll(RegExp(r'\D'), '').length == 14;
+      } else if (input.contains('@')) {
         // 1. Busca por e-mail na tabela emails
         final emailReg = await supabase
             .from('emails')
             .select('id_email')
-            .ilike('endereco_email', input)
+            .ilike('endereco_email', emailExato)
             .maybeSingle();
 
         int? idEmail = (emailReg?['id_email'] as num?)?.toInt();
@@ -1849,7 +1885,7 @@ class _GestaoEquipePageState extends State<GestaoEquipePage>
             usuario = await supabase
                 .from('usuarios')
                 .select('id_usuario, nome')
-                .ilike('email', input)
+                .ilike('email', emailExato)
                 .maybeSingle();
           } catch (_) {}
         }

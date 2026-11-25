@@ -51,6 +51,10 @@ class _TelaServicoState extends State<TelaServico>
   DetalheServicoPublico? _detalhe;
   bool _carregando = true;
 
+  /// O serviço existe no banco mas não está ativo (desativado ou excluído):
+  /// a tela mostra o que veio da lista, mas não deixa pedir.
+  bool _indisponivel = false;
+
   // Estado da Sheet "Adicionar Serviço" (persistido durante o ciclo de vida da tela)
   int? _sheetIdUsuario;
   List<_EnderecoUsuarioItem> _sheetEnderecosCliente = [];
@@ -103,6 +107,9 @@ class _TelaServicoState extends State<TelaServico>
         widget.idServico!,
       );
     }
+    // Pediu um serviço pelo id e o banco não devolveu (só devolve os
+    // ativos): está desativado/excluído — nada de pedir.
+    _indisponivel = widget.idServico != null && detalhe == null;
     if (detalhe == null && widget.servicoInicial != null) {
       final s = widget.servicoInicial!;
       detalhe = DetalheServicoPublico(
@@ -1464,27 +1471,18 @@ class _TelaServicoState extends State<TelaServico>
         children: [
           Row(
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(18),
-                child: ImagemApp(child: Image.asset(
-                  'assets/images/virar_camera_img.png',
-                  width: 36,
-                  height: 36,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    width: 36,
-                    height: 36,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF334155),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.person,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-                )),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF334155),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.person,
+                  color: Colors.white,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 8),
               const Expanded(
@@ -2087,6 +2085,18 @@ class _TelaServicoState extends State<TelaServico>
 
   void _abrirSheetAdicionarServico() {
     if (!SessaoVisitante.permitir(context)) return;
+    if (_indisponivel) {
+      mostrarAvisoBottomSheet<void>(
+        context,
+        icone: Icons.visibility_off_outlined,
+        corIcone: const Color(0xFFF59E0B),
+        titulo: 'Serviço indisponível',
+        mensagem:
+            'Este serviço não está mais disponível. Veja outros serviços '
+            'deste profissional ou converse com ele pelo chat.',
+      );
+      return;
+    }
     if (_prestadorSemEndereco) {
       mostrarAvisoBottomSheet<void>(
         context,

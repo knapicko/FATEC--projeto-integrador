@@ -182,9 +182,33 @@ class ConsultaCadastroService {
     );
   }
 
+  /// Pergunta ao servidor se o dado já está cadastrado (RPC
+  /// `cadastro_existe`, que responde só sim/não). null = o banco ainda não
+  /// tem a função; aí vale a consulta antiga.
+  Future<bool?> _existeNoServidor(String tipo, String valor) async {
+    try {
+      final r = await _supabase.rpc(
+        'cadastro_existe',
+        params: {'p_tipo': tipo, 'p_valor': valor},
+      );
+      return r == true;
+    } on PostgrestException catch (e) {
+      if (e.code == 'PGRST202' || e.code == '42883') return null;
+      debugPrint('cadastro_existe: ${e.message}');
+      return null;
+    } catch (e) {
+      debugPrint('cadastro_existe: $e');
+      return null;
+    }
+  }
+
   /// Mesma consulta de [CadastroProfissionalPage] em pessoa_fisica / pessoa_juridica.
   Future<bool> documentoJaCadastrado(String documento) async {
     final doc = somenteDigitos(documento);
+    if (doc.length == 11 || doc.length == 14) {
+      final r = await _existeNoServidor(doc.length == 11 ? 'cpf' : 'cnpj', doc);
+      if (r != null) return r;
+    }
     try {
       if (doc.length == 11) {
         final result = await _supabase
@@ -210,6 +234,8 @@ class ConsultaCadastroService {
   Future<String?> verificarEmailDuplicado(String email) async {
     final trimmed = email.trim();
     if (!_emailRegex.hasMatch(trimmed)) return null;
+    final r = await _existeNoServidor('email', trimmed);
+    if (r != null) return r ? 'Este e-mail já está em uso.' : null;
     try {
       final list = await _supabase
           .from('emails')
@@ -232,6 +258,9 @@ class ConsultaCadastroService {
 
     final dddDigitado = apenasNumeros.substring(0, 2);
     final numeroDigitado = apenasNumeros.substring(2);
+
+    final r = await _existeNoServidor('telefone', apenasNumeros);
+    if (r != null) return r ? 'Este telefone já está cadastrado.' : null;
 
     try {
       final list = await _supabase
@@ -390,6 +419,8 @@ class ConsultaCadastroService {
   Future<bool?> _emailCadastrado(String? email) async {
     final limpo = email?.trim() ?? '';
     if (limpo.isEmpty) return null;
+    final r = await _existeNoServidor('email', limpo);
+    if (r != null) return r;
     try {
       final lista = await _supabase
           .from('emails')
@@ -418,6 +449,12 @@ class ConsultaCadastroService {
     String? email;
     String? phone;
     final identificadorLimpo = identificador.trim();
+    if (!_emailRegex.hasMatch(identificadorLimpo)) {
+      // CPF/CNPJ/telefone: o servidor acha a conta e faz o login, sem
+      // devolver o e-mail para o aparelho (e com limite de tentativas).
+      final r = await _entrarPorIdentificador(identificadorLimpo, senha);
+      if (r != null) return r;
+    }
     if (_emailRegex.hasMatch(identificadorLimpo)) {
       email = identificadorLimpo;
     } else {
@@ -478,6 +515,54 @@ class ConsultaCadastroService {
         sucesso: false,
         mensagem: 'Erro ao fazer login: $e',
       );
+    }
+  }
+
+  /// Login por CPF/CNPJ/telefone na Edge Function `entrar-identificador`.
+  /// null = função ainda não publicada (usa o caminho antigo).
+  Future<ResultadoLogin?> _entrarPorIdentificador(
+    String identificador,
+    String senha,
+  ) async {
+    try {
+      final resp = await _supabase.functions.invoke(
+        'entrar-identificador',
+        body: {'identificador': identificador, 'senha': senha},
+      );
+      final d = resp.data is Map ? resp.data as Map : const {};
+      if (d['ok'] != true) {
+        final mensagem = switch (d['erro']?.toString()) {
+          'nao_encontrado' => _mensagemContaInexistente,
+          'senha' => 'Senha incorreta. Tente novamente.',
+          'email_nao_confirmado' => 'Confirme seu email antes de fazer login.',
+          'bloqueado' =>
+            'Muitas tentativas. Espere alguns minutos e tente de novo.',
+          _ => 'Identificador ou senha incorretos.',
+        };
+        return ResultadoLogin(sucesso: false, mensagem: mensagem);
+      }
+      final refresh = d['refresh_token']?.toString() ?? '';
+      if (refresh.isEmpty) return null;
+      final sessao = await _supabase.auth.setSession(refresh);
+      final user = sessao.user;
+      if (user == null) return null;
+      final usuarioResponse = await _supabase
+          .from('usuarios')
+          .select('tipo_conta')
+          .eq('auth_id', user.id)
+          .maybeSingle();
+      return ResultadoLogin(
+        sucesso: true,
+        isProfissional: usuarioResponse?['tipo_conta'] == 'Profissional',
+        perfilIncompleto: usuarioResponse == null,
+      );
+    } on FunctionException catch (e) {
+      if (e.status == 404) return null;
+      debugPrint('entrar-identificador: ${e.status}');
+      return null;
+    } catch (e) {
+      debugPrint('entrar-identificador: $e');
+      return null;
     }
   }
 

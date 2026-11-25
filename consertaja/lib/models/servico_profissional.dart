@@ -17,6 +17,7 @@ class ServicoProfissional {
     this.tipoExecucao = 'Execução',
     this.cargaServico = 'Médio',
     required this.dataCriacao,
+    this.statusServico = 'Ativo',
   });
 
   final int id;
@@ -46,6 +47,13 @@ class ServicoProfissional {
   final String cargaServico;
   final DateTime dataCriacao;
 
+  /// 'Ativo', 'Desativado' (troca de área de atuação: o profissional vê e
+  /// pode reativar; o cliente não vê nem pede) ou 'Excluido'.
+  final String statusServico;
+
+  /// Desativado (não excluído): fora do ar para os clientes.
+  bool get desativado => !ativo && statusServico == 'Desativado';
+
   factory ServicoProfissional.fromMap(Map<String, dynamic> map) {
     // Join com `funcoes` (kSelectFuncao): traz funcao + cor do ofício.
     final funcaoMap = extrairFuncao(map);
@@ -74,6 +82,9 @@ class ServicoProfissional {
       dataCriacao: map['data_criacao'] != null
           ? DateTime.tryParse(map['data_criacao'].toString()) ?? DateTime.now()
           : DateTime.now(),
+      statusServico:
+          map['status_servico']?.toString() ??
+          (map['ativo'] == true ? 'Ativo' : 'Excluido'),
     );
   }
 

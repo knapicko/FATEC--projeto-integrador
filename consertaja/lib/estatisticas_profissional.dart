@@ -258,7 +258,7 @@ class _EstatisticasProfissionalPageState
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: _azul,
-                fontSize: 18,
+                fontSize: 20.5,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -289,7 +289,7 @@ class _EstatisticasProfissionalPageState
             Text(
               _erro!,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: _textoSuave, fontSize: 15),
+              style: const TextStyle(color: _textoSuave, fontSize: 17),
             ),
             const SizedBox(height: 16),
             Center(
@@ -317,7 +317,7 @@ class _EstatisticasProfissionalPageState
       child: ListView(
         controller: _rolagem,
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 40),
         children: [
           alvoTut('periodo', _seletorPeriodo()),
           if (d.temLoja) ...[
@@ -330,18 +330,18 @@ class _EstatisticasProfissionalPageState
           ],
           const SizedBox(height: 18),
           alvoTut('financeiro', _secaoFinanceira(d, metricas)),
-          const SizedBox(height: 22),
+          const SizedBox(height: 32),
           alvoTut('desempenho', _secaoDesempenho(d, metricas)),
-          const SizedBox(height: 22),
+          const SizedBox(height: 32),
           alvoTut('vendas', _secaoVendas(d, metricas)),
-          const SizedBox(height: 22),
+          const SizedBox(height: 32),
           alvoTut('operacao', _secaoOperacao(d, metricas)),
           const SizedBox(height: 12),
           const Text(
             'Arraste para baixo para recarregar. Os dados também se '
             'atualizam sozinhos.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: _textoSuave, fontSize: 11.5),
+            style: TextStyle(color: _textoSuave, fontSize: 13),
           ),
         ],
       ),
@@ -394,7 +394,7 @@ class _EstatisticasProfissionalPageState
     return _Segmentado<ContaEst?>(
       valores: opcoes,
       selecionado: _filtro,
-      altura: 40,
+      altura: 46,
       rotulo: (c) => switch (c) {
         null => 'Todos',
         ContaEst.independente => 'Independente',
@@ -439,8 +439,8 @@ class _EstatisticasProfissionalPageState
                   _Segmentado<bool>(
                     valores: const [false, true],
                     selecionado: _liquido,
-                    altura: 32,
-                    largura: 170,
+                    altura: 38,
+                    largura: 200,
                     rotulo: (v) => v ? 'Líquido' : 'Bruto',
                     aoTrocar: (v) => setState(() => _liquido = v),
                   ),
@@ -453,7 +453,7 @@ class _EstatisticasProfissionalPageState
                   const SizedBox(width: 4),
                   const Text(
                     'Toque nas barras',
-                    style: TextStyle(fontSize: 11, color: _textoSuave),
+                    style: TextStyle(fontSize: 12.5, color: _textoSuave),
                   ),
                 ],
               ),
@@ -468,7 +468,7 @@ class _EstatisticasProfissionalPageState
                         Text(
                           _liquido ? 'Lucro líquido' : 'Faturamento total',
                           style: const TextStyle(
-                            fontSize: 14,
+                            fontSize: 16,
                             color: _textoSuave,
                           ),
                         ),
@@ -476,7 +476,7 @@ class _EstatisticasProfissionalPageState
                           valor: total,
                           formatar: _moeda,
                           estilo: const TextStyle(
-                            fontSize: 22,
+                            fontSize: 25.5,
                             fontWeight: FontWeight.w900,
                             color: _texto,
                           ),
@@ -489,13 +489,13 @@ class _EstatisticasProfissionalPageState
                     children: [
                       const Text(
                         'Média diária',
-                        style: TextStyle(fontSize: 14, color: _textoSuave),
+                        style: TextStyle(fontSize: 16, color: _textoSuave),
                       ),
                       _NumeroAnimado(
                         valor: mediaDia,
                         formatar: _moeda,
                         estilo: const TextStyle(
-                          fontSize: 18,
+                          fontSize: 20.5,
                           fontWeight: FontWeight.w900,
                           color: _azulEscuro,
                         ),
@@ -518,7 +518,7 @@ class _EstatisticasProfissionalPageState
               _GraficoBarras(
                 key: ValueKey('fin-$_versao-$_liquido'),
                 serie: serie,
-                altura: 170,
+                altura: 230,
                 formatar: (v) => _moedaCurta(v),
                 vazio: 'Nenhum pagamento neste período',
               ),
@@ -546,23 +546,16 @@ class _EstatisticasProfissionalPageState
               const Text(
                 'Líquido = bruto menos a taxa estimada da forma de pagamento '
                 '(Pix 1,19%; cartão 3,99% + R\$ 0,39; boleto R\$ 3,45).',
-                style: TextStyle(fontSize: 10.5, color: _textoSuave),
+                style: TextStyle(fontSize: 12, color: _textoSuave),
               ),
             ],
           ),
         ),
         const SizedBox(height: 12),
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: _cartaoSegmento(d, m)),
-              const SizedBox(width: 12),
-              Expanded(child: _cartaoTicket(d, m)),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
+        _cartaoSegmento(d, m),
+        const SizedBox(height: 14),
+        _cartaoTicket(d, m),
+        const SizedBox(height: 14),
         _cartaoMetodos(d, m),
       ],
     );
@@ -570,7 +563,7 @@ class _EstatisticasProfissionalPageState
 
   Widget _cartaoSegmento(DadosEstatisticas d, Map<ContaEst, MetricasConta> m) {
     return _Cartao(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -578,7 +571,7 @@ class _EstatisticasProfissionalPageState
             icone: Icons.pie_chart_outline_rounded,
             texto: 'RECEITA POR SEGMENTO',
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 16),
           for (final e in m.entries) ...[
             if (_comparando) _MiniPerfil(perfil: d.perfis[e.key]!),
             _LinhaRosca(
@@ -597,7 +590,7 @@ class _EstatisticasProfissionalPageState
 
   Widget _cartaoTicket(DadosEstatisticas d, Map<ContaEst, MetricasConta> m) {
     return _Cartao(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -612,14 +605,14 @@ class _EstatisticasProfissionalPageState
               valor: e.value.ticketMedio,
               formatar: _moeda,
               estilo: const TextStyle(
-                fontSize: 20,
+                fontSize: 28,
                 fontWeight: FontWeight.w900,
                 color: _texto,
               ),
             ),
             Text(
               _variacao(e.value.ticketMedio, e.value.ticketPeriodoAnterior),
-              style: const TextStyle(fontSize: 11.5, color: _textoSuave),
+              style: const TextStyle(fontSize: 13, color: _textoSuave),
             ),
             const SizedBox(height: 10),
           ],
@@ -660,7 +653,7 @@ class _EstatisticasProfissionalPageState
             icone: Icons.account_balance_wallet_outlined,
             texto: 'MÉTODOS DE PAGAMENTO',
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 18),
           for (final nome in lista) ...[
             for (final e in m.entries)
               Builder(
@@ -708,17 +701,10 @@ class _EstatisticasProfissionalPageState
               padding: const EdgeInsets.only(bottom: 8),
               child: _MiniPerfil(perfil: d.perfis[e.key]!, grande: true),
             ),
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(child: _cartaoNota(e.value)),
-                const SizedBox(width: 12),
-                Expanded(child: _cartaoFunil(e.value)),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
+          _cartaoNota(e.value),
+          const SizedBox(height: 14),
+          _cartaoFunil(e.value),
+          const SizedBox(height: 14),
         ],
         _cartaoConstancia(dias, online, semana),
       ],
@@ -729,7 +715,7 @@ class _EstatisticasProfissionalPageState
     return CorOriginal(
       interface: true,
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [_azulNoite, _azulEscuro],
@@ -761,7 +747,7 @@ class _EstatisticasProfissionalPageState
                       : v.toStringAsFixed(1).replaceAll('.', ','),
                   estilo: const TextStyle(
                     color: Colors.white,
-                    fontSize: 24,
+                    fontSize: 34,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -770,7 +756,7 @@ class _EstatisticasProfissionalPageState
                       ? 'Sem avaliações ainda'
                       : 'Média de ${m.totalAvaliacoes} '
                             '${m.totalAvaliacoes == 1 ? 'avaliação' : 'avaliações'}',
-                  style: const TextStyle(color: Colors.white70, fontSize: 11.5),
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
                 ),
                 const SizedBox(height: 10),
                 Container(
@@ -787,7 +773,7 @@ class _EstatisticasProfissionalPageState
                         'TAXA DE RECORRÊNCIA',
                         style: TextStyle(
                           color: Colors.white70,
-                          fontSize: 10,
+                          fontSize: 11.5,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0.6,
                         ),
@@ -797,7 +783,7 @@ class _EstatisticasProfissionalPageState
                         formatar: (v) => '${v.round()}%',
                         estilo: const TextStyle(
                           color: Colors.white,
-                          fontSize: 20,
+                          fontSize: 23,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
@@ -806,7 +792,7 @@ class _EstatisticasProfissionalPageState
                         'clientes voltaram',
                         style: const TextStyle(
                           color: Colors.white70,
-                          fontSize: 10.5,
+                          fontSize: 12,
                         ),
                       ),
                     ],
@@ -829,7 +815,7 @@ class _EstatisticasProfissionalPageState
     ];
     final maior = etapas.fold<int>(1, (s, e) => math.max(s, e.$2));
     return _Cartao(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -840,7 +826,7 @@ class _EstatisticasProfissionalPageState
           const SizedBox(height: 10),
           for (var i = 0; i < etapas.length; i++)
             Padding(
-              padding: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.only(bottom: 10),
               child: _BarraFunil(
                 key: ValueKey('funil-$_versao-$i-${m.conta}'),
                 rotulo: etapas[i].$1,
@@ -853,14 +839,14 @@ class _EstatisticasProfissionalPageState
           Text(
             'Conversão: ${(m.conversao * 100).toStringAsFixed(1).replaceAll('.', ',')}%',
             style: const TextStyle(
-              fontSize: 12,
+              fontSize: 14,
               fontWeight: FontWeight.w800,
               color: _azulEscuro,
             ),
           ),
           Text(
             '${m.seguidores} ${m.seguidores == 1 ? 'seguidor' : 'seguidores'}',
-            style: const TextStyle(fontSize: 11.5, color: _textoSuave),
+            style: const TextStyle(fontSize: 13, color: _textoSuave),
           ),
         ],
       ),
@@ -891,7 +877,7 @@ class _EstatisticasProfissionalPageState
             ),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -900,8 +886,8 @@ class _EstatisticasProfissionalPageState
                         CorOriginal(
                           interface: true,
                           child: Container(
-                            width: 40,
-                            height: 40,
+                            width: 48,
+                            height: 48,
                             decoration: const BoxDecoration(
                               color: _azulGelo,
                               shape: BoxShape.circle,
@@ -920,7 +906,7 @@ class _EstatisticasProfissionalPageState
                               const Text(
                                 'Constância',
                                 style: TextStyle(
-                                  fontSize: 16,
+                                  fontSize: 18.5,
                                   fontWeight: FontWeight.w800,
                                   color: _texto,
                                 ),
@@ -930,7 +916,7 @@ class _EstatisticasProfissionalPageState
                                     ? 'Abra o app hoje para começar uma sequência!'
                                     : '$dias ${dias == 1 ? 'dia seguido ativo' : 'dias seguidos ativos'}!',
                                 style: const TextStyle(
-                                  fontSize: 13,
+                                  fontSize: 15,
                                   color: _textoSuave,
                                 ),
                               ),
@@ -943,14 +929,14 @@ class _EstatisticasProfissionalPageState
                             const Text(
                               'Tempo online',
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 12.5,
                                 color: _textoSuave,
                               ),
                             ),
                             Text(
                               _duracaoCurta(online.total),
                               style: const TextStyle(
-                                fontSize: 18,
+                                fontSize: 20.5,
                                 fontWeight: FontWeight.w900,
                                 color: _texto,
                               ),
@@ -970,8 +956,8 @@ class _EstatisticasProfissionalPageState
                                 duration: duracao(
                                   Duration(milliseconds: 300 + i * 70),
                                 ),
-                                width: 26,
-                                height: 26,
+                                width: 32,
+                                height: 32,
                                 decoration: BoxDecoration(
                                   color: semana[i] ? _azul : _azulGelo,
                                   shape: BoxShape.circle,
@@ -991,7 +977,7 @@ class _EstatisticasProfissionalPageState
                                         .weekday %
                                     7],
                                 style: const TextStyle(
-                                  fontSize: 10.5,
+                                  fontSize: 12,
                                   color: _textoSuave,
                                 ),
                               ),
@@ -1003,7 +989,7 @@ class _EstatisticasProfissionalPageState
                     Text(
                       'Média de ${_duracaoCurta(online.mediaDia)} por dia ativo '
                       '(${online.diasAtivos} ${online.diasAtivos == 1 ? 'dia' : 'dias'} no período).',
-                      style: const TextStyle(fontSize: 11.5, color: _textoSuave),
+                      style: const TextStyle(fontSize: 13, color: _textoSuave),
                     ),
                   ],
                 ),
@@ -1067,7 +1053,7 @@ class _EstatisticasProfissionalPageState
                     child: Text(
                       'Total de Vendas',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 18.5,
                         fontWeight: FontWeight.w800,
                         color: _texto,
                       ),
@@ -1077,7 +1063,7 @@ class _EstatisticasProfissionalPageState
                     valor: totalVendas.toDouble(),
                     formatar: (v) => '${v.round()}',
                     estilo: const TextStyle(
-                      fontSize: 20,
+                      fontSize: 23,
                       fontWeight: FontWeight.w900,
                       color: _texto,
                     ),
@@ -1087,27 +1073,27 @@ class _EstatisticasProfissionalPageState
               Text(
                 '$recebidos ${recebidos == 1 ? 'pedido recebido' : 'pedidos recebidos'} no período'
                 '${_comparando ? ' · ${m.entries.map((e) => '${e.key.rotulo}: ${e.value.vendasConcluidas}').join(' · ')}' : ''}',
-                style: const TextStyle(fontSize: 12, color: _textoSuave),
+                style: const TextStyle(fontSize: 14, color: _textoSuave),
               ),
               const SizedBox(height: 14),
               const Divider(color: _linha, height: 1),
               const SizedBox(height: 14),
               const Text(
                 'Picos de demanda (pedidos por dia da semana)',
-                style: TextStyle(fontSize: 13.5, color: _textoSuave),
+                style: TextStyle(fontSize: 15.5, color: _textoSuave),
               ),
               const SizedBox(height: 12),
               _GraficoBarras(
                 key: ValueKey('picos-$_versao'),
                 serie: picos,
-                altura: 120,
+                altura: 170,
                 formatar: (v) => '${v.round()}',
                 vazio: 'Nenhum pedido neste período',
               ),
               const SizedBox(height: 16),
               const Text(
                 'Serviços mais solicitados',
-                style: TextStyle(fontSize: 13.5, color: _textoSuave),
+                style: TextStyle(fontSize: 15.5, color: _textoSuave),
               ),
               const SizedBox(height: 10),
               if (top.isEmpty)
@@ -1171,7 +1157,7 @@ class _EstatisticasProfissionalPageState
                             child: Text(
                               mo.key,
                               style: const TextStyle(
-                                fontSize: 12,
+                                fontSize: 14,
                                 color: _textoSuave,
                               ),
                             ),
@@ -1179,7 +1165,7 @@ class _EstatisticasProfissionalPageState
                           Text(
                             '${mo.value}',
                             style: const TextStyle(
-                              fontSize: 12,
+                              fontSize: 14,
                               fontWeight: FontWeight.w800,
                               color: _texto,
                             ),
@@ -1193,12 +1179,12 @@ class _EstatisticasProfissionalPageState
               const Text(
                 'Retrabalho: o mesmo cliente pediu o mesmo serviço de novo até '
                 '30 dias depois de um atendimento concluído.',
-                style: TextStyle(fontSize: 10.5, color: _textoSuave),
+                style: TextStyle(fontSize: 12, color: _textoSuave),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
         _Cartao(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1254,12 +1240,12 @@ class _EstatisticasProfissionalPageState
       children: [
         const _TituloSecao('Operação & Logística'),
         GridView.count(
-          crossAxisCount: 3,
+          crossAxisCount: 2,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
-          childAspectRatio: 0.98,
+          crossAxisSpacing: 14,
+          mainAxisSpacing: 14,
+          childAspectRatio: 1.45,
           children: [
             for (final (sit, icone, rotulo) in blocos)
               _BlocoStatus(
@@ -1281,7 +1267,7 @@ class _EstatisticasProfissionalPageState
         const SizedBox(height: 4),
         const Text(
           'Situação atual de todos os seus pedidos (não depende do período).',
-          style: TextStyle(fontSize: 10.5, color: _textoSuave),
+          style: TextStyle(fontSize: 12, color: _textoSuave),
         ),
         const SizedBox(height: 12),
         for (final e in m.entries) ...[
@@ -1295,8 +1281,8 @@ class _EstatisticasProfissionalPageState
                     CorOriginal(
                       interface: true,
                       child: Container(
-                        width: 40,
-                        height: 40,
+                        width: 48,
+                        height: 48,
                         decoration: const BoxDecoration(
                           color: _azulGelo,
                           shape: BoxShape.circle,
@@ -1346,7 +1332,7 @@ class _EstatisticasProfissionalPageState
                 const Text(
                   'Distância: do seu endereço até o do cliente (ou a medida '
                   'pelo Radar). Tempo médio: do pedido até a conclusão.',
-                  style: TextStyle(fontSize: 10.5, color: _textoSuave),
+                  style: TextStyle(fontSize: 12, color: _textoSuave),
                 ),
               ],
             ),
@@ -1414,11 +1400,11 @@ class _TituloSecao extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
+    padding: const EdgeInsets.only(bottom: 14, left: 2),
     child: Text(
       texto,
       style: const TextStyle(
-        fontSize: 18,
+        fontSize: 20.5,
         fontWeight: FontWeight.w800,
         color: _azulNoite,
       ),
@@ -1429,7 +1415,7 @@ class _TituloSecao extends StatelessWidget {
 class _Cartao extends StatelessWidget {
   const _Cartao({
     required this.child,
-    this.padding = const EdgeInsets.all(16),
+    this.padding = const EdgeInsets.all(20),
   });
   final Widget child;
   final EdgeInsets padding;
@@ -1440,7 +1426,7 @@ class _Cartao extends StatelessWidget {
     padding: padding,
     decoration: BoxDecoration(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(24),
       boxShadow: _sombra,
     ),
     child: child,
@@ -1455,13 +1441,13 @@ class _RotuloCartao extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      Icon(icone, size: 16, color: _azulNoite),
+      Icon(icone, size: 19, color: _azulNoite),
       const SizedBox(width: 6),
       Expanded(
         child: Text(
           texto,
           style: const TextStyle(
-            fontSize: 11.5,
+            fontSize: 13,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.6,
             color: _azulNoite,
@@ -1481,7 +1467,7 @@ class _Vazio extends StatelessWidget {
     padding: const EdgeInsets.symmetric(vertical: 8),
     child: Text(
       texto,
-      style: const TextStyle(fontSize: 12.5, color: _textoSuave),
+      style: const TextStyle(fontSize: 14.5, color: _textoSuave),
     ),
   );
 }
@@ -1493,7 +1479,7 @@ class _Segmentado<T> extends StatelessWidget {
     required this.selecionado,
     required this.rotulo,
     required this.aoTrocar,
-    this.altura = 48,
+    this.altura = 54,
     this.largura,
   });
 
@@ -1556,7 +1542,7 @@ class _Segmentado<T> extends StatelessWidget {
                                 const Duration(milliseconds: 200),
                               ),
                               style: TextStyle(
-                                fontSize: altura >= 44 ? 16 : 13,
+                                fontSize: altura >= 44 ? 17 : 14.5,
                                 fontWeight: k == i
                                     ? FontWeight.w800
                                     : FontWeight.w500,
@@ -1639,7 +1625,7 @@ class _MiniPerfil extends StatelessWidget {
     padding: const EdgeInsets.only(bottom: 6),
     child: Row(
       children: [
-        _Avatar(perfil: perfil, tamanho: grande ? 26 : 20),
+        _Avatar(perfil: perfil, tamanho: grande ? 32 : 26),
         const SizedBox(width: 6),
         Flexible(
           child: Text(
@@ -1647,7 +1633,7 @@ class _MiniPerfil extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: grande ? 13.5 : 11.5,
+              fontSize: grande ? 15.5 : 13.5,
               fontWeight: FontWeight.w800,
               color: _texto,
             ),
@@ -1666,7 +1652,7 @@ class _MiniPerfil extends StatelessWidget {
               perfil.conta.rotulo,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 9.5,
+                fontSize: 11,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -1700,12 +1686,12 @@ class _Legenda extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 6),
-            _Avatar(perfil: p, tamanho: 22),
+            _Avatar(perfil: p, tamanho: 28),
             const SizedBox(width: 6),
             Text(
               p.conta.rotulo,
               style: const TextStyle(
-                fontSize: 12.5,
+                fontSize: 14.5,
                 fontWeight: FontWeight.w700,
                 color: _texto,
               ),
@@ -1728,7 +1714,7 @@ class _ValoresPorConta extends StatelessWidget {
         Expanded(
           child: Row(
             children: [
-              _Avatar(perfil: perfis[e.key]!, tamanho: 18),
+              _Avatar(perfil: perfis[e.key]!, tamanho: 22),
               const SizedBox(width: 6),
               Flexible(
                 child: Text(
@@ -1736,7 +1722,7 @@ class _ValoresPorConta extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
                     color: _corConta(e.key),
                   ),
@@ -1760,7 +1746,7 @@ class _MiniKpi extends StatelessWidget {
       children: [
         Text(
           rotulo,
-          style: const TextStyle(fontSize: 11, color: _textoSuave),
+          style: const TextStyle(fontSize: 12.5, color: _textoSuave),
         ),
         const SizedBox(height: 2),
         FittedBox(
@@ -1768,7 +1754,7 @@ class _MiniKpi extends StatelessWidget {
           child: Text(
             valor,
             style: const TextStyle(
-              fontSize: 14,
+              fontSize: 16,
               fontWeight: FontWeight.w800,
               color: _texto,
             ),
@@ -1789,11 +1775,11 @@ class _ParValor extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: fim ? CrossAxisAlignment.end : CrossAxisAlignment.start,
     children: [
-      Text(rotulo, style: const TextStyle(fontSize: 13, color: _textoSuave)),
+      Text(rotulo, style: const TextStyle(fontSize: 15, color: _textoSuave)),
       Text(
         valor,
         style: const TextStyle(
-          fontSize: 17,
+          fontSize: 19.5,
           fontWeight: FontWeight.w900,
           color: _texto,
         ),
@@ -1842,7 +1828,7 @@ class _Estrelas extends StatelessWidget {
                 ? Icons.star_half_rounded
                 : Icons.star_outline_rounded,
             color: const Color(0xFF7FD4FF),
-            size: 19,
+            size: 24,
           ),
       ],
     ),
@@ -1868,9 +1854,9 @@ class _BarraRotulada extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final alto = grosso ? 8.0 : 7.0;
+    final alto = grosso ? 11.0 : 9.0;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1880,7 +1866,7 @@ class _BarraRotulada extends StatelessWidget {
               child: Text(
                 rotulo!,
                 style: TextStyle(
-                  fontSize: grosso ? 14 : 12.5,
+                  fontSize: grosso ? 16 : 14.5,
                   fontWeight: grosso ? FontWeight.w600 : FontWeight.w500,
                   color: _texto,
                 ),
@@ -1914,12 +1900,12 @@ class _BarraRotulada extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               SizedBox(
-                width: 40,
+                width: 48,
                 child: Text(
                   direita,
                   textAlign: TextAlign.right,
                   style: const TextStyle(
-                    fontSize: 12.5,
+                    fontSize: 14.5,
                     fontWeight: FontWeight.w700,
                     color: _texto,
                   ),
@@ -1965,8 +1951,8 @@ class _BarraFunil extends StatelessWidget {
                 interface: escuro,
                 ativo: escuro,
                 child: Container(
-                  height: 24,
-                  padding: const EdgeInsets.symmetric(horizontal: 7),
+                  height: 32,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
                   alignment: Alignment.centerLeft,
                   decoration: BoxDecoration(
                     color: cor,
@@ -1975,7 +1961,7 @@ class _BarraFunil extends StatelessWidget {
                   child: Text(
                     _compacto(valor),
                     style: TextStyle(
-                      fontSize: 11.5,
+                      fontSize: 13,
                       fontWeight: FontWeight.w800,
                       color: escuro ? Colors.white : _azulNoite,
                     ),
@@ -1990,7 +1976,7 @@ class _BarraFunil extends StatelessWidget {
           flex: 4,
           child: Text(
             rotulo,
-            style: const TextStyle(fontSize: 10.5, color: _textoSuave),
+            style: const TextStyle(fontSize: 12, color: _textoSuave),
           ),
         ),
       ],
@@ -2020,7 +2006,7 @@ class _CaixaIndice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
     decoration: BoxDecoration(
       color: claro ? const Color(0xFFEEF2F6) : _azulGelo,
       borderRadius: BorderRadius.circular(14),
@@ -2030,21 +2016,21 @@ class _CaixaIndice extends StatelessWidget {
         Text(
           titulo,
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 11.5, color: _textoSuave),
+          style: const TextStyle(fontSize: 13, color: _textoSuave),
         ),
         const SizedBox(height: 4),
         _NumeroAnimado(
           valor: valor * 100,
           formatar: (v) => '${v.toStringAsFixed(1).replaceAll('.', ',')}%',
           estilo: TextStyle(
-            fontSize: 19,
+            fontSize: 22,
             fontWeight: FontWeight.w900,
             color: claro ? _texto : _azulEscuro,
           ),
         ),
         Text(
           detalhe,
-          style: const TextStyle(fontSize: 10.5, color: _textoSuave),
+          style: const TextStyle(fontSize: 12, color: _textoSuave),
         ),
       ],
     ),
@@ -2067,10 +2053,10 @@ class _BlocoStatus extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
     decoration: BoxDecoration(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(20),
       boxShadow: _sombra,
       border: destaque
           ? const Border(bottom: BorderSide(color: _azulEscuro, width: 3))
@@ -2079,13 +2065,13 @@ class _BlocoStatus extends StatelessWidget {
     child: Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(icone, color: destaque ? _azulEscuro : _azulNoite, size: 22),
+        Icon(icone, color: destaque ? _azulEscuro : _azulNoite, size: 28),
         const SizedBox(height: 6),
         _NumeroAnimado(
           valor: total.toDouble(),
           formatar: (v) => '${v.round()}',
           estilo: const TextStyle(
-            fontSize: 19,
+            fontSize: 22,
             fontWeight: FontWeight.w900,
             color: _texto,
           ),
@@ -2096,7 +2082,7 @@ class _BlocoStatus extends StatelessWidget {
           child: Text(
             rotulo,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: 11.5,
               fontWeight: FontWeight.w600,
               color: destaque ? _azulEscuro : _textoSuave,
               letterSpacing: 0.3,
@@ -2108,7 +2094,7 @@ class _BlocoStatus extends StatelessWidget {
             fit: BoxFit.scaleDown,
             child: Text(
               detalhe!,
-              style: const TextStyle(fontSize: 9.5, color: _textoSuave),
+              style: const TextStyle(fontSize: 11, color: _textoSuave),
             ),
           ),
       ],
@@ -2127,8 +2113,8 @@ class _LinhaRosca extends StatelessWidget {
     return Row(
       children: [
         SizedBox(
-          width: 52,
-          height: 52,
+          width: 96,
+          height: 96,
           child: TweenAnimationBuilder<double>(
             tween: Tween(begin: 0, end: 1),
             duration: duracao(const Duration(milliseconds: 1000)),
@@ -2142,19 +2128,19 @@ class _LinhaRosca extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 20),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               for (final f in fatias)
                 Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  padding: const EdgeInsets.symmetric(vertical: 5),
                   child: Row(
                     children: [
                       Container(
-                        width: 8,
-                        height: 8,
+                        width: 11,
+                        height: 11,
                         decoration: BoxDecoration(
                           color: f.$3,
                           shape: BoxShape.circle,
@@ -2165,7 +2151,7 @@ class _LinhaRosca extends StatelessWidget {
                         child: Text(
                           '${f.$1}\n${total == 0 ? 0 : (f.$2 / total * 100).round()}%',
                           style: const TextStyle(
-                            fontSize: 10.5,
+                            fontSize: 12,
                             color: _texto,
                             height: 1.2,
                           ),
@@ -2194,7 +2180,7 @@ class _PintorRosca extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const espessura = 9.0;
+    const espessura = 15.0;
     final rect = Offset.zero & size;
     final arco = rect.deflate(espessura / 2);
     final fundo = Paint()
@@ -2237,7 +2223,7 @@ class _GraficoBarras extends StatefulWidget {
     super.key,
     required this.serie,
     required this.formatar,
-    this.altura = 160,
+    this.altura = 200,
     this.vazio = 'Sem dados',
   });
 
@@ -2278,7 +2264,7 @@ class _GraficoBarrasState extends State<_GraficoBarras> {
     final varias = contas.length > 1;
     final n = serie.rotulos.length;
     final sel = maximo == 0 ? null : (_selecionado ?? _indiceMaior());
-    const topo = 22.0;
+    const topo = 26.0;
     final util = widget.altura - topo;
 
     return Column(
@@ -2326,7 +2312,7 @@ class _GraficoBarrasState extends State<_GraficoBarras> {
                                                 serie.valores[contas.first]![i],
                                               ),
                                         style: const TextStyle(
-                                          fontSize: 11,
+                                          fontSize: 12.5,
                                           fontWeight: FontWeight.w800,
                                           color: _azulNoite,
                                         ),
@@ -2390,7 +2376,7 @@ class _GraficoBarrasState extends State<_GraficoBarras> {
                       child: Text(
                         widget.vazio,
                         style: const TextStyle(
-                          fontSize: 12,
+                          fontSize: 14,
                           color: _textoSuave,
                         ),
                       ),
@@ -2413,7 +2399,7 @@ class _GraficoBarrasState extends State<_GraficoBarras> {
                   maxLines: 1,
                   overflow: TextOverflow.clip,
                   style: TextStyle(
-                    fontSize: n > 8 ? 9 : 11,
+                    fontSize: n > 8 ? 10.5 : 12.5,
                     fontWeight: sel == i ? FontWeight.w800 : FontWeight.w500,
                     color: sel == i ? _azulNoite : _textoSuave,
                   ),

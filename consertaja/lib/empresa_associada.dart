@@ -10,6 +10,7 @@ import 'certificados.dart';
 import 'models/servico_profissional.dart';
 import 'tutorial/botao_ajuda.dart';
 import 'widgets/imagem_app.dart';
+import 'services/areas_atuacao_service.dart';
 
 class EmpresaAssociadaPage extends StatefulWidget {
   const EmpresaAssociadaPage({super.key});
@@ -120,10 +121,10 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
           ];
           if (ids.isNotEmpty) {
             oficiosEmpresa =
-                (await client
+                (AreasAtuacaoService.comoOficios(await client
                         .from('funcoes')
                         .select(kColunasFuncaoComoOficio)
-                        .inFilter('id_funcao', ids))
+                        .inFilter('id_funcao', ids)))
                     .map<OficioInfo>(OficioInfo.fromMap)
                     .where((o) => o.funcao.isNotEmpty)
                     .toList();
@@ -164,10 +165,10 @@ class _EmpresaAssociadaPageState extends State<EmpresaAssociadaPage> {
             .toList();
         final oficios = oficioIds.isEmpty
             ? <OficioInfo>[]
-            : (await client
+            : (AreasAtuacaoService.comoOficios(await client
                       .from('funcoes')
                       .select(kColunasFuncaoComoOficio)
-                      .inFilter('id_funcao', oficioIds))
+                      .inFilter('id_funcao', oficioIds)))
                   .map<OficioInfo>(OficioInfo.fromMap)
                   .where((item) => item.funcao.isNotEmpty)
                   .toList();

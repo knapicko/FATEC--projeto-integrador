@@ -672,7 +672,8 @@ class _TelaMensagensPageState extends State<TelaMensagensPage>
                 for (final row in oficios)
                   if ((row['id_oficio'] as num?) != null)
                     (row['id_oficio'] as num).toInt():
-                        row['funcao']?.toString() ?? '',
+                        // Área = ofício: mostra a categoria.
+                        (row['categoria'] ?? row['funcao'])?.toString() ?? '',
               };
               for (final row in assocs) {
                 final idP = (row['fk_profissional'] as num?)?.toInt();

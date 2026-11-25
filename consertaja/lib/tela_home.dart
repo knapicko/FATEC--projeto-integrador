@@ -931,8 +931,9 @@ class _TelaHomeState extends State<TelaHome> {
           'Categorias Populares',
           'Técnicos e serviços por especialidade',
           chaveAcao: _kVerTodasCategorias,
-          acao: 'Ver todas ›',
-          aoTocar: () => setState(() => _todasCategorias = true),
+          // Abertas: "Ver menos" recolhe de volta.
+          acao: _todasCategorias ? 'Ver menos ‹' : 'Ver todas ›',
+          aoTocar: () => setState(() => _todasCategorias = !_todasCategorias),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),

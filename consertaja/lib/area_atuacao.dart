@@ -3,9 +3,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'widgets/salvamento_automatico.dart';
 import 'widgets/skeleton_loading.dart';
 import 'utils/icone_oficio.dart';
-import 'utils/funcao_servico.dart';
 import 'tutorial/botao_ajuda.dart';
 import 'widgets/imagem_app.dart';
+import 'models/servico_profissional.dart';
+import 'services/servicos_profissional_service.dart';
+import 'services/areas_atuacao_service.dart';
 
 class AreaAtuacaoPage extends StatefulWidget {
   const AreaAtuacaoPage({super.key});
@@ -70,12 +72,8 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
         return;
       }
 
-      final oficiosResponse = await _supabase
-          .from('funcoes')
-          .select(kColunasFuncaoComoOficio)
-          .order('funcao');
-
-      _oficiosDisponiveis = List<Map<String, dynamic>>.from(oficiosResponse);
+      // Áreas = OFÍCIOS (cada um com as funções que inclui).
+      _oficiosDisponiveis = await AreasAtuacaoService.carregarOficios();
 
       final usuarioId = await _buscarIdUsuario(user.id);
       if (usuarioId == null) {
@@ -97,24 +95,18 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
       }
 
       if (_idProfissional != null) {
-        final associacoes = await _supabase
-            .from('ass_oficio_profissional')
-            .select('fk_funcao')
-            .eq('fk_profissional', _idProfissional!);
-
-        final idsOficios = associacoes
-            .map((e) => (e['fk_funcao'] as num?)?.toInt())
-            .whereType<int>()
-            .toList();
-
-        _oficiosSelecionados.clear();
-        for (final id in idsOficios) {
-          final oficio = _oficiosDisponiveis.firstWhere(
-            (o) => (o['id_oficio'] as num?)?.toInt() == id,
-            orElse: () => <String, dynamic>{},
+        // O banco guarda as funções; a tela mostra os ofícios delas.
+        final funcoes = await AreasAtuacaoService.funcoesDoProfissional(
+          _idProfissional!,
+        );
+        _oficiosSelecionados
+          ..clear()
+          ..addAll(
+            AreasAtuacaoService.oficiosDasFuncoes(
+              _oficiosDisponiveis,
+              funcoes,
+            ).take(3),
           );
-          if (oficio.isNotEmpty) _oficiosSelecionados.add(oficio);
-        }
       }
 
       if (mounted) setState(() => _carregando = false);
@@ -184,7 +176,7 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
               const Padding(
                 padding: EdgeInsets.all(16),
                 child: Text(
-                  'Selecione uma área',
+                  'Selecione um ofício',
                   style: TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.bold,
@@ -223,17 +215,21 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
                             tamanho: 28,
                           ),
                         )),
-                        title: Text(nome),
+                        title: Text(
+                          nome,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        // Funções que o ofício inclui.
+                        subtitle: Text(
+                          (oficio['funcoes_nomes'] as List? ?? const [])
+                              .join(', '),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 12.5),
+                        ),
                         onTap: () {
-                          setState(() {
-                            if (slotIndex < _oficiosSelecionados.length) {
-                              _oficiosSelecionados[slotIndex] = oficio;
-                            } else {
-                              _oficiosSelecionados.add(oficio);
-                            }
-                          });
                           Navigator.pop(context);
-                          _autosave.agendar();
+                          _aplicarMudanca(slotIndex, oficio);
                         },
                       );
                     },
@@ -247,14 +243,8 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
                     style: TextStyle(color: Colors.red),
                   ),
                   onTap: () {
-                    setState(() {
-                      _oficiosSelecionados.removeAt(slotIndex);
-                      if (_detalheAtual >= _oficiosSelecionados.length) {
-                        _detalheAtual = 0;
-                      }
-                    });
                     Navigator.pop(context);
-                    _autosave.agendar();
+                    _aplicarMudanca(slotIndex, null);
                   },
                 ),
             ],
@@ -263,6 +253,254 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
       },
     );
   }
+
+  int? _idOficio(Map<String, dynamic> o) => (o['id_oficio'] as num?)?.toInt();
+
+  /// Troca ([novo] != null) ou remove o ofício do [slot]. Se o ofício que sai
+  /// tem serviços ativos (em qualquer função dele), avisa antes: eles serão
+  /// DESATIVADOS (não excluídos).
+  Future<void> _aplicarMudanca(int slot, Map<String, dynamic>? novo) async {
+    final antigo = slot < _oficiosSelecionados.length
+        ? _oficiosSelecionados[slot]
+        : null;
+    final idSaindo = antigo == null ? null : _idOficio(antigo);
+    final mesmo = novo != null && idSaindo != null && _idOficio(novo) == idSaindo;
+
+    if (antigo != null && !mesmo && _idProfissional != null) {
+      final afetados = await ServicosProfissionalService.servicosAtivosDasFuncoes(
+        _idProfissional!,
+        AreasAtuacaoService.funcoesDe([antigo]),
+      );
+      if (!mounted) return;
+      if (afetados.isNotEmpty) {
+        final confirmou = await _confirmarDesativacao(
+          area: antigo['funcao']?.toString() ?? 'esta área',
+          servicos: afetados,
+          trocar: novo != null,
+        );
+        if (confirmou != true || !mounted) return;
+        final ok = await ServicosProfissionalService.desativarPorTrocaDeArea([
+          for (final s in afetados) s.id,
+        ]);
+        if (!mounted) return;
+        if (!ok) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Não foi possível desativar os serviços. A área não foi alterada.',
+              ),
+            ),
+          );
+          return;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              afetados.length == 1
+                  ? '1 serviço foi desativado. Você pode reativá-lo em Meus Serviços.'
+                  : '${afetados.length} serviços foram desativados. Você pode reativá-los em Meus Serviços.',
+            ),
+          ),
+        );
+      }
+    }
+
+    setState(() {
+      if (novo == null) {
+        if (slot < _oficiosSelecionados.length) {
+          _oficiosSelecionados.removeAt(slot);
+        }
+        if (_detalheAtual >= _oficiosSelecionados.length) _detalheAtual = 0;
+      } else if (slot < _oficiosSelecionados.length) {
+        _oficiosSelecionados[slot] = novo;
+      } else {
+        _oficiosSelecionados.add(novo);
+      }
+    });
+    _autosave.agendar();
+  }
+
+  Future<bool?> _confirmarDesativacao({
+    required String area,
+    required List<ServicoProfissional> servicos,
+    required bool trocar,
+  }) {
+    return showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.8,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 12, 22, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE5E7EB),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFFF7E6),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.warning_amber_rounded,
+                    color: Color(0xFFF59E0B),
+                    size: 32,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  trocar ? 'Trocar a área "$area"?' : 'Remover a área "$area"?',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: _textDark,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  servicos.length == 1
+                      ? 'Você tem 1 serviço nesta área. Ele será DESATIVADO '
+                            '(não excluído): some para os clientes e não pode '
+                            'ser pedido, mas você pode reativá-lo quando quiser '
+                            'em Meus Serviços.'
+                      : 'Você tem ${servicos.length} serviços nesta área. Eles '
+                            'serão DESATIVADOS (não excluídos): somem para os '
+                            'clientes e não podem ser pedidos, mas você pode '
+                            'reativá-los quando quiser em Meus Serviços.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: _textGray, height: 1.4),
+                ),
+                const SizedBox(height: 14),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: servicos.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (_, i) {
+                      final s = servicos[i];
+                      return Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFE5E7EB)),
+                        ),
+                        child: Row(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: SizedBox(
+                                width: 52,
+                                height: 52,
+                                child:
+                                    (s.imagemUrl ?? '').trim().isNotEmpty
+                                    ? ImagemApp(
+                                        child: Image.network(
+                                          s.imagemUrl!,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, _, _) =>
+                                              _iconeServico(s),
+                                        ),
+                                      )
+                                    : _iconeServico(s),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    s.titulo,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: _textDark,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  Text(
+                                    s.valor <= 0
+                                        ? 'Sob consulta'
+                                        : 'R\$ ${s.valor.toStringAsFixed(2).replaceAll('.', ',')}',
+                                    style: const TextStyle(
+                                      color: _blue,
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: CorOriginal(
+                    interface: true,
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _blue,
+                        shape: const StadiumBorder(),
+                      ),
+                      child: Text(
+                        trocar
+                            ? 'Trocar e desativar os serviços'
+                            : 'Remover e desativar os serviços',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text(
+                    'Cancelar',
+                    style: TextStyle(color: _textGray, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _iconeServico(ServicoProfissional s) => Container(
+    color: _cardBlueBg,
+    alignment: Alignment.center,
+    child: IconeOficio.imagemPorFuncao(s.funcao, tamanho: 26),
+  );
 
   /// Grava só a diferença entre o banco e a escolha atual (chamado pelo
   /// salvamento automático; erros aparecem no indicador).
@@ -273,35 +511,11 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
     if (_oficiosSelecionados.isEmpty) {
       throw Exception('escolha pelo menos uma área de atuação.');
     }
-    final atuais = await _supabase
-        .from('ass_oficio_profissional')
-        .select('fk_funcao')
-        .eq('fk_profissional', _idProfissional!);
-    final idsAtuais = atuais
-        .map((e) => (e['fk_funcao'] as num?)?.toInt())
-        .whereType<int>()
-        .toSet();
-    final idsNovos = _oficiosSelecionados
-        .map((o) => (o['id_funcao'] as num?)?.toInt())
-        .whereType<int>()
-        .toSet();
-
-    final adicionar = idsNovos.difference(idsAtuais);
-    final remover = idsAtuais.difference(idsNovos);
-
-    if (adicionar.isNotEmpty) {
-      await _supabase.from('ass_oficio_profissional').insert([
-        for (final id in adicionar)
-          {'fk_profissional': _idProfissional, 'fk_funcao': id},
-      ]);
-    }
-    if (remover.isNotEmpty) {
-      await _supabase
-          .from('ass_oficio_profissional')
-          .delete()
-          .eq('fk_profissional', _idProfissional!)
-          .inFilter('fk_funcao', remover.toList());
-    }
+    // Grava todas as funções dos ofícios escolhidos.
+    await AreasAtuacaoService.salvarProfissional(
+      _idProfissional!,
+      _oficiosSelecionados,
+    );
   }
 
   Widget _buildHeader() {
@@ -330,7 +544,7 @@ class _AreaAtuacaoPageState extends State<AreaAtuacaoPage> {
               context,
               tela: 'Aqui ficam as suas áreas de atuação.',
               conteudo: [
-                'Marque as funções que você faz. Você só atende pedidos e cria serviços dessas áreas.',
+                'Escolha até 3 ofícios em que você trabalha. Ao criar um serviço, você escolhe qualquer função desses ofícios, e recebe pedidos do Radar de todas elas.',
               ],
             ),
           ),

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Só HTTPS: nenhuma conexão em texto puro (http://) e só certificados
+     das autoridades do sistema (certificados instalados pelo usuário,
+     usados para interceptar tráfego, não valem). -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

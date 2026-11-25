@@ -196,17 +196,17 @@ class ServicosProfissionalService {
   /// Faz join (left join) com `oficios` para obter funcao e cod_cor.
   static Future<List<ServicoProfissional>> buscarServicos({
     int? idProfissional,
+    bool incluirDesativados = false,
   }) async {
     try {
       final idProf = idProfissional ?? await buscarIdProfissional();
       if (idProf == null) return [];
 
-      final rows = await _supabase
-          .from('servicos_profissional')
-          .select('*, $kSelectFuncao')
-          .eq('fk_profissional', idProf)
-          .eq('ativo', true)
-          .order('data_criacao', ascending: false);
+      final rows = await _comDesativados(
+        'fk_profissional',
+        idProf,
+        incluirDesativados,
+      );
 
       return rows
           .map<ServicoProfissional>(ServicoProfissional.fromMap)
@@ -334,15 +334,15 @@ class ServicosProfissionalService {
   }
 
   static Future<List<ServicoProfissional>> buscarServicosEmpresa(
-    int idGrupoEmpresa,
-  ) async {
+    int idGrupoEmpresa, {
+    bool incluirDesativados = false,
+  }) async {
     try {
-      final rows = await _supabase
-          .from('servicos_profissional')
-          .select('*, $kSelectFuncao')
-          .eq('fk_grupo_empresa', idGrupoEmpresa)
-          .eq('ativo', true)
-          .order('data_criacao', ascending: false);
+      final rows = await _comDesativados(
+        'fk_grupo_empresa',
+        idGrupoEmpresa,
+        incluirDesativados,
+      );
       final List<ServicoProfissional> servicos = rows
           .map<ServicoProfissional>(ServicoProfissional.fromMap)
           .toList();
@@ -405,15 +405,16 @@ class ServicosProfissionalService {
   }
 
   static Future<DetalheServicoPublico?> buscarDetalhePublico(
-    int idServico,
-  ) async {
+    int idServico, {
+    bool incluirDesativado = false,
+  }) async {
     try {
-      final row = await _supabase
-          .from('servicos_profissional')
-          .select('*, $kSelectFuncao')
-          .eq('id_servico_prof', idServico)
-          .eq('ativo', true)
-          .maybeSingle();
+      final linhas = await _comDesativados(
+        'id_servico_prof',
+        idServico,
+        incluirDesativado,
+      );
+      final row = linhas.isEmpty ? null : linhas.first;
       if (row == null) return null;
 
       final servico = ServicoProfissional.fromMap(row);
@@ -1046,16 +1047,143 @@ class ServicosProfissionalService {
     }
   }
 
-  /// Remove (soft delete) um serviço.
-  static Future<bool> desativarServico(int id) async {
+  /// Serviços ativos (o que o cliente vê) ou, para o profissional, também os
+  /// DESATIVADOS por troca de área. Sem a coluna status_servico no banco
+  /// (SQL v0_16), traz só os ativos.
+  static Future<List<Map<String, dynamic>>> _comDesativados(
+    String coluna,
+    Object valor,
+    bool incluirDesativados,
+  ) async {
+    if (incluirDesativados) {
+      try {
+        return await _supabase
+            .from('servicos_profissional')
+            .select('*, $kSelectFuncao')
+            .eq(coluna, valor)
+            .or('ativo.eq.true,status_servico.eq.Desativado')
+            .order('data_criacao', ascending: false);
+      } on PostgrestException catch (e) {
+        debugPrint('[ServicosSvc] sem status_servico: ${e.message}');
+      }
+    }
+    return await _supabase
+        .from('servicos_profissional')
+        .select('*, $kSelectFuncao')
+        .eq(coluna, valor)
+        .eq('ativo', true)
+        .order('data_criacao', ascending: false);
+  }
+
+  /// Serviços ATIVOS da conta independente do profissional nestas funções
+  /// (para avisar antes de tirar a função da Área de Atuação).
+  static Future<List<ServicoProfissional>> servicosAtivosDasFuncoes(
+    int idProfissional,
+    List<int> idsFuncoes,
+  ) async {
+    if (idsFuncoes.isEmpty) return const [];
+    try {
+      final rows = await _supabase
+          .from('servicos_profissional')
+          .select('*, $kSelectFuncao')
+          .eq('fk_profissional', idProfissional)
+          .isFilter('fk_grupo_empresa', null)
+          .eq('ativo', true)
+          .inFilter('fk_funcao', idsFuncoes);
+      return rows
+          .map<ServicoProfissional>(ServicoProfissional.fromMap)
+          .toList();
+    } catch (e) {
+      debugPrint('[ServicosSvc] servicosAtivosDasFuncoes: $e');
+      return const [];
+    }
+  }
+
+  /// Desativa (sem excluir): some para os clientes e não pode ser pedido,
+  /// mas o profissional ainda vê e pode reativar.
+  static Future<bool> desativarPorTrocaDeArea(List<int> ids) async {
+    if (ids.isEmpty) return true;
     try {
       await _supabase
           .from('servicos_profissional')
           .update({
             'ativo': false,
+            'status_servico': 'Desativado',
+            'data_alteracao': DateTime.now().toUtc().toIso8601String(),
+          })
+          .inFilter('id_servico_prof', ids);
+      return true;
+    } catch (e) {
+      debugPrint('[ServicosSvc] desativarPorTrocaDeArea: $e');
+      return false;
+    }
+  }
+
+  /// O OFÍCIO do serviço ainda está na Área de Atuação da conta dona dele?
+  static Future<bool> funcaoNaArea(ServicoProfissional s) async {
+    final funcao = s.fkFuncao;
+    if (funcao == null) return true;
+    try {
+      final rows = s.fkGrupoEmpresa != null
+          ? await _supabase
+                .from('ass_oficio_grupo_empresa')
+                .select('fk_funcao')
+                .eq('fk_grupo_empresa', s.fkGrupoEmpresa!)
+          : await _supabase
+                .from('ass_oficio_profissional')
+                .select('fk_funcao')
+                .eq('fk_profissional', s.fkProfissional);
+      final funcoesArea = [
+        for (final r in rows)
+          if (r['fk_funcao'] != null) (r['fk_funcao'] as num).toInt(),
+      ];
+      if (funcoesArea.contains(funcao)) return true;
+      final oficiosArea = await _oficiosDasFuncoes(funcoesArea);
+      final oficioServico = await _oficiosDasFuncoes([funcao]);
+      return oficioServico.any(oficiosArea.contains);
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /// Volta a mostrar o serviço para os clientes.
+  static Future<bool> reativarServico(int id) async {
+    try {
+      await _supabase
+          .from('servicos_profissional')
+          .update({
+            'ativo': true,
+            'status_servico': 'Ativo',
             'data_alteracao': DateTime.now().toUtc().toIso8601String(),
           })
           .eq('id_servico_prof', id);
+      return true;
+    } catch (e) {
+      debugPrint('[ServicosSvc] reativarServico: $e');
+      return false;
+    }
+  }
+
+  /// Remove (soft delete) um serviço.
+  static Future<bool> desativarServico(int id) async {
+    try {
+      final agora = DateTime.now().toUtc().toIso8601String();
+      try {
+        await _supabase
+            .from('servicos_profissional')
+            .update({
+              'ativo': false,
+              'status_servico': 'Excluido',
+              'data_alteracao': agora,
+            })
+            .eq('id_servico_prof', id);
+      } on PostgrestException {
+        // Banco sem status_servico (v0_16): só desliga.
+        await _supabase
+            .from('servicos_profissional')
+            .update({'ativo': false, 'data_alteracao': agora})
+            .eq('id_servico_prof', id);
+      }
       debugPrint('✅ [ServicosSvc] Serviço desativado id=$id');
       return true;
     } catch (e) {
@@ -1099,11 +1227,41 @@ class ServicosProfissionalService {
           .whereType<int>()
           .toSet()
           .toList();
-      return _funcoesPorIds(ids);
+      // Área = ofício: todas as funções dos ofícios do profissional.
+      return _funcoesDosOficiosDe(ids);
     } catch (e) {
       debugPrint('❌ [ServicosSvc] buscarFuncoesDoProfissional ERROR: $e');
       return [];
     }
+  }
+
+  /// Ofícios das funções gravadas na área de atuação.
+  static Future<Set<int>> _oficiosDasFuncoes(List<int> idsFuncoes) async {
+    if (idsFuncoes.isEmpty) return {};
+    final rows = await _supabase
+        .from('funcoes')
+        .select('fk_oficio')
+        .inFilter('id_funcao', idsFuncoes);
+    return {
+      for (final r in rows)
+        if (r['fk_oficio'] != null) (r['fk_oficio'] as num).toInt(),
+    };
+  }
+
+  /// Todas as funções dos ofícios a que essas funções pertencem: a área de
+  /// atuação é o OFÍCIO, então ao criar um serviço aparecem todas as funções
+  /// dele (inclusive em contas antigas, que gravaram só uma função).
+  static Future<List<({int id, String funcao, String cor})>>
+  _funcoesDosOficiosDe(List<int> idsFuncoes) async {
+    final oficios = await _oficiosDasFuncoes(idsFuncoes);
+    if (oficios.isEmpty) return _funcoesPorIds(idsFuncoes);
+    final rows = await _supabase
+        .from('funcoes')
+        .select('id_funcao')
+        .inFilter('fk_oficio', oficios.toList());
+    return _funcoesPorIds([
+      for (final r in rows) (r['id_funcao'] as num).toInt(),
+    ]);
   }
 
   /// Busca em `funcoes` as funções informadas (ids das associações).
@@ -1172,7 +1330,8 @@ class ServicosProfissionalService {
           .whereType<int>()
           .toSet()
           .toList();
-      return _funcoesPorIds(ids);
+      // Área = ofício: todas as funções dos ofícios da loja.
+      return _funcoesDosOficiosDe(ids);
     } catch (e) {
       debugPrint('❌ [ServicosSvc] buscarFuncoesDaEmpresa ERROR: $e');
       return [];

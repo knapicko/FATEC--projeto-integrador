@@ -970,6 +970,31 @@ class _ListaServicosState extends State<ListaServicos> {
         throw Exception('Não foi possível identificar o usuário logado.');
       }
 
+      // Serviço desativado/excluído depois de entrar na lista: não envia.
+      final idsServicos = {for (final i in _itens) i.fkServicoProf}.toList();
+      final ativos = await _supabase
+          .from('servicos_profissional')
+          .select('id_servico_prof')
+          .inFilter('id_servico_prof', idsServicos)
+          .eq('ativo', true);
+      final idsAtivos = {
+        for (final r in ativos) (r['id_servico_prof'] as num).toInt(),
+      };
+      final indisponiveis = [
+        for (final i in _itens)
+          if (!idsAtivos.contains(i.fkServicoProf)) i.titulo,
+      ];
+      if (indisponiveis.isNotEmpty) {
+        throw Exception(
+          indisponiveis.length == 1
+              ? 'O serviço "${indisponiveis.first}" não está mais disponível. '
+                    'Tire-o da lista para enviar os outros.'
+              : 'Estes serviços não estão mais disponíveis: '
+                    '${indisponiveis.join(', ')}. Tire-os da lista para '
+                    'enviar os outros.',
+        );
+      }
+
       final statusRows = await _supabase
           .from('status')
           .select('id_status, status')
@@ -1059,7 +1084,12 @@ class _ListaServicosState extends State<ListaServicos> {
         setState(() => _enviandoSolicitacao = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erro ao enviar solicitação: $e'),
+            content: Text(
+              e.toString().contains('não está mais disponível') ||
+                      e.toString().contains('não estão mais disponíveis')
+                  ? e.toString().replaceFirst('Exception: ', '')
+                  : 'Erro ao enviar solicitação: $e',
+            ),
             backgroundColor: Colors.red,
           ),
         );

@@ -26,6 +26,7 @@ import 'tutorial/botao_ajuda.dart';
 import 'widgets/imagem_app.dart';
 import 'services/visualizacoes_service.dart';
 import 'utils/movimento.dart';
+import 'services/areas_atuacao_service.dart';
 
 class _DadosEnderecoProfissional {
   final String apelido;
@@ -1937,10 +1938,10 @@ class _PerfilProfissionalPageState extends State<PerfilProfissionalPage>
         return;
       }
 
-      final oficiosData = await supabase
+      final oficiosData = AreasAtuacaoService.comoOficios(await supabase
           .from('funcoes')
           .select(kColunasFuncaoComoOficio)
-          .inFilter('id_funcao', idsOficios);
+          .inFilter('id_funcao', idsOficios));
 
       final oficios = <OficioInfo>[];
       for (final row in oficiosData) {

@@ -1404,16 +1404,8 @@ class _TelaBuscaState extends State<TelaBusca> {
                     errorBuilder: (_, __, ___) =>
                         _placeholderImagemServico(height: 140),
                   ))
-                : (servico.caminhoImagem.isNotEmpty &&
-                      !servico.caminhoImagem.contains('panela.png'))
-                ? ImagemApp(child: Image.asset(
-                    servico.caminhoImagem,
-                    height: 140,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) =>
-                        _placeholderImagemServico(height: 140),
-                  ))
+                // Sem foto enviada: espaço reservado (nada de imagem local
+                // antiga de exemplo).
                 : _placeholderImagemServico(height: 140),
             Padding(
               padding: const EdgeInsets.all(12),

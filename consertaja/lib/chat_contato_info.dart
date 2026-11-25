@@ -15,6 +15,7 @@ import 'utils/funcao_servico.dart';
 import 'widgets/dialogo_sheet.dart';
 import 'tutorial/botao_ajuda.dart';
 import 'widgets/imagem_app.dart';
+import 'services/areas_atuacao_service.dart';
 
 class ChatContatoInfo extends StatefulWidget {
   final int? idConversa;
@@ -215,10 +216,10 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
           .toList();
 
       if (idsOficios.isNotEmpty) {
-        final oficiosData = await _supabase
+        final oficiosData = AreasAtuacaoService.comoOficios(await _supabase
             .from('funcoes')
             .select(kColunasFuncaoComoOficio)
-            .inFilter('id_funcao', idsOficios);
+            .inFilter('id_funcao', idsOficios));
 
         final oficios = <OficioInfo>[];
         for (final row in oficiosData) {
@@ -233,6 +234,7 @@ class _ChatContatoInfoState extends State<ChatContatoInfo> {
           .from('servicos_profissional')
           .select('titulo')
           .eq('fk_profissional', idProfissional)
+          .eq('ativo', true)
           .limit(4);
 
       final titulos = servicos
