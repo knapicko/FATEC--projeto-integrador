@@ -1631,7 +1631,8 @@ class _TelaBuscaState extends State<TelaBusca> {
                                   const Color(0xFFE1F5FE),
                               profissional.tagEmpresaTextColor ?? _primaryBlue,
                             ),
-                          ...profissional.oficios.map(
+                          // Mostra os ofícios (não cada função).
+                          ...OficioInfo.soOficios(profissional.oficios).map(
                             (oficio) => TagOficio(
                               oficio: oficio,
                               fontSize: 10,

@@ -226,13 +226,39 @@ class _MeusEnderecosPageState extends State<MeusEnderecosPage>
   @override
   void initState() {
     super.initState();
-    _carregarEnderecos();
+    _carregarEnderecos().then((_) => _abrirAdicionarSeVazio());
   }
 
   @override
   void dispose() {
     _buscaController.dispose();
     super.dispose();
+  }
+
+  /// Sem nenhum endereço cadastrado, a lista vazia não ajuda: abre direto o
+  /// formulário de adicionar. Se a pessoa voltar sem salvar, sai também
+  /// desta tela (volta para onde estava antes).
+  Future<void> _abrirAdicionarSeVazio() async {
+    if (!mounted || widget.isVisitante || _erro || _enderecos.isNotEmpty) {
+      return;
+    }
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AdicionarEnderecoPage(
+          isVisitante: widget.isVisitante,
+          isProfissional: widget.isProfissional,
+          contaEmpresaAtiva: _contaEmpresaAtiva,
+          idGrupoEmpresa: _idGrupoEmpresa,
+          idProfissional: _idProfissional,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    await _carregarEnderecos();
+    if (mounted && !_erro && _enderecos.isEmpty) {
+      Navigator.maybePop(context);
+    }
   }
 
   Future<int?> _buscarIdUsuario(SupabaseClient supabase, String authId) async {

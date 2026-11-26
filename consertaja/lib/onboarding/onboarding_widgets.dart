@@ -600,6 +600,7 @@ class GoogleButton extends StatelessWidget {
                 children: [
                   ImagemApp(child: Image.asset(
                     'assets/images/icone/google-logo.png',
+                    semanticLabel: 'Logo do Google',
                     height: 22,
                   )),
                   const SizedBox(width: 12),
@@ -787,6 +788,7 @@ class CaixaCharacter extends StatelessWidget {
             height: size,
             child: ImagemApp(child: Image.asset(
               asset,
+              semanticLabel: 'Mascote do ConsertaJá, uma caixa de ferramentas sorridente',
               key: ValueKey(asset),
               fit: BoxFit.contain,
               gaplessPlayback: true,

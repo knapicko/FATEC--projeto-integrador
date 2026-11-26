@@ -3504,6 +3504,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional>
     } else if (_planoFundo.startsWith('assets/images/plano_fundo_chat/')) {
       backgroundWidget = ImagemApp(child: Image.asset(
         _planoFundo,
+        semanticLabel: 'Plano de fundo do chat',
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => _buildDoodleChatWidget(),
       ));
@@ -3566,6 +3567,7 @@ class _TelaChatProfissionalState extends State<TelaChatProfissional>
   Widget _buildDoodleChatWidget() {
     return ImagemApp(child: Image.asset(
       'assets/images/plano_fundo_chat/doodle_default.jpg',
+      semanticLabel: 'Plano de fundo do chat com desenhos de ferramentas',
       fit: BoxFit.cover,
       repeat: ImageRepeat.repeat,
       errorBuilder: (_, __, ___) => Container(color: const Color(0xFFF8FAFC)),

@@ -22,6 +22,9 @@ import 'services/stripe_pagamento_service.dart';
 import 'tutorial/botao_ajuda.dart';
 import 'widgets/imagem_app.dart';
 import 'utils/movimento.dart';
+import 'services/solicitacoes_service.dart';
+import 'widgets/aviso_prazo_entrega.dart';
+import 'widgets/seletor_data.dart';
 
 class TelaRecebeDevolucaoProfissionalPage extends StatefulWidget {
   final int idSolicitacao;
@@ -107,7 +110,11 @@ class _TelaRecebeDevolucaoProfissionalPageState
   int _quantidadeAnexos = 0;
   String _valorFinalFormatado = 'R\$ 180,00';
   double? _valorFinalNumerico;
-  final String _prazoDevolucao = '23 de setembro';
+  /// Prazo de entrega definido pelo profissional ao receber o produto
+  /// (v0_19). Passou do prazo com o serviço em andamento: cancela, o produto
+  /// volta ao cliente e o valor é estornado.
+  DateTime? _prazoEntrega;
+  bool _canceladoPorPrazo = false;
   String _codigoCorreto = '';
 
   // Controle de acoplamento do código (se está na seção original ou fixado na barra inferior)
@@ -235,13 +242,16 @@ class _TelaRecebeDevolucaoProfissionalPageState
   }
 
   Future<void> _carregarDados() async {
+    // Prazo de entrega vencido → cancela e manda para a devolução (v0_19).
+    await SolicitacoesService.verificarPrazosVencidos();
     try {
       final row = await _supabase
           .from('solicitacoes')
           .select(
             'id_solicitacao, valor_final, detalhes, data_agendada, tipo_execucao, '
             'codigo_rec_dev, fk_usuario, fk_servico_prof, fk_servico_temp, '
-            'fk_status, etapa_solicitacao, profissional_finalizado_atendimento',
+            'fk_status, etapa_solicitacao, profissional_finalizado_atendimento, '
+            'prazo_entrega, cancelado_por_prazo',
           )
           .eq('id_solicitacao', widget.idSolicitacao)
           .maybeSingle();
@@ -252,6 +262,8 @@ class _TelaRecebeDevolucaoProfissionalPageState
         _fkStatus = (row['fk_status'] as num?)?.toInt();
         _etapaSolicitacao = (row['etapa_solicitacao'] as num?)?.toInt() ?? 0;
         _codigoCorreto = row['codigo_rec_dev']?.toString().trim() ?? '';
+        _prazoEntrega = lerPrazoEntrega(row);
+        _canceladoPorPrazo = row['cancelado_por_prazo'] == true;
         final valor = row['valor_final'];
         if (valor != null) {
           final numVal = (valor as num).toDouble();
@@ -437,7 +449,10 @@ class _TelaRecebeDevolucaoProfissionalPageState
   bool get _podeConfirmar {
     final fotosObrigatoriasOk =
         _fotos.length >= 2 && _fotos[0] != null && _fotos[1] != null;
-    return !_ehDevolucao && fotosObrigatoriasOk && _codigoValido == true;
+    return !_ehDevolucao &&
+        fotosObrigatoriasOk &&
+        _prazoEntrega != null &&
+        _codigoValido == true;
   }
 
   Future<void> _confirmarColeta() async {
@@ -486,6 +501,16 @@ class _TelaRecebeDevolucaoProfissionalPageState
             'obs_do_prof': obs,
             'fk_status': _ehDevolucao ? 6 : 4,
             'etapa_solicitacao': _ehDevolucao ? 5 : 3,
+            // Fim do dia escolhido: depois disso, sem conclusão, cancela.
+            if (!_ehDevolucao && _prazoEntrega != null)
+              'prazo_entrega': DateTime(
+                _prazoEntrega!.year,
+                _prazoEntrega!.month,
+                _prazoEntrega!.day,
+                23,
+                59,
+                59,
+              ).toUtc().toIso8601String(),
             // O cronômetro conta a partir da mudança para "Em andamento".
             if (!_ehDevolucao) 'data_inicio_andamento': agoraIso,
             if (!_ehDevolucao) 'duracao_servico': 0,
@@ -708,6 +733,19 @@ class _TelaRecebeDevolucaoProfissionalPageState
                           const SizedBox(height: 14),
                           _buildCardDetalhesServico(),
                           const SizedBox(height: 14),
+                          if (!_ehDevolucao) ...[
+                            _buildCardPrazoEntrega(),
+                            const SizedBox(height: 14),
+                          ],
+                          if (_ehDevolucao && _canceladoPorPrazo) ...[
+                            AvisoPrazoEntrega(
+                              prazo: _prazoEntrega,
+                              canceladoPorPrazo: true,
+                              souCliente: false,
+                              tipoExecucao: widget.modalidade,
+                            ),
+                            const SizedBox(height: 14),
+                          ],
                           if (!_ehDevolucao) _buildCardRegistroEstado(),
                           const SizedBox(height: 14),
                           _buildCardCodigoLiberacao(),
@@ -1505,7 +1543,7 @@ class _TelaRecebeDevolucaoProfissionalPageState
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         const Text(
-                          'Prazo Devolução',
+                          'Prazo de entrega',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
@@ -1523,7 +1561,9 @@ class _TelaRecebeDevolucaoProfissionalPageState
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              _prazoDevolucao,
+                              _prazoEntrega == null
+                                  ? 'A definir'
+                                  : formatarPrazo(_prazoEntrega!),
                               style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w800,
@@ -1558,6 +1598,84 @@ class _TelaRecebeDevolucaoProfissionalPageState
           Text(
             'Foto do aparelho',
             style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================
+  // PRAZO DE ENTREGA (obrigatório para confirmar o recebimento)
+  // ==========================================
+  Future<void> _escolherPrazo() async {
+    final hoje = DateUtils.dateOnly(DateTime.now());
+    final escolhida = await escolherData(
+      context: context,
+      initialDate: _prazoEntrega ?? hoje.add(const Duration(days: 7)),
+      firstDate: hoje,
+      lastDate: hoje.add(const Duration(days: 180)),
+      helpText: 'Prazo de entrega',
+    );
+    if (escolhida != null && mounted) {
+      setState(() => _prazoEntrega = escolhida);
+    }
+  }
+
+  Widget _buildCardPrazoEntrega() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: _prazoEntrega == null ? const Color(0xFFF59E0B) : _cinzaBorda,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.event_rounded, color: _azul, size: 20),
+              SizedBox(width: 8),
+              Text(
+                'Prazo de entrega',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: _textoEscuro,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Até quando o serviço fica pronto? Se passar dessa data sem '
+            'concluir, o serviço é cancelado, o produto volta para o cliente e '
+            'o valor é estornado para ele.',
+            style: TextStyle(fontSize: 13, height: 1.35, color: _textoMuted),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _escolherPrazo,
+              icon: const Icon(Icons.calendar_month_rounded, size: 20),
+              label: Text(
+                _prazoEntrega == null
+                    ? 'Definir prazo de entrega'
+                    : 'Entrega até ${formatarPrazo(_prazoEntrega!)}',
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _azul,
+                side: const BorderSide(color: _azul, width: 1.4),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
           ),
         ],
       ),

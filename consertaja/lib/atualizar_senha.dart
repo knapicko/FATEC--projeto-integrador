@@ -261,6 +261,7 @@ class _AtualizarSenhaPageState extends State<AtualizarSenhaPage> {
                     ImagemApp(
                       child: Image.asset(
                         CaixaAssets.normal,
+                        semanticLabel: 'Mascote do ConsertaJá, uma caixa de ferramentas sorridente',
                         width: 130,
                         height: 130,
                         fit: BoxFit.contain,

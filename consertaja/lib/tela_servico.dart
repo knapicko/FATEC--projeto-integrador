@@ -1863,7 +1863,7 @@ class _TelaServicoState extends State<TelaServico>
                   ),
                   icon: const Icon(Icons.add, size: 20),
                   label: const Text(
-                    'Adicionar Serviço',
+                    'Adicionar à lista',
                     style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
                   ),
                 )),
@@ -2386,7 +2386,7 @@ class _TelaServicoState extends State<TelaServico>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Tipo de entrega',
+                        'Forma de atendimento',
                         style: TextStyle(
                           fontSize: 11.5,
                           color: Color(0xFF64748B),
@@ -2891,7 +2891,7 @@ class _TelaServicoState extends State<TelaServico>
                           ),
                         )
                       : const Text(
-                          'Adicionar Serviço',
+                          'Adicionar à lista',
                           style: TextStyle(
                             fontWeight: FontWeight.w800,
                             fontSize: 15,
@@ -3583,7 +3583,7 @@ class _TelaServicoState extends State<TelaServico>
           ),
           behavior: SnackBarBehavior.fixed,
           duration: const Duration(seconds: 3),
-          content: Text('Não foi possível identificar o usuário.'),
+          content: Text('Sua sessão expirou. Entre de novo para continuar.'),
         ),
       );
       return;
@@ -3708,7 +3708,7 @@ class _TelaServicoState extends State<TelaServico>
           behavior: SnackBarBehavior.fixed,
           duration: const Duration(seconds: 3),
           content: const Text(
-            'Serviço adicionado à sua lista com sucesso!',
+            'Serviço adicionado à lista.',
             style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
           ),
           backgroundColor: Color(0xFF0FB3FF),
@@ -3730,7 +3730,10 @@ class _TelaServicoState extends State<TelaServico>
     } catch (e) {
       messenger.showSnackBar(
         SnackBar(
-          content: Text('Erro ao adicionar serviço: $e'),
+          content: const Text(
+            'Não conseguimos adicionar o serviço. '
+            'Confira sua internet e tente de novo.',
+          ),
           backgroundColor: Colors.red,
         ),
       );

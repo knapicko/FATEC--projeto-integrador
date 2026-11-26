@@ -382,6 +382,7 @@ class _TelaMeuPerfilProfissionalPageState
     if (imageAsset != null) {
       leading = Image.asset(
         imageAsset,
+        excludeFromSemantics: true, // decorativa: o texto ao lado já descreve
         width: 24,
         height: 24,
         color: _iconGray,

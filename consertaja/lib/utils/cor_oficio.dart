@@ -26,6 +26,24 @@ class OficioInfo {
           : null,
     );
   }
+
+  /// Nome do ofício (categoria); cai na função quando não veio o ofício.
+  String get nomeOficio =>
+      (categoria?.isNotEmpty ?? false) ? categoria! : funcao;
+
+  /// Cards de profissional mostram os OFÍCIOS em que ele atua, não cada
+  /// função: agrupa a lista de funções por ofício, sem repetir, mantendo a
+  /// ordem. A tag passa a exibir o nome do ofício (com a cor dele).
+  static List<OficioInfo> soOficios(Iterable<OficioInfo> lista) {
+    final vistos = <String>{};
+    final resultado = <OficioInfo>[];
+    for (final o in lista) {
+      final nome = o.nomeOficio.trim();
+      if (nome.isEmpty || !vistos.add(nome.toLowerCase())) continue;
+      resultado.add(OficioInfo(funcao: nome, categoria: nome, cor: o.cor));
+    }
+    return resultado;
+  }
 }
 
 class CorOficio {

@@ -67,6 +67,7 @@ class CaixaFlutuante extends StatelessWidget {
   Widget _camada(String asset, {Color? tinta}) {
     return Image.asset(
       asset,
+      excludeFromSemantics: true, // camadas: o alt fica no conjunto (build)
       width: tamanho,
       height: tamanho,
       fit: BoxFit.contain,
@@ -92,59 +93,64 @@ class CaixaFlutuante extends StatelessWidget {
     final ferramentasGiro = math.sin(fase + 0.6) * 0.04 * f;
     final ferramentasOpacidade = (sobe * 1.6).clamp(0.0, 1.0);
 
-    // Ilustração: mantém as cores reais no modo escuro.
-    return CorOriginal(
-      child: SizedBox(
-        width: tamanho,
-        height: tamanho,
-        child: Stack(
-          children: [
-            if (abre < 1)
-              Opacity(
-                opacity: 1 - abre,
-                child: _camada(CaixaAnimacaoAssets.fechada),
-              ),
-            if (abre > 0) ...[
-              Opacity(
-                opacity: abre,
-                child: _camada(CaixaAnimacaoAssets.abertaFundo),
-              ),
-              if (ferramentasOpacidade > 0)
+    // Ilustração: mantém as cores reais no modo escuro. As camadas formam
+    // uma imagem só, então o alt fica aqui, uma vez.
+    return Semantics(
+      image: true,
+      label: 'Mascote do ConsertaJá, uma caixa de ferramentas sorridente',
+      child: CorOriginal(
+        child: SizedBox(
+          width: tamanho,
+          height: tamanho,
+          child: Stack(
+            children: [
+              if (abre < 1)
                 Opacity(
-                  opacity: ferramentasOpacidade,
-                  child: Transform.translate(
-                    offset: Offset(0, ferramentasY),
-                    child: Transform.rotate(
-                      angle: ferramentasGiro,
-                      origin: Offset(-12 * u, 40 * u),
-                      // Contorno na cor do fundo (mesma grossura das linhas
-                      // da caixa) + ferramentas brancas por cima.
-                      child: Stack(
-                        children: [
-                          _camada(
-                            CaixaAnimacaoAssets.ferramentasMascara,
-                            tinta: corFundo,
-                          ),
-                          _camada(CaixaAnimacaoAssets.ferramentas),
-                        ],
+                  opacity: 1 - abre,
+                  child: _camada(CaixaAnimacaoAssets.fechada),
+                ),
+              if (abre > 0) ...[
+                Opacity(
+                  opacity: abre,
+                  child: _camada(CaixaAnimacaoAssets.abertaFundo),
+                ),
+                if (ferramentasOpacidade > 0)
+                  Opacity(
+                    opacity: ferramentasOpacidade,
+                    child: Transform.translate(
+                      offset: Offset(0, ferramentasY),
+                      child: Transform.rotate(
+                        angle: ferramentasGiro,
+                        origin: Offset(-12 * u, 40 * u),
+                        // Contorno na cor do fundo (mesma grossura das linhas
+                        // da caixa) + ferramentas brancas por cima.
+                        child: Stack(
+                          children: [
+                            _camada(
+                              CaixaAnimacaoAssets.ferramentasMascara,
+                              tinta: corFundo,
+                            ),
+                            _camada(CaixaAnimacaoAssets.ferramentas),
+                          ],
+                        ),
                       ),
                     ),
                   ),
+                Opacity(
+                  opacity: abre,
+                  child: Stack(
+                    children: [
+                      _camada(
+                        CaixaAnimacaoAssets.abertaFrenteMascara,
+                        tinta: corFundo,
+                      ),
+                      _camada(CaixaAnimacaoAssets.abertaFrente),
+                    ],
+                  ),
                 ),
-              Opacity(
-                opacity: abre,
-                child: Stack(
-                  children: [
-                    _camada(
-                      CaixaAnimacaoAssets.abertaFrenteMascara,
-                      tinta: corFundo,
-                    ),
-                    _camada(CaixaAnimacaoAssets.abertaFrente),
-                  ],
-                ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

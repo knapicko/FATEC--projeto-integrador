@@ -107,6 +107,7 @@ class IconeOficio {
     }
     return ImagemApp(child: Image.asset(
       caminho,
+      semanticLabel: 'Ícone de ${categoria ?? 'serviço'}',
       width: tamanho,
       height: tamanho,
       fit: BoxFit.contain,
@@ -127,6 +128,7 @@ class IconeOficio {
     }
     return ImagemApp(child: Image.asset(
       caminho,
+      semanticLabel: 'Ícone de ${categoria ?? 'serviço'}',
       width: tamanho,
       height: tamanho,
       fit: BoxFit.contain,
@@ -148,6 +150,7 @@ class IconeOficio {
     }
     return ImagemApp(child: Image.asset(
       caminho,
+      semanticLabel: 'Ícone de ${funcao ?? 'serviço'}',
       width: tamanho,
       height: tamanho,
       fit: BoxFit.contain,
@@ -170,6 +173,7 @@ class IconeOficio {
     }
     return ImagemApp(child: Image.asset(
       caminho,
+      semanticLabel: 'Ícone de ${funcao ?? 'serviço'}',
       width: tamanho,
       height: tamanho,
       fit: BoxFit.contain,

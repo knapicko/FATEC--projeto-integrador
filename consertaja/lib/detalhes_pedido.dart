@@ -30,6 +30,8 @@ import 'tutorial/botao_ajuda.dart';
 import 'widgets/imagem_app.dart';
 import 'utils/movimento.dart';
 import 'services/app_settings_controller.dart';
+import 'services/solicitacoes_service.dart';
+import 'widgets/aviso_prazo_entrega.dart';
 
 class DetalhesPedidoPage extends StatefulWidget {
   final int idSolicitacao;
@@ -89,6 +91,11 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
   bool _carregando = true;
   bool _carregandoCliente = true;
   bool _confirmandoConclusao = false;
+
+  // Prazo de entrega (v0_19)
+  DateTime? _prazoEntrega;
+  bool _canceladoPorPrazo = false;
+  bool _pagamentoEstornado = false;
 
   /// Acompanha o pedido para liberar o "confirmar" assim que o profissional
   /// concluir (status/flag mudam no servidor).
@@ -215,6 +222,8 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
   }
 
   Future<void> _carregarDadosCompletos() async {
+    // Prazo de entrega vencido → cancela e manda para a devolução (v0_19).
+    await SolicitacoesService.verificarPrazosVencidos();
     setState(() {
       _carregando = true;
       _carregandoCliente = true;
@@ -273,6 +282,9 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
       _horaAgendadaFim = sol['hora_agendada_fim']?.toString();
 
       _etapaSolicitacao = (sol['etapa_solicitacao'] as num?)?.toInt() ?? 0;
+      _prazoEntrega = lerPrazoEntrega(sol);
+      _canceladoPorPrazo = sol['cancelado_por_prazo'] == true;
+      _pagamentoEstornado = sol['pagamento_estornado'] == true;
       _fkStatus = (sol['fk_status'] as num?)?.toInt() ?? 1;
       // Pedido concluído: o cliente vê a tela de serviço concluído.
       if (_fkStatus == StatusSolicitacao.concluido) {
@@ -1585,6 +1597,16 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage>
           ],
           alvoTut('situacao', _buildCardSituacaoPedido()),
           const SizedBox(height: 14),
+          if (_prazoEntrega != null || _canceladoPorPrazo) ...[
+            AvisoPrazoEntrega(
+              prazo: _prazoEntrega,
+              canceladoPorPrazo: _canceladoPorPrazo,
+              souCliente: true,
+              tipoExecucao: _tipoExecucao,
+              estornado: _pagamentoEstornado,
+            ),
+            const SizedBox(height: 14),
+          ],
           alvoTut('etapas', _buildCardIdEtapas()),
           const SizedBox(height: 14),
           if (_fkStatus != 1) ...[

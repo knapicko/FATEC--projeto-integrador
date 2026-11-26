@@ -626,6 +626,7 @@ class BotaoGoogleCircular extends StatelessWidget {
                   )
                 : ImagemApp(child: Image.asset(
                     'assets/images/icone/google-logo.png',
+                    semanticLabel: 'Logo do Google',
                     width: 26,
                     height: 26,
                   )),

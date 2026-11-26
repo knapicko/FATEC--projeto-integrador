@@ -147,6 +147,7 @@ class _EsqueciSenhaPageState extends State<EsqueciSenhaPage> {
               height: 150,
               child: ImagemApp(child: Image.asset(
                 'assets/images/caixa/caixa_normal.png',
+                semanticLabel: 'Mascote do ConsertaJá, uma caixa de ferramentas sorridente',
                 width: 150,
                 height: 150,
                 fit: BoxFit.contain,

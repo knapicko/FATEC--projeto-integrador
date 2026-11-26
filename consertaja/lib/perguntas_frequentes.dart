@@ -107,9 +107,12 @@ class _PerguntasFrequentesPageState extends State<PerguntasFrequentesPage> {
         _FaqItem(
           pergunta: 'Posso cancelar e receber reembolso?',
           resposta:
-              'Sim. Cancelamentos feitos com mais de 24 horas de antecedência '
-              'geram reembolso integral. Consulte nossos Termos de Uso para '
-              'mais detalhes.',
+              'O valor que você paga fica retido e só é liberado ao '
+              'profissional depois que o serviço é concluído. Ao receber o seu '
+              'produto, o profissional define um prazo de entrega: se o '
+              'serviço não ficar pronto até essa data, ele é cancelado, o '
+              'produto volta para você e o valor é estornado. O reembolso '
+              'acontece só nesse caso, quando o serviço não é concluído.',
         ),
         _FaqItem(
           pergunta: 'O pagamento é feito antes ou depois do serviço?',

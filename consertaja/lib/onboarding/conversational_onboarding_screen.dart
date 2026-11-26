@@ -1953,6 +1953,7 @@ class _CaixaFalanteState extends State<_CaixaFalante>
                   opacity: mostraQuadro && quadro == atual ? 1 : 0,
                   child: ImagemApp(child: Image.asset(
                     quadro,
+                    semanticLabel: 'Mascote do ConsertaJá falando',
                     fit: BoxFit.contain,
                     gaplessPlayback: true,
                   )),

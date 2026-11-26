@@ -1652,6 +1652,7 @@ class _PerfilLojaState extends State<PerfilLoja>
         _fotoUrlEmpresa!.startsWith('assets/')) {
       return ImagemApp(child: Image.asset(
         _fotoUrlEmpresa!,
+        semanticLabel: 'Foto da loja',
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) =>
             _buildImagemPadraoOuIniciais(),
@@ -2136,7 +2137,7 @@ class _PerfilLojaState extends State<PerfilLoja>
               backgroundImage: usaFotoRede ? NetworkImage(foto) : null,
               child: !usaFotoRede
                   ? (foto.isNotEmpty && foto.startsWith('assets/')
-                        ? ClipOval(child: ImagemApp(child: Image.asset(foto, fit: BoxFit.cover)))
+                        ? ClipOval(child: ImagemApp(child: Image.asset(foto, fit: BoxFit.cover, semanticLabel: 'Foto de perfil')))
                         : Text(
                             obterIniciais(nome),
                             style: const TextStyle(

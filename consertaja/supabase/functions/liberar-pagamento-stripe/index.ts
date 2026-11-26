@@ -6,7 +6,10 @@
 // - Pix: a Stripe já recebeu o valor na conta da plataforma; ele ficou retido
 //   lá e aqui só marcamos como liberado para o profissional.
 //
-// Idempotente: chamar de novo não captura duas vezes.
+// Cancelado por prazo (fk_status = 7 e cancelado_por_prazo, v0_19): em vez
+// de liberar, ESTORNA ao cliente (cartão: cancela a autorização; Pix: refund).
+//
+// Idempotente: chamar de novo não captura nem estorna duas vezes.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders, json, stripeRequest, supabasePublishableKey, supabaseSecretKey } from '../_shared/stripe.ts';
 
@@ -34,7 +37,7 @@ Deno.serve(async (request) => {
 
     const { data: sol } = await admin
       .from('solicitacoes')
-      .select('id_solicitacao, fk_status, fk_usuario, fk_profissional, fk_grupo_empresa, pagamento_liberado')
+      .select('id_solicitacao, fk_status, fk_usuario, fk_profissional, fk_grupo_empresa, pagamento_liberado, cancelado_por_prazo, pagamento_estornado')
       .eq('id_solicitacao', id)
       .maybeSingle();
     if (!sol) return json({ error: 'Solicitação não encontrada.' }, 404);
@@ -52,16 +55,55 @@ Deno.serve(async (request) => {
     }
     if (!participa) return json({ error: 'Solicitação não encontrada.' }, 404);
 
-    if (Number(sol.fk_status) !== 6) {
-      return json({ liberado: false, motivo: 'O serviço ainda não foi concluído pelos dois lados.' });
-    }
-    if (sol.pagamento_liberado) return json({ liberado: true });
-
     const { data: pagamento } = await admin
       .from('pagamentos_stripe')
       .select('stripe_payment_intent_id, status')
       .eq('fk_solicitacao', id)
       .maybeSingle();
+
+    // Cancelado por prazo (v0_19): o serviço NÃO foi concluído e o produto
+    // já voltou ao cliente → o valor retido é estornado. Único caso de
+    // reembolso. Cartão retido: cancela a autorização (nada é cobrado).
+    // Pix (já recebido): reembolso.
+    if (Number(sol.fk_status) === 7 && sol.cancelado_por_prazo) {
+      if (sol.pagamento_estornado) return json({ liberado: false, estornado: true });
+      if (sol.pagamento_liberado) {
+        return json({ liberado: true, estornado: false, motivo: 'O pagamento já foi liberado.' });
+      }
+      const intentId = pagamento?.stripe_payment_intent_id;
+      let novoStatus: string | undefined = pagamento?.status;
+      if (intentId && pagamento?.status === 'requires_capture') {
+        const intent = await stripeRequest(
+          `payment_intents/${intentId}/cancel`,
+          new URLSearchParams({ cancellation_reason: 'abandoned' }),
+          `consertaja-cancela-${id}`,
+        );
+        novoStatus = intent.status;
+      } else if (intentId && pagamento?.status === 'succeeded') {
+        await stripeRequest(
+          'refunds',
+          new URLSearchParams({ payment_intent: intentId, reason: 'requested_by_customer' }),
+          `consertaja-estorno-${id}`,
+        );
+        novoStatus = 'refunded';
+      }
+      if (pagamento) {
+        await admin
+          .from('pagamentos_stripe')
+          .update({ status: novoStatus, data_atualizacao: new Date().toISOString() })
+          .eq('fk_solicitacao', id);
+      }
+      await admin
+        .from('solicitacoes')
+        .update({ pagamento_estornado: true, data_pagamento_estornado: new Date().toISOString() })
+        .eq('id_solicitacao', id);
+      return json({ liberado: false, estornado: true });
+    }
+
+    if (Number(sol.fk_status) !== 6) {
+      return json({ liberado: false, motivo: 'O serviço ainda não foi concluído pelos dois lados.' });
+    }
+    if (sol.pagamento_liberado) return json({ liberado: true });
 
     if (pagamento?.status === 'requires_capture' && pagamento.stripe_payment_intent_id) {
       const intent = await stripeRequest(

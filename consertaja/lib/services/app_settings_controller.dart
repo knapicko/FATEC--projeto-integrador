@@ -39,6 +39,8 @@ class AppSettingsController extends ChangeNotifier {
     'accessibility.reduceTransparency': false,
     'accessibility.readability': true,
     'accessibility.largerTargets': false,
+    'accessibility.readAloud': false,
+    'accessibility.libras': false,
     'appearance.theme': 'Claro',
     'appearance.density': 'Padrão',
     'appearance.dimImages': false,
@@ -151,6 +153,12 @@ class AppSettingsController extends ChangeNotifier {
   bool get reduzirTransparencias => _bool('accessibility.reduceTransparency');
   bool get melhorarLegibilidade => _bool('accessibility.readability');
   bool get alvosMaiores => _bool('accessibility.largerTargets');
+
+  /// Botão flutuante que lê em voz alta o texto da tela (flutter_tts).
+  bool get leituraVozAlta => _bool('accessibility.readAloud');
+
+  /// Botão flutuante que traduz o texto da tela para Libras (VLibras).
+  bool get libras => _bool('accessibility.libras');
 
   // Preferências de uso
   bool get usarLocalizacaoAtual => _bool('preferences.useCurrentLocation');

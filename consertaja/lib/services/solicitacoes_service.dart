@@ -5,6 +5,23 @@ class SolicitacoesService {
 
   static final _supabase = Supabase.instance.client;
 
+  static DateTime? _ultimaVerificacaoPrazos;
+
+  /// Cancela os pedidos EM ANDAMENTO cujo prazo de entrega venceu (RPC
+  /// `cancelar_solicitacoes_vencidas`, SQL v0_19): eles vão para a
+  /// devolução e, no fim, o valor é estornado ao cliente. Chamado ao abrir
+  /// as listas e os detalhes; no máximo uma vez por minuto. Erros (ex.: SQL
+  /// ainda não rodado) são ignorados.
+  static Future<void> verificarPrazosVencidos() async {
+    final agora = DateTime.now();
+    final ultima = _ultimaVerificacaoPrazos;
+    if (ultima != null && agora.difference(ultima).inSeconds < 60) return;
+    _ultimaVerificacaoPrazos = agora;
+    try {
+      await _supabase.rpc('cancelar_solicitacoes_vencidas');
+    } catch (_) {}
+  }
+
   static Future<List<Map<String, dynamic>>> buscarParaProfissional(
     int idProfissional,
   ) async {

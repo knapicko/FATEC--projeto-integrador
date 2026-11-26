@@ -19,6 +19,8 @@ import 'utils/voltar_fluxo_solicitacao.dart';
 import 'widgets/dialogo_sheet.dart';
 import 'tutorial/botao_ajuda.dart';
 import 'widgets/imagem_app.dart';
+import 'services/solicitacoes_service.dart';
+import 'widgets/aviso_prazo_entrega.dart';
 
 class SolicitacaoEmAndamentoPage extends StatefulWidget {
   final int idSolicitacao;
@@ -105,6 +107,10 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
   bool _pausado = false;
   DateTime? _dataInicio;
 
+  // Prazo de entrega (v0_19)
+  DateTime? _prazoEntrega;
+  bool _canceladoPorPrazo = false;
+
   @override
   void initState() {
     super.initState();
@@ -119,6 +125,8 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
   }
 
   Future<void> _carregarDadosSolicitacao() async {
+    // Prazo de entrega vencido → cancela e manda para a devolução (v0_19).
+    await SolicitacoesService.verificarPrazosVencidos();
     try {
       final res = await _supabase
           .from('solicitacoes')
@@ -203,6 +211,8 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
 
         // Duração e estado de pausa
         _pausado = res['andamento_pausado'] == true;
+        _prazoEntrega = lerPrazoEntrega(res);
+        _canceladoPorPrazo = res['cancelado_por_prazo'] == true;
         final duracaoSalva = (res['duracao_servico'] as num?)?.toInt() ?? 0;
 
         if (res['data_inicio_andamento'] != null) {
@@ -894,6 +904,15 @@ class _SolicitacaoEmAndamentoPageState extends State<SolicitacaoEmAndamentoPage>
                 children: [
                   _buildSecaoModalidadeEEtapa(),
                   const SizedBox(height: 16),
+                  if (_prazoEntrega != null || _canceladoPorPrazo) ...[
+                    AvisoPrazoEntrega(
+                      prazo: _prazoEntrega,
+                      canceladoPorPrazo: _canceladoPorPrazo,
+                      souCliente: false,
+                      tipoExecucao: widget.modalidade,
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   _buildSecaoCliente(),
                   const SizedBox(height: 16),
                   _buildSecaoBancadaTecnica(),

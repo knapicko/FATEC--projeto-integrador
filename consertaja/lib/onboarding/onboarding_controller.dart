@@ -580,7 +580,7 @@ class OnboardingController extends ChangeNotifier {
         await _transicionar(
           documentoCadastrado
               ? OnboardingStep.loginOrOther
-              : OnboardingStep.continueOrLogin,
+              : OnboardingStep.perfect,
         );
       case OnboardingStep.perfect:
         await _transicionar(OnboardingStep.chooseAccountPrompt);
@@ -658,7 +658,14 @@ class OnboardingController extends ChangeNotifier {
     documentoCadastrado = await _service.documentoJaCadastrado(documento.text);
     identificadorLogin.text = formatarCpfOuCnpj(documento.text);
     carregando = false;
-    await _transicionar(OnboardingStep.documentResult);
+    // Documento novo: segue direto para o cadastro (perguntar "continuar ou
+    // entrar?" seria redundante). O aviso "Identifiquei que..." só aparece
+    // quando o CPF/CNPJ já tem conta.
+    await _transicionar(
+      documentoCadastrado
+          ? OnboardingStep.documentResult
+          : OnboardingStep.perfect,
+    );
   }
 
   void _aplicarEmpresa(DadosEmpresaCnpj empresa) {

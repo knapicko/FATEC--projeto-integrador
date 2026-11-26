@@ -93,6 +93,7 @@ O Conserta Já foi pensado especialmente para valorizar profissões tradicionais
                   ),
                   child: ImagemApp(child: Image.asset(
                     'assets/images/caixa/caixa_normal.png',
+                    semanticLabel: 'Mascote do ConsertaJá, uma caixa de ferramentas sorridente',
                     fit: BoxFit.contain,
                   )),
                 )),

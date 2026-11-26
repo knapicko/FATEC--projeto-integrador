@@ -2092,6 +2092,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
         case _TipoFundo.asset:
           backgroundWidget = ImagemApp(child: Image.asset(
             op.assetPath!,
+            semanticLabel: 'Plano de fundo do chat',
             fit: BoxFit.cover,
             errorBuilder: (_, _, _) => _buildDoodleWidget(),
           ));
@@ -2142,6 +2143,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
   Widget _buildDoodleWidget() {
     return ImagemApp(child: Image.asset(
       _doodleDefaultAsset,
+      semanticLabel: 'Plano de fundo do chat com desenhos de ferramentas',
       fit: BoxFit.cover,
       repeat: ImageRepeat.repeat,
       errorBuilder: (context, error, stackTrace) {
@@ -2161,6 +2163,7 @@ class _AlterarTemaChatState extends State<AlterarTemaChat> {
       case _TipoFundo.asset:
         return ImagemApp(child: Image.asset(
           opcao.assetPath!,
+          semanticLabel: 'Plano de fundo do chat',
           fit: BoxFit.cover,
           errorBuilder: (_, _, _) => _buildDoodleWidget(),
         ));

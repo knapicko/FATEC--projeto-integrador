@@ -768,6 +768,7 @@ class _PagamentoPedidoPageState extends State<PagamentoPedidoPage>
               conteudo: [
                 'Confira o serviço, os valores e o endereço, e escolha a forma de pagamento.',
                 'O valor fica retido e só vai para o profissional quando o serviço for concluído.',
+                'Se o serviço não ficar pronto no prazo de entrega, ele é cancelado, o produto volta para você e o valor é estornado.',
               ],
             ),
           ),

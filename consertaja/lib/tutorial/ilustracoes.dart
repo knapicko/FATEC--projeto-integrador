@@ -9,12 +9,22 @@ const _verde = Color(0xFF16A34A);
 
 /// Cartão branco onde as ilustrações ficam (o fundo do tutorial é escuro).
 class _Cartao extends StatelessWidget {
-  const _Cartao({required this.child});
+  const _Cartao({required this.child, required this.descricao});
 
   final Widget child;
 
+  /// Texto alternativo (alt) da ilustração, lido pelo leitor de tela.
+  final String descricao;
+
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => Semantics(
+    image: true,
+    label: descricao,
+    excludeSemantics: true,
+    child: _conteudo(context),
+  );
+
+  Widget _conteudo(BuildContext context) => Container(
     width: math.min(MediaQuery.of(context).size.width - 48, 320),
     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
     decoration: BoxDecoration(
@@ -170,6 +180,7 @@ class _IlustracaoRadarState extends State<IlustracaoRadar>
 
   @override
   Widget build(BuildContext context) => _Cartao(
+    descricao: 'Ilustração do Radar: profissionais próximos aparecendo no mapa ao redor do seu endereço',
     child: AnimatedBuilder(
       animation: _c,
       builder: (context, _) {
@@ -246,6 +257,7 @@ class _IlustracaoTrocaContaState extends State<IlustracaoTrocaConta>
 
   @override
   Widget build(BuildContext context) => _Cartao(
+    descricao: 'Ilustração da troca de conta: alternando entre a loja e a conta de profissional independente',
     child: AnimatedBuilder(
       animation: _c,
       builder: (context, _) {
@@ -325,6 +337,7 @@ class _IlustracaoEquipeState extends State<IlustracaoEquipe>
 
   @override
   Widget build(BuildContext context) => _Cartao(
+    descricao: 'Ilustração da equipe: a loja e os profissionais ligados a ela',
     child: AnimatedBuilder(
       animation: _c,
       builder: (context, _) {

@@ -30,6 +30,7 @@ import 'tutorial/tutorial_da_tela.dart';
 import 'tutorial/botao_ajuda.dart';
 import 'widgets/imagem_app.dart';
 import 'utils/movimento.dart';
+import 'services/solicitacoes_service.dart';
 
 class PedidoCliente {
   final int id;
@@ -179,6 +180,8 @@ class MeusPedidosState extends State<MeusPedidosPage>
   }
 
   Future<List<PedidoCliente>> buscarPedidos(int idUsuario) async {
+    // Prazo de entrega vencido → cancela e manda para a devolução (v0_19).
+    await SolicitacoesService.verificarPrazosVencidos();
     final linhas = await db
         .from('solicitacoes')
         .select(

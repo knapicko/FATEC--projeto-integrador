@@ -49,8 +49,8 @@ class NotificacaoFeedback {
   static Future<void> solicitacaoEnviada({int quantidade = 1}) {
     return _mostrar(
       titulo: quantidade > 1
-          ? 'Solicitações enviadas!'
-          : 'Solicitação enviada!',
+          ? 'Pedidos enviados!'
+          : 'Pedido enviado!',
       conteudo: quantidade > 1
           ? 'Os $quantidade profissionais foram avisados! Agora é só aguardar o retorno.'
           : 'O profissional foi avisado! Agora é só aguardar o retorno.',

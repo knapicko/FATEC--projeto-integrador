@@ -209,6 +209,8 @@ class _MeusServicosSolicitadosPageState
   }
 
   Future<void> _carregar() async {
+    // Prazo de entrega vencido → cancela e manda para a devolução (v0_19).
+    await SolicitacoesService.verificarPrazosVencidos();
     setState(() {
       _carregando = true;
       _erro = null;

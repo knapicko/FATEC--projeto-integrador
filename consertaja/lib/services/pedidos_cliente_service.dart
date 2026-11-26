@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'solicitacoes_service.dart';
 
 SupabaseClient get _db => Supabase.instance.client;
 
@@ -76,6 +77,8 @@ class PedidosClienteService {
 
   /// Todas as solicitações do cliente logado, mais recentes primeiro.
   static Future<List<PedidoResumo>> listar({List<int>? ids}) async {
+    // Prazo de entrega vencido → cancela e manda para a devolução (v0_19).
+    await SolicitacoesService.verificarPrazosVencidos();
     final idUsuario = await meuIdUsuario();
     if (idUsuario == null) return const [];
     var q = _db

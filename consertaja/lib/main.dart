@@ -14,6 +14,7 @@ import 'tela_inicial.dart';
 import 'services/verificacao_online.dart';
 import 'utils/app_navigation_util.dart';
 import 'widgets/codigo_flutuante.dart';
+import 'widgets/assistente_acessibilidade.dart';
 import 'package:flutter/services.dart';
 import 'widgets/imagem_app.dart';
 import 'services/rede_service.dart';
@@ -220,6 +221,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             children: [
               child ?? const SizedBox.shrink(),
               const CodigoFlutuante(),
+              // Leitura em voz alta e Libras (Configurações → Acessibilidade).
+              const AssistenteAcessibilidade(),
             ],
           ),
         ),
@@ -251,6 +254,7 @@ class _StartupSplash extends StatelessWidget {
           children: [
             ImagemApp(child: Image.asset(
               'assets/images/icone/icone_consertaja.png',
+              semanticLabel: 'Ícone do ConsertaJá',
               width: 92,
               height: 92,
               fit: BoxFit.contain,

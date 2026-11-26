@@ -28,7 +28,7 @@ import 'widgets/imagem_app.dart';
 import 'widgets/skeleton_loading.dart';
 
 /// Versão mostrada no rodapé das configurações.
-const String kVersaoApp = '0.7.0';
+const String kVersaoApp = '0.8.0';
 
 class TelaConfiguracoesClientePage extends StatefulWidget {
   const TelaConfiguracoesClientePage({super.key});
@@ -579,7 +579,7 @@ class _TelaConfiguracoesClientePageState
       tipo(
         'notifications.feedback',
         'Confirmações das suas ações',
-        'Ex.: "Solicitação enviada!" logo depois de enviar',
+        'Ex.: "Pedido enviado!" logo depois de enviar',
       ),
       tipo(
         'notifications.promotions',
@@ -742,6 +742,20 @@ class _TelaConfiguracoesClientePageState
       key: 'accessibility.reduceTransparency',
       title: 'Reduzir transparências',
       description: 'Troca desfoques e fundos transparentes por fundos sólidos',
+    ),
+    _switchEntry(
+      key: 'accessibility.readAloud',
+      title: 'Leitura em voz alta',
+      description:
+          'Mostra um botão que lê em voz alta os textos da tela que está '
+          'aberta',
+    ),
+    _switchEntry(
+      key: 'accessibility.libras',
+      title: 'Tradução para Libras',
+      description:
+          'Mostra um botão que traduz os textos da tela para Libras com o '
+          'VLibras (precisa de internet)',
     ),
   ];
 
@@ -1850,6 +1864,7 @@ class _TelaConfiguracoesClientePageState
             child: ImagemApp(
               child: Image.asset(
                 'assets/images/icone/icone_consertaja.png',
+                semanticLabel: 'Ícone do ConsertaJá',
                 fit: BoxFit.contain,
                 errorBuilder: (_, _, _) => const Icon(
                   Icons.handyman_rounded,

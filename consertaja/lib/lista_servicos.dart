@@ -16,6 +16,7 @@ import 'services/requisitos_conta.dart';
 import 'widgets/formas_pagamento.dart';
 import 'tela_chat_profissional.dart';
 import 'tela_mensagens.dart';
+import 'meus_pedidos.dart';
 import 'tutorial/botao_ajuda.dart';
 import 'widgets/imagem_app.dart';
 import 'services/app_settings_controller.dart';
@@ -934,7 +935,7 @@ class _ListaServicosState extends State<ListaServicos> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Enviar'),
+            child: const Text('Enviar pedido'),
           ),
         ],
       ),
@@ -1073,11 +1074,14 @@ class _ListaServicosState extends State<ListaServicos> {
       ListaServicosService.instance.atualizar();
 
       if (!mounted) return;
-      Navigator.of(context).popUntil((route) => route.isFirst);
+      // Guarda o Navigator antes de sair: esta tela é descartada no popUntil,
+      // então o aviso é aberto pelo contexto do Navigator (que continua vivo).
+      final navigator = Navigator.of(context);
+      navigator.popUntil((route) => route.isFirst);
       // A home é a primeira rota; o sheet é exibido sobre ela.
       Future.delayed(const Duration(milliseconds: 350), () {
-        if (!mounted) return;
-        _exibirSheetSolicitacaoEnviada(enviados);
+        if (!navigator.mounted) return;
+        _exibirSheetSolicitacaoEnviada(navigator.context, enviados);
       });
     } catch (e) {
       if (mounted) {
@@ -1099,7 +1103,10 @@ class _ListaServicosState extends State<ListaServicos> {
 
   /// Abre o chat com o profissional/loja do pedido (se forem vários
   /// profissionais, abre a lista de conversas).
-  void _conversarNoChat(List<ItemServicoLista> enviados) {
+  void _conversarNoChat(
+    NavigatorState navigator,
+    List<ItemServicoLista> enviados,
+  ) {
     final contas = {
       for (final i in enviados)
         i.idGrupoEmpresa != null
@@ -1120,12 +1127,16 @@ class _ListaServicosState extends State<ListaServicos> {
     } else {
       destino = const TelaMensagensPage();
     }
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => destino));
+    navigator.push(MaterialPageRoute(builder: (_) => destino));
   }
 
-  void _exibirSheetSolicitacaoEnviada(List<ItemServicoLista> enviados) {
+  void _exibirSheetSolicitacaoEnviada(
+    BuildContext contexto,
+    List<ItemServicoLista> enviados,
+  ) {
+    final navigator = Navigator.of(contexto);
     showModalBottomSheet(
-      context: context,
+      context: contexto,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         return Container(
@@ -1161,7 +1172,7 @@ class _ListaServicosState extends State<ListaServicos> {
               ),
               const SizedBox(height: 16),
               const Text(
-                'Solicitação enviada!',
+                'Pedido enviado!',
                 style: TextStyle(
                   fontSize: 19,
                   fontWeight: FontWeight.w800,
@@ -1170,7 +1181,7 @@ class _ListaServicosState extends State<ListaServicos> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Foi enviada uma solicitação de serviço ao profissional e você deve aguardar o profissional responder.',
+                'Avisaremos quando o profissional responder.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 14, color: _textoMuted, height: 1.4),
               ),
@@ -1220,7 +1231,14 @@ class _ListaServicosState extends State<ListaServicos> {
                 width: double.infinity,
                 height: 48,
                 child: CorOriginal(interface: true, child: ElevatedButton(
-                  onPressed: () => Navigator.pop(ctx),
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    navigator.push(
+                      MaterialPageRoute(
+                        builder: (_) => const MeusPedidosPage(),
+                      ),
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _azul,
                     foregroundColor: Colors.white,
@@ -1230,7 +1248,7 @@ class _ListaServicosState extends State<ListaServicos> {
                     ),
                   ),
                   child: const Text(
-                    'Entendido',
+                    'Ver meus pedidos',
                     style: TextStyle(fontWeight: FontWeight.w800),
                   ),
                 )),
@@ -1242,7 +1260,7 @@ class _ListaServicosState extends State<ListaServicos> {
                 child: OutlinedButton.icon(
                   onPressed: () {
                     Navigator.pop(ctx);
-                    _conversarNoChat(enviados);
+                    _conversarNoChat(navigator, enviados);
                   },
                   icon: const Icon(Icons.chat_rounded, size: 20),
                   label: const Text(
@@ -1768,7 +1786,7 @@ class _ListaServicosState extends State<ListaServicos> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Produtos ($count): $totalFormatado',
+                      'Serviços ($count): $totalFormatado',
                       style: const TextStyle(
                         color: Color(0xFF334155),
                         fontSize: 16,
@@ -1905,7 +1923,7 @@ class _ListaServicosState extends State<ListaServicos> {
             ),
             const SizedBox(height: 16),
             const Text(
-              'Sua lista de serviços está vazia',
+              'Sua lista está vazia.',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -1914,9 +1932,32 @@ class _ListaServicosState extends State<ListaServicos> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Adicione serviços para agendar e contratar.',
+              'Escolha um serviço e toque em Adicionar à lista.',
               textAlign: TextAlign.center,
               style: TextStyle(color: _textoMuted),
+            ),
+            const SizedBox(height: 20),
+            // Volta para a Home, onde ficam a busca e as categorias.
+            ElevatedButton.icon(
+              onPressed: () =>
+                  Navigator.of(context).popUntil((route) => route.isFirst),
+              icon: const Icon(Icons.search_rounded, size: 20),
+              label: const Text(
+                'Buscar serviços',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _azul,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 14,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
             ),
           ],
         ),

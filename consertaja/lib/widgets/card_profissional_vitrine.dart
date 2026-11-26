@@ -56,6 +56,9 @@ class ProfissionalVitrine {
   }
 
   String get chave => ehEmpresa ? 'e$idGrupoEmpresa' : 'p$idProfissional';
+
+  /// Ofícios em que atua (os cards mostram o ofício, não cada função).
+  List<OficioInfo> get oficios => OficioInfo.soOficios(funcoes);
 }
 
 void abrirPerfilVitrine(BuildContext context, ProfissionalVitrine p) {
@@ -72,8 +75,8 @@ void abrirPerfilVitrine(BuildContext context, ProfissionalVitrine p) {
           : PerfilProfissionalPage(
               nomeInicial: p.nome,
               imagemInicial: p.foto ?? '',
-              profissao: p.funcoes.isNotEmpty
-                  ? p.funcoes.first.funcao
+              profissao: p.oficios.isNotEmpty
+                  ? p.oficios.first.funcao
                   : 'Profissional independente',
               avaliacao: p.nota,
               totalAvaliacoes: p.totalAvaliacoes,
@@ -90,7 +93,7 @@ void conversarComVitrine(BuildContext context, ProfissionalVitrine p) {
       builder: (_) => TelaChatProfissional(
         nomeProfissional: p.nome,
         fotoProfissional: p.foto ?? '',
-        oficioPrincipal: p.funcoes.isNotEmpty ? p.funcoes.first.funcao : '',
+        oficioPrincipal: p.oficios.isNotEmpty ? p.oficios.first.funcao : '',
         idProfissional: p.ehEmpresa ? null : p.idProfissional,
         idGrupoEmpresa: p.ehEmpresa ? p.idGrupoEmpresa : null,
       ),
@@ -139,6 +142,7 @@ class CardProfissionalVitrine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final oficios = p.oficios;
     final foto = p.foto ?? '';
     final km = p.distanciaKm;
     final distancia = km == null
@@ -334,10 +338,10 @@ class CardProfissionalVitrine extends StatelessWidget {
             height: 26,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              itemCount: p.funcoes.length,
+              itemCount: oficios.length,
               separatorBuilder: (_, _) => const SizedBox(width: 6),
               itemBuilder: (_, i) => TagOficio(
-                oficio: p.funcoes[i],
+                oficio: oficios[i],
                 fontSize: 11.5,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
